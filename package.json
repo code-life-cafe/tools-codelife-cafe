@@ -51,9 +51,9 @@
     "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.8",
-    "@biomejs/biome": "2.4.12",
-    "@playwright/test": "^1.59.1",
+    "@astrojs/check": "^0.9.9",
+    "@biomejs/biome": "2.4.15",
+    "@playwright/test": "^1.60.0",
     "@types/encoding-japanese": "^2.2.1",
     "@types/papaparse": "^5.5.2"
   }
