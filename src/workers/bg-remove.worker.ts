@@ -11,6 +11,12 @@ if (typeof location !== 'undefined' && location.hostname !== 'localhost') {
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
+// WASMスレッド制限の回避: マルチスレッドとプロキシをオフにし、
+// cdn.jsdelivr.net からのスレッド動的モジュールインポートによるCSPエラーを完全に防止する。
+env.backends.onnx.wasm.numThreads = 1;
+env.backends.onnx.wasm.simd = true;
+env.backends.onnx.wasm.proxy = false;
+
 // フェッチが中断された場合などのWorker内未処理拒否をサイレントに抑制
 self.addEventListener('unhandledrejection', (event) => {
 	event.preventDefault();
