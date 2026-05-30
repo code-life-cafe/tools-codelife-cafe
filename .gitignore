@@ -36,3 +36,7 @@ report.json
 
 # Superpowers brainstorming
 .superpowers/
+docs/superpowers/
+
+# Wrangler local dev
+.wrangler/

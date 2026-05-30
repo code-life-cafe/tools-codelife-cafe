@@ -6,7 +6,7 @@
 
 🔗 **[https://tools.codelife.cafe](https://tools.codelife.cafe)**
 
-## 📦 収録ツール（17種）
+## 📦 収録ツール（18種）
 
 ### テキスト処理
 
@@ -31,6 +31,7 @@
 
 | ツール | 説明 |
 |--------|------|
+| [背景削除](/bg-remove) | AIがブラウザ内で画像の背景を自動削除。差し替えにも対応（完全ローカル実行） |
 | [QRコード生成](/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
 | [Base64エンコード/デコード](/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
@@ -70,6 +71,37 @@
 | `npm run build` | 本番用に静的ビルド＋SW生成（`dist/`） |
 | `npm run preview` | ビルド結果をローカルプレビュー |
 | `npx playwright test --headed` | E2Eテストを実行（ブラウザ表示あり） |
+
+## 🚀 Cloudflare R2 モデル配信
+
+背景削除ツールの AI モデルは **`models.tools.codelife.cafe`**（Cloudflare R2）から配信されます。
+
+| バケット | `codelife-models` |
+|---|---|
+| カスタムドメイン | `https://models.tools.codelife.cafe` |
+| CORS | `tools.codelife.cafe`, `localhost:4321` |
+
+**配信済みモデル:**
+- `onnx-community/modnet-webnn/resolve/main/onnx/model.onnx` — 25.9MB (MODNet fp32)
+- `onnx-community/BEN2-ONNX/resolve/main/onnx/model_fp16.onnx` — 219MB (BEN2 fp16)
+
+ローカル開発時（`localhost`）は HuggingFace CDN に自動フォールバックします。
+
+### モデルを再アップロードする場合
+
+```bash
+bash scripts/upload-models-to-r2.sh codelife-models
+```
+
+### CORS 設定を変更する場合
+
+`scripts/r2-cors.json` を編集してから:
+
+```bash
+wrangler r2 bucket cors set codelife-models --file scripts/r2-cors.json
+```
+
+---
 
 ## 📄 ライセンス
 

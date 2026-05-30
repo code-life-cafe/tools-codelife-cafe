@@ -25,7 +25,7 @@ const schema = {
   path="/phone-formatter"
 >
   <Fragment slot="head">
-    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
   </Fragment>
 
   <div class="mt-8">
