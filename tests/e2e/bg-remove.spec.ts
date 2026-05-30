@@ -2,11 +2,12 @@ import { expect, test } from './fixtures/base';
 
 test.describe('背景削除ツール', () => {
 	test.beforeEach(async ({ page }) => {
-		// AIモデルのダウンロードリクエストをブロック（Worker含む）
-		await page.route('**/*.onnx*', (route) => route.abort());
-		await page.route('**/*huggingface*', (route) => route.abort());
-		await page.route('**/*hf.co*', (route) => route.abort());
-		await page.route('**/*models.tools.codelife*', (route) => route.abort());
+		// AIモデルのダウンロードリクエストをブロック（Worker含む: context.route でWorkerリクエストも捕捉）
+		const context = page.context();
+		await context.route('**/*.onnx*', (route) => route.abort());
+		await context.route('**/*huggingface*', (route) => route.abort());
+		await context.route('**/*hf.co*', (route) => route.abort());
+		await context.route('**/*models.tools.codelife*', (route) => route.abort());
 		// React Island のハイドレーション完了後にアサートできるよう domcontentloaded で待機
 		await page.goto('/bg-remove', { waitUntil: 'domcontentloaded' });
 		// ドロップゾーンが表示されるまで待つ（Reactハイドレーション完了の目印）

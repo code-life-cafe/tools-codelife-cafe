@@ -11,6 +11,11 @@ if (typeof location !== 'undefined' && location.hostname !== 'localhost') {
 env.allowLocalModels = false;
 env.useBrowserCache = true;
 
+// フェッチが中断された場合などのWorker内未処理拒否をサイレントに抑制
+self.addEventListener('unhandledrejection', (event) => {
+	event.preventDefault();
+});
+
 // --- モデルレジストリ ---
 const MODELS = {
 	fast: {
