@@ -83,6 +83,7 @@ export default function BgRemove() {
 	const [isDragOver, setIsDragOver] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const dropZoneRef = useRef<HTMLButtonElement>(null);
+	const compositeUrlRef = useRef<string | null>(null);
 
 	// --- 先行初期化 ---
 	useEffect(() => {
@@ -94,10 +95,20 @@ export default function BgRemove() {
 	useEffect(() => {
 		return () => {
 			if (sourceUrl) URL.revokeObjectURL(sourceUrl);
-			if (resultUrl) URL.revokeObjectURL(resultUrl);
-			if (compositeUrl) URL.revokeObjectURL(compositeUrl);
 		};
-	}, [sourceUrl, resultUrl, compositeUrl]);
+	}, [sourceUrl]);
+
+	useEffect(() => {
+		return () => {
+			if (resultUrl) URL.revokeObjectURL(resultUrl);
+		};
+	}, [resultUrl]);
+
+	useEffect(() => {
+		return () => {
+			if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
+		};
+	}, []);
 
 	// --- ファイル検証 ---
 	const validateFile = useCallback((file: File): string | null => {
@@ -119,7 +130,8 @@ export default function BgRemove() {
 
 			// 既存の結果をクリア
 			if (resultUrl) URL.revokeObjectURL(resultUrl);
-			if (compositeUrl) URL.revokeObjectURL(compositeUrl);
+			if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
+			compositeUrlRef.current = null;
 			setResultBlob(null);
 			setResultUrl(null);
 			setCompositeUrl(null);
@@ -146,7 +158,7 @@ export default function BgRemove() {
 				setStatus('error');
 			}
 		},
-		[resultUrl, compositeUrl],
+		[resultUrl],
 	);
 
 	// --- ファイル処理 ---
@@ -246,7 +258,8 @@ export default function BgRemove() {
 	// --- 背景差し替え ---
 	useEffect(() => {
 		if (!resultBlob || bgOption.type === 'transparent') {
-			if (compositeUrl) URL.revokeObjectURL(compositeUrl);
+			if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
+			compositeUrlRef.current = null;
 			setCompositeUrl(null);
 			return;
 		}
@@ -254,14 +267,16 @@ export default function BgRemove() {
 		let cancelled = false;
 		compositeBackground(resultBlob, bgOption).then((blob) => {
 			if (cancelled) return;
-			if (compositeUrl) URL.revokeObjectURL(compositeUrl);
-			setCompositeUrl(URL.createObjectURL(blob));
+			if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
+			const newUrl = URL.createObjectURL(blob);
+			compositeUrlRef.current = newUrl;
+			setCompositeUrl(newUrl);
 		});
 
 		return () => {
 			cancelled = true;
 		};
-	}, [resultBlob, bgOption, compositeUrl]);
+	}, [resultBlob, bgOption]);
 
 	// --- ダウンロード ---
 	const handleDownload = useCallback(() => {
@@ -282,7 +297,8 @@ export default function BgRemove() {
 	const handleReset = useCallback(() => {
 		if (sourceUrl) URL.revokeObjectURL(sourceUrl);
 		if (resultUrl) URL.revokeObjectURL(resultUrl);
-		if (compositeUrl) URL.revokeObjectURL(compositeUrl);
+		if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
+		compositeUrlRef.current = null;
 
 		setSourceFile(null);
 		setSourceUrl(null);
@@ -293,7 +309,7 @@ export default function BgRemove() {
 		setProgress(null);
 		setError(null);
 		setBgOption({ type: 'transparent' });
-	}, [sourceUrl, resultUrl, compositeUrl]);
+	}, [sourceUrl, resultUrl]);
 
 	// --- 背景画像アップロード ---
 	const bgImageInputRef = useRef<HTMLInputElement>(null);
