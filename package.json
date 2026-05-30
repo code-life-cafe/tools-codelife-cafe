@@ -36,7 +36,7 @@
     "awesome-phonenumber": "^7.8.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "diff": "^8.0.2",
+    "diff": "^9.0.0",
     "encoding-japanese": "^2.2.0",
     "lucide-react": "^1.11.0",
     "papaparse": "^5.5.3",
