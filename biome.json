@@ -73,5 +73,16 @@
 			}
 		}
 	},
-	"overrides": []
+	"overrides": [
+		{
+			"includes": ["src/components/ui/slider.tsx"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noArrayIndexKey": "off"
+					}
+				}
+			}
+		}
+	]
 }

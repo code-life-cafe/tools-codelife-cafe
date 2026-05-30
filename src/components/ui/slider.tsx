@@ -49,7 +49,6 @@ function Slider({
 					)}
 				/>
 			</SliderPrimitive.Track>
-			{/* biome-ignore lint/suspicious/noArrayIndexKey: slider thumbs are static */}
 			{Array.from({ length: _values.length }, (_, index) => (
 				<SliderPrimitive.Thumb
 					data-slot="slider-thumb"
