@@ -1,7 +1,10 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('背景削除ツール', () => {
-	test('ページが正常に読み込まれ、ドロップゾーンが表示される', async ({ page, createToolPage }) => {
+	test('ページが正常に読み込まれ、ドロップゾーンが表示される', async ({
+		page,
+		createToolPage,
+	}) => {
 		const toolPage = createToolPage('bg-remove');
 		await toolPage.goto();
 
@@ -12,7 +15,10 @@ test.describe('背景削除ツール', () => {
 		await expect(page.getByText('画像をドラッグ＆ドロップ')).toBeVisible();
 	});
 
-	test('モード切替UIが表示され、デフォルトで高精度モードになっている', async ({ page, createToolPage }) => {
+	test('モード切替UIが表示され、デフォルトで高精度モードになっている', async ({
+		page,
+		createToolPage,
+	}) => {
 		const toolPage = createToolPage('bg-remove');
 		await toolPage.goto();
 
@@ -24,12 +30,16 @@ test.describe('背景削除ツール', () => {
 		// デフォルトで高精度モードの表示
 		const modeLabel = page.locator('label[for="mode-switch"]');
 		await expect(modeLabel).toContainText('✨ 高精度モード');
-		await expect(page.getByText('BEN2（極めて高精度・アニメ対応）≈ 209MB')).toBeVisible();
+		await expect(
+			page.getByText('BEN2（極めて高精度・アニメ対応）≈ 209MB'),
+		).toBeVisible();
 
 		// スイッチをOFFにして高速モードに切り替え
 		await modeSwitch.click();
 		await expect(modeLabel).toContainText('⚡ 高速モード');
-		await expect(page.getByText('MODNet（高速・バランス型）≈ 25.9MB')).toBeVisible();
+		await expect(
+			page.getByText('MODNet（人物特化・高速）≈ 25.9MB'),
+		).toBeVisible();
 	});
 
 	test('セキュリティバッジが表示される', async ({ page, createToolPage }) => {

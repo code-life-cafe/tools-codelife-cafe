@@ -363,22 +363,17 @@ export default function BgRemove() {
 
 			{/* ドロップゾーン / プレビュー */}
 			{status === 'idle' && !sourceUrl ? (
-				<div
+				<button
+					type="button"
 					ref={dropZoneRef}
 					onDragOver={handleDragOver}
 					onDragLeave={handleDragLeave}
 					onDrop={handleDrop}
 					onClick={() => fileInputRef.current?.click()}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ')
-							fileInputRef.current?.click();
-					}}
-					role="button"
-					tabIndex={0}
 					className={`
-						relative flex flex-col items-center justify-center gap-4
+						w-full relative flex flex-col items-center justify-center gap-4
 						rounded-xl border-2 border-dashed p-12 cursor-pointer
-						transition-all duration-200
+						transition-all duration-200 bg-transparent
 						${
 							isDragOver
 								? 'border-primary bg-primary/5 scale-[1.01]'
@@ -405,7 +400,7 @@ export default function BgRemove() {
 						onChange={handleFileSelect}
 						className="hidden"
 					/>
-				</div>
+				</button>
 			) : (
 				<div className="space-y-4">
 					{/* 進捗バー */}
