@@ -1,16 +1,13 @@
 {
-  "rules": [
-    {
-      "allowed": {
-        "origins": [
-          "https://tools.codelife.cafe",
-          "http://localhost:4321"
-        ],
-        "methods": ["GET", "HEAD"],
-        "headers": ["*"]
-      },
-      "exposeHeaders": ["Content-Length", "Content-Type"],
-      "maxAgeSeconds": 3000
-    }
-  ]
+	"rules": [
+		{
+			"allowed": {
+				"origins": ["https://tools.codelife.cafe", "http://localhost:4321"],
+				"methods": ["GET", "HEAD"],
+				"headers": ["*"]
+			},
+			"exposeHeaders": ["Content-Length", "Content-Type"],
+			"maxAgeSeconds": 3000
+		}
+	]
 }

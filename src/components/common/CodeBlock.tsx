@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { cn } from "@/lib/utils";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CodeBlockProps {
 	/** テキスト内容（行数の計算に使用） */
@@ -25,14 +25,14 @@ export default function CodeBlock({
 	className,
 	showLineNumbers = true,
 	highlightLines,
-	minHeight = "200px",
+	minHeight = '200px',
 }: CodeBlockProps) {
 	const contentRef = useRef<HTMLPreElement>(null);
 	const gutterRef = useRef<HTMLDivElement>(null);
 	const [lineCount, setLineCount] = useState(1);
 
 	useEffect(() => {
-		const count = content ? content.split("\n").length : 1;
+		const count = content ? content.split('\n').length : 1;
 		setLineCount(count);
 	}, [content]);
 
@@ -47,7 +47,7 @@ export default function CodeBlock({
 	return (
 		<div
 			className={cn(
-				"flex rounded-xl border border-border bg-card overflow-hidden font-mono-tool text-sm",
+				'flex rounded-xl border border-border bg-card overflow-hidden font-mono-tool text-sm',
 				className,
 			)}
 			style={{ minHeight }}
@@ -63,9 +63,9 @@ export default function CodeBlock({
 						<div
 							key={num}
 							className={cn(
-								"leading-5 h-5 px-1",
+								'leading-5 h-5 px-1',
 								highlightLines?.has(num) &&
-									"bg-destructive/20 text-destructive font-bold rounded-sm",
+									'bg-destructive/20 text-destructive font-bold rounded-sm',
 							)}
 						>
 							{num}

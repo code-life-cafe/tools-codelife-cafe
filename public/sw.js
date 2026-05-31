@@ -2,119 +2,133 @@ const CACHE_NAME = 'cl-tools-__HASH__';
 
 // インストール時に最低限キャッシュするアセット
 const MIN_ASSETS = [
-  '/',
-  '/offline/',
-  '/manifest.webmanifest',
-  '/favicon.svg',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
+	'/',
+	'/offline/',
+	'/manifest.webmanifest',
+	'/favicon.svg',
+	'/icon-192x192.png',
+	'/icon-512x512.png',
 ];
 
 // PWA インストール時にプリキャッシュする全ページ（ビルドスクリプトが注入）
-const ALL_PAGES = [/* __ALL_PAGES__ */];
+const ALL_PAGES = [
+	/* __ALL_PAGES__ */
+];
 
 // PWA インストール時にプリキャッシュする全アセット（ビルドスクリプトが注入）
-const ALL_ASSETS = [/* __ALL_ASSETS__ */];
+const ALL_ASSETS = [
+	/* __ALL_ASSETS__ */
+];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    Promise.all([
-      // 全アセットがハッシュ付きURLで管理されているため、即時アクティベートしても安全
-      self.skipWaiting(),
-      caches.open(CACHE_NAME).then((cache) =>
-        Promise.allSettled(MIN_ASSETS.map((url) => cache.add(url)))
-      ),
-    ])
-  );
+	event.waitUntil(
+		Promise.all([
+			// 全アセットがハッシュ付きURLで管理されているため、即時アクティベートしても安全
+			self.skipWaiting(),
+			caches
+				.open(CACHE_NAME)
+				.then((cache) =>
+					Promise.allSettled(MIN_ASSETS.map((url) => cache.add(url))),
+				),
+		]),
+	);
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((names) =>
-        Promise.all(
-          names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
-        )
-      )
-      .then(() => self.clients.claim())
-  );
+	event.waitUntil(
+		caches
+			.keys()
+			.then((names) =>
+				Promise.all(
+					names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)),
+				),
+			)
+			.then(() => self.clients.claim()),
+	);
 });
 
 // PWA インストール時に全ページ・全アセットをプリキャッシュ（未キャッシュURLのみ取得）
 self.addEventListener('message', (event) => {
-  if (event.data?.type !== 'PRECACHE_ALL') return;
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const urls = [...ALL_PAGES, ...ALL_ASSETS];
-      const uncached = (
-        await Promise.all(urls.map(async (url) => ((await cache.match(url)) ? null : url)))
-      ).filter(Boolean);
-      return Promise.allSettled(uncached.map((url) => cache.add(url)));
-    })
-  );
+	if (event.data?.type !== 'PRECACHE_ALL') return;
+	event.waitUntil(
+		caches.open(CACHE_NAME).then(async (cache) => {
+			const urls = [...ALL_PAGES, ...ALL_ASSETS];
+			const uncached = (
+				await Promise.all(
+					urls.map(async (url) => ((await cache.match(url)) ? null : url)),
+				)
+			).filter(Boolean);
+			return Promise.allSettled(uncached.map((url) => cache.add(url)));
+		}),
+	);
 });
 
 self.addEventListener('fetch', (event) => {
-  if (!event.request.url.startsWith(self.location.origin)) return;
+	if (!event.request.url.startsWith(self.location.origin)) return;
 
-  const reqUrl = event.request.url;
-  const url = new URL(reqUrl);
+	const reqUrl = event.request.url;
+	const url = new URL(reqUrl);
 
-  // 静的アセット: Cache First
-  if (
-    url.pathname.startsWith('/_astro/') ||
-    url.pathname.match(/\.(svg|png|jpg|jpeg|gif|woff|woff2|css|js|json|webmanifest)$/)
-  ) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(reqUrl, { ignoreVary: true });
-        if (cached) return cached;
-        const response = await fetch(event.request);
-        if (response.ok) {
-          cache.put(reqUrl, response.clone());
-        }
-        return response;
-      })
-    );
-    return;
-  }
+	// 静的アセット: Cache First
+	if (
+		url.pathname.startsWith('/_astro/') ||
+		url.pathname.match(
+			/\.(svg|png|jpg|jpeg|gif|woff|woff2|css|js|json|webmanifest)$/,
+		)
+	) {
+		event.respondWith(
+			caches.open(CACHE_NAME).then(async (cache) => {
+				const cached = await cache.match(reqUrl, { ignoreVary: true });
+				if (cached) return cached;
+				const response = await fetch(event.request);
+				if (response.ok) {
+					cache.put(reqUrl, response.clone());
+				}
+				return response;
+			}),
+		);
+		return;
+	}
 
-  // ページリクエスト: ブラウザナビゲーション(mode:navigate) または
-  // Astro View Transitions の fetch（拡張子なしパス）を同等に処理
-  const isPageRequest =
-    event.request.mode === 'navigate' ||
-    url.pathname.endsWith('/') ||
-    !url.pathname.split('/').pop().includes('.');
+	// ページリクエスト: ブラウザナビゲーション(mode:navigate) または
+	// Astro View Transitions の fetch（拡張子なしパス）を同等に処理
+	const isPageRequest =
+		event.request.mode === 'navigate' ||
+		url.pathname.endsWith('/') ||
+		!url.pathname.split('/').pop().includes('.');
 
-  if (isPageRequest) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          // ナビゲーション時のみキャッシュを更新（View Transitions fetchは除外）
-          if (event.request.mode === 'navigate') {
-            caches.open(CACHE_NAME).then((cache) => cache.put(reqUrl, response.clone()));
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cache = await caches.open(CACHE_NAME);
-          // trailing slash の有無を両方試みる
-          const normalizedUrl = reqUrl.endsWith('/') ? reqUrl : reqUrl + '/';
-          const matched =
-            (await cache.match(normalizedUrl, { ignoreVary: true })) ||
-            (await cache.match(reqUrl, { ignoreVary: true }));
-          return matched || (await cache.match('/offline/', { ignoreVary: true }));
-        })
-    );
-    return;
-  }
+	if (isPageRequest) {
+		event.respondWith(
+			fetch(event.request)
+				.then((response) => {
+					// ナビゲーション時のみキャッシュを更新（View Transitions fetchは除外）
+					if (event.request.mode === 'navigate') {
+						caches
+							.open(CACHE_NAME)
+							.then((cache) => cache.put(reqUrl, response.clone()));
+					}
+					return response;
+				})
+				.catch(async () => {
+					const cache = await caches.open(CACHE_NAME);
+					// trailing slash の有無を両方試みる
+					const normalizedUrl = reqUrl.endsWith('/') ? reqUrl : reqUrl + '/';
+					const matched =
+						(await cache.match(normalizedUrl, { ignoreVary: true })) ||
+						(await cache.match(reqUrl, { ignoreVary: true }));
+					return (
+						matched || (await cache.match('/offline/', { ignoreVary: true }))
+					);
+				}),
+		);
+		return;
+	}
 
-  // その他: Network First
-  event.respondWith(
-    fetch(event.request).catch(async () => {
-      const cache = await caches.open(CACHE_NAME);
-      return cache.match(reqUrl, { ignoreVary: true });
-    })
-  );
+	// その他: Network First
+	event.respondWith(
+		fetch(event.request).catch(async () => {
+			const cache = await caches.open(CACHE_NAME);
+			return cache.match(reqUrl, { ignoreVary: true });
+		}),
+	);
 });

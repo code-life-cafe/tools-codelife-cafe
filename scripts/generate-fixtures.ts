@@ -1,11 +1,11 @@
+import Encoding from 'encoding-japanese';
 import fs from 'fs';
 import path from 'path';
-import Encoding from 'encoding-japanese';
 
 // Use process.cwd() since __dirname might not exist in ESM
 const fixturesDir = path.join(process.cwd(), 'tests', 'e2e', 'fixtures');
 if (!fs.existsSync(fixturesDir)) {
-  fs.mkdirSync(fixturesDir, { recursive: true });
+	fs.mkdirSync(fixturesDir, { recursive: true });
 }
 
 const data = `名前,金額,日付,部署,役職,備考
@@ -18,34 +18,46 @@ const data = `名前,金額,日付,部署,役職,備考
 
 // 1. SJIS
 fs.writeFileSync(
-  path.join(fixturesDir, 'shift_jis.csv'),
-  Buffer.from(Encoding.convert(Encoding.stringToCode(data), { to: 'SJIS', from: 'UNICODE', type: 'array' }))
+	path.join(fixturesDir, 'shift_jis.csv'),
+	Buffer.from(
+		Encoding.convert(Encoding.stringToCode(data), {
+			to: 'SJIS',
+			from: 'UNICODE',
+			type: 'array',
+		}),
+	),
 );
 
 // 2. UTF-8 (no BOM)
 fs.writeFileSync(
-  path.join(fixturesDir, 'utf8_no_bom.csv'),
-  Buffer.from(data, 'utf8')
+	path.join(fixturesDir, 'utf8_no_bom.csv'),
+	Buffer.from(data, 'utf8'),
 );
 
 // 3. UTF-8 (with BOM)
 const utf8Bytes = Array.from(Buffer.from(data, 'utf8'));
-const bom = [0xEF, 0xBB, 0xBF];
+const bom = [0xef, 0xbb, 0xbf];
 fs.writeFileSync(
-  path.join(fixturesDir, 'utf8_bom.csv'),
-  Buffer.from([...bom, ...utf8Bytes])
+	path.join(fixturesDir, 'utf8_bom.csv'),
+	Buffer.from([...bom, ...utf8Bytes]),
 );
 
 // 4. EUC-JP
 fs.writeFileSync(
-  path.join(fixturesDir, 'euc_jp.csv'),
-  Buffer.from(Encoding.convert(Encoding.stringToCode(data), { to: 'EUCJP', from: 'UNICODE', type: 'array' }))
+	path.join(fixturesDir, 'euc_jp.csv'),
+	Buffer.from(
+		Encoding.convert(Encoding.stringToCode(data), {
+			to: 'EUCJP',
+			from: 'UNICODE',
+			type: 'array',
+		}),
+	),
 );
 
 // 5. Invalid Excel (just a renamed text file)
 fs.writeFileSync(
-  path.join(fixturesDir, 'invalid.xlsx'),
-  Buffer.from('This is not an excel file')
+	path.join(fixturesDir, 'invalid.xlsx'),
+	Buffer.from('This is not an excel file'),
 );
 
 console.log('Fixtures generated successfully.');

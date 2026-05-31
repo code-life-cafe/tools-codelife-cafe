@@ -268,7 +268,7 @@ export default function TextDiff() {
 													<span className="select-none opacity-50">- </span>
 												)}
 												{line.type === 'unchanged' && (
-													<span className="select-none opacity-30">  </span>
+													<span className="select-none opacity-30"> </span>
 												)}
 												{line.content}
 											</span>
@@ -294,7 +294,7 @@ export default function TextDiff() {
 													<span className="select-none opacity-50">+ </span>
 												)}
 												{line.type === 'unchanged' && (
-													<span className="select-none opacity-30">  </span>
+													<span className="select-none opacity-30"> </span>
 												)}
 												{line.content}
 											</span>
@@ -333,7 +333,7 @@ export default function TextDiff() {
 											<span className="select-none opacity-50">- </span>
 										)}
 										{line.type === 'unchanged' && (
-											<span className="select-none opacity-30">  </span>
+											<span className="select-none opacity-30"> </span>
 										)}
 										{line.content}
 									</span>
