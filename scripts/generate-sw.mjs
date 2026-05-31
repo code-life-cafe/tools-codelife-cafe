@@ -46,9 +46,15 @@ const hash = createHash('md5')
 // テンプレートのプレースホルダーを置換して dist/sw.js を上書き
 const template = await readFile('./public/sw.js', 'utf8');
 const output = template
-	.replace("'cl-tools-__HASH__'", `'cl-tools-${hash}'`)
-	.replace('[/* __ALL_PAGES__ */]', JSON.stringify(pageURLs, null, 2))
-	.replace('[/* __ALL_ASSETS__ */]', JSON.stringify(assetURLs, null, 2));
+	.replace(/(['"])cl-tools-__HASH__\1/, `'cl-tools-${hash}'`)
+	.replace(
+		/\[\s*\/\*\s*__ALL_PAGES__\s*\*\/\s*\]/,
+		JSON.stringify(pageURLs, null, 2),
+	)
+	.replace(
+		/\[\s*\/\*\s*__ALL_ASSETS__\s*\*\/\s*\]/,
+		JSON.stringify(assetURLs, null, 2),
+	);
 
 // プレースホルダーが残っている場合はテンプレートの構造が変わっている
 if (
