@@ -45,7 +45,7 @@
 		"radix-ui": "^1.4.3",
 		"react": "^19.2.6",
 		"react-dom": "^19.2.6",
-		"sql-formatter": "^15.7.2",
+		"sql-formatter": "^15.8.0",
 		"tailwind-merge": "^3.3.1",
 		"tailwindcss": "^4.2.4",
 		"tw-animate-css": "^1.3.4",
