@@ -20,8 +20,12 @@ jobs:
       - name: Security audit
         run: npm audit --audit-level=high
       - run: npm run build
+      - name: Get git commit hash
+        run: echo "GIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
       - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=tools-codelife-cafe
+          # --commit-message に ASCII のみを指定（日本語等の非ASCII文字を含むメッセージを
+          # Cloudflare Pages API に渡すと code:8000111 エラーになる既知の問題を回避）
+          command: pages deploy dist --project-name=tools-codelife-cafe --branch=main --commit-hash=${{ env.GIT_HASH }} --commit-message="Deploy ${{ env.GIT_HASH }}"
