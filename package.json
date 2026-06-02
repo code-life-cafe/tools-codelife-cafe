@@ -28,7 +28,7 @@
 		"@radix-ui/react-slot": "^1.2.4",
 		"@radix-ui/react-switch": "^1.2.5",
 		"@radix-ui/react-tabs": "^1.1.12",
-		"@tailwindcss/vite": "^4.2.2",
+		"@tailwindcss/vite": "^4.3.0",
 		"@types/diff": "^7.0.2",
 		"@types/qrcode": "^1.5.5",
 		"@types/react": "^19.2.14",
