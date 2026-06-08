@@ -2,7 +2,6 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SafetyBadge from '../layout/SafetyBadge.tsx';
 import ToolJsonLd from '../common/ToolJsonLd.astro';
-import AdSlot from '../common/AdSlot.tsx';
 
 interface Props {
   title: string;
@@ -40,17 +39,7 @@ const { title, description, path } = Astro.props;
     <!-- Tool Content (slot) -->
     <slot />
 
-    <!-- ツール出力エリア下 -->
-    <div class="mt-8 mb-4">
-      <AdSlot slotId="rectangle-slot" format="rectangle" client:only="react" />
-    </div>
-
     <!-- Usage / Tips section -->
     <slot name="usage" />
-
-    <!-- 関連ツールセクション上 -->
-    <div class="mt-8">
-      <AdSlot slotId="horizontal-slot" format="horizontal" client:only="react" />
-    </div>
   </div>
 </BaseLayout>

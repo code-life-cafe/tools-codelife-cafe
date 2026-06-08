@@ -1,7 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ToolCard from '../components/common/ToolCard.astro';
-import AdSlot from '../components/common/AdSlot.tsx';
 import { ShieldCheck } from 'lucide-react';
 const schema = {
   "@context": "https://schema.org",
@@ -184,7 +183,7 @@ const schema = {
       />
       <ToolCard
         title="背景削除"
-        description="AIがブラウザ内で画像の背景を自動削除。アップロード不要・完全ローカル処理。"
+        description="AIがブラウザ内で画像の背景を自動削除。アップロード不要・ブラウザ内処理。"
         href="/bg-remove"
         icon="✂️"
         category="AI/画像"
@@ -206,11 +205,6 @@ const schema = {
         </div>
       </div>
     </div>
-
-    <!-- ツール一覧の間 -->
-    <div class="mt-12">
-      <AdSlot slotId="auto-slot" format="auto" client:only="react" />
-    </div>
   </section>
 
   <!-- Features section -->
@@ -229,7 +223,7 @@ const schema = {
       <div class="text-center p-6 rounded-xl bg-card border border-border">
         <div class="text-3xl mb-3">⚡</div>
         <h3 class="font-semibold mb-2">高速・軽量</h3>
-        <p class="text-sm text-muted-foreground">サーバー通信なしのリアルタイム処理。ストレスフリーに使えます。</p>
+        <p class="text-sm text-muted-foreground">入力データを送信しないリアルタイム処理。ストレスフリーに使えます。</p>
       </div>
     </div>
   </section>

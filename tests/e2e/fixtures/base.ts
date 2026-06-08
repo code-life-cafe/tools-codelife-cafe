@@ -7,8 +7,7 @@ type MyFixtures = {
 
 export const test = baseTest.extend<MyFixtures>({
 	page: async ({ page }, use) => {
-		// Block ads and analytics to prevent test timeouts/flakiness
-		await page.route('**/*googlesyndication*', (route) => route.abort());
+		// Block analytics to prevent test timeouts/flakiness
 		await page.route('**/*googletagmanager*', (route) => route.abort());
 		await use(page);
 	},

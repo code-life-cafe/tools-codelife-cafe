@@ -18,9 +18,7 @@ export default function SafetyBadge() {
 					aria-label="セキュリティ情報を表示"
 				>
 					<ShieldCheck className="h-4 w-4" />
-					<span className="hidden sm:inline">
-						このツールはサーバーと通信しません
-					</span>
+					<span className="hidden sm:inline">入力データは送信されません</span>
 					<span className="sm:hidden">ローカル処理</span>
 					<Info className="h-3 w-3 opacity-50" />
 				</button>
@@ -29,16 +27,17 @@ export default function SafetyBadge() {
 				<div className="space-y-3">
 					<h4 className="font-semibold text-sm flex items-center gap-2">
 						<ShieldCheck className="h-4 w-4 text-safety" />
-						完全クライアントサイド処理
+						入力データはブラウザ内で処理
 					</h4>
 					<p className="text-sm text-muted-foreground leading-relaxed">
-						このツールのすべてのデータ処理はブラウザ内のJavaScriptで完結しています。
-						入力されたデータがサーバーに送信されることは一切ありません。
+						このツールの処理対象となるテキストやファイルは、ブラウザ内のJavaScriptで処理されます。
+						入力内容や選択したファイルを当サイトのサーバーへ送信・保存する処理はありません。
 					</p>
 					<div className="rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-1">
-						<p>✅ ネットワーク通信なし</p>
-						<p>✅ データはブラウザ内のみで処理</p>
-						<p>✅ ページを閉じるとデータは消去</p>
+						<p>✅ 入力データは端末内で処理</p>
+						<p>✅ ページを閉じると処理中データは消去</p>
+						<p>✅ 広告・アクセス解析スクリプトは不使用</p>
+						<p>ℹ️ AI機能ではモデル取得のための通信が発生する場合があります</p>
 						<p>✅ ソースコードはGitHubで公開中</p>
 					</div>
 				</div>
