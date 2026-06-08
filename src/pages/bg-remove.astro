@@ -1,22 +1,6 @@
 ---
 import ToolLayout from '../components/common/ToolLayout.astro';
 import BgRemoveTool from '../components/tools/BgRemove.tsx';
-
-const schema = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "AI背景削除ツール",
-  "description": "AIがブラウザ内で画像の背景を自動削除。アップロード不要・完全ローカル処理。背景の透過・単色・画像差し替えに対応。",
-  "url": "https://tools.codelife.cafe/bg-remove",
-  "applicationCategory": "UtilityApplication",
-  "operatingSystem": "Any",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "JPY"
-  },
-  "inLanguage": "ja"
-};
 ---
 
 <ToolLayout
@@ -24,10 +8,6 @@ const schema = {
   description="AIがブラウザ内で画像の背景を自動削除。アップロード不要・完全ローカル処理。"
   path="/bg-remove"
 >
-  <Fragment slot="head">
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
-  </Fragment>
-
   <BgRemoveTool client:load />
 
   <div slot="usage" class="mt-8">

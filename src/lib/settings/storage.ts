@@ -11,6 +11,8 @@ const DEFAULT_SETTINGS: UserSettings = {
 };
 
 export function saveSettings(settings: UserSettings): void {
+	if (typeof window === 'undefined') return;
+
 	try {
 		localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
 	} catch (e) {
@@ -19,6 +21,8 @@ export function saveSettings(settings: UserSettings): void {
 }
 
 export function loadSettings(): UserSettings {
+	if (typeof window === 'undefined') return DEFAULT_SETTINGS;
+
 	try {
 		const data = localStorage.getItem(STORAGE_KEY);
 		if (!data) return DEFAULT_SETTINGS;
