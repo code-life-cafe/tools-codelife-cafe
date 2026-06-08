@@ -1,22 +1,6 @@
 ---
 import ToolLayout from '../components/common/ToolLayout.astro';
 import PhoneFormatterPage from '../components/phone-formatter/PhoneFormatterPage';
-
-const schema = {
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "電話番号フォーマッタ & E.164変換",
-  "description": "日本の電話番号をE.164・国際表記・国内表記にワンクリック変換。固定電話・携帯・IP電話を自動判別。CSV一括変換対応。完全クライアントサイド処理で電話番号データも安心。",
-  "url": "https://tools.codelife.cafe/phone-formatter",
-  "applicationCategory": "UtilityApplication",
-  "operatingSystem": "Any",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "JPY"
-  },
-  "inLanguage": "ja"
-};
 ---
 
 <ToolLayout
@@ -24,10 +8,6 @@ const schema = {
   description="日本の電話番号をE.164・国際表記・国内表記にワンクリック変換。固定電話・携帯・IP電話を自動判別。CSV一括変換対応。完全クライアントサイド処理で電話番号データも安心。"
   path="/phone-formatter"
 >
-  <Fragment slot="head">
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
-  </Fragment>
-
   <div class="mt-8">
     <PhoneFormatterPage client:load />
   </div>

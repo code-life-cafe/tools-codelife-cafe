@@ -261,9 +261,9 @@ export default function TextDiff() {
 									テキストA（変更前）
 								</div>
 								<div className="w-full min-w-max">
-									{splitLines.left.map((line, i) => (
+									{splitLines.left.map((line) => (
 										<div
-											key={`l-${line.lineNum}-${i}`}
+											key={`l-${line.lineNum}`}
 											className={`flex min-w-max ${line.type === 'removed' ? 'bg-red-500/10 text-red-700 dark:text-red-300' : ''}`}
 										>
 											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
@@ -287,9 +287,9 @@ export default function TextDiff() {
 									テキストB（変更後）
 								</div>
 								<div className="w-full min-w-max">
-									{splitLines.right.map((line, i) => (
+									{splitLines.right.map((line) => (
 										<div
-											key={`r-${line.lineNum}-${i}`}
+											key={`r-${line.lineNum}`}
 											className={`flex min-w-max ${line.type === 'added' ? 'bg-green-500/10 text-green-700 dark:text-green-300' : ''}`}
 										>
 											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
@@ -311,9 +311,11 @@ export default function TextDiff() {
 						</div>
 					) : (
 						<div className="rounded-xl border border-border bg-card overflow-hidden font-mono-tool text-sm">
-							{unifiedLines.map((line, i) => (
+							{unifiedLines.map((line) => (
 								<div
-									key={`u-${i}`}
+									key={
+										line.lineA !== null ? `a-${line.lineA}` : `b-${line.lineB}`
+									}
 									className={`flex whitespace-pre-wrap break-all ${
 										line.type === 'added'
 											? 'bg-green-500/10 text-green-700 dark:text-green-300'

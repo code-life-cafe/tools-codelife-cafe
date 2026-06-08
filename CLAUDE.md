@@ -37,7 +37,7 @@ src/pages/[name].astro           # ページシェル（ToolLayout + JSON-LD）
 src/workers/[name].worker.ts     # 重量級処理のみ（例: bg-remove）
 ```
 
-`ToolLayout.astro` を使うと SafetyBadge・`<slot name="usage">` が自動挿入される。JSON-LDは `ToolLayout` 内の `ToolJsonLd` コンポーネントが `title`/`description`/`path` から自動生成するため、個別ページでの追加は不要（`bg-remove.astro` の手動追加は重複に注意）。
+`ToolLayout.astro` を使うと SafetyBadge・`<slot name="usage">` が自動挿入される。JSON-LDは `ToolLayout` 内の `ToolJsonLd` コンポーネントが `title`/`description`/`path` から自動生成するため、個別ページでの追加は不要（`ToolLayout` は `slot="head"` を転送しないため、ページ側で追加しても描画されない）。
 
 ### React Island のライフサイクル
 
