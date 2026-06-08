@@ -14,8 +14,6 @@ const { title, description, path } = Astro.props;
 const siteName = "CODE:LIFE Tools";
 const siteUrl = "https://tools.codelife.cafe";
 const fullTitle = `${title} | ${siteName}`;
-
-const adsenseId = import.meta.env.PUBLIC_ADSENSE_ID;
 ---
 
 <!DOCTYPE html>
@@ -69,15 +67,6 @@ const adsenseId = import.meta.env.PUBLIC_ADSENSE_ID;
     });
   </script>
 
-  {adsenseId && (
-    <script
-      is:inline
-      async
-      src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseId}`}
-      crossorigin="anonymous"
-    />
-  )}
-
   <slot name="head" />
 </head>
 <body class="min-h-screen flex flex-col">
@@ -111,6 +100,5 @@ const adsenseId = import.meta.env.PUBLIC_ADSENSE_ID;
       });
     }
   </script>
-  <!-- Cloudflare Web Analytics --><script is:inline defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "64c327a84e3548d3a7ceaeaa644fb01c"}'></script><!-- End Cloudflare Web Analytics -->
 </body>
 </html>

@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 <BaseLayout
   title="プライバシーポリシー"
-  description="CODE:LIFE Toolsのプライバシーポリシー。データの取り扱い、Cookie、アクセス解析について。"
+  description="CODE:LIFE Toolsのプライバシーポリシー。入力データの取り扱い、ローカルストレージ、外部通信について。"
   path="/privacy"
 >
   <div class="mx-auto max-w-[800px] px-4 sm:px-6 py-12">
@@ -21,51 +21,49 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </section>
 
       <section class="space-y-4">
-        <h2 class="text-xl font-semibold border-b border-border pb-2">2. データの取り扱いについて</h2>
+        <h2 class="text-xl font-semibold border-b border-border pb-2">2. 入力データの取り扱い</h2>
         <div class="rounded-xl border border-safety/30 bg-safety/5 p-5">
           <p class="font-medium mb-3 flex items-center gap-2 text-safety">
             <span class="relative flex h-2.5 w-2.5">
               <span class="pulse-dot absolute inline-flex h-full w-full rounded-full bg-safety opacity-75"></span>
               <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-safety"></span>
             </span>
-            本サイトのツールはすべてクライアントサイド（ブラウザ内）で処理されます。
+            本サイトのツールは、入力データをブラウザ内で処理します。
           </p>
           <ul class="list-disc pl-5 space-y-2 text-sm text-foreground/90">
-            <li>ユーザーが入力したデータは<strong>一切サーバーに送信されません</strong>。</li>
-            <li>処理結果はブラウザのメモリ上にのみ存在し、ページ離脱時またはタブを閉じた際に直ちに破棄されます。</li>
-            <li>機密情報や個人情報を含むデータも、お使いの端末内で安全に処理されます。</li>
+            <li>ユーザーが入力したテキストや選択したファイルを、当サイトのサーバーへ送信・保存する処理はありません。</li>
+            <li>処理結果はブラウザのメモリ上に存在し、ページ離脱時またはタブを閉じた際に破棄されます。</li>
+            <li>一部の設定（例: ダークモード、ツール設定）は、利便性のためお使いのブラウザの localStorage に保存される場合があります。</li>
           </ul>
         </div>
       </section>
 
       <section class="space-y-3">
-        <h2 class="text-xl font-semibold border-b border-border pb-2">3. アクセス解析</h2>
-        <p>本サイトでは、サイトの利用状況を把握し、サービス向上に役立てるために <strong>Cloudflare Web Analytics</strong> を使用しています。</p>
-        <ul class="list-disc pl-5 space-y-1 text-muted-foreground">
-          <li>これは Cookie を使用しない（Cookieレス）プライバシーに配慮したアクセス解析ツールです。</li>
-          <li>収集されるデータは、ページビュー数、リファラー（参照元）、国/地域、デバイス種別、ブラウザ種別などに限定されます。</li>
-          <li>これらのデータから、<strong>ユーザー個人を特定する情報は一切収集されません</strong>。</li>
+        <h2 class="text-xl font-semibold border-b border-border pb-2">3. 外部通信について</h2>
+        <p>通常のツール処理において、入力データや処理対象ファイルを外部サービスへ送信することはありません。</p>
+        <ul class="list-disc pl-5 space-y-2 text-muted-foreground">
+          <li><strong>AI機能:</strong> 背景削除などのAI機能では、ブラウザ内で推論するためのAIモデルファイルを取得する通信が発生する場合があります。画像そのものをモデル配信元へ送信する処理はありません。</li>
+          <li><strong>静的アセット:</strong> ページ表示に必要なJavaScript、CSS、画像、フォント、PWA用ファイルなどを取得します。</li>
+          <li><strong>Service Worker:</strong> オフライン利用のため、ページや静的アセットをブラウザのキャッシュに保存する場合があります。</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2 class="text-xl font-semibold border-b border-border pb-2">4. 広告について</h2>
-        <p>本サイトでは、第三者配信の広告サービスである <strong>Google AdSense</strong> を利用しています（導入準備中含む）。</p>
+        <h2 class="text-xl font-semibold border-b border-border pb-2">4. アクセス解析・広告について</h2>
         <ul class="list-disc pl-5 space-y-2 text-muted-foreground">
-          <li>Google などの第三者配信事業者は、Cookie を使用して、ユーザーが本サイトや他のウェブサイトに過去にアクセスした際の情報に基づいて広告を配信します。</li>
-          <li>Google が広告 Cookie を使用することにより、ユーザーが本サイトや他のサイトにアクセスした際の情報に基づいて、Google やそのパートナーが適切な広告をユーザーに表示できることになります。</li>
-          <li>ユーザーは、<a href="https://myadcenter.google.com/home" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">広告設定</a>でパーソナライズ広告を無効にすることができます。</li>
-          <li>また、<a href="https://www.aboutads.info/choices/" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">www.aboutads.info</a> にアクセスして、パーソナライズ広告に使われる第三者配信事業者の Cookie を無効にすることもできます。</li>
-          <li>詳細は <a href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">Google のプライバシー ポリシーと規約</a> をご確認ください。</li>
+          <li>本サイトでは、アクセス解析サービスを使用していません。</li>
+          <li>本サイトでは、第三者配信広告を表示していません。</li>
+          <li>広告配信やアクセス解析を目的としたサードパーティ Cookie は使用していません。</li>
         </ul>
       </section>
 
       <section class="space-y-3">
-        <h2 class="text-xl font-semibold border-b border-border pb-2">5. Cookie の使用</h2>
-        <p>本サイトでは、以下の目的で Cookie およびローカルストレージ（localStorage）を使用する場合があります。</p>
+        <h2 class="text-xl font-semibold border-b border-border pb-2">5. Cookie・ローカルストレージの使用</h2>
+        <p>本サイトでは、以下の目的でブラウザのローカルストレージを使用する場合があります。</p>
         <ul class="list-disc pl-5 space-y-2 text-muted-foreground">
-          <li><strong>本サイト自体が使用するデータ:</strong> ダークモードの設定保存などのためにローカルストレージを使用します。</li>
-          <li><strong>第三者が使用する Cookie:</strong> Google AdSense による広告配信のためにサードパーティ Cookie が使用されます（前項の「広告について」をご参照ください）。なお、アクセス解析（Cloudflare Analytics）では Cookie は使用されません。</li>
+          <li><strong>表示設定:</strong> ダークモードなどの表示設定を保存します。</li>
+          <li><strong>ツール設定:</strong> 一部ツールの出力形式や表示モードなど、ユーザーが選択した設定を保存します。</li>
+          <li>これらの設定はお使いのブラウザ内に保存され、当サイトのサーバーへ送信されません。</li>
         </ul>
       </section>
 
@@ -91,6 +89,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <h2 class="text-xl font-semibold border-b border-border pb-2">8. 改定履歴</h2>
         <ul class="list-disc pl-5 text-muted-foreground">
           <li>制定日: 2026年2月24日</li>
+          <li>改定日: 2026年6月8日 — アクセス解析・広告の不使用、およびAIモデル取得通信について明記</li>
         </ul>
       </section>
     </div>
