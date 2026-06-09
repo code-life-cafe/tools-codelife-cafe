@@ -1,24 +1,15 @@
 ---
-// Navigation component placeholder
+import { toolCatalog } from '@/lib/tools/catalog';
 ---
 
 <nav aria-label="ツール一覧">
   <ul class="flex flex-wrap gap-2">
-    <li><a href="/zenkaku-hankaku" class="text-sm text-muted-foreground hover:text-foreground transition-colors">全角↔半角変換</a></li>
-    <li><a href="/char-count" class="text-sm text-muted-foreground hover:text-foreground transition-colors">文字数カウント</a></li>
-    <li><a href="/json-formatter" class="text-sm text-muted-foreground hover:text-foreground transition-colors">JSON整形</a></li>
-    <li><a href="/qr-generator" class="text-sm text-muted-foreground hover:text-foreground transition-colors">QRコード生成</a></li>
-    <li><a href="/text-diff" class="text-sm text-muted-foreground hover:text-foreground transition-colors">テキスト差分比較</a></li>
-    <li><a href="/wareki-converter" class="text-sm text-muted-foreground hover:text-foreground transition-colors">和暦↔西暦変換</a></li>
-    <li><a href="/base64" class="text-sm text-muted-foreground hover:text-foreground transition-colors">Base64変換</a></li>
-    <li><a href="/url-encoder" class="text-sm text-muted-foreground hover:text-foreground transition-colors">URLエンコード/デコード</a></li>
-    <li><a href="/regex-tester" class="text-sm text-muted-foreground hover:text-foreground transition-colors">正規表現チェッカー</a></li>
-    <li><a href="/sql-formatter" class="text-sm text-muted-foreground hover:text-foreground transition-colors">SQLフォーマッター</a></li>
-    <li><a href="/dummy-data" class="text-sm text-muted-foreground hover:text-foreground transition-colors">ダミーデータ生成</a></li>
-    <li><a href="/masking" class="text-sm text-muted-foreground hover:text-foreground transition-colors">個人情報マスキング</a></li>
-    <li><a href="/csv-editor" class="text-sm text-muted-foreground hover:text-foreground transition-colors">CSVエディタ</a></li>
-    <li><a href="/unicode-converter" class="text-sm text-muted-foreground hover:text-foreground transition-colors">ユニコード変換</a></li>
-    <li><a href="/csv-fixer" class="text-sm text-muted-foreground hover:text-foreground transition-colors">CSV文字化け修復</a></li>
-    <li><a href="/phone-formatter" class="text-sm text-muted-foreground hover:text-foreground transition-colors">電話番号フォーマッタ</a></li>
+    {toolCatalog.map((tool) => (
+      <li>
+        <a href={tool.href} class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+          {tool.title}
+        </a>
+      </li>
+    ))}
   </ul>
 </nav>

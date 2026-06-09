@@ -18,7 +18,6 @@ import {
 	compositeBackground,
 	type ModelMode,
 	type ProgressInfo,
-	preload,
 	removeBackground,
 	terminateWorker,
 } from '@/lib/tools/bg-remove';
@@ -85,9 +84,8 @@ export default function BgRemove() {
 	const dropZoneRef = useRef<HTMLButtonElement>(null);
 	const compositeUrlRef = useRef<string | null>(null);
 
-	// --- 先行初期化 ---
+	// --- Worker クリーンアップ ---
 	useEffect(() => {
-		preload('high');
 		return () => terminateWorker();
 	}, []);
 
@@ -333,6 +331,15 @@ export default function BgRemove() {
 
 	return (
 		<div className="space-y-6">
+			<div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-muted-foreground">
+				<p className="font-medium text-foreground">
+					画像はアップロードされません
+				</p>
+				<p className="mt-1 leading-relaxed">
+					処理はブラウザ内で実行します。初回実行時のみ、選択したモードのAIモデルを取得する通信が発生します。
+				</p>
+			</div>
+
 			{/* モード切替 */}
 			<div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
 				<div className="flex items-center gap-3">

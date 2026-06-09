@@ -31,8 +31,8 @@ function getWorker(): Worker {
 }
 
 /**
- * ページ表示時に先行初期化（lazy preload）
- * モデルを事前ダウンロードし、ドロップ即実行を可能にする
+ * 明示的な先行初期化用。
+ * 通常はファイル選択後に removeBackground 経由で必要なモデルだけ読み込む。
  */
 export function preload(mode: ModelMode = 'high'): void {
 	const w = getWorker();

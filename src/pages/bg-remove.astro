@@ -5,7 +5,7 @@ import BgRemoveTool from '../components/tools/BgRemove.tsx';
 
 <ToolLayout
   title="背景削除"
-  description="AIがブラウザ内で画像の背景を自動削除。アップロード不要・完全ローカル処理。"
+  description="AIがブラウザ内で画像の背景を自動削除。画像はアップロードされません。"
   path="/bg-remove"
 >
   <BgRemoveTool client:load />
@@ -17,7 +17,7 @@ import BgRemoveTool from '../components/tools/BgRemove.tsx';
         <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
       </summary>
       <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>AIモデル（Transformers.js）を使用して、画像の背景を自動で削除します。AIモデルの取得時に通信が発生する場合がありますが、画像そのものはブラウザ内で処理され、サーバーに送信されることはありません。</p>
+        <p>AIモデル（Transformers.js）を使用して、画像の背景を自動で削除します。初回実行時にAIモデルを取得する通信が発生しますが、画像そのものはブラウザ内で処理され、サーバーに送信されることはありません。</p>
         <ul class="list-disc pl-5 space-y-1">
           <li>商品写真の背景を透過にしたい</li>
           <li>プロフィール写真の背景を削除・差し替えしたい</li>

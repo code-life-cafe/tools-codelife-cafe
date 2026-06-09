@@ -2,147 +2,7 @@ import { Search } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
-type Tool = {
-	id: string;
-	name: string;
-	description: string;
-	href: string;
-	icon: string;
-	category: string;
-};
-
-const TOOLS: Tool[] = [
-	{
-		id: 'zenkaku-hankaku',
-		name: '全角↔半角変換',
-		description: 'カタカナ・英数字・記号の全角半角を一括変換',
-		href: '/zenkaku-hankaku',
-		icon: '🔄',
-		category: 'テキスト変換',
-	},
-	{
-		id: 'char-count',
-		name: '文字数カウント',
-		description: '文字数・バイト数・行数をリアルタイムカウント。Shift-JIS対応',
-		href: '/char-count',
-		icon: '🔢',
-		category: 'テキスト解析',
-	},
-	{
-		id: 'json-formatter',
-		name: 'JSON整形',
-		description: 'JSONの整形・圧縮・構文チェック',
-		href: '/json-formatter',
-		icon: '{ }',
-		category: '開発ツール',
-	},
-	{
-		id: 'text-diff',
-		name: 'テキスト差分比較',
-		description: '2つのテキストの違いをハイライト表示',
-		href: '/text-diff',
-		icon: '📝',
-		category: 'テキスト解析',
-	},
-	{
-		id: 'qr-generator',
-		name: 'QRコード生成',
-		description: 'URLやテキストからQRコードを即座に生成',
-		href: '/qr-generator',
-		icon: '📱',
-		category: '生成ツール',
-	},
-	{
-		id: 'wareki-converter',
-		name: '和暦↔西暦変換',
-		description: '明治〜令和の和暦と西暦を相互変換。干支・年齢も同時表示',
-		href: '/wareki-converter',
-		icon: '🎌',
-		category: 'ユーティリティ',
-	},
-	{
-		id: 'base64',
-		name: 'Base64変換',
-		description: 'テキスト・ファイルのBase64エンコード/デコード',
-		href: '/base64',
-		icon: '🔐',
-		category: 'ユーティリティ',
-	},
-	{
-		id: 'url-encoder',
-		name: 'URLエンコード/デコード',
-		description: '日本語を含むURLやクエリを安全に双方向変換',
-		href: '/url-encoder',
-		icon: '🔗',
-		category: 'エンコード/デコード',
-	},
-	{
-		id: 'regex-tester',
-		name: '正規表現テスター',
-		description: '正規表現のリアルタイムテスト・マッチ確認・置換',
-		href: '/regex-tester',
-		icon: '✨',
-		category: '開発ツール',
-	},
-	{
-		id: 'sql-formatter',
-		name: 'SQL整形・フォーマッター',
-		description: 'SQLの整形・圧縮。MySQL/PostgreSQL等の方言対応',
-		href: '/sql-formatter',
-		icon: '💾',
-		category: '開発ツール',
-	},
-	{
-		id: 'dummy-data',
-		name: 'ダミーデータ生成',
-		description: '日本語の氏名・電話番号等のダミーデータを一括生成',
-		href: '/dummy-data',
-		icon: '🎲',
-		category: '生成ツール',
-	},
-	{
-		id: 'masking',
-		name: '個人情報マスキング',
-		description: 'メール・電話番号・カード番号等を自動検出してマスキング',
-		href: '/masking',
-		icon: '🛡️',
-		category: 'データ処理',
-	},
-	{
-		id: 'csv-editor',
-		name: 'CSVビューア/エディタ',
-		description: 'CSV/TSVをテーブル形式で閲覧・編集・加工',
-		href: '/csv-editor',
-		icon: '📊',
-		category: 'データ処理',
-	},
-	{
-		id: 'unicode-converter',
-		name: 'ユニコード変換',
-		description: 'テキストとユニコードエスケープシーケンスを相互変換',
-		href: '/unicode-converter',
-		icon: '🔣',
-		category: 'テキスト変換',
-	},
-	{
-		id: 'csv-fixer',
-		name: 'CSV文字化け修復',
-		description:
-			'CSVのShift_JIS文字化けをブラウザで即座に修復。自動検出・BOM付与対応。',
-		href: '/csv-fixer',
-		icon: '📝',
-		category: 'データ処理',
-	},
-	{
-		id: 'phone-formatter',
-		name: '電話番号フォーマッタ',
-		description:
-			'日本の電話番号をE.164・国際表記・国内表記に即変換。CSV一括変換対応。',
-		href: '/phone-formatter',
-		icon: '📞',
-		category: 'データ処理',
-	},
-];
+import { toolCatalog } from '@/lib/tools/catalog';
 
 export default function SearchModal() {
 	const [isOpen, setIsOpen] = useState(false);
@@ -151,12 +11,17 @@ export default function SearchModal() {
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	const filteredTools = query
-		? TOOLS.filter((tool) =>
-				(tool.name + tool.description + tool.category)
+		? toolCatalog.filter((tool) =>
+				(
+					tool.title +
+					tool.description +
+					tool.category +
+					tool.keywords.join(' ')
+				)
 					.toLowerCase()
 					.includes(query.toLowerCase()),
 			)
-		: TOOLS;
+		: toolCatalog;
 
 	// Search trigger & Keyboard shortcuts
 	useEffect(() => {
@@ -198,6 +63,8 @@ export default function SearchModal() {
 		if (!isOpen) return;
 
 		const handleModalKeyDown = (e: KeyboardEvent) => {
+			if (filteredTools.length === 0) return;
+
 			if (e.key === 'ArrowDown') {
 				e.preventDefault();
 				setActiveIndex((prev) => (prev + 1) % filteredTools.length);
@@ -206,7 +73,7 @@ export default function SearchModal() {
 				setActiveIndex(
 					(prev) => (prev - 1 + filteredTools.length) % filteredTools.length,
 				);
-			} else if (e.key === 'Enter' && filteredTools.length > 0) {
+			} else if (e.key === 'Enter') {
 				e.preventDefault();
 				window.location.href = filteredTools[activeIndex]?.href || '/';
 			}
@@ -279,7 +146,7 @@ export default function SearchModal() {
 											<span
 												className={`font-medium ${index === activeIndex ? 'text-primary' : 'text-foreground'}`}
 											>
-												{tool.name}
+												{tool.title}
 											</span>
 											<span className="text-xs opacity-80">
 												{tool.description}
