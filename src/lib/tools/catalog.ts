@@ -238,6 +238,17 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'ピクセル化',
 		],
 	},
+	{
+		id: 'image-text',
+		title: '画像テキスト挿入',
+		description:
+			'画像への文字入れ・注釈をブラウザで。縁取り・背景ボックス・ドラッグ配置に対応。',
+		href: '/image-text',
+		icon: '🔤',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: ['テキスト', '文字入れ', '画像', '注釈', 'キャプション'],
+	},
 ];
 
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
