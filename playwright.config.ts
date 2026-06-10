@@ -11,6 +11,8 @@ export default defineConfig({
 		baseURL: 'http://localhost:4321',
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
+		// SW は context.route() を素通りし、並列実行時にハイドレーションを遅延させるため無効化
+		serviceWorkers: 'block',
 	},
 	projects: [
 		{ name: 'chromium', use: { ...devices['Desktop Chrome'] } },
