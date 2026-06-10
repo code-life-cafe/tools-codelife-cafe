@@ -1,0 +1,35 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import ImageMosaicPage from '../components/image-mosaic/ImageMosaicPage';
+---
+
+<ToolLayout
+  title="画像モザイク・ぼかしツール"
+  description="画像の一部にモザイク・ぼかしをブラウザだけでかけられる無料オンラインツール。スクリーンショットの個人情報や機密情報のマスキングに。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/image-mosaic"
+>
+  <ImageMosaicPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4">
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>スクリーンショットや写真の見せたくない部分をドラッグで選択するだけで、ブラウザ内でモザイク・ぼかし加工ができる無料の画像マスキングツールです。インストール不要で、画像がサーバーに送信されることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>スクリーンショットの個人情報マスキング:</strong> 画像を読み込み、氏名・メールアドレス・社外秘情報などが写っている範囲をドラッグで囲むだけ。複数の範囲に重ねて適用でき、元に戻す／やり直しにも対応しています。</li>
+          <li><strong>モザイクとぼかしの使い分け:</strong> 文字を確実に判読不能にしたい場合は「モザイク」（粗さを大きめに）、人物の顔や背景を自然に隠したい場合は「ぼかし」がおすすめです。</li>
+          <li><strong>完全ローカル処理:</strong> 加工はすべてお使いのブラウザ内（Canvas API）で完結します。機密画像を外部サービスにアップロードせずにマスキングできるため、業務利用でも安心です。</li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/image-text" class="text-xs text-primary hover:underline">画像テキスト挿入</a>
+          <a href="/masking" class="text-xs text-primary hover:underline">個人情報マスキング</a>
+          <a href="/bg-remove" class="text-xs text-primary hover:underline">背景削除</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

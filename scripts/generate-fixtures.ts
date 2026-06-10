@@ -1,6 +1,7 @@
 import Encoding from 'encoding-japanese';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 
 // Use process.cwd() since __dirname might not exist in ESM
 const fixturesDir = path.join(process.cwd(), 'tests', 'e2e', 'fixtures');
@@ -58,6 +59,88 @@ fs.writeFileSync(
 fs.writeFileSync(
 	path.join(fixturesDir, 'invalid.xlsx'),
 	Buffer.from('This is not an excel file'),
+);
+
+// 6. 画像ツールE2E用の決定論的PNG（依存追加なしの手書きエンコーダ）
+//    PNGは可逆圧縮のため、ここで指定したピクセル値がブラウザのgetImageDataでそのまま読める
+
+function crc32(buf: Buffer): number {
+	let table = crc32.table;
+	if (!table) {
+		table = new Int32Array(256);
+		for (let n = 0; n < 256; n++) {
+			let c = n;
+			for (let k = 0; k < 8; k++) {
+				c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+			}
+			table[n] = c;
+		}
+		crc32.table = table;
+	}
+	let crc = -1;
+	for (const byte of buf) {
+		crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+	}
+	return (crc ^ -1) >>> 0;
+}
+crc32.table = null as Int32Array | null;
+
+function pngChunk(type: string, data: Buffer): Buffer {
+	const length = Buffer.alloc(4);
+	length.writeUInt32BE(data.length);
+	const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+	const crc = Buffer.alloc(4);
+	crc.writeUInt32BE(crc32(body));
+	return Buffer.concat([length, body, crc]);
+}
+
+function makePng(
+	width: number,
+	height: number,
+	pixelAt: (x: number, y: number) => [number, number, number, number],
+): Buffer {
+	const signature = Buffer.from([
+		0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+	]);
+
+	const ihdr = Buffer.alloc(13);
+	ihdr.writeUInt32BE(width, 0);
+	ihdr.writeUInt32BE(height, 4);
+	ihdr[8] = 8; // bit depth
+	ihdr[9] = 6; // color type: RGBA
+	// compression / filter / interlace = 0
+
+	// 各行の先頭に filter byte 0 (None) を付けた生ピクセル列
+	const raw = Buffer.alloc(height * (1 + width * 4));
+	let offset = 0;
+	for (let y = 0; y < height; y++) {
+		raw[offset++] = 0;
+		for (let x = 0; x < width; x++) {
+			const [r, g, b, a] = pixelAt(x, y);
+			raw[offset++] = r;
+			raw[offset++] = g;
+			raw[offset++] = b;
+			raw[offset++] = a;
+		}
+	}
+
+	return Buffer.concat([
+		signature,
+		pngChunk('IHDR', ihdr),
+		pngChunk('IDAT', zlib.deflateSync(raw)),
+		pngChunk('IEND', Buffer.alloc(0)),
+	]);
+}
+
+// 400×300 白地 + (100,80)〜(219,169) に赤 [220,40,40] の矩形
+// 赤/白の境界をまたいでマスクをかけると平均色が両者と異なる値になり、ピクセル検証が確実になる
+fs.writeFileSync(
+	path.join(fixturesDir, 'sample-400x300.png'),
+	makePng(400, 300, (x, y) =>
+		x >= 100 && x < 220 && y >= 80 && y < 170
+			? [220, 40, 40, 255]
+			: [255, 255, 255, 255],
+	),
 );
 
 console.log('Fixtures generated successfully.');
