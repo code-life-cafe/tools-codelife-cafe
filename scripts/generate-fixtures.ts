@@ -143,4 +143,11 @@ fs.writeFileSync(
 	),
 );
 
+// 7. ハッシュツール用の固定内容テキスト（期待ハッシュ値が決定的になる）
+// 内容を変更すると tests/e2e/hash.spec.ts の期待値も更新が必要
+fs.writeFileSync(
+	path.join(fixturesDir, 'hash-sample.txt'),
+	Buffer.from('CODE:LIFE hash fixture v1\n', 'utf8'),
+);
+
 console.log('Fixtures generated successfully.');
