@@ -40,3 +40,6 @@ docs/superpowers/
 
 # Wrangler local dev
 .wrangler/
+
+# 郵便番号データ生成スクリプトの入力CSVキャッシュ（生成物 public/data/zipcode/ のみコミット）
+scripts/.cache/
