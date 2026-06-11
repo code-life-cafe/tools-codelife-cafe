@@ -4,8 +4,12 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export interface FileDropzoneProps {
-	/** 検証を通過したファイルのみ通知される */
+	/** 検証を通過したファイルのみ通知される（単一選択時） */
 	onFileSelect: (file: File) => void;
+	/** 複数選択を許可する（デフォルト false）。既存の単一選択挙動は不変 */
+	multiple?: boolean;
+	/** multiple 時に選択された全ファイルを通知する（ドメイン検証は呼び出し側で行う） */
+	onFilesSelect?: (files: File[]) => void;
 	/** 検証失敗時のエラーメッセージ通知（表示は呼び出し側で行う） */
 	onValidationError?: (message: string) => void;
 	/** input の accept 属性（例: '.json,.csv,.txt'）。未指定は任意ファイル */
@@ -48,6 +52,8 @@ function matchesAccept(file: File, accept?: string): boolean {
 
 export function FileDropzone({
 	onFileSelect,
+	multiple = false,
+	onFilesSelect,
 	onValidationError,
 	accept,
 	maxSizeBytes,
@@ -114,20 +120,30 @@ export function FileDropzone({
 			e.stopPropagation();
 			setIsDragOver(false);
 			if (disabled) return;
-			const file = e.dataTransfer.files[0];
+			const files = e.dataTransfer.files;
+			if (multiple) {
+				if (files.length > 0) onFilesSelect?.(Array.from(files));
+				return;
+			}
+			const file = files[0];
 			if (file) handleFile(file);
 		},
-		[disabled, handleFile],
+		[disabled, handleFile, multiple, onFilesSelect],
 	);
 
 	const handleInputChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
-			const file = e.target.files?.[0];
-			if (file) handleFile(file);
+			const files = e.target.files;
+			if (multiple) {
+				if (files && files.length > 0) onFilesSelect?.(Array.from(files));
+			} else {
+				const file = files?.[0];
+				if (file) handleFile(file);
+			}
 			// 同じファイルの再選択を可能にする
 			e.target.value = '';
 		},
-		[handleFile],
+		[handleFile, multiple, onFilesSelect],
 	);
 
 	return (
@@ -159,6 +175,7 @@ export function FileDropzone({
 					ref={fileInputRef}
 					type="file"
 					accept={accept}
+					multiple={multiple}
 					aria-label={inputAriaLabel}
 					data-testid={dataTestId}
 					onChange={handleInputChange}
