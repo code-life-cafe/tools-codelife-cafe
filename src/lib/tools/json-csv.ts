@@ -72,6 +72,31 @@ function makeUniqueHeaders(headers: readonly string[]): string[] {
 	});
 }
 
+function normalizeRecordNewlines(csvText: string): string {
+	let normalized = '';
+	let inQuotes = false;
+	for (let i = 0; i < csvText.length; i++) {
+		const ch = csvText[i];
+		if (ch === '"') {
+			normalized += ch;
+			if (inQuotes && csvText[i + 1] === '"') {
+				normalized += csvText[i + 1];
+				i++;
+				continue;
+			}
+			inQuotes = !inQuotes;
+			continue;
+		}
+		if (!inQuotes && ch === '\r') {
+			if (csvText[i + 1] === '\n') i++;
+			normalized += '\n';
+			continue;
+		}
+		normalized += ch;
+	}
+	return normalized;
+}
+
 /**
  * ネスト構造をドット記法（user.name）にフラット化する。配列はインデックス記法（items.0）。
  * 空オブジェクト・空配列はキーを生成しない（完全復元は対象外）。
@@ -311,13 +336,10 @@ export function csvToJson(
 
 	const delimiter =
 		options.delimiter === 'auto' ? detectDelimiter(text) : options.delimiter;
-
-	// \r\n と \n の混在入力を読み取れるよう正規化する
-	// （クォート内の \r\n も \n になるが、混在入力の安全な読み取りを優先する）
-	const normalized = text.replace(/\r\n/g, '\n');
+	const parseText = normalizeRecordNewlines(text);
 
 	// ヘッダー処理・列数調整・型推論は自前で行うため header: false 固定
-	const result = Papa.parse<string[]>(normalized, {
+	const result = Papa.parse<string[]>(parseText, {
 		delimiter,
 		header: false,
 		skipEmptyLines: 'greedy',

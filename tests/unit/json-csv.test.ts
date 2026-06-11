@@ -231,6 +231,11 @@ test('csvToJson: クォート内の改行・区切り文字・エスケープを
 	]);
 });
 
+test('csvToJson: クォート内のCRLFをLFへ正規化せず保持する', () => {
+	const result = expectOk(csvToJson('a,b\r\n"改行\r\nあり",x', CSV_OPTS));
+	assert.deepEqual(JSON.parse(result.output), [{ a: '改行\r\nあり', b: 'x' }]);
+});
+
 test('csvToJson: \\r\\n と \\n の混在を読み取れる', () => {
 	const result = expectOk(csvToJson('a,b\n1,2\r\n3,4', CSV_OPTS));
 	assert.deepEqual(JSON.parse(result.output), [

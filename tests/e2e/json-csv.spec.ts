@@ -166,6 +166,31 @@ test.describe('JSON-CSV Converter Tool', () => {
 		expect(download.suggestedFilename()).toBe('converted.json');
 	});
 
+	test('ファイルドロップ時もaccept対象外の形式を拒否すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		const dropzone = page.getByRole('button', { name: /ファイルから読み込み/ });
+		const dataTransfer = await page.evaluateHandle(() => {
+			const transfer = new DataTransfer();
+			transfer.items.add(
+				new File(['not a json csv text file'], 'sample.png', {
+					type: 'image/png',
+				}),
+			);
+			return transfer;
+		});
+		await dropzone.dispatchEvent('drop', { dataTransfer });
+
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'対応していないファイル形式です',
+		);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('');
+	});
+
 	test('コピーが動作すること', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('json-csv');
 		await toolPage.goto();

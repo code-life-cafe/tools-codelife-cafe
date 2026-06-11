@@ -29,6 +29,23 @@ export interface FileDropzoneProps {
 	'data-testid'?: string;
 }
 
+function matchesAccept(file: File, accept?: string): boolean {
+	if (!accept) return true;
+	const fileName = file.name.toLowerCase();
+	const fileType = file.type.toLowerCase();
+	return accept
+		.split(',')
+		.map((token) => token.trim().toLowerCase())
+		.filter(Boolean)
+		.some((token) => {
+			if (token.startsWith('.')) return fileName.endsWith(token);
+			if (token.endsWith('/*')) {
+				return fileType.startsWith(token.slice(0, -1));
+			}
+			return fileType === token;
+		});
+}
+
 export function FileDropzone({
 	onFileSelect,
 	onValidationError,
@@ -51,6 +68,10 @@ export function FileDropzone({
 
 	const handleFile = useCallback(
 		(file: File) => {
+			if (!matchesAccept(file, accept)) {
+				onValidationError?.('対応していないファイル形式です。');
+				return;
+			}
 			if (maxSizeBytes != null && file.size > maxSizeBytes) {
 				onValidationError?.(validationMessage);
 				return;
@@ -63,6 +84,7 @@ export function FileDropzone({
 			onFileSelect(file);
 		},
 		[
+			accept,
 			maxSizeBytes,
 			validationMessage,
 			validate,
