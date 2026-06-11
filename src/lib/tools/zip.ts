@@ -31,8 +31,11 @@ export function crc32Of(bytes: Uint8Array): number {
 	return Number.parseInt(hasher.digest(), 16) >>> 0;
 }
 
-async function toBytes(data: Blob | Uint8Array): Promise<Uint8Array> {
-	if (data instanceof Uint8Array) return data;
+// 返り値は ArrayBuffer 裏付けを保証する（BlobPart 互換・SharedArrayBuffer を排除）
+async function toBytes(
+	data: Blob | Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> {
+	if (data instanceof Uint8Array) return new Uint8Array(data);
 	return new Uint8Array(await data.arrayBuffer());
 }
 
@@ -67,8 +70,8 @@ export function dedupeZipNames(names: readonly string[]): string[] {
  */
 export async function buildZip(entries: readonly ZipEntry[]): Promise<Blob> {
 	const encoder = new TextEncoder();
-	const localParts: Uint8Array[] = [];
-	const centralParts: Uint8Array[] = [];
+	const localParts: Uint8Array<ArrayBuffer>[] = [];
+	const centralParts: Uint8Array<ArrayBuffer>[] = [];
 	let offset = 0;
 	let centralSize = 0;
 

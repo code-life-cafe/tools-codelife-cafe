@@ -1,0 +1,36 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { ImageCompressPage } from '../components/image-compress/ImageCompressPage';
+---
+
+<ToolLayout
+  title="画像圧縮・リサイズツール（JPEG / PNG / WebP）"
+  description="画像の圧縮・リサイズ・WebP変換をブラウザだけで実行できる無料ツール。複数ファイル一括処理、目標サイズ（KB）指定、ZIP一括ダウンロード対応。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/image-compress"
+>
+  <ImageCompressPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4">
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>JPEG・PNG・WebP 画像の圧縮・リサイズ・フォーマット変換を、ブラウザ内だけで実行できる無料のオンラインツールです。複数ファイルの一括処理や、メール添付・Web掲載に合わせた目標サイズ（KB）指定に対応。画像がサーバーにアップロードされることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>目標サイズ（KB）指定でメール添付・Web掲載に最適化:</strong> 「○○KB以下にしたい」という場合は目標ファイルサイズを指定すると、品質を自動調整して指定容量以下に収めます。画像の容量を一括で小さくしたいときに便利です（JPEG / WebP のみ対応）。</li>
+          <li><strong>JPEG・PNG・WebP の使い分け:</strong> 写真は <strong>JPEG</strong>、透過が必要な図版・ロゴは <strong>PNG</strong>、容量と画質の両立を狙うなら <strong>WebP 変換</strong> がおすすめです。「元の形式を維持」を選ぶと拡張子はそのままで圧縮・リサイズだけ行います。</li>
+          <li><strong>EXIF・位置情報などのメタデータを自動除去:</strong> 再エンコードの過程で、撮影日時・GPS位置情報・カメラ機種などの Exif メタデータが自動的に取り除かれます。スクリーンショットや社内資料の画像を安全に共有できます。</li>
+          <li><strong>完全ローカル処理 × 一括ZIP出力:</strong> すべての処理はお使いのブラウザ内（Canvas API）で完結します。複数枚をまとめて圧縮し、ZIP で一括ダウンロードできるため、機密スクショや社内資料も外部送信なしで扱えます。</li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/bg-remove" class="text-xs text-primary hover:underline">背景削除</a>
+          <a href="/image-mosaic" class="text-xs text-primary hover:underline">画像モザイク・ぼかし</a>
+          <a href="/image-text" class="text-xs text-primary hover:underline">画像テキスト挿入</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
