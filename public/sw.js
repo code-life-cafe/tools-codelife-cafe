@@ -63,7 +63,7 @@ self.addEventListener('message', (event) => {
 							type: 'PRECACHE_PROGRESS',
 							loaded,
 							total,
-							percentage: Math.round((loaded / total) * 100),
+							percentage: total > 0 ? Math.round((loaded / total) * 100) : 100,
 						});
 					}
 				};

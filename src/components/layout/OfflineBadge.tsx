@@ -30,8 +30,11 @@ export default function OfflineBadge() {
 	const [cacheInfo, setCacheInfo] = useState({ cachedCount: 0, totalCount: 0 });
 
 	const checkCacheStatus = useCallback(async () => {
-		if (typeof window === 'undefined' || !('serviceWorker' in navigator))
+		if (typeof window === 'undefined') return;
+		if (!('serviceWorker' in navigator)) {
+			setState('available');
 			return;
+		}
 		if (!navigator.onLine) {
 			setState('offline');
 			return;
@@ -97,20 +100,26 @@ export default function OfflineBadge() {
 
 		navigator.serviceWorker?.addEventListener('message', handleMessage);
 
-		// 最初のチェックが少し遅れて走るようにして、SWのアクティベート完了を待つ
-		const timer = setTimeout(() => {
-			if (state === 'checking' && navigator.onLine) {
+		// SWのアクティベート完了を待ってから再チェック
+		const retryTimer = setTimeout(() => {
+			if (navigator.onLine) {
 				checkCacheStatus();
 			}
 		}, 1000);
+
+		// SW登録失敗などで応答がない場合に「接続確認中」のまま固まらないようフォールバック
+		const fallbackTimer = setTimeout(() => {
+			setState((s) => (s === 'checking' ? 'available' : s));
+		}, 5000);
 
 		return () => {
 			window.removeEventListener('online', handleOnline);
 			window.removeEventListener('offline', handleOffline);
 			navigator.serviceWorker?.removeEventListener('message', handleMessage);
-			clearTimeout(timer);
+			clearTimeout(retryTimer);
+			clearTimeout(fallbackTimer);
 		};
-	}, [checkCacheStatus, state]);
+	}, [checkCacheStatus]);
 
 	const startPrecache = async () => {
 		if (typeof window === 'undefined' || !('serviceWorker' in navigator))
