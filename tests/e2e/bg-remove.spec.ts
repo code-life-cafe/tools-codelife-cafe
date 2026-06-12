@@ -59,6 +59,8 @@ test.describe('背景削除ツール', () => {
 
 		// クリックで閉じることができる
 		await usageDetails.click();
-		await expect(page.getByText('商品写真の背景を透過にしたい')).not.toBeVisible();
+		await expect(
+			page.getByText('商品写真の背景を透過にしたい'),
+		).not.toBeVisible();
 	});
 });
