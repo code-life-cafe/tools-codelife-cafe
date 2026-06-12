@@ -1,0 +1,45 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { MarkdownPreviewPage } from '../components/tools/markdown/MarkdownPreviewPage';
+---
+
+<ToolLayout
+  title="Markdownプレビュー（リアルタイム・アップロード不要）"
+  description="Markdownをブラウザだけでリアルタイムプレビューできる無料ツール。GFM（テーブル・タスクリスト）対応、HTMLコピー・ダウンロード可能。完全クライアントサイド処理で社外秘ドキュメントも安心。"
+  path="/markdown"
+>
+  <MarkdownPreviewPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4">
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>
+          Markdown プレビューをブラウザだけで確認できる無料のマークダウン エディタです。左側にMarkdownを入力すると、右側（モバイルはタブ切替）にリアルタイムでHTML変換結果が表示されます。GitHubのREADMEやドキュメントの下書きを、その場で見た目を確認しながら編集できます。
+        </p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong>GFM対応範囲:</strong>
+            見出し・リスト・引用・コードブロックに加え、GFM（GitHub Flavored Markdown）のテーブル、タスクリスト（<code>- [ ]</code> / <code>- [x]</code>）、打ち消し線（<code>~~text~~</code>）、URLの自動リンク化に対応しています。
+          </li>
+          <li>
+            <strong>改行の扱い（breaksオフ）:</strong>
+            このツールは「breaks」オプションをオフにしているため、Markdown標準の仕様通り、文章中の単一の改行はHTML上の改行（<code>&lt;br&gt;</code>）になりません。段落を分けるには空行を入れるか、行末に半角スペースを2つ入れてください。
+          </li>
+          <li>
+            <strong>HTMLダウンロードの使い方:</strong>
+            ツールバーの「HTMLダウンロード」を押すと、プレビューと同じ内容を持つスタンドアロンHTMLファイル（<code>document.html</code>）がダウンロードされます。最小限のタイポグラフィCSSが埋め込まれているため、ブラウザで開くだけでそのまま閲覧できます。「HTMLをコピー」でクリップボードに変換結果のHTMLをコピーすることもできます。
+          </li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/json-csv" class="text-xs text-primary hover:underline">JSON ↔ CSV 相互変換</a>
+          <a href="/color" class="text-xs text-primary hover:underline">カラー変換・パレット</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

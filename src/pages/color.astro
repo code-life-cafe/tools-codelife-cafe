@@ -1,0 +1,45 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { ColorConvertPage } from '../components/tools/color/ColorConvertPage';
+---
+
+<ToolLayout
+  title="カラーコード変換（HEX・RGB・HSL・CMYK）"
+  description="HEX・RGB・HSL・CMYKのカラーコードをブラウザだけで相互変換できる無料ツール。カラーピッカー連動・ワンクリックコピー対応。登録不要、完全クライアントサイド処理。"
+  path="/color"
+>
+  <ColorConvertPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4">
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>
+          カラーコード変換をオンラインで無料で行えるツールです。HEX・RGB・HSL・CMYKのいずれかの形式でカラーコードを入力すると、自動で形式を判定し、残りすべての形式に相互変換して表示します。CSSやデザインツールでそのまま使える文字列をワンクリックでコピーできます。
+        </p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong>対応形式と入力例:</strong>
+            HEX（<code>#1e90ff</code> / <code>#fff</code> / <code>#fff8</code> など3・4・6・8桁、#の有無どちらも可）、RGB（<code>rgb(30, 144, 255)</code>）、RGBA（<code>rgba(30, 144, 255, 0.5)</code>）、HSL（<code>hsl(208, 100%, 56%)</code>）、HSLA（<code>hsla(208, 100%, 56%, 0.5)</code>）、CMYK（<code>cmyk(88%, 44%, 0%, 0%)</code>）に対応しています。
+          </li>
+          <li>
+            <strong>RGB HSL 変換・HEX RGB 変換:</strong>
+            入力欄にいずれかの形式のカラーコードを入力するだけで、HEX・RGB・HSL・CMYKすべての値に即時変換されます。カラーピッカーと双方向に連動するため、視覚的に色を選んで各形式の値を確認することもできます。
+          </li>
+          <li>
+            <strong>CMYK 変換 無料の注意点:</strong>
+            CMYK変換は印刷用のICCプロファイルを使用しない簡易変換（naive conversion）です。実際の印刷物の色とは異なる場合があるため、正確な色再現が必要な印刷用途には対応していません。
+          </li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/hash" class="text-xs text-primary hover:underline">ハッシュ値計算</a>
+          <a href="/markdown" class="text-xs text-primary hover:underline">Markdownエディタ</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
