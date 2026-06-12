@@ -3,7 +3,7 @@
 // すべてブラウザ内で処理し、PDFはサーバーに送信されない。
 
 import { Download, Loader2, Package, Scissors } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,9 @@ export function PdfSplitPage() {
 	const [outputs, setOutputs] = useState<OutputFile[]>([]);
 	const [zipBlob, setZipBlob] = useState<Blob | null>(null);
 	const [zipName, setZipName] = useState('');
+	// 読み込み中に別ファイルが選択された場合、古い loadPdfInfo の結果で
+	// 新しい選択を上書きしないためのリクエストトークン
+	const loadIdRef = useRef(0);
 
 	const baseName = useMemo(
 		() => (file ? file.name.replace(/\.pdf$/i, '') : 'document'),
@@ -78,12 +81,14 @@ export function PdfSplitPage() {
 
 	const handleFileSelect = useCallback(
 		async (selected: File) => {
+			const loadId = ++loadIdRef.current;
 			setError(null);
 			resetOutputs();
 			setFile(null);
 			setPageCount(0);
 
 			const v = await validatePdfFile(selected);
+			if (loadId !== loadIdRef.current) return;
 			if (!v.ok || v.kind !== 'pdf') {
 				setError(
 					v.ok
@@ -96,6 +101,7 @@ export function PdfSplitPage() {
 			try {
 				const bytes = new Uint8Array(await selected.arrayBuffer());
 				const info = await loadPdfInfo(bytes);
+				if (loadId !== loadIdRef.current) return;
 				if (info.encrypted) {
 					setError(`${selected.name}: ${ENCRYPTED_PDF_MESSAGE}`);
 					return;
@@ -103,17 +109,20 @@ export function PdfSplitPage() {
 				setFile(selected);
 				setPageCount(info.pageCount);
 			} catch {
+				if (loadId !== loadIdRef.current) return;
 				setError(
 					`${selected.name}: PDFを読み込めませんでした。ファイルが破損している可能性があります。`,
 				);
 			} finally {
-				setLoading(false);
+				if (loadId === loadIdRef.current) setLoading(false);
 			}
 		},
 		[resetOutputs],
 	);
 
 	const handleClear = useCallback(() => {
+		loadIdRef.current++;
+		setLoading(false);
 		setFile(null);
 		setPageCount(0);
 		setError(null);
@@ -191,7 +200,7 @@ export function PdfSplitPage() {
 		<div className="space-y-6">
 			<FileDropzone
 				onFileSelect={(f) => void handleFileSelect(f)}
-				accept="application/pdf"
+				accept="application/pdf,.pdf"
 				disabled={processing}
 				label="PDFをドラッグ＆ドロップ"
 				description="PDFファイル（1ファイル100MBまで）"

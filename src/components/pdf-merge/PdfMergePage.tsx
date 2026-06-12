@@ -19,7 +19,8 @@ import {
 } from '@/lib/tools/pdf';
 import { formatBytes, MergeFileList, type MergeItem } from './MergeFileList';
 
-const ACCEPT = 'application/pdf,image/jpeg,image/png';
+// MIMEが空/octet-streamのPDF（OS・ブラウザ依存）も選択できるよう拡張子も併記する
+const ACCEPT = 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png';
 
 type MergeResult = {
 	blob: Blob;
