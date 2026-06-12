@@ -1,38 +1,135 @@
-import { Download, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import {
+	AlertTriangle,
+	CheckCircle2,
+	Download,
+	RefreshCw,
+	WifiOff,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from '@/components/ui/popover';
 
-type BadgeState = 'offline' | 'installed' | 'uninstalled';
-
-function getBadgeState(): BadgeState {
-	if (typeof window === 'undefined') return 'uninstalled';
-	if (!navigator.onLine) return 'offline';
-	if (window.matchMedia('(display-mode: standalone)').matches)
-		return 'installed';
-	return 'uninstalled';
-}
+type BadgeState =
+	| 'checking'
+	| 'offline'
+	| 'ready'
+	| 'available'
+	| 'downloading'
+	| 'error';
 
 export default function OfflineBadge() {
-	const [state, setState] = useState<BadgeState>('uninstalled');
+	const [state, setState] = useState<BadgeState>('checking');
+	const [progress, setProgress] = useState({
+		loaded: 0,
+		total: 0,
+		percentage: 0,
+	});
+	const [cacheInfo, setCacheInfo] = useState({ cachedCount: 0, totalCount: 0 });
+
+	const checkCacheStatus = useCallback(async () => {
+		if (typeof window === 'undefined' || !('serviceWorker' in navigator))
+			return;
+		if (!navigator.onLine) {
+			setState('offline');
+			return;
+		}
+
+		try {
+			const reg = await navigator.serviceWorker.ready;
+			const sw = reg.active || navigator.serviceWorker.controller;
+			if (sw) {
+				sw.postMessage({ type: 'CHECK_PRECACHE_STATUS' });
+			} else {
+				setState('available');
+			}
+		} catch (err) {
+			console.error('Failed to check cache status:', err);
+			setState('available');
+		}
+	}, []);
 
 	useEffect(() => {
-		setState(getBadgeState());
+		if (typeof window === 'undefined') return;
 
-		const handleOnline = () => setState(getBadgeState());
+		if (!navigator.onLine) {
+			setState('offline');
+		} else {
+			checkCacheStatus();
+		}
+
+		const handleOnline = () => {
+			checkCacheStatus();
+		};
 		const handleOffline = () => setState('offline');
 
 		window.addEventListener('online', handleOnline);
 		window.addEventListener('offline', handleOffline);
 
+		const handleMessage = (event: MessageEvent) => {
+			const data = event.data;
+			if (!data) return;
+
+			if (data.type === 'PRECACHE_STATUS_RESULT') {
+				setCacheInfo({
+					cachedCount: data.cachedCount,
+					totalCount: data.totalCount,
+				});
+				if (data.isComplete) {
+					setState('ready');
+				} else {
+					setState('available');
+				}
+			} else if (data.type === 'PRECACHE_PROGRESS') {
+				setState('downloading');
+				setProgress({
+					loaded: data.loaded,
+					total: data.total,
+					percentage: data.percentage,
+				});
+			} else if (data.type === 'PRECACHE_COMPLETE') {
+				setState('ready');
+				checkCacheStatus(); // 最新のキャッシュ情報を再確認
+			}
+		};
+
+		navigator.serviceWorker?.addEventListener('message', handleMessage);
+
+		// 最初のチェックが少し遅れて走るようにして、SWのアクティベート完了を待つ
+		const timer = setTimeout(() => {
+			if (state === 'checking' && navigator.onLine) {
+				checkCacheStatus();
+			}
+		}, 1000);
+
 		return () => {
 			window.removeEventListener('online', handleOnline);
 			window.removeEventListener('offline', handleOffline);
+			navigator.serviceWorker?.removeEventListener('message', handleMessage);
+			clearTimeout(timer);
 		};
-	}, []);
+	}, [checkCacheStatus, state]);
+
+	const startPrecache = async () => {
+		if (typeof window === 'undefined' || !('serviceWorker' in navigator))
+			return;
+		try {
+			const reg = await navigator.serviceWorker.ready;
+			const sw = reg.active || navigator.serviceWorker.controller;
+			if (sw) {
+				setState('downloading');
+				setProgress({ loaded: 0, total: 100, percentage: 0 });
+				sw.postMessage({ type: 'PRECACHE_ALL' });
+			} else {
+				setState('error');
+			}
+		} catch (err) {
+			console.error('Failed to start precaching:', err);
+			setState('error');
+		}
+	};
 
 	if (state === 'offline') {
 		return (
@@ -43,11 +140,11 @@ export default function OfflineBadge() {
 		);
 	}
 
-	if (state === 'installed') {
+	if (state === 'checking') {
 		return (
-			<span className="hidden lg:flex items-center gap-1.5 text-xs text-safety font-medium">
-				<span className="inline-block h-2 w-2 rounded-full bg-safety pulse-dot" />
-				オフライン対応済み
+			<span className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+				<RefreshCw className="h-3 w-3 animate-spin" />
+				接続確認中...
 			</span>
 		);
 	}
@@ -55,35 +152,132 @@ export default function OfflineBadge() {
 	return (
 		<Popover>
 			<PopoverTrigger asChild>
-				<button
-					type="button"
-					className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground font-medium hover:text-foreground transition-colors cursor-pointer"
-					aria-label="PWAインストール手順を表示"
-				>
-					<Download className="h-3.5 w-3.5" />
-					オフラインモードを有効化
-				</button>
+				{state === 'ready' ? (
+					<button
+						type="button"
+						className="hidden lg:flex items-center gap-1.5 text-xs text-safety font-medium hover:opacity-80 transition-opacity cursor-pointer"
+						aria-label="オフライン状態を確認"
+					>
+						<span className="inline-block h-2 w-2 rounded-full bg-safety pulse-dot" />
+						オフライン対応済み
+					</button>
+				) : state === 'downloading' ? (
+					<button
+						type="button"
+						className="hidden lg:flex items-center gap-1.5 text-xs text-primary font-medium hover:opacity-80 transition-opacity cursor-pointer"
+						aria-label="ダウンロード進捗を確認"
+					>
+						<RefreshCw className="h-3 w-3 animate-spin text-primary" />
+						ダウンロード中 ({progress.percentage}%)
+					</button>
+				) : state === 'error' ? (
+					<button
+						type="button"
+						className="hidden lg:flex items-center gap-1.5 text-xs text-destructive font-medium hover:opacity-80 transition-opacity cursor-pointer"
+						aria-label="エラー状態を確認"
+					>
+						<AlertTriangle className="h-3.5 w-3.5" />
+						エラーが発生しました
+					</button>
+				) : (
+					<button
+						type="button"
+						className="hidden lg:flex items-center gap-1.5 text-xs text-muted-foreground font-medium hover:text-foreground transition-colors cursor-pointer"
+						aria-label="オフラインモードの設定を開く"
+					>
+						<Download className="h-3.5 w-3.5" />
+						オフラインモードを有効化
+					</button>
+				)}
 			</PopoverTrigger>
 			<PopoverContent className="w-80" align="end">
 				<div className="space-y-3">
-					<h4 className="font-semibold text-sm">
-						📲 PWAをインストールしてオフライン対応
-					</h4>
-					<p className="text-sm text-muted-foreground leading-relaxed">
-						PWAとしてインストールすると、ネット接続なしでもツールを使えます。
-					</p>
-					<div className="rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-1.5">
-						<p>
-							🍎 <strong>iOS/Safari:</strong> 共有 → ホーム画面に追加
-						</p>
-						<p>
-							🤖 <strong>Android/Chrome:</strong> メニュー →
-							アプリをインストール
-						</p>
-						<p>
-							🖥️ <strong>PC/Chrome:</strong> アドレスバー右の ＋ をクリック
-						</p>
-					</div>
+					{state === 'ready' ? (
+						<>
+							<h4 className="font-semibold text-sm flex items-center gap-1.5 text-safety">
+								<CheckCircle2 className="h-4 w-4 text-safety" />
+								オフラインの準備が完了しました
+							</h4>
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								すべてのツール（計{cacheInfo.totalCount}
+								ファイル）がブラウザにキャッシュされました。これでインターネットに接続していなくてもツールをご利用いただけます。
+							</p>
+						</>
+					) : state === 'downloading' ? (
+						<>
+							<h4 className="font-semibold text-sm flex items-center gap-1.5 text-primary">
+								<RefreshCw className="h-4 w-4 animate-spin text-primary" />
+								オフラインアセットをダウンロード中...
+							</h4>
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								ツールをオフラインで利用できるようにアセットをダウンロードしています。このまましばらくお待ちください。
+							</p>
+							<div className="space-y-1.5">
+								<div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+									<div
+										className="bg-primary h-full transition-all duration-300 ease-out"
+										style={{ width: `${progress.percentage}%` }}
+									/>
+								</div>
+								<div className="flex justify-between text-xs text-muted-foreground">
+									<span>{progress.percentage}% 完了</span>
+									<span>
+										{progress.loaded} / {progress.total} ファイル
+									</span>
+								</div>
+							</div>
+						</>
+					) : state === 'error' ? (
+						<>
+							<h4 className="font-semibold text-sm flex items-center gap-1.5 text-destructive">
+								<AlertTriangle className="h-4 w-4 text-destructive" />
+								有効化に失敗しました
+							</h4>
+							<p className="text-sm text-muted-foreground leading-relaxed">
+								データの保存中にエラーが発生しました。ネットワーク接続を確認し、ページを再読み込みしてから再度お試しください。
+							</p>
+							<button
+								type="button"
+								onClick={startPrecache}
+								className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2 cursor-pointer font-sans"
+							>
+								もう一度試す
+							</button>
+						</>
+					) : (
+						<>
+							<h4 className="font-semibold text-sm">
+								📲 オフラインでツールを使う
+							</h4>
+							<p className="text-sm text-muted-foreground leading-relaxed font-sans">
+								すべてのツールと画面（約{cacheInfo.totalCount || '---'}
+								アセット）を一括ダウンロードし、インターネット接続がない状態でも利用できるようにします。
+							</p>
+							<button
+								type="button"
+								onClick={startPrecache}
+								className="w-full inline-flex items-center justify-center rounded-md text-sm font-medium bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2 cursor-pointer font-sans"
+							>
+								オフラインモードを有効化（一括ダウンロード）
+							</button>
+							<div className="border-t border-border/60 my-2 pt-2">
+								<p className="text-xs text-muted-foreground mb-1.5">
+									💡 PWAとしてインストールすることもできます：
+								</p>
+								<div className="rounded-md bg-muted p-2.5 text-xs text-muted-foreground space-y-1">
+									<p>
+										🍎 <strong>iOS/Safari:</strong> 共有 → ホーム画面に追加
+									</p>
+									<p>
+										🤖 <strong>Android/Chrome:</strong> アプリをインストール
+									</p>
+									<p>
+										🖥️ <strong>PC/Chrome:</strong> アドレスバー右の ＋ をクリック
+									</p>
+								</div>
+							</div>
+						</>
+					)}
 				</div>
 			</PopoverContent>
 		</Popover>
