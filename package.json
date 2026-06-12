@@ -43,6 +43,7 @@
 		"encoding-japanese": "^2.2.0",
 		"lucide-react": "^1.11.0",
 		"papaparse": "^5.5.3",
+		"pdf-lib": "1.17.1",
 		"qrcode": "^1.5.4",
 		"radix-ui": "^1.4.3",
 		"react": "^19.2.7",

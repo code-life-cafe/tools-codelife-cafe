@@ -159,4 +159,34 @@ fs.writeFileSync(
 	Buffer.from('CODE:LIFE hash fixture v1\n', 'utf8'),
 );
 
+// 8. PDFツールE2E用の決定的PDF（pdf-lib・固定日時でバイト列を安定させる）
+//    各ページに「Page N」テキストを描画する。暗号化PDF（encrypted.pdf）は
+//    pdf-lib では生成できないため scripts/generate-encrypted-fixture.ts を使う。
+async function makePdf(
+	nPages: number,
+	size: [number, number],
+): Promise<Buffer> {
+	const { PDFDocument, StandardFonts } = await import('pdf-lib');
+	const doc = await PDFDocument.create();
+	doc.setCreationDate(new Date(0));
+	doc.setModificationDate(new Date(0));
+	doc.setProducer('tools.codelife.cafe fixtures');
+	const font = await doc.embedFont(StandardFonts.Helvetica);
+	for (let i = 0; i < nPages; i++) {
+		const page = doc.addPage(size);
+		page.drawText(`Page ${i + 1}`, { x: 30, y: 100, size: 24, font });
+	}
+	return Buffer.from(await doc.save());
+}
+
+// ページサイズを変えてあるのは、結合順のE2E検証を先頭ページの寸法で行うため
+// （pdf-lib にはテキスト抽出APIがない）
+const pdfTargets: Array<[string, number, [number, number]]> = [
+	['sample-3pages.pdf', 3, [300, 200]],
+	['sample-5pages.pdf', 5, [400, 300]],
+];
+for (const [name, pages, size] of pdfTargets) {
+	fs.writeFileSync(path.join(fixturesDir, name), await makePdf(pages, size));
+}
+
 console.log('Fixtures generated successfully.');
