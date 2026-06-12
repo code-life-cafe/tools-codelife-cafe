@@ -56,6 +56,9 @@ test.describe('画像圧縮・リサイズ', () => {
 	}) => {
 		await uploadAndWait(page, SAMPLE);
 		await expect(page.getByTestId('compress-result-list')).toBeVisible();
+		await expect(page.getByTestId('compress-completion')).toContainText(
+			'変換完了: 1件の画像を処理しました。',
+		);
 		// keep（既定）→ PNG出力
 		const downloadPromise = page.waitForEvent('download');
 		await page

@@ -1,7 +1,13 @@
 // ImageCompressPage — 画像圧縮ツールのオーケストレーター
 // 逐次処理 + 進捗表示。すべてブラウザ内で処理し、画像はサーバーに送信されない。
 
-import { Loader2, Package, RefreshCw, Trash2 } from 'lucide-react';
+import {
+	CheckCircle2,
+	Loader2,
+	Package,
+	RefreshCw,
+	Trash2,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
@@ -25,6 +31,12 @@ import {
 import { type CompressItem, CompressResultList } from './CompressResultList';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
+
+type CompletionNotice = {
+	done: number;
+	failed: number;
+	total: number;
+};
 
 function toResizeMode(kind: ResizeKind, value: number): ResizeMode {
 	switch (kind) {
@@ -55,6 +67,7 @@ export function ImageCompressPage() {
 	const [options, setOptions] = useState<CompressUiOptions>(DEFAULT_UI_OPTIONS);
 	const [processing, setProcessing] = useState(false);
 	const [progress, setProgress] = useState({ done: 0, total: 0 });
+	const [completion, setCompletion] = useState<CompletionNotice | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const runIdRef = useRef(0);
 	const cancelRef = useRef(false);
@@ -82,8 +95,11 @@ export function ImageCompressPage() {
 			const runId = ++runIdRef.current;
 			cancelRef.current = false;
 			setProcessing(true);
+			setCompletion(null);
 			setProgress({ done: 0, total: target.length });
 			const core = toCoreOptions(uiOptions);
+			let done = 0;
+			let failed = 0;
 
 			for (let i = 0; i < target.length; i++) {
 				if (cancelRef.current || runIdRef.current !== runId) break;
@@ -99,12 +115,14 @@ export function ImageCompressPage() {
 						break;
 					}
 					updateItem(item.id, { status: 'done', result, resultUrl });
+					done++;
 				} catch (err) {
 					updateItem(item.id, {
 						status: 'error',
 						error:
 							err instanceof Error ? err.message : '画像の処理に失敗しました。',
 					});
+					failed++;
 				}
 				if (runIdRef.current === runId) {
 					setProgress({ done: i + 1, total: target.length });
@@ -112,7 +130,10 @@ export function ImageCompressPage() {
 				// イベントループへ yield して UI フリーズを防ぐ
 				await new Promise((resolve) => setTimeout(resolve, 0));
 			}
-			if (runIdRef.current === runId) setProcessing(false);
+			if (runIdRef.current === runId) {
+				setProcessing(false);
+				setCompletion({ done, failed, total: target.length });
+			}
 		},
 		[updateItem],
 	);
@@ -132,6 +153,7 @@ export function ImageCompressPage() {
 				else errors.push(`${file.name}: ${v.message}`);
 			}
 			setError(errors.length > 0 ? errors.join('\n') : null);
+			setCompletion(null);
 			if (valid.length === 0) return;
 
 			// 差し替え: 前回結果と object URL を解放する
@@ -170,6 +192,7 @@ export function ImageCompressPage() {
 		cancelRef.current = true;
 		runIdRef.current++;
 		setProcessing(false);
+		setCompletion(null);
 	}, []);
 
 	const handleClear = useCallback(() => {
@@ -182,6 +205,7 @@ export function ImageCompressPage() {
 		setItems([]);
 		setError(null);
 		setProcessing(false);
+		setCompletion(null);
 	}, []);
 
 	const handleDownload = useCallback((item: CompressItem) => {
@@ -208,6 +232,12 @@ export function ImageCompressPage() {
 	}, []);
 
 	const doneCount = items.filter((it) => it.status === 'done').length;
+
+	const completionText = completion
+		? completion.failed > 0
+			? `変換完了: ${completion.total}件中${completion.done}件が完了、${completion.failed}件はエラーでした。`
+			: `変換完了: ${completion.done}件の画像を処理しました。結果を確認してダウンロードできます。`
+		: null;
 
 	return (
 		<div className="space-y-6">
@@ -291,6 +321,23 @@ export function ImageCompressPage() {
 										width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%`,
 									}}
 								/>
+							</div>
+						</div>
+					)}
+
+					{completionText && !processing && (
+						<div
+							className="flex items-start gap-2 rounded-lg border border-safety/30 bg-safety/10 p-3 text-sm text-safety"
+							role="status"
+							aria-live="polite"
+							data-testid="compress-completion"
+						>
+							<CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+							<div>
+								<p className="font-medium text-foreground">{completionText}</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									処理はブラウザ内で完了しています。必要な画像をダウンロードしてください。
+								</p>
 							</div>
 						</div>
 					)}

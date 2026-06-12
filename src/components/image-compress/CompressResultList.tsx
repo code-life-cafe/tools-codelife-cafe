@@ -1,6 +1,12 @@
 // CompressResultList — ファイルごとの結果行（サムネ / サイズ比較 / 削減率 / DL / before-after比較）
 
-import { AlertTriangle, Download, ImageIcon, Loader2 } from 'lucide-react';
+import {
+	AlertTriangle,
+	Download,
+	ImageIcon,
+	Loader2,
+	MoveRight,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -64,21 +70,51 @@ export function CompressResultList({
 				return (
 					<div
 						key={item.id}
-						className="flex items-center gap-3 rounded-lg border border-border p-3"
+						className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center"
 					>
-						{/* サムネイル */}
+						{/* サムネイル比較 */}
 						<button
 							type="button"
 							onClick={() => item.status === 'done' && setPreview(item)}
-							className="shrink-0 rounded border border-border overflow-hidden bg-muted/30 disabled:cursor-default"
+							className="group flex w-fit shrink-0 items-center gap-2 rounded-lg border border-border bg-muted/20 p-2 text-left transition-colors hover:border-primary/50 hover:bg-primary/5 disabled:cursor-default disabled:hover:border-border disabled:hover:bg-muted/20"
 							disabled={item.status !== 'done'}
-							aria-label="拡大して比較"
+							aria-label="変換前後を拡大して比較"
 						>
-							<img
-								src={item.previewUrl}
-								alt={item.file.name}
-								className="h-14 w-14 object-cover"
-							/>
+							<figure className="space-y-1">
+								<div className="overflow-hidden rounded border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:10px_10px]">
+									<img
+										src={item.previewUrl}
+										alt={`${item.file.name}の変換前プレビュー`}
+										className="h-14 w-14 object-cover"
+									/>
+								</div>
+								<figcaption className="text-center text-[10px] font-medium text-muted-foreground">
+									変換前
+								</figcaption>
+							</figure>
+							<MoveRight className="mb-5 h-4 w-4 shrink-0 text-muted-foreground" />
+							<figure className="space-y-1">
+								<div className="overflow-hidden rounded border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:10px_10px]">
+									{item.status === 'done' && item.resultUrl ? (
+										<img
+											src={item.resultUrl}
+											alt={`${item.file.name}の変換後プレビュー`}
+											className="h-14 w-14 object-cover"
+										/>
+									) : (
+										<div className="flex h-14 w-14 items-center justify-center bg-muted/40 text-muted-foreground">
+											{item.status === 'pending' ? (
+												<Loader2 className="h-4 w-4 animate-spin" />
+											) : (
+												<AlertTriangle className="h-4 w-4" />
+											)}
+										</div>
+									)}
+								</div>
+								<figcaption className="text-center text-[10px] font-medium text-muted-foreground">
+									変換後
+								</figcaption>
+							</figure>
 						</button>
 
 						{/* 情報 */}

@@ -6,7 +6,8 @@ export type ToolCategory =
 	| 'ユーティリティ'
 	| 'エンコード/デコード'
 	| 'データ処理'
-	| 'AI/画像';
+	| 'AI/画像'
+	| 'PDF';
 
 export type ToolCatalogItem = {
 	id: string;
@@ -311,6 +312,41 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 	},
 	{
+		id: 'pdf-merge',
+		title: 'PDF結合',
+		description: '複数PDF・画像を1つに。データは外部送信なし。',
+		href: '/pdf-merge',
+		icon: '📄',
+		category: 'PDF',
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF結合',
+			'PDFまとめる',
+			'マージ',
+			'画像をPDFに',
+			'アップロードしない',
+			'安全',
+		],
+	},
+	{
+		id: 'pdf-split',
+		title: 'PDF分割・ページ抽出',
+		description: '範囲指定で分割・抽出。データは外部送信なし。',
+		href: '/pdf-split',
+		icon: '✂️',
+		category: 'PDF',
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF分割',
+			'ページ抽出',
+			'一枚ずつ',
+			'範囲指定',
+			'ZIP',
+			'アップロードしない',
+			'安全',
+		],
+	},
+	{
 		id: 'tax',
 		title: '消費税・税込計算',
 		description:
@@ -356,6 +392,7 @@ const categoryChipColor: Record<ToolCategory, string> = {
 	'エンコード/デコード': 'bg-primary/10 text-primary',
 	データ処理: 'bg-chart-4/10 text-chart-4',
 	'AI/画像': 'bg-chart-5/10 text-chart-5',
+	PDF: 'bg-destructive/10 text-destructive',
 };
 
 export const toolCategories = [
