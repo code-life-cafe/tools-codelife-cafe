@@ -1,90 +1,51 @@
-# AGENTS.md — CODE:LIFE Tools
+# AGENTS.md — CODE:LIFE Tools (AIエージェント向け指示書)
 
-## プロジェクト概要
+このファイルは、AIエージェントが本リポジトリで作業する際の全体要約、最重要ルール、および設計書への参照を提供するドキュメントです。
 
-`tools.codelife.cafe` — 完全クライアントサイド処理のWebツール集。
-すべてのデータ処理はブラウザ内で完結し、サーバーへのデータ送信は一切行わない。
+---
 
-## 技術スタック
+## 1. プロジェクト概要
 
-- **フレームワーク:** Astro（静的サイト生成）
-- **UIコンポーネント:** React（Astro Islands, `client:load`）+ shadcn/ui
-- **スタイリング:** Tailwind CSS v4（CSS-first設定、`@theme inline` で定義）
-- **アイコン:** Lucide Icons
-- **言語:** TypeScript（strict mode）
-- **ページ遷移:** Astro View Transition API
+`tools.codelife.cafe` は、完全クライアントサイド処理で動作するWebツール集です。
+すべてのデータ処理はユーザーのブラウザ内で完結し、外部サーバーへのデータ送信は一切行いません。
 
-## ディレクトリ構成
+---
 
-```
-src/
-├── components/
-│   ├── ui/              # shadcn/ui コンポーネント（自動生成、手動編集しない）
-│   ├── layout/          # Header, Footer, Navigation, SafetyBadge
-│   ├── tools/           # 各ツールのReact UIコンポーネント
-│   └── common/          # CopyButton, ThemeToggle, ToolCard, ToolLayout
-├── layouts/
-│   └── BaseLayout.astro # 全ページ共通レイアウト（SEO, OG, View Transitions, SW登録）
-├── pages/
-│   ├── index.astro      # トップページ（Bento Grid）
-│   ├── [tool-name].astro # 各ツールのAstroページ（直下に配置）
-│   ├── offline.astro    # オフラインフォールバックページ（Service Worker が返す）
-│   ├── privacy.astro
-│   └── about.astro
-├── lib/
-│   ├── tools/           # ツールのビジネスロジック（純粋関数）
-│   └── utils.ts         # shadcn/ui ユーティリティ（cn関数）
-└── styles/
-    └── global.css       # Tailwind CSS v4 設定、カラートークン、アニメーション
-public/
-├── sw.js                # Service Worker テンプレート（ビルド後に dist/sw.js として上書き生成）
-├── manifest.webmanifest # PWA マニフェスト
-└── icon-{192,512}x512.png # PWA アイコン
-scripts/
-└── generate-sw.mjs      # ビルド後に dist/sw.js へ全ページ・アセット URL を注入
-```
+## 2. 設計書ドキュメント一覧 (詳細参照)
 
-## 絶対に守るべきルール
+プロジェクトの全体設計やルールについては、以下の詳細設計書を必ず参照してください。
 
-1. **サーバーサイド処理を使わない** — APIコール、サーバー送信、外部通信は一切禁止（静的アセット配信を除く）
-2. **日本語ファースト** — UI、エラーメッセージ、プレースホルダーすべて日本語
-3. **ロジックとUIを分離する** — `src/lib/tools/` に純粋関数、`src/components/tools/` にReactコンポーネント
-4. **新ツールは3ファイルで完結** — ロジック(`lib`) + コンポーネント(`component`) + ページ(`page`)
+- **[architecture.md](file:///d:/tools-codelife-cafe/docs/architecture.md) (システムアーキテクチャ設計書)**
+  - 全体技術スタック、ディレクトリ構造、およびビルドプロセスと連携した PWA (Service Worker) の構成。
+- **[development-guide.md](file:///d:/tools-codelife-cafe/docs/development-guide.md) (開発ガイドライン / ツール作成手順)**
+  - 命名規約、UI・ロジックの分離（3ファイル構成）、デザインシステム（Tailwind v4）、Biomeの設定、E2Eテスト。
+- **[data-management.md](file:///d:/tools-codelife-cafe/docs/data-management.md) (データ管理とモデル配信設計書)**
+  - 郵便番号データのチャンク化および更新方法、AIモデルの Cloudflare R2 配信と Web Worker 推論。
 
-## 命名規約・コーディング規約
+---
 
-- **ファイル名（ページ・ロジック）:** kebab-case（例：`json-formatter.ts`, `json-formatter.astro`）
-- **ファイル名（Reactコンポーネント）:** PascalCase（例：`JsonFormatter.tsx`）
-- **コンポーネント名:** PascalCase（例：`export function JsonFormatter()`）
-- **関数・変数:** camelCase（例：`formatJson`, `inputText`）
-- **定数:** UPPER_SNAKE_CASE（例：`MAX_INPUT_LENGTH`）
-- **型・インターフェース:** PascalCase（例：`type FormatOptions`）
-- **インポートパス:** `@/` エイリアスを使用（例：`import { cn } from '@/lib/utils'`）
-- **Linter:** Biome（`npx biome check`）。CI でも実行される
-- **インデント:** タブ（Biome デフォルト）
+## 3. 絶対に守るべきルール
 
-## デザインシステム
+1. **サーバーサイド処理を使わない**
+   - APIコール、外部サーバーへのデータ送信、トラッキング通信は一切禁止です（静的アセット配信を除く）。
+2. **日本語ファースト**
+   - UI文言、プレースホルダー、プレビュー用ダミーデータ、エラーメッセージ等はすべて日本語で作成してください。
+3. **UIとロジックの分離**
+   - 計算・変換などのビジネスロジックは React から切り離し、`src/lib/tools/` 内に TypeScript の純粋関数として実装してください。
+4. **新ツールの構成ルール**
+   - 新規ツールは、原則として「ロジック（`src/lib/`）」＋「コンポーネント（`src/components/`）」＋「ページ（`src/pages/`）」の **3ファイル構成** で完結させます。
 
-- **カラー:** CSS変数で定義（`--primary`, `--accent`, `--safety` など）。`global.css` の `:root` と `.dark` を参照
-- **フォント:** `Inter`（UI）、`Noto Sans JP`（日本語）、`JetBrains Mono`（コード）
-- **ダークモード:** `.dark` クラスで切替。`localStorage` に保存
-- **コンポーネント追加:** `npx shadcn@latest add [component]` を使用
+---
 
-## デプロイ
+## 4. エージェントのタスク完了条件 (DoD)
 
-GitHub Actions（`.github/workflows/deploy.yml`）で `main` ブランチへのpush時に自動デプロイ。
-Cloudflare Pages にデプロイされる。Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`。
+エージェントが作業を終える前に、以下の項目が満たされていることを必ず確認してください。
 
-## ビルドプロセス
-
-`npm run build` = `astro build && node scripts/generate-sw.mjs`
-
-`generate-sw.mjs` は `dist/` を走査して全ページ URL・アセット URL を収集し、
-`public/sw.js` のプレースホルダーを置換した `dist/sw.js` を生成する。
-`CACHE_NAME` に埋め込まれるハッシュはアセット内容から自動計算され、
-デプロイのたびに古いキャッシュが自動失効する。
-
-## エージェントのタスク完了条件 (DoD)
-- **Implementation Plan (実装計画)** が作成され、ユーザーの承認済みであること（新ツール作成・大幅改修時）
-- 変更ファイルが必要なスコープ内に収まっていること
-- **Walkthrough（実行やプレビューのスクリーンショット/録画）**、またはローカルE2Eテスト結果が提出されていること
+- **実装計画 (Implementation Plan)**
+  - 大幅な改修や新規ツールの作成を行う場合は、事前に `implementation_plan.md` を作成してユーザーの承認を得てください。
+- **範囲の限定**
+  - 変更ファイルが、合意した実装計画のスコープ内に収まっていること。
+- **静的解析の実行**
+  - 作業完了前に `npm run lint`（Biome）を実行し、静的解析エラーがないことを確認すること。
+- **動作検証とウォークスルー**
+  - E2Eテスト（`npm test`）を実行するか、検証内容をまとめた `walkthrough.md` を作成して報告すること。
