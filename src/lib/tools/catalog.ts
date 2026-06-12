@@ -310,6 +310,39 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'オフライン',
 		],
 	},
+	{
+		id: 'tax',
+		title: '消費税・税込計算',
+		description:
+			'税込⇔税抜を即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理に対応。',
+		href: '/tax',
+		icon: '🧾',
+		category: 'ユーティリティ',
+		categoryColor: 'border-l-chart-2',
+		keywords: ['消費税', '税込', '税抜', '軽減税率', '端数処理', '計算'],
+	},
+	{
+		id: 'color',
+		title: 'カラーコード変換',
+		description:
+			'HEX・RGB・HSL・CMYKを相互変換。カラーピッカー連動・ワンクリックコピー対応。',
+		href: '/color',
+		icon: '🎨',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: ['カラーコード', 'HEX', 'RGB', 'HSL', 'CMYK', '色', '変換'],
+	},
+	{
+		id: 'markdown',
+		title: 'Markdownプレビュー',
+		description:
+			'GFM対応のリアルタイムプレビュー。HTMLコピー・ダウンロード可。データは外部送信なし。',
+		href: '/markdown',
+		icon: '📄',
+		category: 'テキスト変換',
+		categoryColor: 'border-l-primary',
+		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
+	},
 ];
 
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
