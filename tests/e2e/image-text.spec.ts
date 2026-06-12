@@ -130,12 +130,14 @@ test.describe('画像テキスト挿入', () => {
 		await uploadSample(page);
 		await addLayer(page);
 
+		const layerList = page.getByRole('list', { name: 'レイヤー一覧' });
+
 		await page.getByRole('button', { name: 'レイヤーを複製' }).click();
-		await expect(page.getByRole('listitem')).toHaveCount(2);
+		await expect(layerList.getByRole('listitem')).toHaveCount(2);
 
 		// 2番目（複製）を上へ移動できる
 		await page.getByRole('button', { name: '上へ移動' }).last().click();
-		await expect(page.getByRole('listitem')).toHaveCount(2);
+		await expect(layerList.getByRole('listitem')).toHaveCount(2);
 	});
 
 	test('ダウンロードが _edited ファイル名で発火する', async ({ page }) => {

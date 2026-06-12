@@ -37,7 +37,7 @@ export function LayerPanel({
 					「テキストを追加」を押すと画像中央にテキストが配置されます。
 				</p>
 			) : (
-				<ul className="space-y-1">
+				<ul className="space-y-1" aria-label="レイヤー一覧">
 					{layers.map((layer, index) => {
 						const isSelected = layer.id === selectedId;
 						return (

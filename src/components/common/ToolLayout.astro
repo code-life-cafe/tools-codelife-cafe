@@ -43,3 +43,21 @@ const { title, description, path } = Astro.props;
     <slot name="usage" />
   </div>
 </BaseLayout>
+
+<script is:inline define:vars={{ path }} data-astro-rerun>
+  {
+    const details = document.querySelector('#tool-layout-container details.group');
+    if (details) {
+      const key = `usage-open:${path}`;
+      const stored = localStorage.getItem(key);
+      if (stored === 'closed') {
+        details.removeAttribute('open');
+      } else if (stored === 'open') {
+        details.setAttribute('open', '');
+      }
+      details.addEventListener('toggle', () => {
+        localStorage.setItem(key, details.open ? 'open' : 'closed');
+      });
+    }
+  }
+</script>
