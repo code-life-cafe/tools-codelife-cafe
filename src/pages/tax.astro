@@ -1,0 +1,49 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { TaxCalcPage } from '../components/tools/tax/TaxCalcPage';
+---
+
+<ToolLayout
+  title="消費税計算（税込・税抜・軽減税率対応）"
+  description="消費税の税込・税抜金額をブラウザだけで即時計算できる無料ツール。標準10%・軽減税率8%・過去税率（3%・5%・8%）と端数処理（切り捨て・四捨五入・切り上げ）に対応。登録不要・広告控えめ。"
+  path="/tax"
+>
+  <TaxCalcPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4">
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>
+          消費税の税込・税抜金額をブラウザだけで即時に計算できる無料のオンラインツールです。「消費税 計算」「税込 計算」「税抜 計算」をしたいときに、金額を入力するだけで自動的に結果が表示されます。サーバーへの送信は一切行われません。
+        </p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong>方向の選び方:</strong>
+            「税抜 → 税込」は商品の税抜価格から消費税額と税込価格を求めます。「税込 → 税抜」はレシートなどに記載された税込価格から消費税額と税抜価格を逆算します。
+          </li>
+          <li>
+            <strong>軽減税率の対象:</strong>
+            「軽減税率 計算」が必要なのは、飲食料品（酒類・外食を除く）や定期購読の新聞など、消費税法で定められた品目です。税率セレクタから「8%（軽減税率）」を選択すると、これらの品目向けの計算ができます。外食やお酒、テイクアウトでも一部対象外となる場合があるため、対象品目か不明な場合は国税庁の資料をご確認ください。
+          </li>
+          <li>
+            <strong>消費税 端数処理の使い分け:</strong>
+            「切り捨て」は最も一般的な処理方法で、多くの小売店のレジで採用されています。「四捨五入」は計算上の誤差を平均的に抑えたい場合に、「切り上げ」は税額を多めに見積もりたい場合に使用します。どの端数処理が適用されるかは事業者ごとに異なるため、実際の請求書・レシートと照合してご利用ください。
+          </li>
+          <li>
+            <strong>インボイス制度における端数処理の注意:</strong>
+            インボイス制度（適格請求書）では、税率ごとに合計した金額に対して端数処理を1回行うのが原則とされています。本ツールは単一金額の消費税計算専用のため、複数商品の合計に対するインボイス対応の端数処理計算には対応していません。
+          </li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/zipcode" class="text-xs text-primary hover:underline">郵便番号から住所変換</a>
+          <a href="/json-csv" class="text-xs text-primary hover:underline">JSON ↔ CSV 相互変換</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
