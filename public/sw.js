@@ -20,6 +20,25 @@ const ALL_ASSETS = [
 	/* __ALL_ASSETS__ */
 ];
 
+// redirected:true の Response はナビゲーションへの応答として使えない（ブラウザが拒否する）ため、
+// リダイレクトを経由したレスポンスは本体をコピーしてフラグを剥がす
+async function stripRedirect(response) {
+	if (!response || !response.redirected) return response;
+	const body = await response.blob();
+	return new Response(body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers: response.headers,
+	});
+}
+
+// fetch して redirected フラグを剥がした上で指定 URL キーでキャッシュに保存する
+async function fetchAndCache(cache, url) {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
+	await cache.put(url, await stripRedirect(response));
+}
+
 self.addEventListener('install', (event) => {
 	event.waitUntil(
 		Promise.all([
@@ -28,7 +47,7 @@ self.addEventListener('install', (event) => {
 			caches
 				.open(CACHE_NAME)
 				.then((cache) =>
-					Promise.allSettled(MIN_ASSETS.map((url) => cache.add(url))),
+					Promise.allSettled(MIN_ASSETS.map((url) => fetchAndCache(cache, url))),
 				),
 		]),
 	);
@@ -75,8 +94,9 @@ self.addEventListener('message', (event) => {
 				const promises = urls.map(async (url) => {
 					try {
 						const cached = await cache.match(url);
-						if (!cached) {
-							await cache.add(url);
+						// 旧バージョンの SW が redirected な Response を保存している可能性があるため再取得する
+						if (!cached || cached.redirected) {
+							await fetchAndCache(cache, url);
 						}
 					} catch (err) {
 						console.error(`Failed to cache ${url}:`, err);
@@ -107,7 +127,8 @@ self.addEventListener('message', (event) => {
 
 				for (const url of urls) {
 					const matched = await cache.match(url);
-					if (matched) {
+					// redirected な古いエントリはオフライン時に使えないため未キャッシュ扱い
+					if (matched && !matched.redirected) {
 						cachedCount++;
 					}
 				}
@@ -166,22 +187,27 @@ self.addEventListener('fetch', (event) => {
 				.then((response) => {
 					// ナビゲーション時のみキャッシュを更新（View Transitions fetchは除外）
 					if (event.request.mode === 'navigate') {
+						const clone = response.clone();
 						caches
 							.open(CACHE_NAME)
-							.then((cache) => cache.put(reqUrl, response.clone()));
+							.then(async (cache) =>
+								cache.put(reqUrl, await stripRedirect(clone)),
+							);
 					}
 					return response;
 				})
 				.catch(async () => {
 					const cache = await caches.open(CACHE_NAME);
 					// trailing slash の有無を両方試みる
-					const normalizedUrl = reqUrl.endsWith('/') ? reqUrl : reqUrl + '/';
+					const withSlash = reqUrl.endsWith('/') ? reqUrl : reqUrl + '/';
+					const withoutSlash = reqUrl.endsWith('/')
+						? reqUrl.slice(0, -1)
+						: reqUrl;
 					const matched =
-						(await cache.match(normalizedUrl, { ignoreVary: true })) ||
-						(await cache.match(reqUrl, { ignoreVary: true }));
-					return (
-						matched || (await cache.match('/offline/', { ignoreVary: true }))
-					);
+						(await cache.match(withSlash, { ignoreVary: true })) ||
+						(await cache.match(withoutSlash, { ignoreVary: true })) ||
+						(await cache.match('/offline/', { ignoreVary: true }));
+					return stripRedirect(matched);
 				}),
 		);
 		return;
