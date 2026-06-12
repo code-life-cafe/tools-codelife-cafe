@@ -77,25 +77,11 @@ const fullTitle = `${title} | ${siteName}`;
   <Footer />
   <script is:inline>
     if ('serviceWorker' in navigator) {
-      const triggerPrecache = async () => {
-        const reg = await navigator.serviceWorker.ready;
-        reg.active?.postMessage({ type: 'PRECACHE_ALL' });
-      };
-
       window.addEventListener('load', async () => {
         try {
           await navigator.serviceWorker.register('/sw.js');
         } catch (err) {
           console.error('SW registration failed:', err);
-          return;
-        }
-
-        // PWA インストール直後
-        window.addEventListener('appinstalled', triggerPrecache);
-
-        // スタンドアロンモード（PWAとして起動）なら毎回プリキャッシュを送る
-        if (window.matchMedia('(display-mode: standalone)').matches) {
-          triggerPrecache();
         }
       });
     }

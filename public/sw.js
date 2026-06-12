@@ -47,20 +47,83 @@ self.addEventListener('activate', (event) => {
 	);
 });
 
-// PWA インストール時に全ページ・全アセットをプリキャッシュ（未キャッシュURLのみ取得）
+// PWA インストール時やユーザー操作時に全ページ・全アセットをプリキャッシュ（進捗通知と状態確認に対応）
 self.addEventListener('message', (event) => {
-	if (event.data?.type !== 'PRECACHE_ALL') return;
-	event.waitUntil(
-		caches.open(CACHE_NAME).then(async (cache) => {
-			const urls = [...ALL_PAGES, ...ALL_ASSETS];
-			const uncached = (
-				await Promise.all(
-					urls.map(async (url) => ((await cache.match(url)) ? null : url)),
-				)
-			).filter(Boolean);
-			return Promise.allSettled(uncached.map((url) => cache.add(url)));
-		}),
-	);
+	if (event.data?.type === 'PRECACHE_ALL') {
+		event.waitUntil(
+			(async () => {
+				const cache = await caches.open(CACHE_NAME);
+				const urls = [...ALL_PAGES, ...ALL_ASSETS];
+				const total = urls.length;
+				let loaded = 0;
+
+				const sendProgress = () => {
+					if (event.source) {
+						event.source.postMessage({
+							type: 'PRECACHE_PROGRESS',
+							loaded,
+							total,
+							percentage: total > 0 ? Math.round((loaded / total) * 100) : 100,
+						});
+					}
+				};
+
+				// 初期進捗を通知
+				sendProgress();
+
+				// 全アセットを個別にキャッシュに追加して進捗をカウント
+				const promises = urls.map(async (url) => {
+					try {
+						const cached = await cache.match(url);
+						if (!cached) {
+							await cache.add(url);
+						}
+					} catch (err) {
+						console.error(`Failed to cache ${url}:`, err);
+					} finally {
+						loaded++;
+						sendProgress();
+					}
+				});
+
+				await Promise.allSettled(promises);
+
+				if (event.source) {
+					event.source.postMessage({
+						type: 'PRECACHE_COMPLETE',
+						cacheName: CACHE_NAME,
+					});
+				}
+			})(),
+		);
+	}
+
+	if (event.data?.type === 'CHECK_PRECACHE_STATUS') {
+		event.waitUntil(
+			(async () => {
+				const cache = await caches.open(CACHE_NAME);
+				const urls = [...ALL_PAGES, ...ALL_ASSETS];
+				let cachedCount = 0;
+
+				for (const url of urls) {
+					const matched = await cache.match(url);
+					if (matched) {
+						cachedCount++;
+					}
+				}
+
+				if (event.source) {
+					event.source.postMessage({
+						type: 'PRECACHE_STATUS_RESULT',
+						isComplete: cachedCount === urls.length && urls.length > 0,
+						cachedCount,
+						totalCount: urls.length,
+						cacheName: CACHE_NAME,
+					});
+				}
+			})(),
+		);
+	}
 });
 
 self.addEventListener('fetch', (event) => {
