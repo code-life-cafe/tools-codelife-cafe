@@ -1,5 +1,5 @@
 ---
-import { toolCatalog } from '../../lib/tools/catalog';
+import { getCategoryId, toolCatalog } from '../../lib/tools/catalog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SafetyBadge from '../layout/SafetyBadge.tsx';
 import ToolJsonLd from '../common/ToolJsonLd.astro';
@@ -17,7 +17,8 @@ const SITE_URL = 'https://tools.codelife.cafe';
 // パンくずリスト: カタログから path でカテゴリを解決する
 const tool = toolCatalog.find((t) => t.href === path);
 const category = tool?.category;
-const categoryHref = category ? `/?category=${encodeURIComponent(category)}` : undefined;
+// #108 のカテゴリフィルタと整合させるため、英語のカテゴリID（?category=<id>）でリンクする
+const categoryHref = category ? `/?category=${getCategoryId(category)}` : undefined;
 
 const breadcrumbItems: { name: string; url?: string }[] = [
   { name: 'ホーム', url: `${SITE_URL}/` },
