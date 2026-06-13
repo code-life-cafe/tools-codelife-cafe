@@ -104,11 +104,9 @@ test.describe('トップページ カテゴリフィルタ', () => {
 		// 別ページへ遷移して戻る
 		await page.getByRole('link', { name: /文字数カウント/ }).click();
 		await expect(page).toHaveURL(/char-count/);
-		await page
-			.getByRole('link', { name: /CODE:LIFE/i })
-			.first()
-			.click();
-		await expect(page).toHaveURL(/\/$/);
+		// ヘッダーロゴ（href="/"）でトップへ戻る
+		await page.locator('header a[href="/"]').click();
+		await expect(page).toHaveURL('/');
 
 		await page
 			.locator('#category-filter')
