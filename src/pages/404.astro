@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { toolCatalog } from '../lib/tools/catalog';
+
+// 404ページに表示する人気ツール
+const POPULAR_TOOL_IDS = [
+	'zenkaku-hankaku',
+	'json-formatter',
+	'text-diff',
+	'csv-editor',
+	'qr-generator',
+	'tax',
+] as const;
+const popularTools = POPULAR_TOOL_IDS.map((id) =>
+	toolCatalog.find((tool) => tool.id === id),
+).filter((tool) => tool !== undefined);
+---
+
+<BaseLayout
+  title="ページが見つかりません"
+  description="お探しのページは見つかりませんでした。URLをご確認いただくか、検索や人気ツールからお探しください。"
+  path="/404/"
+>
+  <Fragment slot="head">
+    <meta name="robots" content="noindex" />
+  </Fragment>
+
+  <div class="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:px-8 flex items-center justify-center min-h-[60vh]">
+    <div class="rounded-xl border border-border bg-card p-8 text-center shadow-sm w-full max-w-lg">
+      <p class="text-5xl font-bold tracking-tight text-primary mb-4">404</p>
+      <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl mb-2">ページが見つかりません</h1>
+      <p class="text-muted-foreground mb-6">
+        お探しのページは移動または削除されたか、<br class="hidden sm:inline">URLが間違っている可能性があります。
+      </p>
+
+      <div class="flex flex-wrap justify-center gap-4 mb-8">
+        <a
+          href="/"
+          class="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2"
+        >
+          トップページへ
+        </a>
+        <button
+          type="button"
+          id="not-found-search"
+          class="inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          ツールを検索
+          <kbd class="hidden md:inline rounded border border-border bg-muted px-1.5 py-0.5 text-xs font-mono">Ctrl+K</kbd>
+        </button>
+      </div>
+
+      <div class="text-left">
+        <h2 class="text-sm font-semibold text-foreground mb-3">人気のツール</h2>
+        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {popularTools.map((tool) => (
+            <li>
+              <a
+                href={tool.href}
+                class="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <span aria-hidden="true">{tool.icon}</span>
+                <span>{tool.title}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setupNotFoundSearch() {
+      const trigger = document.getElementById('not-found-search');
+      if (trigger) {
+        // 既存リスナーの重複を防ぐためclone & replace
+        const newTrigger = trigger.cloneNode(true) as Element;
+        trigger.parentNode?.replaceChild(newTrigger, trigger);
+        newTrigger.addEventListener('click', () => {
+          window.dispatchEvent(new CustomEvent('open-search'));
+        });
+      }
+    }
+
+    setupNotFoundSearch();
+    document.addEventListener('astro:page-load', setupNotFoundSearch);
+  </script>
+</BaseLayout>

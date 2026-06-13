@@ -186,7 +186,8 @@ self.addEventListener('fetch', (event) => {
 			fetch(event.request)
 				.then((response) => {
 					// ナビゲーション時のみキャッシュを更新（View Transitions fetchは除外）
-					if (event.request.mode === 'navigate') {
+					// 404等のエラーページをキャッシュしないよう response.ok を確認する
+					if (event.request.mode === 'navigate' && response.ok) {
 						const clone = response.clone();
 						caches
 							.open(CACHE_NAME)
