@@ -398,8 +398,29 @@ const categoryChipColor: Record<ToolCategory, string> = {
 	PDF: 'bg-destructive/10 text-destructive',
 };
 
+// カテゴリID（URLクエリ `?category=<id>` で使用。#109 のパンくずリンク先にもなる）
+const categoryIds: Record<ToolCategory, string> = {
+	テキスト変換: 'text-conversion',
+	テキスト解析: 'text-analysis',
+	開発ツール: 'development',
+	生成ツール: 'generator',
+	ユーティリティ: 'utility',
+	'エンコード/デコード': 'encoding',
+	データ処理: 'data-processing',
+	'AI/画像': 'ai-image',
+	PDF: 'pdf',
+};
+
 export const toolCategories = [
 	...new Set(toolCatalog.map((t) => t.category)),
-].map((name) => ({ name, color: categoryChipColor[name] }));
+].map((name) => ({
+	id: categoryIds[name],
+	name,
+	color: categoryChipColor[name],
+}));
+
+export function getCategoryId(category: ToolCategory): string {
+	return categoryIds[category];
+}
 
 export const toolSlugs = toolCatalog.map((tool) => tool.id);
