@@ -31,7 +31,16 @@ try {
 } catch {
 	// _astro/ が存在しない場合は空配列のまま続行
 }
-const assetURLs = assetFiles.map((f) => `/_astro/${f}`);
+
+// 大容量かつオンデマンド読み込みのコーデックはプリキャッシュから除外する。
+// - avif_enc* : AVIF エンコーダ（@jsquash/avif）。/image-convert で出力AVIF選択時のみロード
+// - wasm-bundle.* : libheif（HEICデコード）。/image-convert に HEIC を投入した時のみロード
+// これらは fetch ハンドラの /_astro cache-first で実行時に取得・キャッシュされるため、
+// 初期プリキャッシュ（PRECACHE_ALL）を数十MB肥大化させないよう除外する。
+const ON_DEMAND_CODEC = /^(avif_(enc|dec)|wasm-bundle\.)/;
+const precacheAssetFiles = assetFiles.filter((f) => !ON_DEMAND_CODEC.test(f));
+const excludedCount = assetFiles.length - precacheAssetFiles.length;
+const assetURLs = precacheAssetFiles.map((f) => `/_astro/${f}`);
 
 // ページHTML内容 + アセットURLからキャッシュバージョンハッシュを計算（内容変更時に自動失効）
 const pageContents = await Promise.all(
@@ -81,5 +90,8 @@ await writeFile(join(DIST, 'sw.js'), output, 'utf8');
 
 console.log(`[generate-sw] CACHE_NAME: cl-tools-${hash}`);
 console.log(
-	`[generate-sw] pages: ${pageURLs.length}, assets: ${assetURLs.length}`,
+	`[generate-sw] pages: ${pageURLs.length}, assets: ${assetURLs.length}` +
+		(excludedCount > 0
+			? ` (オンデマンドコーデック ${excludedCount} 件はプリキャッシュ除外)`
+			: ''),
 );

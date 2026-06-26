@@ -6,7 +6,7 @@
 
 🔗 **[https://tools.codelife.cafe](https://tools.codelife.cafe)**
 
-## 📦 収録ツール（29種）
+## 📦 収録ツール（30種）
 
 ### テキスト処理
 
@@ -38,6 +38,7 @@
 | [画像モザイク・ぼかし](/image-mosaic) | 四角形/円形の範囲にモザイク・ぼかしを適用し、絵文字・任意画像スタンプも配置（完全ローカル実行） |
 | [画像テキスト挿入](/image-text) | 画像への文字入れ・注釈。縁取り・背景ボックス対応（完全ローカル実行） |
 | [画像圧縮・リサイズ](/image-compress) | JPEG/PNG/WebPの圧縮・リサイズ・変換。一括処理・目標サイズ指定・ZIP出力（完全ローカル実行） |
+| [画像形式変換](/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
 | [QRコード生成](/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
 | [Base64エンコード/デコード](/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
@@ -139,3 +140,5 @@ node scripts/generate-zipcode-data.ts
 ## 📄 ライセンス
 
 MIT
+
+画像形式変換ツール（`/image-convert`）は HEIC デコードに [libheif-js](https://github.com/catdad-experiments/libheif-js)（LGPL-3.0）、AVIF エンコードに [@jsquash/avif](https://github.com/jamsinclair/jSquash)（Apache-2.0）を、いずれも当該ページで必要時のみ動的にロードして利用しています。詳細は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照してください。
