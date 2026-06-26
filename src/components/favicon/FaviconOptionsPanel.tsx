@@ -1,5 +1,6 @@
 // FaviconOptionsPanel — fit / 背景 / アプリ名 / テーマカラー / 背景色 の設定UI
 import type * as React from 'react';
+import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -130,13 +131,14 @@ function ColorField({
 	disabled?: boolean;
 	onChange: (value: string) => void;
 }) {
+	const inputId = useId();
 	const handleText = (e: React.ChangeEvent<HTMLInputElement>) =>
 		onChange(e.target.value);
 	// ピッカーは6桁HEXのみ扱えるため、不正値のときは黒にフォールバック
 	const pickerValue = /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#000000';
 	return (
 		<div className="space-y-2">
-			<Label>{label}</Label>
+			<Label htmlFor={inputId}>{label}</Label>
 			<div className="flex items-center gap-2">
 				<input
 					type="color"
@@ -147,6 +149,7 @@ function ColorField({
 					aria-label={label}
 				/>
 				<Input
+					id={inputId}
 					value={value}
 					disabled={disabled}
 					onChange={handleText}

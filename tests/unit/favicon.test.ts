@@ -11,8 +11,11 @@ import {
 	buildWebmanifest,
 	detectImageKind,
 	encodeIco,
+	escapeHtmlAttribute,
 	MAX_FAVICON_FILE_SIZE,
+	parseSvgDimensions,
 	validateImageFile,
+	validateSvgSafety,
 } from '../../src/lib/tools/favicon.ts';
 
 // ---------------------------------------------------------------------------
@@ -236,4 +239,130 @@ test('buildHtmlSnippet: link/meta 一式と theme-color を含む', () => {
 	);
 	assert.match(html, /<link rel="manifest" href="\/site\.webmanifest">/);
 	assert.match(html, /<meta name="theme-color" content="#1e40af">/);
+});
+
+test('buildHtmlSnippet: themeColor の HTML 特殊文字をエスケープする（注入防止）', () => {
+	const html = buildHtmlSnippet({
+		themeColor: '"><script>alert(1)</script>',
+	});
+	// 生のタグが出力に混入しない
+	assert.doesNotMatch(html, /<script>/);
+	assert.match(html, /content="&quot;&gt;&lt;script&gt;/);
+});
+
+// ---------------------------------------------------------------------------
+// escapeHtmlAttribute
+// ---------------------------------------------------------------------------
+
+test('escapeHtmlAttribute: HTML特殊文字をエンティティ化する', () => {
+	assert.equal(escapeHtmlAttribute(`<>&"'`), '&lt;&gt;&amp;&quot;&#39;');
+	assert.equal(escapeHtmlAttribute('#1e40af'), '#1e40af');
+});
+
+// ---------------------------------------------------------------------------
+// validateSvgSafety
+// ---------------------------------------------------------------------------
+
+test('validateSvgSafety: 自己完結SVG（内部参照・data URI）は ok', () => {
+	assert.equal(
+		validateSvgSafety(
+			'<svg xmlns="http://www.w3.org/2000/svg"><rect fill="url(#g)"/></svg>',
+		).ok,
+		true,
+	);
+	// data: URI はインラインなので許可
+	assert.equal(
+		validateSvgSafety(
+			'<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,AAA="/></svg>',
+		).ok,
+		true,
+	);
+});
+
+test('validateSvgSafety: 外部参照・スクリプト・イベント属性は拒否', () => {
+	const cases = [
+		'<svg><script>fetch("https://evil")</script></svg>',
+		'<svg><foreignObject></foreignObject></svg>',
+		'<svg onload="alert(1)"></svg>',
+		'<svg><image href="https://evil.example/x.png"/></svg>',
+		'<svg><image xlink:href="//evil.example/x.png"/></svg>',
+		'<svg><use href="http://evil.example/x#a"/></svg>',
+		'<svg><style>@import url(https://evil.example/x.css)</style></svg>',
+		'<svg><rect fill="url(https://evil.example/x)"/></svg>',
+	];
+	for (const svg of cases) {
+		assert.equal(validateSvgSafety(svg).ok, false, svg);
+	}
+});
+
+// ---------------------------------------------------------------------------
+// parseSvgDimensions
+// ---------------------------------------------------------------------------
+
+test('parseSvgDimensions: width/height（px有無）を優先する', () => {
+	assert.deepEqual(parseSvgDimensions('<svg width="128" height="64"></svg>'), {
+		width: 128,
+		height: 64,
+	});
+	assert.deepEqual(
+		parseSvgDimensions('<svg width="256px" height="256px"></svg>'),
+		{ width: 256, height: 256 },
+	);
+});
+
+test('parseSvgDimensions: width/height が無ければ viewBox を使う', () => {
+	assert.deepEqual(parseSvgDimensions('<svg viewBox="0 0 48 24"></svg>'), {
+		width: 48,
+		height: 24,
+	});
+	// % など相対単位は無視して viewBox にフォールバック
+	assert.deepEqual(
+		parseSvgDimensions(
+			'<svg width="100%" height="100%" viewBox="0 0 64 64"></svg>',
+		),
+		{ width: 64, height: 64 },
+	);
+});
+
+test('parseSvgDimensions: 寸法情報が無ければ正方形512', () => {
+	assert.deepEqual(parseSvgDimensions('<svg></svg>'), {
+		width: 512,
+		height: 512,
+	});
+});
+
+// ---------------------------------------------------------------------------
+// encodeIco: 出力が有効な ICONDIR として整合するか
+// ---------------------------------------------------------------------------
+
+test('encodeIco: 16/32/48 を内包する有効な ICONDIR を生成する', () => {
+	const images = [16, 32, 48].map((size) => ({
+		// 実PNGの代わりに固定長ダミー（先頭バイトでサイズを判別できるように）
+		size,
+		bytes: new Uint8Array(size).fill(size),
+	}));
+	const ico = encodeIco(images);
+	const view = new DataView(ico.buffer);
+
+	// ICONDIR
+	assert.equal(view.getUint16(0, true), 0); // reserved
+	assert.equal(view.getUint16(2, true), 1); // type=icon
+	const count = view.getUint16(4, true);
+	assert.equal(count, 3);
+
+	// 各エントリの offset+size が境界内・互いに重ならない
+	let prevEnd = 6 + count * 16;
+	for (let i = 0; i < count; i++) {
+		const pos = 6 + i * 16;
+		const width = ico[pos] === 0 ? 256 : ico[pos];
+		assert.equal(width, images[i].size, `entry${i} 寸法`);
+		const size = view.getUint32(pos + 8, true);
+		const offset = view.getUint32(pos + 12, true);
+		assert.equal(offset, prevEnd, `entry${i} オフセット連続`);
+		assert.ok(offset + size <= ico.length, `entry${i} 範囲内`);
+		assert.equal(ico[offset], images[i].size, `entry${i} ペイロード先頭`);
+		prevEnd = offset + size;
+	}
+	// 末尾まで使い切っている
+	assert.equal(prevEnd, ico.length);
 });

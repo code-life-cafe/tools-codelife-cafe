@@ -103,6 +103,10 @@ export function FaviconGeneratorPage() {
 				setError(null);
 			} catch (err) {
 				if (runIdRef.current !== runId) return;
+				// 失敗時は古い結果が残らないようクリアする（旧ZIPのDL防止）
+				revokePreviewUrls();
+				setPreviewUrls(null);
+				setGenerated(null);
 				setError(
 					err instanceof Error
 						? err.message
@@ -115,25 +119,32 @@ export function FaviconGeneratorPage() {
 		return () => clearTimeout(timer);
 	}, [source, options, revokePreviewUrls]);
 
-	const handleFile = useCallback(async (file: File) => {
-		setError(null);
-		const validation = await validateImageFile(file);
-		if (!validation.ok) {
-			setError(validation.message);
-			return;
-		}
-		try {
-			const next = await loadImageSource(file);
-			sourceRef.current?.dispose();
-			sourceRef.current = next;
-			setFileName(file.name);
-			setSource(next);
-		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : '画像の読み込みに失敗しました。',
-			);
-		}
-	}, []);
+	const handleFile = useCallback(
+		async (file: File) => {
+			setError(null);
+			const validation = await validateImageFile(file);
+			if (!validation.ok) {
+				setError(validation.message);
+				return;
+			}
+			try {
+				const next = await loadImageSource(file, validation.kind);
+				sourceRef.current?.dispose();
+				sourceRef.current = next;
+				// 旧結果が新ソースの生成完了まで残らないよう先にクリアする
+				revokePreviewUrls();
+				setPreviewUrls(null);
+				setGenerated(null);
+				setFileName(file.name);
+				setSource(next);
+			} catch (err) {
+				setError(
+					err instanceof Error ? err.message : '画像の読み込みに失敗しました。',
+				);
+			}
+		},
+		[revokePreviewUrls],
+	);
 
 	const handleClear = useCallback(() => {
 		runIdRef.current++;

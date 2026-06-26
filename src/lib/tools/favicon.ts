@@ -36,11 +36,17 @@ export type FaviconAsset =
 	| 'android-chrome-192x192.png'
 	| 'android-chrome-512x512.png';
 
+export type ImageKind = 'png' | 'jpeg' | 'webp' | 'svg';
+
 export type ImageInputValidation =
-	| { ok: true; kind: 'png' | 'jpeg' | 'webp' | 'svg' }
+	| { ok: true; kind: ImageKind }
 	| {
 			ok: false;
-			reason: 'unsupported-type' | 'too-large' | 'invalid-signature';
+			reason:
+				| 'unsupported-type'
+				| 'too-large'
+				| 'invalid-signature'
+				| 'unsafe-svg';
 			message: string;
 	  };
 
@@ -121,9 +127,7 @@ function decodeHeaderText(header: Uint8Array): string {
  * 先頭バイト列から画像種別をマジックナンバーで判定する。
  * PNG `89 50 4E 47` / JPEG `FF D8 FF` / WebP `RIFF....WEBP` / SVG（`<svg` を含む）。
  */
-export function detectImageKind(
-	header: Uint8Array,
-): 'png' | 'jpeg' | 'webp' | 'svg' | null {
+export function detectImageKind(header: Uint8Array): ImageKind | null {
 	if (
 		header.length >= 4 &&
 		header[0] === 0x89 &&
@@ -195,6 +199,100 @@ export async function validateImageFile(
 		};
 	}
 	return { ok: true, kind };
+}
+
+// ---------------------------------------------------------------------------
+// SVG の安全性検証・寸法解析（DOM非依存・ユニットテスト対象）
+// ---------------------------------------------------------------------------
+
+// 外部送信・スクリプト実行につながる危険な要素/属性。自己完結SVGのみ許可する。
+// data: URI（インライン）は許可し、http(s)・プロトコル相対 // のみ外部参照として拒否する。
+const SVG_UNSAFE_PATTERNS: ReadonlyArray<{ re: RegExp; reason: string }> = [
+	{ re: /<script[\s/>]/i, reason: 'script要素' },
+	{ re: /<foreignObject[\s/>]/i, reason: 'foreignObject要素' },
+	{ re: /<iframe[\s/>]/i, reason: 'iframe要素' },
+	// onload= などのイベントハンドラ属性
+	{ re: /\son[a-z]+\s*=/i, reason: 'イベントハンドラ属性' },
+	// href / xlink:href が外部（http(s) もしくは // 始まり）を指す
+	{
+		re: /(?:xlink:)?href\s*=\s*["']?\s*(?:https?:)?\/\//i,
+		reason: '外部参照（href）',
+	},
+	// CSS url(...) / @import が外部を指す
+	{ re: /url\(\s*["']?\s*(?:https?:)?\/\//i, reason: '外部参照（CSS url）' },
+	{ re: /@import/i, reason: '外部参照（@import）' },
+];
+
+/**
+ * SVG テキストが自己完結かを検証する（外部参照・スクリプトを含まないこと）。
+ * 要件「画像を外部送信しない」を満たすため、ラスタライズ前に必ず通す。
+ */
+export function validateSvgSafety(
+	text: string,
+): { ok: true } | { ok: false; reason: string; message: string } {
+	for (const { re, reason } of SVG_UNSAFE_PATTERNS) {
+		if (re.test(text)) {
+			return {
+				ok: false,
+				reason,
+				message: `外部参照やスクリプトを含むSVGには対応していません（${reason}）。自己完結したSVGを選択してください。`,
+			};
+		}
+	}
+	return { ok: true };
+}
+
+function parseSvgLength(value: string | null): number | null {
+	if (!value) return null;
+	// "512" / "512px" のみ採用。% など相対単位は寸法として使えないので null
+	const m = /^\s*([\d.]+)\s*(px)?\s*$/i.exec(value);
+	if (!m) return null;
+	const n = Number.parseFloat(m[1]);
+	return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/**
+ * SVG ルート要素から表示寸法（アスペクト比）を求める。
+ * width/height を優先し、なければ viewBox の幅高、いずれも無ければ正方形(512)。
+ */
+export function parseSvgDimensions(text: string): {
+	width: number;
+	height: number;
+} {
+	const tagMatch = /<svg\b[^>]*>/i.exec(text);
+	const tag = tagMatch ? tagMatch[0] : '';
+	const attr = (name: string): string | null => {
+		const m =
+			new RegExp(`\\b${name}\\s*=\\s*"([^"]*)"`, 'i').exec(tag) ??
+			new RegExp(`\\b${name}\\s*=\\s*'([^']*)'`, 'i').exec(tag);
+		return m ? m[1] : null;
+	};
+
+	const w = parseSvgLength(attr('width'));
+	const h = parseSvgLength(attr('height'));
+	if (w && h) return { width: w, height: h };
+
+	const viewBox = attr('viewBox');
+	if (viewBox) {
+		const parts = viewBox
+			.trim()
+			.split(/[\s,]+/)
+			.map(Number);
+		if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+			return { width: parts[2], height: parts[3] };
+		}
+	}
+	return { width: MASTER_SIZE, height: MASTER_SIZE };
+}
+
+/** HTML 属性値として安全になるようエスケープする（コピー出力の改ざん防止） */
+export function escapeHtmlAttribute(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +374,7 @@ export function buildHtmlSnippet(opts: { themeColor: string }): string {
 		'<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">',
 		'<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">',
 		'<link rel="manifest" href="/site.webmanifest">',
-		`<meta name="theme-color" content="${opts.themeColor}">`,
+		`<meta name="theme-color" content="${escapeHtmlAttribute(opts.themeColor)}">`,
 	].join('\n');
 }
 
@@ -284,8 +382,26 @@ export function buildHtmlSnippet(opts: { themeColor: string }): string {
 // ラスタライズ（ブラウザAPI依存・E2Eで検証）
 // ---------------------------------------------------------------------------
 
-/** File から描画ソースを読み込む。寸法のない SVG は正方形512を仮定する。 */
-export async function loadImageSource(file: File): Promise<RasterSource> {
+/**
+ * File から描画ソースを読み込む。
+ * SVG は描画前にテキストを検査し、外部参照・スクリプトを含む場合は拒否する
+ * （要件「画像を外部送信しない」を満たすため Image 生成前に検証する）。
+ * 寸法は SVG の width/height/viewBox から決定し、取れない場合は正方形512とする。
+ */
+export async function loadImageSource(
+	file: File,
+	kind: ImageKind,
+): Promise<RasterSource> {
+	let svgDimensions: { width: number; height: number } | null = null;
+	if (kind === 'svg') {
+		const text = await file.text();
+		const safety = validateSvgSafety(text);
+		if (!safety.ok) {
+			throw new Error(safety.message);
+		}
+		svgDimensions = parseSvgDimensions(text);
+	}
+
 	const url = URL.createObjectURL(file);
 	const img = new Image();
 	img.decoding = 'async';
@@ -298,12 +414,15 @@ export async function loadImageSource(file: File): Promise<RasterSource> {
 			'画像の読み込みに失敗しました。ファイルが破損している可能性があります。',
 		);
 	}
-	let width = img.naturalWidth;
-	let height = img.naturalHeight;
+
+	let width = svgDimensions?.width ?? img.naturalWidth;
+	let height = svgDimensions?.height ?? img.naturalHeight;
 	if (!width || !height) {
-		// intrinsic size を持たない SVG 等は正方形512として扱う
 		width = MASTER_SIZE;
 		height = MASTER_SIZE;
+	}
+	if (kind === 'svg') {
+		// SVG は表示寸法を明示してから drawImage で意図した解像度にラスタライズする
 		img.width = width;
 		img.height = height;
 	}

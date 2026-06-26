@@ -118,6 +118,19 @@ test.describe('ファビコン生成', () => {
 		await expect(page.getByTestId('favicon-preview')).toBeVisible();
 	});
 
+	test('外部参照を含むSVGは拒否される（外部送信を防ぐ）', async ({ page }) => {
+		await fileInput(page).setInputFiles({
+			name: 'evil.svg',
+			mimeType: 'image/svg+xml',
+			buffer: Buffer.from(
+				'<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.example/x.png"/></svg>',
+			),
+		});
+		await expect(page.getByRole('alert')).toContainText('自己完結');
+		// 生成されないため ZIP ボタンは現れない
+		await expect(zipButton(page)).toHaveCount(0);
+	});
+
 	test('非対応形式（GIF）は日本語エラーになる', async ({ page }) => {
 		// FileDropzone の accept フィルタが GIF を弾き、日本語エラーを表示する
 		await fileInput(page).setInputFiles({
