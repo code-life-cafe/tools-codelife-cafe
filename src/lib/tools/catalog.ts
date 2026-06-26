@@ -382,6 +382,24 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		categoryColor: 'border-l-primary',
 		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
 	},
+	{
+		id: 'favicon',
+		title: 'ファビコン生成',
+		description: '画像から favicon 一式を生成。データは外部送信なし。',
+		href: '/favicon',
+		icon: '🔖',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'ファビコン',
+			'favicon',
+			'ico',
+			'site.webmanifest',
+			'アップロード不要',
+			'apple-touch-icon',
+			'PWAアイコン',
+		],
+	},
 ];
 
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
