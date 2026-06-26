@@ -25,6 +25,10 @@ const pageURLs = [
 ];
 
 // dist/_astro/ 配下の全ファイルを収集
+// AVIF エンコーダ（@jsquash/avif）や libheif（HEICデコード）の WASM チャンクも含めて
+// プリキャッシュ対象とする。PWA はオフラインでも全ツールが動作することを前提とするため、
+// オフライン前に一度も HEIC/AVIF を扱っていなくても /image-convert が機能するよう、
+// これらのオンデマンドコーデックも明示的に precache に残す。
 let assetFiles = [];
 try {
 	assetFiles = await readdir(join(DIST, '_astro'));

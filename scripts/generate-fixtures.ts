@@ -1,6 +1,7 @@
 import Encoding from 'encoding-japanese';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import zlib from 'zlib';
 
 // Use process.cwd() since __dirname might not exist in ESM
@@ -151,6 +152,48 @@ fs.writeFileSync(
 		x >= 40 && x < 80 && y >= 30 && y < 60 ? [40, 80, 220, 255] : [0, 0, 0, 0],
 	),
 );
+
+// 6c. 画像形式変換ツールE2E用のフィクスチャ（WebP / AVIF / EXIF付きJPEG）
+//     64×48: 赤地 [200,60,60] + 中央 (20,14)〜(43,33) に青 [40,80,220]。
+//     HEIC（convert-sample.heic）は ffmpeg(libx265) が必要なため
+//     scripts/generate-heic-fixture.ts で別途生成する。
+{
+	const W = 64;
+	const H = 48;
+	const raw = Buffer.alloc(W * H * 3);
+	for (let y = 0; y < H; y++) {
+		for (let x = 0; x < W; x++) {
+			const i = (y * W + x) * 3;
+			const blue = x >= 20 && x < 44 && y >= 14 && y < 34;
+			raw[i] = blue ? 40 : 200;
+			raw[i + 1] = blue ? 80 : 60;
+			raw[i + 2] = blue ? 220 : 60;
+		}
+	}
+	const src = () => sharp(raw, { raw: { width: W, height: H, channels: 3 } });
+
+	fs.writeFileSync(
+		path.join(fixturesDir, 'convert-sample.webp'),
+		await src().webp({ quality: 85 }).toBuffer(),
+	);
+	fs.writeFileSync(
+		path.join(fixturesDir, 'convert-sample.avif'),
+		await src().avif({ quality: 50 }).toBuffer(),
+	);
+	// EXIF付きJPEG（keep/strip の差分検証用）。sharp の Exif 型は IFD0〜IFD3 のみ許可。
+	fs.writeFileSync(
+		path.join(fixturesDir, 'convert-exif.jpg'),
+		await src()
+			.jpeg({ quality: 92 })
+			.withExif({
+				IFD0: {
+					Software: 'cl-tools-fixture',
+					DateTime: '2024:06:01 12:34:56',
+				},
+			})
+			.toBuffer(),
+	);
+}
 
 // 7. ハッシュツール用の固定内容テキスト（期待ハッシュ値が決定的になる）
 // 内容を変更すると tests/e2e/hash.spec.ts の期待値も更新が必要
