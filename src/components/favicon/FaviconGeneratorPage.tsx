@@ -207,11 +207,7 @@ export function FaviconGeneratorPage() {
 
 			{source && (
 				<>
-					<FaviconOptionsPanel
-						options={options}
-						disabled={generating}
-						onChange={setOptions}
-					/>
+					<FaviconOptionsPanel options={options} onChange={setOptions} />
 
 					<FaviconPreview
 						urls={previewUrls}

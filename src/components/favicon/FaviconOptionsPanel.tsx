@@ -32,11 +32,10 @@ export const DEFAULT_FAVICON_OPTIONS: FaviconUiOptions = {
 
 type Props = {
 	options: FaviconUiOptions;
-	disabled?: boolean;
 	onChange: (next: FaviconUiOptions) => void;
 };
 
-export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
+export function FaviconOptionsPanel({ options, onChange }: Props) {
 	const update = (patch: Partial<FaviconUiOptions>) =>
 		onChange({ ...options, ...patch });
 
@@ -50,12 +49,8 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 					onValueChange={(value) => update({ fit: value as FitMode })}
 				>
 					<TabsList>
-						<TabsTrigger value="contain" disabled={disabled}>
-							余白をつける
-						</TabsTrigger>
-						<TabsTrigger value="cover" disabled={disabled}>
-							中央をクロップ
-						</TabsTrigger>
+						<TabsTrigger value="contain">余白をつける</TabsTrigger>
+						<TabsTrigger value="cover">中央をクロップ</TabsTrigger>
 					</TabsList>
 				</Tabs>
 				<p className="text-xs text-muted-foreground">
@@ -70,7 +65,6 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 					<Switch
 						id="favicon-transparent"
 						checked={options.transparent}
-						disabled={disabled}
 						onCheckedChange={(checked) => update({ transparent: checked })}
 						aria-label="アイコン背景を透過にする"
 					/>
@@ -79,7 +73,6 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 					<ColorField
 						label="アイコン背景色"
 						value={options.background}
-						disabled={disabled}
 						onChange={(background) => update({ background })}
 					/>
 				)}
@@ -94,7 +87,6 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 				<Input
 					id="favicon-appname"
 					value={options.appName}
-					disabled={disabled}
 					maxLength={60}
 					onChange={(e) => update({ appName: e.target.value })}
 					placeholder="My App"
@@ -106,13 +98,11 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 				<ColorField
 					label="テーマカラー（theme_color）"
 					value={options.themeColor}
-					disabled={disabled}
 					onChange={(themeColor) => update({ themeColor })}
 				/>
 				<ColorField
 					label="背景色（background_color）"
 					value={options.backgroundColor}
-					disabled={disabled}
 					onChange={(backgroundColor) => update({ backgroundColor })}
 				/>
 			</div>
@@ -123,12 +113,10 @@ export function FaviconOptionsPanel({ options, disabled, onChange }: Props) {
 function ColorField({
 	label,
 	value,
-	disabled,
 	onChange,
 }: {
 	label: string;
 	value: string;
-	disabled?: boolean;
 	onChange: (value: string) => void;
 }) {
 	const inputId = useId();
@@ -143,7 +131,6 @@ function ColorField({
 				<input
 					type="color"
 					value={pickerValue}
-					disabled={disabled}
 					onChange={handleText}
 					className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-input bg-transparent p-1"
 					aria-label={label}
@@ -151,7 +138,6 @@ function ColorField({
 				<Input
 					id={inputId}
 					value={value}
-					disabled={disabled}
 					onChange={handleText}
 					className="font-mono"
 					placeholder="#1e40af"

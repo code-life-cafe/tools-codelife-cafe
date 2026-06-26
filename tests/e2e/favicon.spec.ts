@@ -94,6 +94,19 @@ test.describe('ファビコン生成', () => {
 		await expect(homeIcon).toHaveAttribute('src', /^blob:/);
 	});
 
+	test('アプリ名を連続入力してもフォーカスが外れない', async ({ page }) => {
+		await uploadAndWait(page, PNG_512);
+
+		const appName = page.getByLabel('アプリ名（site.webmanifest）');
+		await appName.click();
+		// 既定値 "My App" に続けて連続入力する。生成のたびに input が
+		// disabled 化されると blur され、以降の文字が落ちる／フォーカスを失う。
+		await appName.pressSequentially(' Pro', { delay: 20 });
+
+		await expect(appName).toBeFocused();
+		await expect(appName).toHaveValue('My App Pro');
+	});
+
 	test('HTMLスニペットが表示されコピーできる', async ({ page }) => {
 		await uploadAndWait(page, PNG_512);
 
