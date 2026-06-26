@@ -296,6 +296,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 	},
 	{
+		id: 'image-convert',
+		title: '画像形式変換',
+		description: 'HEIC・WebP・AVIFをJPEG等へ変換。データは外部送信なし。',
+		href: '/image-convert',
+		icon: '🖼️',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'画像形式変換',
+			'HEIC',
+			'JPEG変換',
+			'WebP',
+			'AVIF',
+			'iPhone',
+			'HEIC JPEG 変換',
+			'一括',
+			'ZIP',
+		],
+	},
+	{
 		id: 'zipcode',
 		title: '郵便番号→住所変換',
 		description:

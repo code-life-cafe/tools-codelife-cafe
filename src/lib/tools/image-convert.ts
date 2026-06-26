@@ -450,7 +450,8 @@ export async function encode(
 	if (target === 'avif') {
 		const ctx = get2dContext(canvas);
 		const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-		const { encode: encodeAvif } = await import('@jsquash/avif');
+		// encode サブモジュールを直接 import（index 経由だと AVIF デコーダも巻き込まれるため）
+		const { default: encodeAvif } = await import('@jsquash/avif/encode');
 		const buffer = await encodeAvif(imageData, {
 			quality: clampQuality(opts.quality),
 		});
