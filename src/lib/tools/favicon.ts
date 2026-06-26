@@ -207,7 +207,7 @@ export async function validateImageFile(
  */
 export function encodeIco(
 	images: ReadonlyArray<{ size: number; bytes: Uint8Array }>,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
 	const count = images.length;
 	const headerSize = 6;
 	const dirSize = count * 16;
@@ -426,12 +426,11 @@ export async function generateFavicons(
 ): Promise<GeneratedFavicons> {
 	const master = drawSquare(source, MASTER_SIZE, options);
 	const pngs = await pngSetFromMaster(master);
+	// ICO_SIZES（16/32/48）はすべて MASTER_SIZE 未満なのでマスターから縮小する
 	const icoPngs = await Promise.all(
 		ICO_SIZES.map(async (size) => ({
 			size,
-			bytes: await toPngBytes(
-				size === MASTER_SIZE ? master : downscale(master, size),
-			),
+			bytes: await toPngBytes(downscale(master, size)),
 		})),
 	);
 	const ico = new Blob([encodeIco(icoPngs)], { type: 'image/x-icon' });

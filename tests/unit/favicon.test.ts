@@ -77,7 +77,8 @@ function fileFrom(
 ): File {
 	const data =
 		typeof bytes === 'string' ? new TextEncoder().encode(bytes) : bytes;
-	return new File([data], name, { type });
+	// ArrayBuffer 裏付けを保証して BlobPart 互換にする（SharedArrayBuffer を排除）
+	return new File([new Uint8Array(data)], name, { type });
 }
 
 const PNG_BYTES = new Uint8Array([
