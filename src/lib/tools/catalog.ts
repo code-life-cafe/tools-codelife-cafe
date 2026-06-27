@@ -713,12 +713,37 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
-		related: ['json-csv', 'color'],
+		related: ['json-csv', 'color', 'wordcloud'],
 		llmsFull: {
 			useCase:
 				'GitHub Flavored Markdown (GFM) のリアルタイムHTMLレンダリングとHTML出力',
 			inputs: 'markdownText（Markdown文字列）',
 			outputs: 'HTML文字列およびプレビュー表示',
+		},
+	},
+	{
+		id: 'wordcloud',
+		title: 'ワードクラウド生成',
+		description:
+			'日本語テキストを形態素解析しワードクラウド化。データは外部送信なし。',
+		href: '/wordcloud',
+		icon: '☁️',
+		category: 'テキスト解析',
+		categoryColor: 'border-l-accent',
+		keywords: [
+			'ワードクラウド',
+			'テキストマイニング',
+			'形態素解析',
+			'頻出語',
+			'アンケート',
+			'自由記述',
+		],
+		related: ['markdown', 'char-count', 'text-diff'],
+		llmsFull: {
+			useCase:
+				'日本語テキストを形態素解析し、頻出キーワードのワードクラウド可視化および頻度表CSV出力',
+			inputs: 'text（解析対象文字列またはファイル）',
+			outputs: 'ワードクラウド描画（PNG/SVG）および頻度表（CSV）',
 		},
 	},
 	{
