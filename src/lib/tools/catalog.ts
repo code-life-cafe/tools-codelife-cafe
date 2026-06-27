@@ -548,6 +548,29 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'image-edit',
+		title: '画像クロップ・回転・反転',
+		description: '切り抜き・回転・反転をブラウザで。データは外部送信なし。',
+		href: '/image-edit',
+		icon: '✂️',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'クロップ',
+			'切り抜き',
+			'トリミング',
+			'回転',
+			'反転',
+			'画像編集',
+		],
+		related: ['image-compress', 'image-convert', 'image-text'],
+		llmsFull: {
+			useCase: '画像の切り抜き・90度単位の回転・上下左右反転',
+			inputs: 'imageFile（画像ファイル）',
+			outputs: '編集済み画像ファイル',
+		},
+	},
+	{
 		id: 'image-convert',
 		title: '画像形式変換',
 		description: 'HEIC・WebP・AVIFをJPEG等へ変換。データは外部送信なし。',
@@ -694,12 +717,37 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
-		related: ['json-csv', 'color'],
+		related: ['json-csv', 'color', 'wordcloud'],
 		llmsFull: {
 			useCase:
 				'GitHub Flavored Markdown (GFM) のリアルタイムHTMLレンダリングとHTML出力',
 			inputs: 'markdownText（Markdown文字列）',
 			outputs: 'HTML文字列およびプレビュー表示',
+		},
+	},
+	{
+		id: 'wordcloud',
+		title: 'ワードクラウド生成',
+		description:
+			'日本語テキストを形態素解析しワードクラウド化。データは外部送信なし。',
+		href: '/wordcloud',
+		icon: '☁️',
+		category: 'テキスト解析',
+		categoryColor: 'border-l-accent',
+		keywords: [
+			'ワードクラウド',
+			'テキストマイニング',
+			'形態素解析',
+			'頻出語',
+			'アンケート',
+			'自由記述',
+		],
+		related: ['markdown', 'char-count', 'text-diff'],
+		llmsFull: {
+			useCase:
+				'日本語テキストを形態素解析し、頻出キーワードのワードクラウド可視化および頻度表CSV出力',
+			inputs: 'text（解析対象文字列またはファイル）',
+			outputs: 'ワードクラウド描画（PNG/SVG）および頻度表（CSV）',
 		},
 	},
 	{

@@ -1,0 +1,44 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { WordCloudPage } from '../components/wordcloud/WordCloudPage';
+---
+
+<ToolLayout
+  title="ワードクラウド生成・日本語テキストマイニング（アップロード不要）"
+  description="日本語テキストを形態素解析してワードクラウドを生成する無料ツール。品詞フィルタ・ストップワード除去・頻度表CSV・PNG/SVG出力に対応。完全クライアントサイド処理でテキストはサーバーに送信されません。"
+  path="/wordcloud"
+>
+  <WordCloudPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・解析モードと安全性の解説
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>
+          日本語テキストをブラウザ内で形態素解析（単語分割）し、頻出キーワードを視覚的なワードクラウドや頻度表として可視化するツールです。アンケートの自由記述、問い合わせログ、議事録、ブログ記事などの分析にご活用いただけます。
+        </p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong>安心の完全クライアントサイド処理:</strong>
+            入力したテキストや読み込んだファイルデータは外部サーバーへ一切送信されません。すべての処理はユーザーのお手元のブラウザ内で完結するため、社内機密データや個人情報を含む文章でも安心・安全にご利用いただけます。
+          </li>
+          <li>
+            <strong>即時解析（かんたんモード）:</strong>
+            ブラウザで即座に起動する軽量な形態素解析エンジン（TinySegmenter）を使用し、単語の区切りを高速に抽出します。
+          </li>
+          <li>
+            <strong>ストップワード・表示カスタマイズ:</strong>
+            「の」「に」「です」などの助詞・機能語を標準で自動除去します。また、任意の除外単語（例: 社名や特定のキーワード）を追加設定したり、最小出現回数や最大語数、デザインの配色・回転をリアルタイムに変更できます。
+          </li>
+          <li>
+            <strong>各種エクスポート形式:</strong>
+            生成されたワードクラウドは高解像度PNG画像や拡大・縮小に強いSVG画像としてダウンロードできます。また、各単語の出現回数と順位をまとめたデータはExcel互換のCSV形式（UTF-8 BOM付き）として出力可能です。
+          </li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
