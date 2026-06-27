@@ -1,8 +1,9 @@
 ---
 import { getCategoryId, toolCatalog } from '../../lib/tools/catalog';
+import { generateJsonLd } from '../../lib/jsonld';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SafetyBadge from '../layout/SafetyBadge.tsx';
-import ToolJsonLd from '../common/ToolJsonLd.astro';
+import JsonLd from './JsonLd.astro';
 
 interface Props {
   title: string;
@@ -22,6 +23,14 @@ const categoryHref = category ? `/?category=${getCategoryId(category)}` : undefi
 
 // カタログ掲載ツールはビルド時生成のツール別 OG 画像（/og/{id}.png）を使う
 const ogImage = tool ? `/og/${tool.id}.png` : undefined;
+
+const jsonLdData = generateJsonLd({
+  title,
+  path,
+  summary: description,
+  category,
+  hasHowTo: true,
+});
 
 const breadcrumbItems: { name: string; url?: string }[] = [
   { name: 'ホーム', url: `${SITE_URL}/` },
@@ -43,8 +52,8 @@ const breadcrumbSchema = {
 
 <BaseLayout title={title} description={description} path={path} ogImage={ogImage}>
   <Fragment slot="head">
-    <ToolJsonLd name={title} description={description} url={`https://tools.codelife.cafe${path}`} />
-    <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+    <JsonLd data={jsonLdData} />
+    <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema).replace(/</g, '\\u003c')} />
   </Fragment>
 
   <div id="tool-layout-container" class="transition-all duration-300 mx-auto max-w-[800px] xl:max-w-5xl px-4 sm:px-6 py-8">
