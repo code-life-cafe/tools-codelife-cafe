@@ -159,6 +159,12 @@ export function ImageConvertPage() {
 		[options, processAll],
 	);
 
+	// オプション変更時は古い完了メッセージを消す（再変換するまで結果は前回のまま）
+	const handleOptionsChange = useCallback((next: ConvertUiOptions) => {
+		setOptions(next);
+		setCompletion(null);
+	}, []);
+
 	const handleReconvert = useCallback(() => {
 		const reset = itemsRef.current.map((it) => {
 			if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
@@ -258,7 +264,7 @@ export function ImageConvertPage() {
 					<ConvertOptionsPanel
 						options={options}
 						disabled={processing}
-						onChange={setOptions}
+						onChange={handleOptionsChange}
 					/>
 
 					<div className="flex flex-wrap items-center gap-2">

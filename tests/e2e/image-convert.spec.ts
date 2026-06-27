@@ -72,10 +72,24 @@ test.describe('画像形式変換', () => {
 		await expect(page.getByTestId('convert-completion')).toContainText(
 			'変換完了',
 		);
+		// 結果リストの表示名は変換後の拡張子（.jpg）になる
+		await expect(page.getByTestId('convert-result-list')).toContainText(
+			'sample-400x300.jpg',
+		);
 		const { name, buf } = await readDownload(page);
 		expect(name).toBe('sample-400x300.jpg');
 		expect(buf[0]).toBe(0xff);
 		expect(buf[1]).toBe(0xd8); // JPEG
+	});
+
+	test('オプション変更で前回の完了メッセージが消える', async ({ page }) => {
+		await input(page).setInputFiles(PNG);
+		await waitConverted(page);
+		await expect(page.getByTestId('convert-completion')).toBeVisible();
+		// 出力形式を変えた時点で（再変換前に）完了メッセージは消える
+		await page.getByRole('combobox', { name: '出力形式' }).click();
+		await page.getByRole('option', { name: 'WebP', exact: true }).click();
+		await expect(page.getByTestId('convert-completion')).toBeHidden();
 	});
 
 	test('WebP→PNG が成功しダウンロードできる', async ({ page }) => {
