@@ -11,7 +11,9 @@ export function requireString(
 ): WebMcpToolResult<string> {
 	const v = obj[key];
 	if (typeof v !== 'string') {
-		return failure(`"${key}" must be a string / "${key}" は文字列で指定してください`);
+		return failure(
+			`"${key}" must be a string / "${key}" は文字列で指定してください`,
+		);
 	}
 	return { ok: true, value: v };
 }

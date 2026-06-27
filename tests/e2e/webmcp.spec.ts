@@ -1,5 +1,21 @@
 import { expect, test } from './fixtures/base';
 
+interface WebMcpMockTool {
+	name: string;
+	inputSchema: { required: string[] };
+	execute: (input: Record<string, unknown>) => Promise<unknown>;
+}
+
+interface WebMcpMockCall {
+	tools: WebMcpMockTool[];
+}
+
+interface WebMcpMockWindow extends Window {
+	__webmcpCalls: WebMcpMockCall[];
+	__webmcpDisposed: boolean;
+	__webmcpCleared?: boolean;
+}
+
 const WEBMCP_INIT_SCRIPT = `
 (() => {
   window.__webmcpCalls = [];
@@ -35,15 +51,17 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 		const toolPage = createToolPage('hash');
 		await toolPage.goto();
 
-		const calls = await page.evaluate(() => (window as any).__webmcpCalls);
+		const calls = await page.evaluate(
+			() => (window as unknown as WebMcpMockWindow).__webmcpCalls,
+		);
 		expect(calls.length).toBeGreaterThan(0);
 
 		const lastCall = calls.at(-1);
-		const toolNames = lastCall.tools.map((t: any) => t.name);
+		const toolNames = lastCall.tools.map((t: WebMcpMockTool) => t.name);
 		expect(toolNames).toContain('generate_hash');
 
 		const hashTool = lastCall.tools.find(
-			(t: any) => t.name === 'generate_hash',
+			(t: WebMcpMockTool) => t.name === 'generate_hash',
 		);
 		expect(hashTool.inputSchema.required).toContain('text');
 		expect(hashTool.inputSchema.required).toContain('algorithm');
@@ -59,9 +77,9 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 		await toolPage.goto();
 
 		const result = await page.evaluate(async () => {
-			const tool = (window as any).__webmcpCalls
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
 				.at(-1)
-				.tools.find((t: any) => t.name === 'generate_hash');
+				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			return await tool.execute({ text: 'hello', algorithm: 'md5' });
 		});
 
@@ -78,9 +96,9 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 		await toolPage.goto();
 
 		const result = await page.evaluate(async () => {
-			const tool = (window as any).__webmcpCalls
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
 				.at(-1)
-				.tools.find((t: any) => t.name === 'generate_hash');
+				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			return await tool.execute({ text: null });
 		});
 
@@ -98,13 +116,13 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 		await toolPage.goto();
 
 		const hasDispose = await page.evaluate(() => {
-			const calls = (window as any).__webmcpCalls;
+			const calls = (window as unknown as WebMcpMockWindow).__webmcpCalls;
 			return calls.length > 0;
 		});
 		expect(hasDispose).toBe(true);
 
 		const disposedBefore = await page.evaluate(
-			() => (window as any).__webmcpDisposed,
+			() => (window as unknown as WebMcpMockWindow).__webmcpDisposed,
 		);
 		expect(disposedBefore).toBe(false);
 	});
@@ -120,14 +138,18 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
 
-		const calls = await page.evaluate(() => (window as any).__webmcpCalls);
+		const calls = await page.evaluate(
+			() => (window as unknown as WebMcpMockWindow).__webmcpCalls,
+		);
 		expect(calls.length).toBeGreaterThan(0);
 
 		const lastCall = calls.at(-1);
-		const toolNames = lastCall.tools.map((t: any) => t.name);
+		const toolNames = lastCall.tools.map((t: WebMcpMockTool) => t.name);
 		expect(toolNames).toContain('calc_tax');
 
-		const taxTool = lastCall.tools.find((t: any) => t.name === 'calc_tax');
+		const taxTool = lastCall.tools.find(
+			(t: WebMcpMockTool) => t.name === 'calc_tax',
+		);
 		expect(taxTool.inputSchema.required).toContain('amount');
 		expect(taxTool.inputSchema.required).toContain('taxRate');
 		expect(taxTool.inputSchema.required).toContain('mode');
@@ -143,9 +165,9 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 		await toolPage.goto();
 
 		const result = await page.evaluate(async () => {
-			const tool = (window as any).__webmcpCalls
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
 				.at(-1)
-				.tools.find((t: any) => t.name === 'calc_tax');
+				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
 			return await tool.execute({
 				amount: 10000,
 				taxRate: '10',
@@ -172,9 +194,9 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 		await toolPage.goto();
 
 		const result = await page.evaluate(async () => {
-			const tool = (window as any).__webmcpCalls
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
 				.at(-1)
-				.tools.find((t: any) => t.name === 'calc_tax');
+				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
 			return await tool.execute({ amount: 'not a number' });
 		});
 
@@ -192,13 +214,13 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 		await toolPage.goto();
 
 		const hasDispose = await page.evaluate(() => {
-			const calls = (window as any).__webmcpCalls;
+			const calls = (window as unknown as WebMcpMockWindow).__webmcpCalls;
 			return calls.length > 0;
 		});
 		expect(hasDispose).toBe(true);
 
 		const disposedBefore = await page.evaluate(
-			() => (window as any).__webmcpDisposed,
+			() => (window as unknown as WebMcpMockWindow).__webmcpDisposed,
 		);
 		expect(disposedBefore).toBe(false);
 	});
@@ -276,9 +298,9 @@ test.describe('WebMCP — no external network requests with input data', () => {
 		await toolPage.goto();
 
 		await page.evaluate(async (input) => {
-			const tool = (window as any).__webmcpCalls
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
 				.at(-1)
-				.tools.find((t: any) => t.name === 'generate_hash');
+				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			await tool.execute({ text: input, algorithm: 'md5' });
 		}, secretInput);
 
