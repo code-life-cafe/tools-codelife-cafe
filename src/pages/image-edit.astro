@@ -1,0 +1,31 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import ImageEditPage from '../components/image-edit/ImageEditPage';
+---
+
+<ToolLayout
+  title="画像のクロップ・回転・反転（ブラウザ完結）"
+  description="画像の切り抜き（アスペクト比固定）・回転・反転をブラウザだけで行える無料ツール。一括処理・ZIP一括ダウンロード対応。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/image-edit"
+>
+  <ImageEditPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>画像の切り抜き・回転・反転をブラウザだけで行える無料ツールです。インストール不要で、画像がサーバーに送信されることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>アスペクト比の使い分け:</strong> 「自由」で任意の範囲を切り抜き、「1:1」でSNSプロフィール用の正方形、「16:9」でプレゼン資料やサムネイル用、「9:16」でスマートフォン壁紙用に。</li>
+          <li><strong>回転:</strong> 90°ボタンで素早く向きを変えるほか、スライダーで任意角度の微調整も可能です。任意角度回転では外接矩形に拡張され、余白は指定した背景色で塗られます。</li>
+          <li><strong>反転:</strong> 水平反転でミラー画像、垂直反転で上下逆さまに。スクリーンショットの左右を入れ替えたいときなどに便利です。</li>
+          <li><strong>一括処理:</strong> 複数画像をまとめて投入すると、共通の回転・反転・アスペクト比設定を全画像に適用し、ZIPで一括ダウンロードできます。</li>
+          <li><strong>完全ローカル処理:</strong> 加工はすべてお使いのブラウザ内（Canvas API）で完結します。業務用の画像でも安心してお使いいただけます。</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

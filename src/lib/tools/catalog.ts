@@ -396,6 +396,23 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		related: ['image-compress', 'image-mosaic', 'image-text', 'bg-remove'],
 	},
 	{
+		id: 'image-edit',
+		title: '画像クロップ・回転・反転',
+		description: '切り抜き・回転・反転をブラウザで。データは外部送信なし。',
+		href: '/image-edit',
+		icon: '✂️',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'クロップ',
+			'切り抜き',
+			'トリミング',
+			'回転',
+			'反転',
+			'画像編集',
+		],
+	},
+	{
 		id: 'zipcode',
 		title: '郵便番号→住所変換',
 		description:
