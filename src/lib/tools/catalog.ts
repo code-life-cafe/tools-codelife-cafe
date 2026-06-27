@@ -296,7 +296,6 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 	},
 	{
-
 		id: 'image-metadata',
 		title: '画像メタデータ削除',
 		description:
