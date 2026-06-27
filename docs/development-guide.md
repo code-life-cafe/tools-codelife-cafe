@@ -20,7 +20,7 @@
 
 ## 2. 新規ツールのファイル構成
 
-各ツールは、基本的に以下の **3ファイル**（重量処理がある場合は Web Worker を加えた **4ファイル**）で完結するように設計します。
+各ツールは、基本的に以下の **3ファイル**（重量処理がある場合は Web Worker を加えた **4ファイル**）で完結するように設計します。画像・PDFなどUIが大きいツールは、`src/components/[feature]/` のように機能別ディレクトリへ分割できます。
 
 ```
 src/
@@ -96,7 +96,7 @@ export function CharCount() {
 ### 3.3 ページシェル層 (`src/pages/[name].astro`)
 Astroを用いて静的なWebページを宣言します。SEO用のJSON-LDやメタデータ、SafetyBadge（安全表示）、使い方（使い方スロット）などは、`ToolLayout` を使うことで統一的にレイアウトされます。
 
-Reactコンポーネントを配置する際は、ハイドレーションを行うために **`client:load`** ディレクティブを付与します。
+Reactコンポーネントを配置する際は、ハイドレーションを行うために **`client:load`** ディレクティブを付与します。関連ツールは `src/lib/tools/catalog.ts` の `related` と `getRelatedTools()`、および `ToolLayout.astro` で自動表示するため、各ページの `usage` スロット内に手書きの「関連ツール」リンクを追加しないでください。
 
 ```astro
 ---

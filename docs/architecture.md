@@ -47,8 +47,10 @@ src/
 ├── components/          # UIコンポーネント
 │   ├── ui/              # shadcn/ui コンポーネント（Biome自動生成、手動編集不可）
 │   ├── layout/          # 共通レイアウト部品（Header, Footer, Navigation, SafetyBadge等）
-│   ├── tools/           # 各ツール固有のReact UIコンポーネント
-│   └── common/          # 汎用部品（CopyButton, FileDropzone, ToolLayout等）
+│   ├── tools/           # 汎用的な各ツール固有React UI（テキスト/データ/開発系など）
+│   ├── image-* / pdf-*  # 画像・PDF系など機能単位のReact UIコンポーネント群
+│   ├── zipcode/         # 郵便番号変換ツールのUIとチャンク取得補助
+│   └── common/          # 汎用部品（CopyButton, FileDropzone, ToolLayout, ToolCard等）
 ├── layouts/
 │   └── BaseLayout.astro # 全ページ共通HTMLレイアウト（SEO, View Transitions, SW登録）
 ├── pages/
@@ -58,7 +60,9 @@ src/
 │   ├── privacy.astro    # プライバシーポリシー
 │   └── about.astro      # このサイトについて
 ├── lib/
-│   ├── tools/           # 各ツールのビジネスロジック（純粋関数）
+│   ├── tools/           # 各ツールのビジネスロジック、ツールカタログ、関連ツール選定
+│   ├── encoding/        # 文字コード判定・改行/エンコード変換
+│   ├── validation/      # ファイル検証などの共通検証ロジック
 │   └── utils.ts         # 共通ユーティリティ（cn関数など）
 ├── styles/
 │   └── global.css       # Tailwind CSS v4 設定、カラーテーマ、アニメーション定義
@@ -95,8 +99,11 @@ Service Worker（`sw.js`）はビルド時に自動生成されます。
 ### 5.1 安全性の可視化 (`SafetyBadge`)
 完全クライアントサイド処理をユーザーに明示し、安心してデータを入出力してもらうために、すべてのツールの上部には「完全ローカル処理（外部送信なし）」を示す `SafetyBadge` が自動配置されます。
 
-### 5.2 ネットワーク遮断の保証
+### 5.2 ツールカタログと関連ツール回遊
+ツール一覧・検索・個別ページの関連ツールカードは `src/lib/tools/catalog.ts` を単一の情報源として管理します。`ToolLayout.astro` は現在ページの `path` からツールを解決し、`getRelatedTools()` によって `related` 指定を優先しつつ同カテゴリのツールで最大3件まで補完して表示します。これにより、各ページに手書きの関連リンクを分散させず、回遊導線を一元管理します。
+
+### 5.3 ネットワーク遮断の保証
 本アプリは意図的にバックエンドAPIを持たず、静的ファイル配信のみで構成されているため、ブラウザの開発者ツールの「ネットワーク」タブ等で検証しても、ユーザーデータの外部送信が発生しないことが確認できます。
 
-### 5.3 CSP (Content Security Policy) 対策
+### 5.4 CSP (Content Security Policy) 対策
 AIモデル推論などの重量処理を Web Worker 内で実行する際、動的なモジュールインポート（スレッド動的インポートなど）によるCSPエラーを完全に防止するため、Web Worker 内の並列スレッド数制限（`numThreads = 1`）やプロキシ停止（`proxy = false`）を明示的に設定しています。

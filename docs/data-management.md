@@ -66,7 +66,7 @@
 - **推論エンジン:** `@huggingface/transformers` (Transformers.js v4)
 - **実行環境:** Web Worker (`src/workers/bg-remove.worker.ts`)
   - 重い推論処理やモデルのダウンロード処理がメインスレッド（UI描画）をブロックし、画面がフリーズするのを防ぐため、Web Worker 内に完全に処理を分離しています。
-- **対応モデルモデル:**
+- **対応モデル:**
   - **高速モード (`fast`):** `onnx-community/modnet-webnn` (FP32版、約25.9MB)
   - **高精度モード (`high`):** `onnx-community/BEN2-ONNX` (FP16版、約219MB)
 
