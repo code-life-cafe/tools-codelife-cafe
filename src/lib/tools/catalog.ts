@@ -420,6 +420,25 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'PWAアイコン',
 		],
 	},
+	{
+		id: 'exif',
+		title: 'EXIF確認・削除',
+		description: '写真の位置情報・撮影情報を確認して削除。データは外部送信なし',
+		href: '/exif',
+		icon: '🔍',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'EXIF',
+			'エグジフ',
+			'位置情報',
+			'GPS',
+			'削除',
+			'メタデータ',
+			'写真',
+			'プライバシー',
+		],
+	},
 ];
 
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）

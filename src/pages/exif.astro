@@ -1,0 +1,38 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { ExifToolPage } from '../components/exif/ExifToolPage';
+---
+
+<ToolLayout
+  title="EXIF確認・削除（位置情報の除去）"
+  description="写真のEXIF（撮影日時・カメラ情報・GPS位置情報）をブラウザだけで確認し、ワンクリックで削除できる無料ツール。SNS投稿前のプライバシー対策に。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/exif"
+>
+  <ExifToolPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>写真や画像に埋め込まれた EXIF メタデータ（撮影日時・カメラ機種・GPS 位置情報など）を、ブラウザ内だけで確認・削除できる無料ツールです。画像がサーバーにアップロードされることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>EXIFとは:</strong> デジタルカメラやスマートフォンが写真に自動記録するメタデータです。撮影日時・カメラのメーカーやモデル・絞り値・ISO感度・シャッター速度・焦点距離のほか、<strong>GPS位置情報</strong>が含まれることがあります。</li>
+          <li><strong>GPS位置情報のリスク:</strong> SNSやブログに写真を投稿すると、EXIF内のGPS座標から撮影場所（自宅・勤務先など）が特定される可能性があります。投稿前にメタデータを削除することで、意図しない位置情報の流出を防げます。</li>
+          <li><strong>削除と画質の関係:</strong> JPEG画像のメタデータ削除は、画像の圧縮データ（ピクセル）に一切手を加えずメタデータ領域だけを除去するため、<strong>画質の劣化はありません</strong>。TIFF・WebPなど一部の形式では再エンコード（Canvas経由の再出力）が必要な場合があり、その旨をUIに表示します。</li>
+          <li><strong>回転情報（Orientation）について:</strong> 一部の画像はEXIFの回転情報で表示向きを制御しています。メタデータ削除時にこの情報も消えるため、画像の見た目が変わる場合があります。「回転情報をピクセルに焼き込む」オプションをONにすると、見た目を維持したまま削除できます（この場合のみ再エンコードが発生します）。</li>
+          <li><strong>Google Maps リンクについて:</strong> GPS座標が検出された場合、Google Maps で位置を確認するための外部リンクを表示します。このリンクをクリックすると座標情報が Google に送信されます。リンクをクリックしない限り外部への通信は発生しません。</li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/image-compress" class="text-xs text-primary hover:underline">画像圧縮・リサイズ</a>
+          <a href="/image-convert" class="text-xs text-primary hover:underline">画像形式変換</a>
+          <a href="/image-mosaic" class="text-xs text-primary hover:underline">画像モザイク・ぼかし</a>
+          <a href="/bg-remove" class="text-xs text-primary hover:underline">背景削除</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
