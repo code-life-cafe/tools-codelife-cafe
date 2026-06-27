@@ -160,7 +160,7 @@ export function ExifToolPage() {
 				}
 
 				const result = stripMetadata(bytes, item.format);
-				const blob = new Blob([result.data], {
+				const blob = new Blob([result.data.slice()], {
 					type: `image/${item.format}`,
 				});
 

@@ -811,11 +811,11 @@ const ORIENTATION_TRANSFORMS: Record<
 export async function bakeOrientation(
 	bytes: Uint8Array,
 	orientation: number,
-): Promise<Uint8Array> {
+): Promise<Uint8Array<ArrayBuffer>> {
 	const transform = ORIENTATION_TRANSFORMS[orientation];
-	if (!transform) return bytes;
+	if (!transform) return new Uint8Array(bytes);
 
-	const blob = new Blob([bytes], { type: 'image/jpeg' });
+	const blob = new Blob([bytes.slice()], { type: 'image/jpeg' });
 	const bmp = await createImageBitmap(blob);
 	const w = bmp.width;
 	const h = bmp.height;
@@ -824,7 +824,7 @@ export async function bakeOrientation(
 	const ctx2d = canvas.getContext('2d');
 	if (!ctx2d) {
 		bmp.close();
-		return bytes;
+		return new Uint8Array(bytes);
 	}
 
 	const { cw, ch } = transform(ctx2d, w, h);
@@ -835,7 +835,7 @@ export async function bakeOrientation(
 	const ctx2 = canvas.getContext('2d');
 	if (!ctx2) {
 		bmp.close();
-		return bytes;
+		return new Uint8Array(bytes);
 	}
 	transform(ctx2, w, h);
 	ctx2.drawImage(bmp, 0, 0);
