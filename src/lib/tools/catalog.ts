@@ -272,6 +272,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'ai-spreadsheet-prompt',
+		title: 'AI表データプロンプト生成',
+		description:
+			'CSV・TSV・Excel貼り付けデータを、AIに渡しやすい分析プロンプトへ変換。',
+		href: '/ai-spreadsheet-prompt',
+		icon: '🤖',
+		category: 'データ処理',
+		categoryColor: 'border-l-chart-4',
+		span: 2,
+		keywords: ['AI', 'CSV', 'TSV', 'Excel', 'プロンプト'],
+		related: ['csv-editor', 'json-csv', 'csv-fixer'],
+		llmsFull: {
+			useCase:
+				'CSV、TSV、Excel貼り付け表データからAIチャット向けの分析・要約・変換プロンプトを生成',
+			inputs: 'tableText（CSV/TSV/Excel貼り付けデータ）, task（依頼内容）',
+			outputs: 'Markdown表と出力条件を含むAI向けプロンプト',
+			options: '入力形式の自動判定、依頼内容、最大行数、自由指示',
+		},
+	},
+	{
 		id: 'csv-editor',
 		title: 'CSVビューア/エディタ',
 		description:
