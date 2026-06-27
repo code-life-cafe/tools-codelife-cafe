@@ -6,13 +6,69 @@ import { provideTools } from '../../src/lib/webmcp.ts';
 import { GET as getLlms } from '../../src/pages/llms.txt.ts';
 import { GET as getLlmsFull } from '../../src/pages/llms-full.txt.ts';
 
-test('webmcp: navigator が未定義の環境では no-op であること', () => {
+test('webmcp: window / navigator / document が未定義の環境では no-op であること', () => {
 	const cleanup = provideTools([]);
 	assert.equal(typeof cleanup, 'function');
 	cleanup();
 });
 
-test('webmcp: navigator.modelContext が存在する場合に provideContext が呼ばれ、戻り値の cleanup が機能すること', () => {
+test('webmcp: document.modelContext (最新Chrome仕様) が存在する場合に registerTool が呼ばれ cleanup が機能すること', () => {
+	const registeredTools: unknown[] = [];
+	let unregistered = false;
+
+	const mockDocModelContext = {
+		registerTool(tool: unknown) {
+			registeredTools.push(tool);
+			return {
+				unregister() {
+					unregistered = true;
+				},
+			};
+		},
+	};
+
+	const originalDocument = globalThis.document;
+	const originalWindow = globalThis.window;
+
+	Object.defineProperty(globalThis, 'window', {
+		value: {},
+		configurable: true,
+	});
+	Object.defineProperty(globalThis, 'document', {
+		value: { modelContext: mockDocModelContext },
+		configurable: true,
+	});
+
+	try {
+		const tools = [
+			{
+				name: 'test_tool_v2',
+				description: '最新仕様テストツール',
+				inputSchema: { type: 'object' },
+				execute: () => 'ok',
+			},
+		];
+		const cleanup = provideTools(tools);
+
+		assert.equal(registeredTools.length, 1);
+		assert.deepEqual(registeredTools[0], tools[0]);
+		assert.equal(unregistered, false);
+
+		cleanup();
+		assert.equal(unregistered, true);
+	} finally {
+		Object.defineProperty(globalThis, 'document', {
+			value: originalDocument,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'window', {
+			value: originalWindow,
+			configurable: true,
+		});
+	}
+});
+
+test('webmcp: navigator.modelContext (旧ドラフト仕様) が存在する場合に provideContext が呼ばれ、戻り値の cleanup が機能すること', () => {
 	let providedArgs: unknown = null;
 	let disposed = false;
 
@@ -27,8 +83,18 @@ test('webmcp: navigator.modelContext が存在する場合に provideContext が
 		},
 	};
 
-	// モックを設定
 	const originalNavigator = globalThis.navigator;
+	const originalWindow = globalThis.window;
+	const originalDocument = globalThis.document;
+
+	Object.defineProperty(globalThis, 'window', {
+		value: {},
+		configurable: true,
+	});
+	Object.defineProperty(globalThis, 'document', {
+		value: {},
+		configurable: true,
+	});
 	Object.defineProperty(globalThis, 'navigator', {
 		value: { modelContext: mockModelContext },
 		configurable: true,
@@ -53,6 +119,14 @@ test('webmcp: navigator.modelContext が存在する場合に provideContext が
 	} finally {
 		Object.defineProperty(globalThis, 'navigator', {
 			value: originalNavigator,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'document', {
+			value: originalDocument,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'window', {
+			value: originalWindow,
 			configurable: true,
 		});
 	}

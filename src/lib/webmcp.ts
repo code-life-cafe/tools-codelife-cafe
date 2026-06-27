@@ -5,37 +5,95 @@ export type WebMcpTool = {
 	execute: (input: unknown) => Promise<unknown> | unknown;
 };
 
-type MaybeDisposable = undefined | { dispose?: () => void } | (() => void);
+type MaybeDisposable =
+	| undefined
+	| { dispose?: () => void; unregister?: () => void }
+	| (() => void);
 
 export function provideTools(tools: WebMcpTool[]): () => void {
-	if (typeof navigator === 'undefined') return () => {};
+	if (typeof window === 'undefined') return () => {};
 
-	const ctx = navigator.modelContext;
-	if (!ctx || typeof ctx.provideContext !== 'function') return () => {};
+	// 1. 最新 Chrome Imperative API 仕様 (document.modelContext.registerTool)
+	if (
+		typeof document !== 'undefined' &&
+		document.modelContext &&
+		typeof document.modelContext.registerTool === 'function'
+	) {
+		const docCtx = document.modelContext;
+		const controller =
+			typeof AbortController !== 'undefined' ? new AbortController() : null;
+		const disposables: MaybeDisposable[] = [];
 
-	let disposable: MaybeDisposable;
+		for (const tool of tools) {
+			try {
+				const res = docCtx.registerTool(
+					tool,
+					controller ? { signal: controller.signal } : undefined,
+				) as MaybeDisposable;
+				if (res) disposables.push(res);
+			} catch {
+				/* no-op */
+			}
+		}
 
-	try {
-		disposable = ctx.provideContext({ tools }) as MaybeDisposable;
-	} catch {
-		return () => {};
+		return () => {
+			try {
+				if (controller) {
+					controller.abort();
+				}
+				for (const d of disposables) {
+					if (typeof d === 'function') {
+						d();
+					} else if (d && typeof d.dispose === 'function') {
+						d.dispose();
+					} else if (d && typeof d.unregister === 'function') {
+						d.unregister();
+					}
+				}
+			} catch {
+				/* no-op */
+			}
+		};
 	}
 
-	return () => {
+	// 2. 旧ドラフト仕様 (navigator.modelContext.provideContext)
+	if (
+		typeof navigator !== 'undefined' &&
+		navigator.modelContext &&
+		typeof navigator.modelContext.provideContext === 'function'
+	) {
+		const navCtx = navigator.modelContext;
+		let disposable: MaybeDisposable;
+
 		try {
-			if (typeof disposable === 'function') {
-				disposable();
-				return;
-			}
-
-			if (disposable && typeof disposable.dispose === 'function') {
-				disposable.dispose();
-				return;
-			}
-
-			ctx.clearContext?.();
+			disposable = navCtx.provideContext({ tools }) as MaybeDisposable;
 		} catch {
-			/* no-op */
+			return () => {};
 		}
-	};
+
+		return () => {
+			try {
+				if (typeof disposable === 'function') {
+					disposable();
+					return;
+				}
+
+				if (disposable && typeof disposable.dispose === 'function') {
+					disposable.dispose();
+					return;
+				}
+
+				if (disposable && typeof disposable.unregister === 'function') {
+					disposable.unregister();
+					return;
+				}
+
+				navCtx.clearContext?.();
+			} catch {
+				/* no-op */
+			}
+		};
+	}
+
+	return () => {};
 }

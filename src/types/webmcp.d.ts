@@ -10,6 +10,18 @@ interface ModelContext {
 	clearContext?: () => void;
 }
 
+interface DocumentModelContext {
+	registerTool(
+		tool: WebMcpToolDefinition,
+		options?: { signal?: AbortSignal },
+	): unknown;
+	unregisterTool?: (name: string) => void;
+}
+
 interface Navigator {
 	modelContext?: ModelContext;
+}
+
+interface Document {
+	modelContext?: DocumentModelContext;
 }
