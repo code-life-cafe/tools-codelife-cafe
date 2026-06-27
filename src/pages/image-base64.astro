@@ -1,0 +1,51 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { ImageBase64Page } from '../components/image-base64/ImageBase64Page';
+---
+
+<ToolLayout
+  title="画像 Base64 / Data URI 変換（相互変換）"
+  description="画像をBase64・Data URIに変換し、imgタグやCSSのurl()スニペットを出力できる無料ツール。Base64から画像への逆変換にも対応。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/image-base64"
+>
+  <ImageBase64Page client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>
+          画像ファイルをBase64エンコードし、Data URI・<code>&lt;img&gt;</code>タグ・CSS <code>background-image: url()</code> のスニペットをワンクリックでコピーできます。Base64文字列から画像への逆変換（デコード）にも対応しています。すべてブラウザ内で処理されるため、画像がサーバーにアップロードされることはありません。
+        </p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>
+            <strong>Data URIの用途:</strong>
+            小さなアイコンやロゴをHTML/CSSにインライン埋め込みすると、HTTPリクエストを削減できます。メールテンプレートへの画像埋め込みにも便利です。
+          </li>
+          <li>
+            <strong>肥大率に注意:</strong>
+            Base64エンコードすると元のファイルサイズより<strong>約33%大きく</strong>なります。数KB以下の小さな画像のインライン化には有効ですが、大きな画像には通常のファイル配信を推奨します。
+          </li>
+          <li>
+            <strong>対応形式:</strong>
+            PNG・JPEG・WebP・GIF・SVGに対応しています。ファイルサイズの上限は10MBです。
+          </li>
+          <li>
+            <strong>逆変換（Base64 → 画像）:</strong>
+            <code>data:image/...;base64,</code> 形式のData URI、または生のBase64文字列を貼り付けると、画像としてプレビュー・ダウンロードできます。マジックバイトから形式を自動判定します。
+          </li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/hash" class="text-xs text-primary hover:underline">ハッシュ値計算</a>
+          <a href="/base64" class="text-xs text-primary hover:underline">Base64変換（テキスト）</a>
+          <a href="/json-csv" class="text-xs text-primary hover:underline">JSON ↔ CSV変換</a>
+          <a href="/color" class="text-xs text-primary hover:underline">カラーコード変換</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

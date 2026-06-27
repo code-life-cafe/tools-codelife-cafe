@@ -6,7 +6,7 @@
 
 🔗 **[https://tools.codelife.cafe](https://tools.codelife.cafe)**
 
-## 📦 収録ツール（30種）
+## 📦 収録ツール（31種）
 
 ### テキスト処理
 
@@ -39,6 +39,8 @@
 | [画像テキスト挿入](/image-text) | 画像への文字入れ・注釈。縁取り・背景ボックス対応（完全ローカル実行） |
 | [画像圧縮・リサイズ](/image-compress) | JPEG/PNG/WebPの圧縮・リサイズ・変換。一括処理・目標サイズ指定・ZIP出力（完全ローカル実行） |
 | [画像形式変換](/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
+| [画像メタデータ削除](/image-metadata) | JPEG・PNG・WebP画像のExif・GPS位置情報などを削除。形式変換・一括ZIP出力対応（完全ローカル実行） |
+| [画像トリミング・回転](/image-crop) | 画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行（完全ローカル実行） |
 | [QRコード生成](/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
 | [Base64エンコード/デコード](/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
@@ -63,6 +65,7 @@
 | [暗号変換](/cipher) | シーザー暗号・ROT13・モールス信号・逆順等のテキスト変換 |
 | [カラーコード変換](/color) | HEX・RGB・HSL・CMYKの相互変換。カラーピッカー連動・ワンクリックコピー |
 | [ファビコン生成](/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
+| [画像Base64変換](/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
 
 ## 🛡️ セキュリティ
 

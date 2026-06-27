@@ -19,6 +19,9 @@ export type ToolCatalogItem = {
 	categoryColor: string;
 	span?: 2;
 	keywords: readonly string[];
+	// 関連ツールのidを優先順で指定（回遊カードで使用）。
+	// 省略時・件数不足時は getRelatedTools が同カテゴリで自動補完する。
+	related?: readonly string[];
 };
 
 export const toolCatalog: readonly ToolCatalogItem[] = [
@@ -54,6 +57,18 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['JSON', 'フォーマット', 'バリデーション'],
+		related: ['json-csv', 'csv-editor'],
+	},
+	{
+		id: 'jwt-decoder',
+		title: 'JWTデコーダー',
+		description:
+			'JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認に使えます。',
+		href: '/jwt-decoder',
+		icon: '🎫',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: ['JWT', 'JSON Web Token', 'デコード', '認証', 'トークン'],
 	},
 	{
 		id: 'text-diff',
@@ -98,6 +113,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'エンコード/デコード',
 		categoryColor: 'border-l-primary',
 		keywords: ['URL', 'encodeURI', 'decodeURI', 'パーセントエンコード'],
+		related: ['base64', 'cipher', 'unicode-converter'],
 	},
 	{
 		id: 'base64',
@@ -109,6 +125,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['Base64', 'エンコード', 'デコード'],
+		related: ['url-encoder', 'cipher', 'unicode-converter'],
 	},
 	{
 		id: 'regex-tester',
@@ -153,6 +170,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['個人情報', 'マスキング', 'メール', '電話番号'],
+		related: ['image-mosaic', 'dummy-data'],
 	},
 	{
 		id: 'csv-editor',
@@ -165,6 +183,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		categoryColor: 'border-l-chart-4',
 		span: 2,
 		keywords: ['CSV', 'TSV', '表', '編集'],
+		related: ['json-csv', 'csv-fixer', 'zipcode'],
 	},
 	{
 		id: 'unicode-converter',
@@ -187,6 +206,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['CSV', '文字化け', 'Shift_JIS', 'BOM'],
+		related: ['json-csv', 'csv-editor'],
 	},
 	{
 		id: 'phone-formatter',
@@ -198,6 +218,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['電話番号', 'E.164', 'CSV'],
+		related: ['char-count', 'csv-fixer', 'masking', 'zipcode'],
 	},
 	{
 		id: 'cipher',
@@ -209,6 +230,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['暗号', '難読化', 'ROT13', 'モールス信号', 'シーザー暗号'],
+		related: ['base64', 'url-encoder', 'unicode-converter'],
 	},
 	{
 		id: 'json-csv',
@@ -220,6 +242,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['JSON', 'CSV', '変換', 'BOM', 'Excel', 'フラット化'],
+		related: ['json-formatter', 'csv-editor', 'csv-fixer', 'tax', 'markdown'],
 	},
 	{
 		id: 'hash',
@@ -231,6 +254,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['ハッシュ', 'MD5', 'SHA-256', 'チェックサム', 'CRC32', '改ざん'],
+		related: ['cipher', 'base64', 'masking', 'color'],
 	},
 	{
 		id: 'bg-remove',
@@ -242,6 +266,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['背景削除', '透過', 'AI', '画像', 'アップロード不要'],
+		related: ['image-compress', 'image-mosaic', 'image-text'],
 	},
 	{
 		id: 'image-mosaic',
@@ -263,6 +288,13 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'絵文字スタンプ',
 			'画像スタンプ',
 		],
+		related: [
+			'image-text',
+			'image-compress',
+			'masking',
+			'bg-remove',
+			'pdf-merge',
+		],
 	},
 	{
 		id: 'image-text',
@@ -274,6 +306,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['テキスト', '文字入れ', '画像', '注釈', 'キャプション'],
+		related: ['image-mosaic', 'image-compress', 'bg-remove'],
 	},
 	{
 		id: 'image-compress',
@@ -293,6 +326,53 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'目標サイズ',
 			'JPEG',
 			'PNG',
+		],
+		related: [
+			'image-convert',
+			'exif',
+			'bg-remove',
+			'image-mosaic',
+			'image-text',
+			'favicon',
+			'pdf-merge',
+			'pdf-split',
+		],
+	},
+	{
+		id: 'image-metadata',
+		title: '画像メタデータ削除',
+		description:
+			'Exif・GPS位置情報などをブラウザ内で削除。画像はアップロードされません。',
+		href: '/image-metadata',
+		icon: '🧹',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'Exif',
+			'メタデータ',
+			'GPS',
+			'位置情報',
+			'画像',
+			'プライバシー',
+			'アップロード不要',
+		],
+	},
+	{
+		id: 'image-crop',
+		title: '画像トリミング・回転',
+		description:
+			'画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行。画像はアップロードされません。',
+		href: '/image-crop',
+		icon: '✂️',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'画像トリミング',
+			'切り抜き',
+			'回転',
+			'反転',
+			'クロップ',
+			'画像',
 		],
 	},
 	{
@@ -314,6 +394,13 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'一括',
 			'ZIP',
 		],
+		related: [
+			'image-compress',
+			'exif',
+			'image-mosaic',
+			'image-text',
+			'bg-remove',
+		],
 	},
 	{
 		id: 'zipcode',
@@ -333,6 +420,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'CSV',
 			'オフライン',
 		],
+		related: ['phone-formatter', 'dummy-data', 'csv-editor', 'tax'],
 	},
 	{
 		id: 'pdf-merge',
@@ -350,6 +438,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'アップロードしない',
 			'安全',
 		],
+		related: ['pdf-split', 'image-compress', 'image-mosaic'],
 	},
 	{
 		id: 'pdf-split',
@@ -368,6 +457,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'アップロードしない',
 			'安全',
 		],
+		related: ['pdf-merge', 'image-compress'],
 	},
 	{
 		id: 'tax',
@@ -379,6 +469,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['消費税', '税込', '税抜', '軽減税率', '端数処理', '計算'],
+		related: ['zipcode', 'json-csv'],
 	},
 	{
 		id: 'color',
@@ -390,6 +481,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['カラーコード', 'HEX', 'RGB', 'HSL', 'CMYK', '色', '変換'],
+		related: ['hash', 'markdown', 'favicon'],
 	},
 	{
 		id: 'markdown',
@@ -401,6 +493,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
+		related: ['json-csv', 'color'],
 	},
 	{
 		id: 'favicon',
@@ -418,6 +511,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'アップロード不要',
 			'apple-touch-icon',
 			'PWAアイコン',
+		],
+		related: ['color', 'image-compress', 'image-text'],
+	},
+	{
+		id: 'image-base64',
+		title: '画像Base64変換',
+		description: '画像をBase64/Data URIへ相互変換。データは外部送信なし。',
+		href: '/image-base64',
+		icon: '🔣',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'Base64',
+			'Data URI',
+			'画像変換',
+			'img',
+			'CSS',
+			'base64',
+			'データURI',
+			'インライン画像',
 		],
 	},
 	{
@@ -438,6 +551,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'写真',
 			'プライバシー',
 		],
+		related: ['image-compress', 'image-convert', 'image-mosaic', 'bg-remove'],
 	},
 ];
 
@@ -481,3 +595,40 @@ export function getCategoryId(category: ToolCategory): string {
 }
 
 export const toolSlugs = toolCatalog.map((tool) => tool.id);
+
+/**
+ * 指定ツールの関連ツールを取得する（回遊カード用）。
+ *
+ * 1. `related` に指定された id を優先順に解決（自分自身・存在しない id・重複は除外）
+ * 2. `limit` に満たなければ同カテゴリの他ツールで補完（既出・自分は除外）
+ * 3. それでも 0 件なら空配列を返す（呼び出し側はセクションを描画しない）
+ */
+export function getRelatedTools(toolId: string, limit = 3): ToolCatalogItem[] {
+	const self = toolCatalog.find((t) => t.id === toolId);
+	if (!self) return [];
+
+	const byId = new Map(toolCatalog.map((t) => [t.id, t]));
+	const result: ToolCatalogItem[] = [];
+	const seen = new Set<string>([toolId]);
+
+	const push = (tool: ToolCatalogItem | undefined) => {
+		if (!tool || seen.has(tool.id) || result.length >= limit) return;
+		seen.add(tool.id);
+		result.push(tool);
+	};
+
+	// 1. related を優先順に追加
+	for (const id of self.related ?? []) {
+		push(byId.get(id));
+	}
+
+	// 2. 不足分を同カテゴリで補完（カタログ順）
+	if (result.length < limit) {
+		for (const tool of toolCatalog) {
+			if (tool.category === self.category) push(tool);
+			if (result.length >= limit) break;
+		}
+	}
+
+	return result;
+}

@@ -43,13 +43,6 @@ const sourceLabel = dataVersion
           <li><strong>該当なし郵便番号の扱い:</strong> 入力が7桁の郵便番号として読み取れない行は「形式エラー」、データに存在しない郵便番号は「該当なし」と備考に表示されます。大口事業所の個別郵便番号（事業所固有番号）には対応していません。複数の町域がある郵便番号は1件目を採用し、備考に「他N件」と表示します。</li>
           <li><strong>データの更新時期について:</strong> 住所データは日本郵便が公開する郵便番号データのスナップショットです（{dataVersion ? `${dataVersion}時点` : '配布時点'}）。最新の住所情報と差異がある場合があります。住所→郵便番号の逆引きには対応していません。</li>
         </ul>
-        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
-          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
-          <a href="/phone-formatter" class="text-xs text-primary hover:underline">電話番号フォーマッタ</a>
-          <a href="/dummy-data" class="text-xs text-primary hover:underline">ダミーデータ生成</a>
-          <a href="/csv-editor" class="text-xs text-primary hover:underline">CSVビューア/エディタ</a>
-          <a href="/tax" class="text-xs text-primary hover:underline">消費税・税込計算</a>
-        </div>
       </div>
     </details>
   </div>

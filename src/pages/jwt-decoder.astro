@@ -1,0 +1,30 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { JwtDecoder } from '../components/tools/JwtDecoder';
+---
+
+<ToolLayout
+  title="JWTデコーダー"
+  description="JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認に使えます。"
+  path="/jwt-decoder"
+>
+  <JwtDecoder client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>JWTを貼り付けると、ヘッダーとペイロードをJSONとして整形表示します。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>ログや開発環境で取得したJWTのclaimを素早く確認したい</li>
+          <li>exp・nbfなどの時刻claimが有効範囲内か確認したい</li>
+          <li>外部サービスにトークンを貼り付けず、ローカルだけで内容を確認したい</li>
+        </ul>
+        <p class="text-xs">※このツールは署名検証を行いません。認証・認可の判定には使用しないでください。</p>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

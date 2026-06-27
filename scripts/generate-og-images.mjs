@@ -38,6 +38,46 @@ const LEGACY_UA =
 const FONT_CSS_URL =
 	'https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap';
 
+const LOCAL_FONT_CANDIDATES = {
+	regular: [
+		'/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+		'/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc',
+		'/usr/share/fonts/truetype/noto/NotoSansJP-Regular.otf',
+		'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+	],
+	bold: [
+		'/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc',
+		'/usr/share/fonts/truetype/noto/NotoSansCJK-Bold.ttc',
+		'/usr/share/fonts/truetype/noto/NotoSansJP-Bold.otf',
+		'/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+	],
+};
+
+async function readFirstAvailable(paths) {
+	for (const path of paths) {
+		try {
+			return await readFile(path);
+		} catch {
+			// 次の候補を試す
+		}
+	}
+	return null;
+}
+
+async function loadLocalFallbackFonts() {
+	const [regular, bold] = await Promise.all([
+		readFirstAvailable(LOCAL_FONT_CANDIDATES.regular),
+		readFirstAvailable(LOCAL_FONT_CANDIDATES.bold),
+	]);
+	if (regular && bold) {
+		console.warn(
+			'[generate-og] フォント: Google Fonts 取得に失敗したためローカルフォントを使用します',
+		);
+		return { regular, bold };
+	}
+	return null;
+}
+
 /**
  * Noto Sans JP の TTF を取得する（キャッシュ優先、なければ Google Fonts からダウンロード）
  * @returns {Promise<{regular: Buffer, bold: Buffer}>}
@@ -61,38 +101,50 @@ async function loadFonts() {
 	}
 
 	console.log('[generate-og] フォント: Google Fonts からダウンロード中...');
-	const cssRes = await fetch(FONT_CSS_URL, {
-		headers: { 'User-Agent': LEGACY_UA },
-	});
-	if (!cssRes.ok) {
-		throw new Error(`[generate-og] フォントCSSの取得に失敗: HTTP ${cssRes.status}`);
-	}
-	const css = await cssRes.text();
-
-	// @font-face ブロックから weight ごとの TTF URL を抽出
-	const urls = {};
-	for (const block of css.match(/@font-face\s*\{[^}]*\}/g) ?? []) {
-		const weight = block.match(/font-weight:\s*(\d+)/)?.[1];
-		const url = block.match(/src:\s*url\((https:[^)]+)\)/)?.[1];
-		if (weight && url) urls[weight] = url;
-	}
-	if (!urls['400'] || !urls['700']) {
-		throw new Error(
-			'[generate-og] フォントURLの抽出に失敗（Google Fonts のレスポンス形式が変わった可能性）',
-		);
-	}
-
-	const download = async (url) => {
-		const res = await fetch(url);
-		if (!res.ok) {
-			throw new Error(`[generate-og] フォントのダウンロードに失敗: HTTP ${res.status} ${url}`);
+	let regular;
+	let bold;
+	try {
+		const cssRes = await fetch(FONT_CSS_URL, {
+			headers: { 'User-Agent': LEGACY_UA },
+		});
+		if (!cssRes.ok) {
+			throw new Error(
+				`[generate-og] フォントCSSの取得に失敗: HTTP ${cssRes.status}`,
+			);
 		}
-		return Buffer.from(await res.arrayBuffer());
-	};
-	const [regular, bold] = await Promise.all([
-		download(urls['400']),
-		download(urls['700']),
-	]);
+		const css = await cssRes.text();
+
+		// @font-face ブロックから weight ごとの TTF URL を抽出
+		const urls = {};
+		for (const block of css.match(/@font-face\s*\{[^}]*\}/g) ?? []) {
+			const weight = block.match(/font-weight:\s*(\d+)/)?.[1];
+			const url = block.match(/src:\s*url\((https:[^)]+)\)/)?.[1];
+			if (weight && url) urls[weight] = url;
+		}
+		if (!urls['400'] || !urls['700']) {
+			throw new Error(
+				'[generate-og] フォントURLの抽出に失敗（Google Fonts のレスポンス形式が変わった可能性）',
+			);
+		}
+
+		const download = async (url) => {
+			const res = await fetch(url);
+			if (!res.ok) {
+				throw new Error(
+					`[generate-og] フォントのダウンロードに失敗: HTTP ${res.status} ${url}`,
+				);
+			}
+			return Buffer.from(await res.arrayBuffer());
+		};
+		[regular, bold] = await Promise.all([
+			download(urls['400']),
+			download(urls['700']),
+		]);
+	} catch (error) {
+		const fallback = await loadLocalFallbackFonts();
+		if (!fallback) throw error;
+		return fallback;
+	}
 
 	await Promise.all([
 		writeFile(cachePaths.regular, regular),
@@ -105,7 +157,10 @@ async function loadFonts() {
 function h(type, props, ...children) {
 	return {
 		type,
-		props: { ...props, children: children.length === 1 ? children[0] : children },
+		props: {
+			...props,
+			children: children.length === 1 ? children[0] : children,
+		},
 	};
 }
 
