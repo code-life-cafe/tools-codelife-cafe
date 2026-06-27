@@ -3,6 +3,7 @@ import { DEFAULT_JA_STOPWORDS } from './stopwords.ts';
 import { MAX_INPUT_CHARS, tokenize, validateText } from './tokenize.ts';
 import type { AnalyzeOptions, AnalyzeResult } from './types.ts';
 
+export * from './layout.ts';
 export * from './types.ts';
 export {
 	buildFrequencies,

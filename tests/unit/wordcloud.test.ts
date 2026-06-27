@@ -59,4 +59,25 @@ describe('Word Cloud Core Logic', () => {
 		assert.ok(csv.includes('1,猫,その他,5'));
 		assert.ok(csv.includes('2,"吾輩,""テスト"""', 'その他,3'));
 	});
+
+	it('toSvg should generate valid SVG text', async () => {
+		const { toSvg } = await import('../../src/lib/tools/wordcloud/index.ts');
+		const placed = [
+			{ text: '猫', size: 40, x: 0, y: 0, rotate: 0, color: '#ff0000' },
+			{ text: '吾輩', size: 20, x: 10, y: 20, rotate: 90, color: '#00ff00' },
+		];
+		const opts = {
+			width: 500,
+			height: 300,
+			fontFamily: 'Noto Sans JP',
+			scale: 'linear' as const,
+			rotation: 'none' as const,
+			palette: 'tableau10',
+		};
+		const svg = toSvg(placed, opts);
+		assert.ok(svg.includes('<svg'));
+		assert.ok(svg.includes('width="500"'));
+		assert.ok(svg.includes('猫'));
+		assert.ok(svg.includes('#ff0000'));
+	});
 });

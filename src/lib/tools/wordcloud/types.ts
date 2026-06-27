@@ -28,6 +28,24 @@ export type WordFrequency = {
 	count: number;
 };
 
+export type WordCloudLayoutOptions = {
+	width: number;
+	height: number;
+	fontFamily: string; // 既定 'Noto Sans JP'
+	scale: 'sqrt' | 'log' | 'linear';
+	rotation: 'none' | 'orthogonal' | 'random'; // 既定 'orthogonal' (0/90度)
+	palette: string; // d3-scale-chromatic スキーム名 or サイトテーマ
+};
+
+export type PlacedWord = {
+	text: string;
+	size: number; // px
+	x: number;
+	y: number;
+	rotate: number; // deg
+	color: string;
+};
+
 export type AnalyzeResult = {
 	frequencies: WordFrequency[];
 	totalTokens: number;
