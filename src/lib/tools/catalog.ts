@@ -296,6 +296,24 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 	},
 	{
+		id: 'image-crop',
+		title: '画像トリミング・回転',
+		description:
+			'画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行。画像はアップロードされません。',
+		href: '/image-crop',
+		icon: '✂️',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'画像トリミング',
+			'切り抜き',
+			'回転',
+			'反転',
+			'クロップ',
+			'画像',
+		],
+	},
+	{
 		id: 'image-convert',
 		title: '画像形式変換',
 		description: 'HEIC・WebP・AVIFをJPEG等へ変換。データは外部送信なし。',

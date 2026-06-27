@@ -1,0 +1,36 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import { ImageCropPage } from '../components/image-crop/ImageCropPage';
+---
+
+<ToolLayout
+  title="画像トリミング・回転ツール"
+  description="画像の切り抜き、90度回転、上下左右反転をブラウザだけで実行できます。画像はサーバーに送信されません。"
+  path="/image-crop"
+>
+  <ImageCropPage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>画像を選択し、左上座標と幅・高さを指定すると、指定範囲だけを切り抜けます。90度回転や上下左右反転も同時に適用できます。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>SNS・資料向けの切り抜き:</strong> スクリーンショットや写真の不要な余白を削除できます。</li>
+          <li><strong>向きの補正:</strong> 90度単位の回転と反転で、撮影方向や鏡像を調整できます。</li>
+          <li><strong>完全ローカル処理:</strong> Canvas API でブラウザ内処理するため、画像が外部に送信されることはありません。</li>
+        </ul>
+        <div class="flex flex-wrap gap-3 pt-2 border-t border-border">
+          <span class="text-xs font-medium text-muted-foreground">関連ツール:</span>
+          <a href="/image-compress" class="text-xs text-primary hover:underline">画像圧縮・リサイズ</a>
+          <a href="/image-convert" class="text-xs text-primary hover:underline">画像形式変換</a>
+          <a href="/image-mosaic" class="text-xs text-primary hover:underline">画像モザイク・ぼかし</a>
+          <a href="/image-text" class="text-xs text-primary hover:underline">画像テキスト挿入</a>
+        </div>
+      </div>
+    </details>
+  </div>
+</ToolLayout>
