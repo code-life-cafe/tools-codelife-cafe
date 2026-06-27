@@ -453,7 +453,7 @@ test('offset 範囲外の IFD ポインタでクラッシュしない', () => {
 	const tiff = buildTiff(bo, entries);
 	const jpeg = buildJpegWithExif(tiff);
 	const result = parseExif(jpeg);
-	assert.equal(result.hasExif, true);
+	assert.equal(result.hasExif, false);
 	assert.equal(result.tags.length, 0);
 });
 
@@ -617,10 +617,44 @@ test('stripMetadata: ICC APP2 は保持する', () => {
 	assert.equal(foundApp2, true, 'ICC APP2 は保持されるべき');
 });
 
-test('stripMetadata: 非 JPEG 形式は warning を返す', () => {
+test('stripMetadata: 非 JPEG 形式は stripped=false + warning を返す', () => {
 	const result = stripMetadata(new Uint8Array([0x00]), 'webp');
+	assert.equal(result.stripped, false);
 	assert.equal(result.warnings.length, 1);
 	assert.ok(result.warnings[0].includes('再エンコード'));
+});
+
+test('stripMetadata: JPEG は stripped=true を返す', () => {
+	const sos = [0xff, 0xda, 0x00, 0x02];
+	const eoi = [0xff, 0xd9];
+	const jpeg = new Uint8Array([0xff, 0xd8, ...sos, ...eoi]);
+	const result = stripMetadata(jpeg, 'jpeg');
+	assert.equal(result.stripped, true);
+});
+
+test('stripMetadata: COM セグメント (0xFFFE) を除去する', () => {
+	const comPayload = asciiBytes('This is a comment');
+	const comLen = comPayload.length + 2;
+	const com = [0xff, 0xfe, ...u16be(comLen), ...comPayload];
+
+	const sos = [0xff, 0xda, 0x00, 0x02];
+	const eoi = [0xff, 0xd9];
+
+	const jpeg = new Uint8Array([0xff, 0xd8, ...com, ...sos, ...eoi]);
+
+	const result = stripMetadata(jpeg, 'jpeg');
+
+	let foundCom = false;
+	let i = 2;
+	while (i + 4 <= result.data.length) {
+		if (result.data[i] !== 0xff) break;
+		const marker = result.data[i + 1];
+		if (marker === 0xda) break;
+		if (marker === 0xfe) foundCom = true;
+		const segLen = (result.data[i + 2] << 8) | result.data[i + 3];
+		i += 2 + segLen;
+	}
+	assert.equal(foundCom, false, 'COM セグメントは除去されるべき');
 });
 
 // ---------------------------------------------------------------------------

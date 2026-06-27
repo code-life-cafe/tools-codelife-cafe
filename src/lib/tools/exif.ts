@@ -21,6 +21,7 @@ export type ExifTag = {
 export type ExifData = {
 	hasExif: boolean;
 	hasGps: boolean;
+	hasOtherMetadata: boolean;
 	gps?: GpsCoord;
 	tags: ExifTag[];
 	orientation?: number;
@@ -47,7 +48,11 @@ export type BatchValidation =
 			message: string;
 	  };
 
-export type StripResult = { data: Uint8Array; warnings: string[] };
+export type StripResult = {
+	data: Uint8Array;
+	warnings: string[];
+	stripped: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // 上限値
@@ -561,90 +566,184 @@ function parseGpsIfd(
 const EMPTY_EXIF: ExifData = {
 	hasExif: false,
 	hasGps: false,
+	hasOtherMetadata: false,
 	tags: [],
 };
 
-function findExifApp1(
-	bytes: Uint8Array,
-): { tiffStart: number; tiffLength: number } | null {
+function findExifApp1(bytes: Uint8Array): {
+	tiffStart: number;
+	tiffLength: number;
+	hasOtherMetadata: boolean;
+} | null {
 	if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
 		return null;
 	}
+	let tiffStart = -1;
+	let tiffLength = 0;
+	let hasOtherMetadata = false;
+
 	let i = 2;
 	while (i + 4 <= bytes.length) {
 		if (bytes[i] !== 0xff) break;
+		// fill bytes: skip consecutive 0xFF before the actual marker byte
+		while (i + 1 < bytes.length && bytes[i + 1] === 0xff) i++;
 		const marker = bytes[i + 1];
 		if (marker === 0xda || marker === 0xd9) break;
 		if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
 			i += 2;
 			continue;
 		}
+		if (i + 4 > bytes.length) break;
 		const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
 		if (segLen < 2) break;
-		if (marker === 0xe1 && matchBytes(bytes, i + 4, EXIF_ID)) {
-			const tiffStart = i + 4 + 6; // skip marker(2) + length(2) + "Exif\0\0"(6)
-			const tiffLength = segLen - 2 - 6; // length includes its own 2 bytes
-			if (tiffLength < 8) return null;
-			return { tiffStart, tiffLength };
+		const payloadStart = i + 4;
+		if (marker === 0xe1) {
+			if (matchBytes(bytes, payloadStart, EXIF_ID) && tiffStart < 0) {
+				tiffStart = payloadStart + 6;
+				tiffLength = segLen - 2 - 6;
+			} else if (matchAscii(bytes, payloadStart, XMP_ID_STR)) {
+				hasOtherMetadata = true;
+			}
+		} else if (marker === 0xed) {
+			if (matchAscii(bytes, payloadStart, IPTC_ID_STR)) {
+				hasOtherMetadata = true;
+			}
+		} else if (marker === 0xfe) {
+			hasOtherMetadata = true;
 		}
 		i += 2 + segLen;
+	}
+	if (tiffStart < 0 || tiffLength < 8) {
+		if (hasOtherMetadata)
+			return { tiffStart: -1, tiffLength: 0, hasOtherMetadata };
+		return null;
+	}
+	return { tiffStart, tiffLength, hasOtherMetadata };
+}
+
+function parseTiffFromHeader(
+	bytes: Uint8Array,
+	tiffStart: number,
+	tiffLength: number,
+): ExifData | null {
+	const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+	const bo0 = bytes[tiffStart];
+	const bo1 = bytes[tiffStart + 1];
+	const little = bo0 === 0x49 && bo1 === 0x49;
+	if (!little && !(bo0 === 0x4d && bo1 === 0x4d)) return null;
+
+	const ctx: IfdContext = {
+		view,
+		tiffStart,
+		tiffLength,
+		little,
+		visited: new Set(),
+	};
+
+	const magic = readU16(ctx, tiffStart + 2);
+	if (magic !== 0x002a) return null;
+
+	const ifd0Offset = readU32(ctx, tiffStart + 4);
+	const ifd0Abs = tiffStart + ifd0Offset;
+
+	const ifd0 = parseIfd(ctx, bytes, ifd0Abs, IFD0_TAGS, 0);
+	const allTags: ExifTag[] = [...ifd0.tags];
+	let orientation = ifd0.orientation;
+	let gps: GpsCoord | undefined;
+
+	if (ifd0.exifIfdOffset != null) {
+		const exifAbs = tiffStart + ifd0.exifIfdOffset;
+		const exifIfd = parseIfd(ctx, bytes, exifAbs, EXIF_IFD_TAGS, 1);
+		allTags.push(...exifIfd.tags);
+		if (orientation == null) orientation = exifIfd.orientation;
+	}
+
+	if (ifd0.gpsIfdOffset != null) {
+		const gpsAbs = tiffStart + ifd0.gpsIfdOffset;
+		const gpsResult = parseGpsIfd(ctx, bytes, gpsAbs, 1);
+		allTags.push(...gpsResult.tags);
+		gps = gpsResult.gps;
+	}
+
+	return {
+		hasExif: allTags.length > 0 || orientation != null,
+		hasGps: gps != null,
+		hasOtherMetadata: false,
+		gps,
+		tags: allTags,
+		orientation,
+	};
+}
+
+function findWebpExifChunk(
+	bytes: Uint8Array,
+): { tiffStart: number; tiffLength: number } | null {
+	if (bytes.length < 12) return null;
+	let i = 12; // skip "RIFF" + size + "WEBP"
+	while (i + 8 <= bytes.length) {
+		const fourcc =
+			String.fromCharCode(bytes[i]) +
+			String.fromCharCode(bytes[i + 1]) +
+			String.fromCharCode(bytes[i + 2]) +
+			String.fromCharCode(bytes[i + 3]);
+		const chunkSize =
+			bytes[i + 4] |
+			(bytes[i + 5] << 8) |
+			(bytes[i + 6] << 16) |
+			(bytes[i + 7] << 24);
+		if (chunkSize < 0) break;
+		const dataStart = i + 8;
+		if (fourcc === 'EXIF') {
+			let tiffOff = dataStart;
+			let tiffLen = chunkSize;
+			// some WebP EXIF chunks have "Exif\0\0" prefix
+			if (matchBytes(bytes, tiffOff, EXIF_ID)) {
+				tiffOff += 6;
+				tiffLen -= 6;
+			}
+			if (tiffLen >= 8) return { tiffStart: tiffOff, tiffLength: tiffLen };
+		}
+		// chunks are 2-byte aligned
+		i = dataStart + chunkSize + (chunkSize % 2);
 	}
 	return null;
 }
 
 export function parseExif(bytes: Uint8Array): ExifData {
 	try {
+		const format = detectFormat(bytes);
+
+		// TIFF: the file itself is a TIFF IFD structure
+		if (format === 'tiff') {
+			return parseTiffFromHeader(bytes, 0, bytes.length) ?? EMPTY_EXIF;
+		}
+
+		// WebP: find EXIF chunk in RIFF container
+		if (format === 'webp') {
+			const chunk = findWebpExifChunk(bytes);
+			if (!chunk) return EMPTY_EXIF;
+			return (
+				parseTiffFromHeader(bytes, chunk.tiffStart, chunk.tiffLength) ??
+				EMPTY_EXIF
+			);
+		}
+
+		// JPEG: scan for APP1 Exif segment + detect XMP/IPTC/COM
 		const app1 = findExifApp1(bytes);
 		if (!app1) return EMPTY_EXIF;
 
-		const { tiffStart, tiffLength } = app1;
-		const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-
-		const bo0 = bytes[tiffStart];
-		const bo1 = bytes[tiffStart + 1];
-		const little = bo0 === 0x49 && bo1 === 0x49;
-		if (!little && !(bo0 === 0x4d && bo1 === 0x4d)) return EMPTY_EXIF;
-
-		const ctx: IfdContext = {
-			view,
-			tiffStart,
-			tiffLength,
-			little,
-			visited: new Set(),
-		};
-
-		const magic = readU16(ctx, tiffStart + 2);
-		if (magic !== 0x002a) return EMPTY_EXIF;
-
-		const ifd0Offset = readU32(ctx, tiffStart + 4);
-		const ifd0Abs = tiffStart + ifd0Offset;
-
-		const ifd0 = parseIfd(ctx, bytes, ifd0Abs, IFD0_TAGS, 0);
-		const allTags: ExifTag[] = [...ifd0.tags];
-		let orientation = ifd0.orientation;
-		let gps: GpsCoord | undefined;
-
-		if (ifd0.exifIfdOffset != null) {
-			const exifAbs = tiffStart + ifd0.exifIfdOffset;
-			const exifIfd = parseIfd(ctx, bytes, exifAbs, EXIF_IFD_TAGS, 1);
-			allTags.push(...exifIfd.tags);
-			if (orientation == null) orientation = exifIfd.orientation;
+		if (app1.tiffStart < 0) {
+			// no Exif APP1 but other metadata detected
+			return { ...EMPTY_EXIF, hasOtherMetadata: app1.hasOtherMetadata };
 		}
 
-		if (ifd0.gpsIfdOffset != null) {
-			const gpsAbs = tiffStart + ifd0.gpsIfdOffset;
-			const gpsResult = parseGpsIfd(ctx, bytes, gpsAbs, 1);
-			allTags.push(...gpsResult.tags);
-			gps = gpsResult.gps;
+		const result = parseTiffFromHeader(bytes, app1.tiffStart, app1.tiffLength);
+		if (!result) {
+			return { ...EMPTY_EXIF, hasOtherMetadata: app1.hasOtherMetadata };
 		}
-
-		return {
-			hasExif: true,
-			hasGps: gps != null,
-			gps,
-			tags: allTags,
-			orientation,
-		};
+		result.hasOtherMetadata = app1.hasOtherMetadata;
+		return result;
 	} catch {
 		return EMPTY_EXIF;
 	}
@@ -672,6 +771,7 @@ export function stripMetadata(
 			warnings: [
 				'この形式ではメタデータのロスレス削除ができないため、再エンコードが必要です。',
 			],
+			stripped: false,
 		};
 	}
 
@@ -692,7 +792,11 @@ function isIptcApp13(data: Uint8Array, payloadStart: number): boolean {
 
 function stripJpegMetadata(bytes: Uint8Array): StripResult {
 	if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) {
-		return { data: bytes, warnings: ['JPEG形式ではありません'] };
+		return {
+			data: bytes,
+			warnings: ['JPEG形式ではありません'],
+			stripped: false,
+		};
 	}
 
 	const chunks: Uint8Array[] = [];
@@ -706,28 +810,33 @@ function stripJpegMetadata(bytes: Uint8Array): StripResult {
 			chunks.push(bytes.subarray(i));
 			break;
 		}
+		// fill bytes: skip consecutive 0xFF before the marker byte
+		const fillStart = i;
+		while (i + 1 < bytes.length && bytes[i + 1] === 0xff) i++;
 		const marker = bytes[i + 1];
 
 		if (marker === 0xda) {
-			// SOS: 以降はすべて画像データ
-			chunks.push(bytes.subarray(i));
+			chunks.push(bytes.subarray(fillStart));
 			break;
 		}
 		if (marker === 0xd9) {
-			chunks.push(bytes.subarray(i, i + 2));
+			chunks.push(bytes.subarray(fillStart, i + 2));
 			break;
 		}
 
-		// スタンドアロンマーカー
 		if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-			chunks.push(bytes.subarray(i, i + 2));
+			chunks.push(bytes.subarray(fillStart, i + 2));
 			i += 2;
 			continue;
 		}
 
+		if (i + 4 > bytes.length) {
+			chunks.push(bytes.subarray(fillStart));
+			break;
+		}
 		const segLen = (bytes[i + 2] << 8) | bytes[i + 3];
 		if (segLen < 2) {
-			chunks.push(bytes.subarray(i));
+			chunks.push(bytes.subarray(fillStart));
 			break;
 		}
 
@@ -736,19 +845,20 @@ function stripJpegMetadata(bytes: Uint8Array): StripResult {
 		let skip = false;
 
 		if (marker === 0xe1) {
-			// APP1
 			if (isExifApp1(bytes, payloadStart) || isXmpApp1(bytes, payloadStart)) {
 				skip = true;
 			}
 		} else if (marker === 0xed) {
-			// APP13
 			if (isIptcApp13(bytes, payloadStart)) {
 				skip = true;
 			}
+		} else if (marker === 0xfe) {
+			// COM (comment) segment
+			skip = true;
 		}
 
 		if (!skip) {
-			chunks.push(bytes.subarray(i, segEnd));
+			chunks.push(bytes.subarray(fillStart, segEnd));
 		}
 
 		i = segEnd;
@@ -763,48 +873,54 @@ function stripJpegMetadata(bytes: Uint8Array): StripResult {
 		offset += c.length;
 	}
 
-	return { data: result, warnings };
+	return { data: result, warnings, stripped: true };
 }
 
 // ---------------------------------------------------------------------------
 // Orientation 焼き込み（ブラウザ専用ヘルパー）
 // ---------------------------------------------------------------------------
 
-const ORIENTATION_TRANSFORMS: Record<
-	number,
-	(
-		ctx: CanvasRenderingContext2D,
-		w: number,
-		h: number,
-	) => { cw: number; ch: number }
-> = {
-	2: (ctx, w, h) => {
-		ctx.transform(-1, 0, 0, 1, w, 0);
-		return { cw: w, ch: h };
+type OriDef = {
+	cw: (w: number, h: number) => number;
+	ch: (w: number, h: number) => number;
+	apply: (ctx: CanvasRenderingContext2D, w: number, h: number) => void;
+};
+
+const ORIENTATION_DEFS: Record<number, OriDef> = {
+	2: {
+		cw: (w) => w,
+		ch: (_, h) => h,
+		apply: (ctx, w) => ctx.transform(-1, 0, 0, 1, w, 0),
 	},
-	3: (ctx, w, h) => {
-		ctx.transform(-1, 0, 0, -1, w, h);
-		return { cw: w, ch: h };
+	3: {
+		cw: (w) => w,
+		ch: (_, h) => h,
+		apply: (ctx, w, h) => ctx.transform(-1, 0, 0, -1, w, h),
 	},
-	4: (ctx, w, h) => {
-		ctx.transform(1, 0, 0, -1, 0, h);
-		return { cw: w, ch: h };
+	4: {
+		cw: (w) => w,
+		ch: (_, h) => h,
+		apply: (ctx, _, h) => ctx.transform(1, 0, 0, -1, 0, h),
 	},
-	5: (ctx, w, h) => {
-		ctx.transform(0, 1, 1, 0, 0, 0);
-		return { cw: h, ch: w };
+	5: {
+		cw: (_, h) => h,
+		ch: (w) => w,
+		apply: (ctx) => ctx.transform(0, 1, 1, 0, 0, 0),
 	},
-	6: (ctx, w, h) => {
-		ctx.transform(0, 1, -1, 0, h, 0);
-		return { cw: h, ch: w };
+	6: {
+		cw: (_, h) => h,
+		ch: (w) => w,
+		apply: (ctx, _, h) => ctx.transform(0, 1, -1, 0, h, 0),
 	},
-	7: (ctx, w, h) => {
-		ctx.transform(0, -1, -1, 0, h, w);
-		return { cw: h, ch: w };
+	7: {
+		cw: (_, h) => h,
+		ch: (w) => w,
+		apply: (ctx, w, h) => ctx.transform(0, -1, -1, 0, h, w),
 	},
-	8: (ctx, w, h) => {
-		ctx.transform(0, -1, 1, 0, 0, w);
-		return { cw: h, ch: w };
+	8: {
+		cw: (_, h) => h,
+		ch: (w) => w,
+		apply: (ctx, w) => ctx.transform(0, -1, 1, 0, 0, w),
 	},
 };
 
@@ -812,37 +928,37 @@ export async function bakeOrientation(
 	bytes: Uint8Array,
 	orientation: number,
 ): Promise<Uint8Array<ArrayBuffer>> {
-	const transform = ORIENTATION_TRANSFORMS[orientation];
-	if (!transform) return new Uint8Array(bytes);
+	const def = ORIENTATION_DEFS[orientation];
+	if (!def) return new Uint8Array(bytes);
 
 	const blob = new Blob([bytes.slice()], { type: 'image/jpeg' });
-	const bmp = await createImageBitmap(blob);
+	// imageOrientation: 'none' でブラウザによる自動回転を抑止し二重回転を防ぐ
+	const bmp = await createImageBitmap(blob, {
+		imageOrientation: 'none',
+	});
 	const w = bmp.width;
 	const h = bmp.height;
 
 	const canvas = document.createElement('canvas');
-	const ctx2d = canvas.getContext('2d');
-	if (!ctx2d) {
+	canvas.width = def.cw(w, h);
+	canvas.height = def.ch(w, h);
+
+	const ctx = canvas.getContext('2d');
+	if (!ctx) {
 		bmp.close();
 		return new Uint8Array(bytes);
 	}
-
-	const { cw, ch } = transform(ctx2d, w, h);
-	canvas.width = cw;
-	canvas.height = ch;
-
-	// re-apply transform after resize
-	const ctx2 = canvas.getContext('2d');
-	if (!ctx2) {
-		bmp.close();
-		return new Uint8Array(bytes);
-	}
-	transform(ctx2, w, h);
-	ctx2.drawImage(bmp, 0, 0);
+	def.apply(ctx, w, h);
+	ctx.drawImage(bmp, 0, 0);
 	bmp.close();
 
-	const outBlob: Blob = await new Promise((resolve) =>
-		canvas.toBlob((b) => resolve(b ?? new Blob()), 'image/jpeg', 0.95),
+	const outBlob: Blob | null = await new Promise((resolve) =>
+		canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
 	);
+	if (!outBlob || outBlob.size === 0) {
+		throw new Error(
+			'Canvas のエクスポートに失敗しました（画像サイズが大きすぎる可能性があります）',
+		);
+	}
 	return new Uint8Array(await outBlob.arrayBuffer());
 }

@@ -95,6 +95,9 @@ export function ExifToolPage() {
 		(it) => it.exif.orientation != null && it.exif.orientation !== 1,
 	);
 	const hasAnyGps = items.some((it) => it.exif.hasGps);
+	const hasOtherMetadataOnly = items.some(
+		(it) => !it.exif.hasExif && it.exif.hasOtherMetadata,
+	);
 
 	const handleFilesSelect = useCallback(async (files: File[]) => {
 		const batch = validateBatch(files);
@@ -160,16 +163,46 @@ export function ExifToolPage() {
 				}
 
 				const result = stripMetadata(bytes, item.format);
-				const blob = new Blob([result.data.slice()], {
-					type: `image/${item.format}`,
+				let cleanedData = result.data;
+				const allWarnings = [...result.warnings];
+
+				if (!result.stripped) {
+					// 非JPEG: Canvas 再エンコードでメタデータ除去
+					const srcBlob = new Blob([bytes.slice()], {
+						type: `image/${item.format}`,
+					});
+					const bmp = await createImageBitmap(srcBlob);
+					const cvs = document.createElement('canvas');
+					cvs.width = bmp.width;
+					cvs.height = bmp.height;
+					const c = cvs.getContext('2d');
+					if (!c) throw new Error('Canvas context を取得できません');
+					c.drawImage(bmp, 0, 0);
+					bmp.close();
+					const outBlob: Blob | null = await new Promise((resolve) =>
+						cvs.toBlob((b) => resolve(b), 'image/png', 1),
+					);
+					if (!outBlob || outBlob.size === 0) {
+						throw new Error('Canvas のエクスポートに失敗しました');
+					}
+					cleanedData = new Uint8Array(await outBlob.arrayBuffer());
+					allWarnings.push(
+						'Canvas経由で再エンコードしました。画質が変わる場合があります。',
+					);
+				}
+
+				const blob = new Blob([cleanedData.slice()], {
+					type: result.stripped ? `image/${item.format}` : 'image/png',
 				});
 
 				updated[i] = {
 					...item,
 					status: 'done',
 					strippedBlob: blob,
-					strippedFileName: buildCleanedFileName(item.file.name),
-					warnings: result.warnings,
+					strippedFileName: result.stripped
+						? buildCleanedFileName(item.file.name)
+						: buildCleanedFileName(item.file.name.replace(/\.[^.]+$/, '.png')),
+					warnings: allWarnings,
 				};
 			} catch (err) {
 				updated[i] = {
@@ -262,6 +295,24 @@ export function ExifToolPage() {
 								<p className="mt-1 text-xs text-muted-foreground">
 									この画像には撮影場所の座標が記録されています。SNS
 									等に投稿する前にメタデータの削除をお勧めします。
+								</p>
+							</div>
+						</div>
+					)}
+
+					{hasOtherMetadataOnly && (
+						<div
+							className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm"
+							role="alert"
+						>
+							<AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+							<div>
+								<p className="font-medium text-amber-700 dark:text-amber-400">
+									XMP / IPTC メタデータが検出されました
+								</p>
+								<p className="mt-1 text-xs text-muted-foreground">
+									EXIFタグはありませんが、XMP や IPTC
+									に位置情報やその他のメタデータが含まれている可能性があります。削除処理でこれらも除去されます。
 								</p>
 							</div>
 						</div>
