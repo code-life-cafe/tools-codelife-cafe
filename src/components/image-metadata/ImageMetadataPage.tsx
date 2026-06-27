@@ -15,6 +15,7 @@ import { Slider } from '@/components/ui/slider';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	MAX_METADATA_FILE_COUNT,
+	MAX_METADATA_FILE_SIZE,
 	type StripMetadataOptions,
 	type StripMetadataResult,
 	stripImageMetadata,
@@ -115,11 +116,17 @@ export function ImageMetadataPage() {
 				const result = await stripImageMetadata(item.file, options);
 				const resultUrl = URL.createObjectURL(result.blob);
 				setItems((prev) =>
-					prev.map((it) =>
-						it.id === item.id
-							? { ...it, status: 'done', result, resultUrl, error: undefined }
-							: it,
-					),
+					prev.map((it) => {
+						if (it.id !== item.id) return it;
+						if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
+						return {
+							...it,
+							status: 'done',
+							result,
+							resultUrl,
+							error: undefined,
+						};
+					}),
 				);
 			} catch (err) {
 				setItems((prev) =>
@@ -166,7 +173,7 @@ export function ImageMetadataPage() {
 				onFileSelect={(file) => onFiles([file])}
 				onFilesSelect={onFiles}
 				onValidationError={setError}
-				maxSizeBytes={25 * 1024 * 1024}
+				maxSizeBytes={MAX_METADATA_FILE_SIZE}
 				validationMessage="25MB以下の画像を選択してください。"
 			/>
 
@@ -227,7 +234,10 @@ export function ImageMetadataPage() {
 			</div>
 
 			{error && (
-				<div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+				<div
+					role="alert"
+					className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+				>
 					{error}
 				</div>
 			)}

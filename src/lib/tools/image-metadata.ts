@@ -5,6 +5,7 @@ export const SUPPORTED_METADATA_IMAGE_TYPES = [
 ] as const;
 
 export const MAX_METADATA_FILE_COUNT = 20;
+export const MAX_METADATA_FILE_SIZE = 25 * 1024 * 1024;
 
 export type MetadataImageType = (typeof SUPPORTED_METADATA_IMAGE_TYPES)[number];
 
@@ -34,6 +35,9 @@ export function validateMetadataImageFile(file: File): string | null {
 	}
 	if (file.size <= 0) {
 		return '空のファイルは処理できません。';
+	}
+	if (file.size > MAX_METADATA_FILE_SIZE) {
+		return '25MB以下の画像を選択してください。';
 	}
 	return null;
 }
@@ -67,7 +71,7 @@ export async function stripImageMetadata(
 			throw new Error('画像処理の初期化に失敗しました。');
 		}
 
-		const outputType = resolveOutputType(file.type, options.format);
+		const outputType = resolveMetadataOutputType(file.type, options.format);
 		if (outputType === 'image/jpeg') {
 			context.fillStyle = options.background;
 			context.fillRect(0, 0, canvas.width, canvas.height);
@@ -78,7 +82,7 @@ export async function stripImageMetadata(
 		const removedBytes = Math.max(0, file.size - blob.size);
 		return {
 			blob,
-			fileName: buildOutputFileName(file.name, outputType),
+			fileName: buildMetadataOutputFileName(file.name, outputType),
 			mimeType: outputType,
 			originalSize: file.size,
 			resultSize: blob.size,
@@ -92,7 +96,7 @@ export async function stripImageMetadata(
 	}
 }
 
-function resolveOutputType(
+export function resolveMetadataOutputType(
 	inputType: string,
 	format: StripMetadataOptions['format'],
 ): MetadataImageType {
@@ -106,7 +110,7 @@ function resolveOutputType(
 	return `image/${format}` as MetadataImageType;
 }
 
-function buildOutputFileName(
+export function buildMetadataOutputFileName(
 	name: string,
 	mimeType: MetadataImageType,
 ): string {
