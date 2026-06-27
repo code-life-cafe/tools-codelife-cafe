@@ -507,6 +507,25 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 		related: ['color', 'image-compress', 'image-text'],
 	},
+	{
+		id: 'image-base64',
+		title: '画像Base64変換',
+		description: '画像をBase64/Data URIへ相互変換。データは外部送信なし。',
+		href: '/image-base64',
+		icon: '🔣',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'Base64',
+			'Data URI',
+			'画像変換',
+			'img',
+			'CSS',
+			'base64',
+			'データURI',
+			'インライン画像',
+		],
+	},
 ];
 
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
