@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -28,7 +29,12 @@ export function AnalysisOptions({
 	onLayoutOptionsChange,
 	disabled,
 }: AnalysisOptionsProps) {
+	const [rawStopwords, setRawStopwords] = useState<string>(
+		(options.customStopwords || []).join(', '),
+	);
+
 	const handleCustomStopwordsChange = (val: string) => {
+		setRawStopwords(val);
 		const list = val
 			.split(/[,、\n]/)
 			.map((s) => s.trim())
@@ -71,7 +77,7 @@ export function AnalysisOptions({
 						<Input
 							id="custom-stopwords"
 							placeholder="例: 株式会社, テスト, 連絡"
-							value={(options.customStopwords || []).join(', ')}
+							value={rawStopwords}
 							onChange={(e) => handleCustomStopwordsChange(e.target.value)}
 							disabled={disabled}
 							className="text-xs"

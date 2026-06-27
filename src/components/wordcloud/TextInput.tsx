@@ -19,6 +19,11 @@ export function TextInput({
 	disabled,
 }: TextInputProps) {
 	const handleFileSelect = (file: File) => {
+		// 500,000文字の最大バイト数（UTF-8で約2MB相当）を超えるファイルは読込前に拒否
+		if (file.size > 2 * 1024 * 1024) {
+			alert('ファイルサイズが大きすぎます（上限2MB）。');
+			return;
+		}
 		const reader = new FileReader();
 		reader.onload = (e) => {
 			const content = e.target?.result;
@@ -77,8 +82,10 @@ export function TextInput({
 				<FileDropzone
 					onFileSelect={handleFileSelect}
 					accept=".txt,.csv,.md,text/plain,text/csv,text/markdown"
+					maxSizeBytes={2 * 1024 * 1024}
+					validationMessage="ファイルサイズが上限（2MB）を超えています。"
 					label="テキストファイルをドロップして読み込み"
-					description=".txt, .csv, .md ファイルに対応（UTF-8）"
+					description=".txt, .csv, .md ファイルに対応（UTF-8, 上限2MB）"
 					privacyNote="ファイル内容は外部に送信されません"
 					disabled={disabled}
 				/>

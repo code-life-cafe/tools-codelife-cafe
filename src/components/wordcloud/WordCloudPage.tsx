@@ -49,6 +49,7 @@ export function WordCloudPage() {
 	const [error, setError] = useState<string | null>(null);
 
 	const workerRef = useRef<Worker | null>(null);
+	const runIdRef = useRef<number>(0);
 
 	const runAnalysis = useCallback(
 		(
@@ -56,10 +57,13 @@ export function WordCloudPage() {
 			currentOpts: AnalyzeOptions,
 			currentLayoutOpts: WordCloudLayoutOptions,
 		) => {
+			const currentRunId = ++runIdRef.current;
+
 			if (!inputText || inputText.trim().length === 0) {
 				setFrequencies([]);
 				setPlacedWords([]);
 				setError(null);
+				setIsAnalyzing(false);
 				return;
 			}
 
@@ -79,6 +83,7 @@ export function WordCloudPage() {
 			workerRef.current = worker;
 
 			worker.onmessage = async (e: MessageEvent<WorkerOutputMessage>) => {
+				if (currentRunId !== runIdRef.current) return;
 				const data = e.data;
 				if (data.type === 'SUCCESS') {
 					setFrequencies(data.result.frequencies);
@@ -87,19 +92,28 @@ export function WordCloudPage() {
 							data.result.frequencies,
 							currentLayoutOpts,
 						);
+						if (currentRunId !== runIdRef.current) return;
 						setPlacedWords(placed);
 					} catch (_err: unknown) {
+						if (currentRunId !== runIdRef.current) return;
 						setError('ワードクラウドの描画配置計算中にエラーが発生しました。');
 					} finally {
-						setIsAnalyzing(false);
+						if (currentRunId === runIdRef.current) {
+							setIsAnalyzing(false);
+						}
 					}
 				} else if (data.type === 'ERROR') {
+					setFrequencies([]);
+					setPlacedWords([]);
 					setError(data.error);
 					setIsAnalyzing(false);
 				}
 			};
 
 			worker.onerror = () => {
+				if (currentRunId !== runIdRef.current) return;
+				setFrequencies([]);
+				setPlacedWords([]);
 				setError('解析処理中に予測せぬエラーが発生しました。');
 				setIsAnalyzing(false);
 			};
