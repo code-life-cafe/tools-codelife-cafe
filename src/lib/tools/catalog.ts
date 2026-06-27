@@ -329,6 +329,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 		related: [
 			'image-convert',
+			'exif',
 			'bg-remove',
 			'image-mosaic',
 			'image-text',
@@ -393,7 +394,13 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'一括',
 			'ZIP',
 		],
-		related: ['image-compress', 'image-mosaic', 'image-text', 'bg-remove'],
+		related: [
+			'image-compress',
+			'exif',
+			'image-mosaic',
+			'image-text',
+			'bg-remove',
+		],
 	},
 	{
 		id: 'image-edit',
@@ -562,6 +569,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'データURI',
 			'インライン画像',
 		],
+	},
+	{
+		id: 'exif',
+		title: 'EXIF確認・削除',
+		description: '写真の位置情報・撮影情報を確認して削除。データは外部送信なし',
+		href: '/exif',
+		icon: '🔍',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'EXIF',
+			'エグジフ',
+			'位置情報',
+			'GPS',
+			'削除',
+			'メタデータ',
+			'写真',
+			'プライバシー',
+		],
+		related: ['image-compress', 'image-convert', 'image-mosaic', 'bg-remove'],
 	},
 ];
 
