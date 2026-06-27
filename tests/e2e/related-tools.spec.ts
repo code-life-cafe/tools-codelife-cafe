@@ -15,12 +15,10 @@ test.describe('関連ツール 回遊カード', () => {
 		await expect(
 			related.getByRole('heading', { name: '関連ツール' }),
 		).toBeVisible();
-		// base64.related = url-encoder / cipher / unicode-converter
+		// base64.related = url-encoder / image-base64 / cipher
 		await expect(related.locator('a[href="/url-encoder"]')).toHaveCount(1);
+		await expect(related.locator('a[href="/image-base64"]')).toHaveCount(1);
 		await expect(related.locator('a[href="/cipher"]')).toHaveCount(1);
-		await expect(related.locator('a[href="/unicode-converter"]')).toHaveCount(
-			1,
-		);
 		// 自分自身へのリンクは出ない
 		await expect(related.locator('a[href="/base64"]')).toHaveCount(0);
 	});
