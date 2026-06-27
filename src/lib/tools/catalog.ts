@@ -307,6 +307,25 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		],
 	},
 	{
+		id: 'image-metadata',
+		title: '画像メタデータ削除',
+		description:
+			'Exif・GPS位置情報などをブラウザ内で削除。画像はアップロードされません。',
+		href: '/image-metadata',
+		icon: '🧹',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'Exif',
+			'メタデータ',
+			'GPS',
+			'位置情報',
+			'画像',
+			'プライバシー',
+			'アップロード不要',
+		],
+	},
+	{
 		id: 'image-crop',
 		title: '画像トリミング・回転',
 		description:
