@@ -1,7 +1,8 @@
 ---
-import { getCategoryId, toolCatalog } from '../../lib/tools/catalog';
+import { getCategoryId, getRelatedTools, toolCatalog } from '../../lib/tools/catalog';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SafetyBadge from '../layout/SafetyBadge.tsx';
+import ToolCard from '../common/ToolCard.astro';
 import ToolJsonLd from '../common/ToolJsonLd.astro';
 
 interface Props {
@@ -22,6 +23,9 @@ const categoryHref = category ? `/?category=${getCategoryId(category)}` : undefi
 
 // カタログ掲載ツールはビルド時生成のツール別 OG 画像（/og/{id}.png）を使う
 const ogImage = tool ? `/og/${tool.id}.png` : undefined;
+
+// 回遊カード: related 優先＋同カテゴリ補完で最大3件。0件ならセクション非表示。
+const relatedTools = tool ? getRelatedTools(tool.id) : [];
 
 const breadcrumbItems: { name: string; url?: string }[] = [
   { name: 'ホーム', url: `${SITE_URL}/` },
@@ -90,6 +94,25 @@ const breadcrumbSchema = {
 
     <!-- Usage / Tips section -->
     <slot name="usage" />
+
+    <!-- Related tools (回遊カード) -->
+    {relatedTools.length > 0 && (
+      <section class="mt-8" aria-labelledby="related-tools-heading">
+        <h2 id="related-tools-heading" class="text-lg font-semibold mb-4">関連ツール</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {relatedTools.map((t) => (
+            <ToolCard
+              title={t.title}
+              description={t.description}
+              href={t.href}
+              icon={t.icon}
+              category={t.category}
+              categoryColor={t.categoryColor}
+            />
+          ))}
+        </div>
+      </section>
+    )}
   </div>
 </BaseLayout>
 
