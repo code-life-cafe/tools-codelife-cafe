@@ -1,3 +1,5 @@
+import type { WebMcpToolDefinition } from './webmcp/tool-factory.ts';
+
 export type WebMcpTool = {
 	name: string;
 	description: string;
@@ -9,6 +11,27 @@ type MaybeDisposable =
 	| undefined
 	| { dispose?: () => void; unregister?: () => void }
 	| (() => void);
+
+function wrapToolForClient(tool: WebMcpToolDefinition): WebMcpTool {
+	return {
+		name: tool.name,
+		description: tool.description,
+		inputSchema: tool.inputSchema,
+		async execute(input: unknown) {
+			const result = await tool.run(input);
+			if (result.ok) {
+				return result.value;
+			}
+			return { error: result.error, isError: true };
+		},
+	};
+}
+
+export function provideToolsFromFactory(
+	tools: WebMcpToolDefinition[],
+): () => void {
+	return provideTools(tools.map(wrapToolForClient));
+}
 
 export function provideTools(tools: WebMcpTool[]): () => void {
 	if (typeof window === 'undefined') return () => {};

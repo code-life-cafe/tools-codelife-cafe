@@ -25,7 +25,8 @@ import {
 	MAX_FILE_SIZE,
 	validateHashFile,
 } from '@/lib/tools/hash';
-import { provideTools } from '@/lib/webmcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { hashTool } from '@/lib/webmcp/tools/hash.webmcp';
 import { HashResultTable } from './HashResultTable';
 import { HashVerifier } from './HashVerifier';
 
@@ -53,65 +54,7 @@ export function HashPage() {
 
 	// --- WebMCP Tool Registration ---
 	useEffect(() => {
-		const hashAlgorithms = ['md5', 'sha-256', 'sha-512'] as const;
-		const cleanup = provideTools([
-			{
-				name: 'generate_hash',
-				description:
-					'文字列のハッシュ値を計算する（MD5 / SHA-256 / SHA-512）。処理はすべてブラウザ内で完結し、外部送信は行わない。',
-				inputSchema: {
-					type: 'object',
-					properties: {
-						text: { type: 'string', description: 'ハッシュ化する文字列' },
-						algorithm: { type: 'string', enum: hashAlgorithms },
-					},
-					required: ['text', 'algorithm'],
-				},
-				execute: async (input) => {
-					try {
-						if (
-							typeof input !== 'object' ||
-							input === null ||
-							typeof (input as { text?: unknown }).text !== 'string' ||
-							!hashAlgorithms.includes(
-								(input as { algorithm?: unknown })
-									.algorithm as (typeof hashAlgorithms)[number],
-							)
-						) {
-							return { error: '入力値が不正です' };
-						}
-
-						const { text: inputText, algorithm } = input as {
-							text: string;
-							algorithm: (typeof hashAlgorithms)[number];
-						};
-
-						const algoMap: Record<
-							(typeof hashAlgorithms)[number],
-							HashAlgorithm
-						> = {
-							md5: 'md5',
-							'sha-256': 'sha256',
-							'sha-512': 'sha512',
-						};
-
-						const targetAlgo = algoMap[algorithm];
-						const res = await hashText(inputText, [targetAlgo]);
-						const computedHash = res[targetAlgo];
-						if (!computedHash) {
-							return { error: 'ハッシュ計算に失敗しました' };
-						}
-						return { hash: computedHash };
-					} catch (e) {
-						return {
-							error:
-								e instanceof Error ? e.message : 'ハッシュ計算に失敗しました',
-						};
-					}
-				},
-			},
-		]);
-
+		const cleanup = provideToolsFromFactory([hashTool]);
 		return cleanup;
 	}, []);
 

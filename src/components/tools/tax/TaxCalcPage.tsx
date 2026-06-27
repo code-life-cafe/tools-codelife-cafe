@@ -37,7 +37,8 @@ import {
 	validateAmount,
 	validateQuantity,
 } from '@/lib/tools/tax';
-import { provideTools } from '@/lib/webmcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { taxTool } from '@/lib/webmcp/tools/tax.webmcp';
 
 type Direction = TaxCalcInput['direction'];
 type CalcMode = 'single' | 'invoice';
@@ -102,99 +103,7 @@ export function TaxCalcPage() {
 
 	// --- WebMCP Tool Registration ---
 	useEffect(() => {
-		const taxRates = ['3', '5', '8', '10', '8_reduced'] as const;
-		const taxModes = ['tax_included', 'tax_excluded'] as const;
-		const roundingModes = ['floor', 'ceil', 'round'] as const;
-
-		const cleanup = provideTools([
-			{
-				name: 'calc_tax',
-				description:
-					'金額から消費税を計算する（税込→税抜／税抜→税込）。処理はすべてブラウザ内で完結し、外部送信は行わない。',
-				inputSchema: {
-					type: 'object',
-					properties: {
-						amount: { type: 'number', description: '税込または税抜の金額' },
-						taxRate: {
-							type: 'string',
-							enum: taxRates,
-							description: '税率区分（8_reduced は軽減税率）',
-						},
-						mode: {
-							type: 'string',
-							enum: taxModes,
-							description:
-								'税込金額から税抜を求めるか(tax_included)、税抜金額から税込を求めるか(tax_excluded)',
-						},
-						rounding: {
-							type: 'string',
-							enum: roundingModes,
-							description: '端数処理',
-						},
-					},
-					required: ['amount', 'taxRate', 'mode'],
-				},
-				execute: async (input) => {
-					try {
-						if (typeof input !== 'object' || input === null) {
-							return { error: '入力値が不正です' };
-						}
-
-						const candidate = input as {
-							amount?: unknown;
-							taxRate?: unknown;
-							mode?: unknown;
-							rounding?: unknown;
-						};
-
-						if (
-							typeof candidate.amount !== 'number' ||
-							!Number.isFinite(candidate.amount) ||
-							!taxRates.includes(
-								candidate.taxRate as (typeof taxRates)[number],
-							) ||
-							!taxModes.includes(candidate.mode as (typeof taxModes)[number]) ||
-							(candidate.rounding !== undefined &&
-								!roundingModes.includes(
-									candidate.rounding as (typeof roundingModes)[number],
-								))
-						) {
-							return { error: '入力値が不正です' };
-						}
-
-						const rateNum = Number(
-							(candidate.taxRate as string).replace('_reduced', ''),
-						);
-						const dir: Direction =
-							candidate.mode === 'tax_excluded'
-								? 'exclusive-to-inclusive'
-								: 'inclusive-to-exclusive';
-						const round: RoundingMode =
-							(candidate.rounding as RoundingMode) ?? 'floor';
-
-						const res = calculateTax({
-							amount: candidate.amount,
-							rate: rateNum,
-							direction: dir,
-							rounding: round,
-						});
-
-						return {
-							base: res.base,
-							tax: res.tax,
-							total: res.total,
-							result: candidate.mode === 'tax_excluded' ? res.total : res.base,
-							taxAmount: res.tax,
-						};
-					} catch (e) {
-						return {
-							error: e instanceof Error ? e.message : '計算に失敗しました',
-						};
-					}
-				},
-			},
-		]);
-
+		const cleanup = provideToolsFromFactory([taxTool]);
 		return cleanup;
 	}, []);
 
