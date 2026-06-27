@@ -53,7 +53,13 @@
    ```bash
    node scripts/generate-zipcode-data.ts
    ```
-4. **コミット:**
+4. **更新後の検証:**
+   - `public/data/zipcode/metadata.json` を開き、`generatedAt`、`dataVersion`、`recordCount`、`chunkCount` が最新の生成結果として妥当であることを確認します。
+   - `public/data/zipcode/{00..99}.json` が生成されていることを確認し、空ファイルや破損した JSON がないことを確認します。
+   - 画面上で代表的な郵便番号（例: `1000001`、`1500001`、`5300001`）を検索し、期待する住所が表示されることを確認します。
+   - `git diff public/data/zipcode/` を実行し、想定外の大量削除や JSON 形式の変更が含まれていないことを確認します。
+   - 日本郵便データのライセンス・出典表記が、`metadata.json` と画面表示の両方で維持されていることを確認します。
+5. **コミット:**
    - `public/data/zipcode/` に生成された差分（各チャンクJSONと `metadata.json`）を Git にコミットします。
 
 ---
