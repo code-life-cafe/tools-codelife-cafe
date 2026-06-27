@@ -19,9 +19,7 @@ test.describe('画像 Base64 / Data URI 変換', () => {
 	});
 
 	test('画像投入 → Data URIスニペットが表示される', async ({ page }) => {
-		await page
-			.getByTestId('encode-file-input')
-			.setInputFiles(PNG);
+		await page.getByTestId('encode-file-input').setInputFiles(PNG);
 
 		const results = page.getByTestId('snippet-results');
 		await expect(results).toBeVisible({ timeout: 10_000 });
@@ -40,9 +38,7 @@ test.describe('画像 Base64 / Data URI 変換', () => {
 	});
 
 	test('サイズ情報と肥大率が表示される', async ({ page }) => {
-		await page
-			.getByTestId('encode-file-input')
-			.setInputFiles(PNG);
+		await page.getByTestId('encode-file-input').setInputFiles(PNG);
 
 		await expect(page.getByTestId('snippet-results')).toBeVisible({
 			timeout: 10_000,
@@ -54,9 +50,7 @@ test.describe('画像 Base64 / Data URI 変換', () => {
 	});
 
 	test('コピーボタンで表示が「コピー済み」に変わる', async ({ page }) => {
-		await page
-			.getByTestId('encode-file-input')
-			.setInputFiles(PNG);
+		await page.getByTestId('encode-file-input').setInputFiles(PNG);
 
 		await expect(page.getByTestId('snippet-results')).toBeVisible({
 			timeout: 10_000,
@@ -125,9 +119,7 @@ test.describe('画像 Base64 / Data URI 変換', () => {
 			}
 		});
 
-		await page
-			.getByTestId('encode-file-input')
-			.setInputFiles(PNG);
+		await page.getByTestId('encode-file-input').setInputFiles(PNG);
 		await expect(page.getByTestId('snippet-results')).toBeVisible({
 			timeout: 10_000,
 		});

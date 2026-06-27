@@ -63,6 +63,7 @@
 | [暗号変換](/cipher) | シーザー暗号・ROT13・モールス信号・逆順等のテキスト変換 |
 | [カラーコード変換](/color) | HEX・RGB・HSL・CMYKの相互変換。カラーピッカー連動・ワンクリックコピー |
 | [ファビコン生成](/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
+| [画像Base64変換](/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
 
 ## 🛡️ セキュリティ
 
