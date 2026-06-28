@@ -343,7 +343,12 @@ export default function CsvEditor() {
 		if (!csvData) return;
 		pushUndo();
 		const newColCount = csvData.colCount + 1;
-		const newRows = csvData.rows.map((r) => [...r, '']);
+		const newRows = csvData.rows.map((r, rIdx) => {
+			if (rIdx === 0 && hasHeader) {
+				return [...r, getColumnLabel(newColCount - 1)];
+			}
+			return [...r, ''];
+		});
 		setCsvData({ rows: newRows, colCount: newColCount });
 	};
 
