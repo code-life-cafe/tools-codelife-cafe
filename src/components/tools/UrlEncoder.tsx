@@ -136,7 +136,10 @@ export default function UrlEncoder() {
 					<div className="flex items-center justify-between mb-2 min-h-9 pl-0 md:pl-4">
 						<Label className="text-sm font-medium">変換結果</Label>
 						<div className="flex gap-2">
-							<CopyButton text={textResult.output} />
+							<CopyButton
+								text={textResult.output}
+								disabled={!textResult.output || !!textResult.error}
+							/>
 							<Button
 								variant="outline"
 								size="sm"

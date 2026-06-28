@@ -25,9 +25,8 @@ export function encodeUrl(
 			return encodeURI(text);
 		}
 		return encodeURIComponent(text);
-	} catch (error) {
-		console.error('URL encoding error:', error);
-		return text;
+	} catch (_error) {
+		throw new Error('URLエンコード処理に失敗しました。');
 	}
 }
 
@@ -36,7 +35,7 @@ export function encodeUrl(
  *
  * @param text The URL-encoded string to decode.
  * @param options Options for decoding, choosing between component (decodeURIComponent) and full URL (decodeURI) modes.
- * @returns The decoded string. Returns the original string if decoding fails (e.g., malformed URI).
+ * @returns The decoded string.
  */
 export function decodeUrl(
 	text: string,
@@ -46,9 +45,6 @@ export function decodeUrl(
 
 	try {
 		// "+" is often used to represent space in query parameters
-		// decodeURIComponent doesn't convert "+" to space, so we do it manually if we are in component mode
-		// However, standard encodeURIComponent encodes space as "%20", not "+".
-		// To be safely handling "+", we replace it with "%20" before decoding.
 		const normalizedText =
 			options.mode === 'component' ? text.replace(/\+/g, '%20') : text;
 
@@ -56,9 +52,7 @@ export function decodeUrl(
 			return decodeURI(normalizedText);
 		}
 		return decodeURIComponent(normalizedText);
-	} catch (error) {
-		// Return original text if malformed URI component
-		console.error('URL decoding error:', error);
-		return text;
+	} catch (_error) {
+		throw new Error('不正なURLエスケープ形式です。デコードできません。');
 	}
 }
