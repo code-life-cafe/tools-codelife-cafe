@@ -18,7 +18,7 @@ const FIXTURE = path.join(
 
 const WHITE = [255, 255, 255, 255];
 const RED = [220, 40, 40, 255];
-const _BLUE = [0, 0, 255, 255];
+const BLUE = [0, 0, 255, 255];
 const BLUE_PNG = Buffer.from(
 	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC',
 	'base64',
@@ -154,7 +154,7 @@ test.describe('画像モザイク・ぼかし', () => {
 		await page.waitForTimeout(500);
 		await expect
 			.poll(() => getCanvasPixel(page, 'editor-canvas', 180, 180))
-			.not.toEqual(WHITE);
+			.toEqual(BLUE);
 	});
 
 	test('強度スライダーで選択領域の出力が変わる', async ({ page }) => {

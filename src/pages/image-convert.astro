@@ -11,4 +11,23 @@ if (!toolEntry) {
 
 <ToolLayout tool={toolEntry}>
   <ImageConvertPage client:load />
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>HEIC・WebP・AVIF・PNG・JPEG を、ブラウザ内だけで相互変換できる無料のオンラインツールです。iPhone標準形式の <strong>HEIC写真をJPEGに一括変換</strong>したり、サイト用に <strong>WebP・AVIF へ変換</strong>したりできます。画像がサーバーにアップロードされることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>対応形式と変換方向:</strong> 入力は HEIC / WebP / AVIF / PNG / JPEG、出力は <strong>JPEG / PNG / WebP / AVIF</strong> に対応します。「HEIC → JPEG 変換」「WebP → JPEG 変換」「PNG → WebP・AVIF 変換」など、用途に合わせて相互に変換できます。</li>
+          <li><strong>HEICは入力のみ対応:</strong> iPhone の HEIC 写真を JPEG・PNG などへ変換できます（HEIC形式での出力は行いません）。HEIC が投入されたときだけデコード用のモジュールを読み込みます。</li>
+          <li><strong>AVIF出力は処理が重め:</strong> AVIF への変換は高圧縮なぶん処理に時間がかかります。出力形式に AVIF を選んだときだけ専用モジュールを読み込み、処理中は進捗を表示します。</li>
+          <li><strong>EXIF（撮影日時・位置情報）の扱いとプライバシー:</strong> 既定では再エンコード時に EXIF を削除します。GPS位置情報・撮影日時・カメラ機種などが含まれうるため、社外共有時の意図しない情報流出を防げます。「EXIFを保持」を選ぶと <strong>JPEG出力でのみ</strong> 確実にメタデータを引き継ぎます（PNG / WebP / AVIF では削除扱い）。撮影方向（Orientation）は画像に反映したうえで正位置に正規化し、二重回転を防ぎます。</li>
+          <li><strong>カラープロファイル:</strong> ICCカラープロファイルは保持せず sRGB 前提で処理します。広色域（Display P3 等）の画像では色味が変わる場合があります。</li>
+          <li><strong>一括変換・ZIP一括ダウンロード:</strong> 複数画像をまとめて変換し、2件以上は <code>converted.zip</code> で一括ダウンロードできます。すべての処理はお使いのブラウザ内で完結します。</li>
+        </ul>
+      </div>
+    </details>
+  </div>
 </ToolLayout>

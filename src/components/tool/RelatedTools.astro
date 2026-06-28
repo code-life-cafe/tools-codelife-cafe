@@ -1,5 +1,5 @@
 ---
-import { getRelatedTools, toolCatalog } from '../../lib/tools/catalog';
+import { getRelatedTools, toolCatalog, type ToolCatalogItem } from '../../lib/tools/catalog';
 import ToolCard from '../common/ToolCard.astro';
 
 interface Props {
@@ -9,17 +9,33 @@ interface Props {
 
 const { toolId, relatedSlugs } = Astro.props;
 
-// ツールIDから、またはrelatedSlugsから、catalog.tsのgetRelatedToolsロジックを用いて関連ツールを取得（同カテゴリ補完含む）
-let validTools: ReturnType<typeof getRelatedTools> = [];
+// frontmatter の related を最優先し、不足分だけ catalog.ts の同カテゴリ補完を使う
+const LIMIT = 3;
+let validTools: ToolCatalogItem[] = [];
+const seen = new Set<string>();
 
-if (toolId) {
-	validTools = getRelatedTools(toolId, 3);
-} else if (relatedSlugs && relatedSlugs.length > 0) {
-	const firstSlug = relatedSlugs[0].replace(/^\//, '');
-	const found = toolCatalog.find((t) => t.id === firstSlug || t.href === `/${firstSlug}`);
-	if (found) {
-		validTools = getRelatedTools(found.id, 3);
+const normalizeSlug = (slug: string) => slug.replace(/^\//, '').replace(/^tools\//, '');
+const findBySlug = (slug: string) => {
+	const normalized = normalizeSlug(slug);
+	return toolCatalog.find((t) => t.id === normalized || t.href === `/${normalized}` || t.href === `/tools/${normalized}`);
+};
+const pushTool = (tool: ToolCatalogItem | undefined) => {
+	if (!tool || tool.id === toolId || seen.has(tool.id) || validTools.length >= LIMIT) return;
+	seen.add(tool.id);
+	validTools.push(tool);
+};
+
+for (const slug of relatedSlugs ?? []) {
+	pushTool(findBySlug(slug));
+}
+
+if (toolId && validTools.length < LIMIT) {
+	for (const tool of getRelatedTools(toolId, LIMIT)) {
+		pushTool(tool);
 	}
+} else if (!toolId && validTools.length === 0 && relatedSlugs && relatedSlugs.length > 0) {
+	const found = findBySlug(relatedSlugs[0]);
+	if (found) validTools = getRelatedTools(found.id, LIMIT);
 }
 ---
 

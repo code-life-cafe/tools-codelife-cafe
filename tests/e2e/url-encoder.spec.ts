@@ -41,9 +41,7 @@ test.describe('URL Encoder Tool', () => {
 		);
 
 		// test full url mode encoding
-		await page
-			.getByRole('tab', { name: 'フルURL (encodeURI)' })
-			.click({ force: true });
+		await page.getByRole('tab', { name: 'フルURL (encodeURI)' }).click();
 		await expect(outputArea).toHaveValue(
 			'https://example.com/%E6%A4%9C%E7%B4%A2?q=%E6%9D%B1%E4%BA%AC%20%E5%A4%A9%E6%B0%97',
 		);

@@ -11,4 +11,55 @@ if (!toolEntry) {
 
 <ToolLayout tool={toolEntry}>
   <UpscaleTool client:load />
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・仕組み
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-4 text-sm text-muted-foreground">
+        <div class="space-y-2">
+          <h4 class="font-semibold text-foreground">仕組み（ブラウザ内AI）</h4>
+          <p>
+            Real-ESRGAN系のAIモデル（ONNX）をWeb Worker上で実行し、画像を高解像度化・ノイズ除去します。初回実行時にAIモデルを取得する通信が発生しますが、<strong>画像そのものはブラウザ内で処理され、サーバーに送信されることはありません</strong>。
+          </p>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="font-semibold text-foreground">2つの品質モデル</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>⚡ 高速（既定）</strong> — 軽量モデル（約5MB）。全端末で実用的な速度。写真・イラストの高解像度化に。</li>
+            <li><strong>✨ 最高品質</strong> — 高精度モデル（約67MB）。ディテール再現が最も高い一方で重く、<strong>WebGPU対応端末を推奨</strong>します。WebGPU非対応の端末では非常に低速になります。</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="font-semibold text-foreground">処理時間・端末要件</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>処理は端末の性能に依存し、画像サイズにより<strong>数秒〜数十秒</strong>かかります。</li>
+            <li>WebGPU対応ブラウザ（最新のChrome/Edge等）では大幅に高速化されます。非対応時はWASMで動作します。</li>
+            <li>メモリを多く使用するため、モバイルや低スペック端末では「高速」モデル・低倍率を推奨します。</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="font-semibold text-foreground">対応サイズ・出力</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>入力: PNG / JPEG / WebP、ファイル20MBまで、<strong>長辺2000pxまで</strong>。</li>
+            <li>倍率: 2x / 4x（4xは出力が非常に大きくなるためご注意ください）。</li>
+            <li>出力: PNG または WebP。ノイズ除去のオン/オフを切り替えられます。</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <h4 class="font-semibold text-foreground">関連ツール</h4>
+          <p>
+            <a class="underline hover:text-foreground" href="/bg-remove">背景削除</a> /
+            <a class="underline hover:text-foreground" href="/image-compress">画像圧縮・リサイズ</a> /
+            <a class="underline hover:text-foreground" href="/image-convert">画像形式変換</a>
+          </p>
+        </div>
+      </div>
+    </details>
+  </div>
 </ToolLayout>

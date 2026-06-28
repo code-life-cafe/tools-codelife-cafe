@@ -7,7 +7,7 @@ import { ZipcodePage } from '../components/zipcode/ZipcodePage';
 let dataVersion = '';
 try {
   const metaUrl = new URL(
-    '../public/data/zipcode/metadata.json',
+    '../../public/data/zipcode/metadata.json',
     import.meta.url,
   );
   const meta = JSON.parse(await readFile(metaUrl, 'utf8'));

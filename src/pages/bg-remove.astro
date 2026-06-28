@@ -11,4 +11,32 @@ if (!toolEntry) {
 
 <ToolLayout tool={toolEntry}>
   <BgRemoveTool client:load />
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>AIモデル（Transformers.js）を使用して、画像の背景を自動で削除します。初回実行時にAIモデルを取得する通信が発生しますが、画像そのものはブラウザ内で処理され、サーバーに送信されることはありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li>商品写真の背景を透過にしたい</li>
+          <li>プロフィール写真の背景を削除・差し替えしたい</li>
+          <li>プレゼン資料に使う画像の背景を除去したい</li>
+          <li>SNS用に人物だけを切り抜きたい</li>
+        </ul>
+        <div class="mt-4 space-y-2">
+          <h4 class="font-semibold text-foreground">2つのモードを搭載</h4>
+          <ul class="list-disc pl-5 space-y-1">
+            <li><strong>✨ 高精度モード（既定）</strong> — BEN2（約209MB）。アニメキャラや毛髪、複雑なエッジを高精度に処理するモデル。</li>
+            <li><strong>⚡ 高速モード</strong> — MODNet（約25.9MB）。人物・ポートレート特化モデル。人物写真を高速に処理。背景が複雑な場合やアニメ・商品写真には高精度モードを推奨。</li>
+          </ul>
+        </div>
+        <div class="mt-4 space-y-2">
+          <h4 class="font-semibold text-foreground">背景差し替え</h4>
+          <p>背景を透過以外にも、単色やカスタム画像に差し替えることができます。</p>
+        </div>
+      </div>
+    </details>
+  </div>
 </ToolLayout>

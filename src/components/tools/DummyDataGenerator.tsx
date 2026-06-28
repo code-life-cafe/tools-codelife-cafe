@@ -60,7 +60,7 @@ export default function DummyDataGenerator() {
 	const [count, setCount] = useState<number>(10);
 	const [format, setFormat] = useState<ExportFormat>('json');
 
-	const [_refreshKey, setRefreshKey] = useState(0);
+	const [refreshKey, setRefreshKey] = useState(0);
 
 	const activeFields = useMemo(() => {
 		return fields.filter((f) => selectedFields.has(f.id)).map((f) => f.id);
@@ -74,6 +74,7 @@ export default function DummyDataGenerator() {
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	useEffect(() => {
+		void refreshKey;
 		if (validationError) {
 			setOutputData('');
 			return;
@@ -89,7 +90,7 @@ export default function DummyDataGenerator() {
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format, validationError]);
+	}, [activeFields, count, format, refreshKey, validationError]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];
