@@ -181,7 +181,12 @@ export default function CsvEditor() {
 	const addColumn = () => {
 		if (!csvData) return;
 		const newColCount = csvData.colCount + 1;
-		const newRows = csvData.rows.map((r) => [...r, '']);
+		const newRows = csvData.rows.map((r, rIdx) => {
+			if (rIdx === 0 && hasHeader) {
+				return [...r, getColumnLabel(newColCount - 1)];
+			}
+			return [...r, ''];
+		});
 		setCsvData({ rows: newRows, colCount: newColCount });
 	};
 
@@ -327,7 +332,7 @@ export default function CsvEditor() {
 					<Textarea
 						value={inputText}
 						onChange={(e) => setInputText(e.target.value)}
-						placeholder="A,B,C&#10;1,2,3&#10;4,5,6"
+						placeholder={'A,B,C\n1,2,3\n4,5,6'}
 						className="min-h-[400px] font-mono-tool text-sm leading-5 rounded-xl border"
 						spellCheck={false}
 					/>
