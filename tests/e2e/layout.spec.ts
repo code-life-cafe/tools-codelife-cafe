@@ -87,12 +87,15 @@ test.describe('Layout & Navigation', () => {
 		const jsonLdTexts = await page
 			.locator('script[type="application/ld+json"]')
 			.allTextContents();
-		const breadcrumb = jsonLdTexts
-			.map((text) => JSON.parse(text))
-			.find((schema) => schema['@type'] === 'BreadcrumbList');
+		const schemas = jsonLdTexts.flatMap((text) => {
+			const parsed = JSON.parse(text);
+			return parsed['@graph'] ? parsed['@graph'] : [parsed];
+		});
+		const breadcrumb = schemas.find(
+			(schema) => schema['@type'] === 'BreadcrumbList',
+		);
 
 		expect(breadcrumb).toBeTruthy();
-		expect(breadcrumb['@context']).toBe('https://schema.org');
 		expect(breadcrumb.itemListElement).toHaveLength(3);
 
 		const [home, category, current] = breadcrumb.itemListElement;
@@ -112,8 +115,8 @@ test.describe('Layout & Navigation', () => {
 			'@type': 'ListItem',
 			position: 3,
 			name: 'CSVビューア/エディタ（Excel取込・フィルタ・グラフ）',
+			item: 'https://tools.codelife.cafe/csv-editor',
 		});
-		expect(current.item).toBeUndefined();
 	});
 
 	test('パンくずのカテゴリリンクからトップページのフィルタが適用される', async ({
