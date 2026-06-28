@@ -54,7 +54,9 @@ export default function CharCount() {
 			{/* Input Textarea */}
 			<div>
 				<div className="flex items-center justify-between mb-2">
-					<Label className="text-sm font-medium">入力テキスト</Label>
+					<Label htmlFor="char-count-input" className="text-sm font-medium">
+						入力テキスト
+					</Label>
 					<div className="flex gap-2">
 						<CopyButton text={text} />
 						<Button
@@ -69,6 +71,7 @@ export default function CharCount() {
 					</div>
 				</div>
 				<Textarea
+					id="char-count-input"
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					placeholder="ここに文章を入力すると、リアルタイムで文字数がカウントされます。"
