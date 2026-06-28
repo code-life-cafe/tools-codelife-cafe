@@ -1,0 +1,31 @@
+---
+import ToolLayout from '../components/common/ToolLayout.astro';
+import ImageMergePage from '../components/image-merge/ImageMergePage';
+---
+
+<ToolLayout
+  title="画像の連結・結合（縦・横・グリッド）"
+  description="複数の画像を縦・横・グリッドで1枚に結合できる無料ツール。余白・背景色・並び替え対応のコンタクトシート作成にも。完全クライアントサイド処理で画像はサーバーに送信されません。"
+  path="/image-merge"
+>
+  <ImageMergePage client:load />
+
+  <div slot="usage" class="mt-8">
+    <details class="group rounded-xl border border-border p-4" open>
+      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+        📖 使い方・ユースケース
+        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+      </summary>
+      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
+        <p>複数の画像を縦・横・グリッド（コンタクトシート）に結合して1枚にまとめられる無料のオンラインツールです。手順説明の画像並べ、before / after の比較、SNS投稿用のまとめ画像づくりに便利です。画像がサーバーにアップロードされることは一切ありません。</p>
+        <ul class="list-disc pl-5 space-y-1">
+          <li><strong>縦・横・グリッドの使い分け:</strong> 手順を上から順に見せたいときは<strong>縦に連結</strong>、ビフォーアフターを左右に並べるなら<strong>横に連結</strong>、複数のスクショや写真を一覧化（コンタクトシート）するなら<strong>グリッド</strong>で列数を指定します。</li>
+          <li><strong>セルサイズ方針:</strong> 「原寸のまま」は各画像のサイズを保ったまま配置、「幅をそろえる」は幅を統一して縦並びをきれいに、「統一セル」は全画像を同じサイズの枠に収めて余白で吸収します。サイズの異なる画像が混在しても見栄えが崩れません。</li>
+          <li><strong>余白と背景色:</strong> 画像間の余白・外周パディング・背景色を指定できます。PNG / WebP 出力では背景を透過にすることも可能です（JPEG出力時は背景色で合成されます）。</li>
+          <li><strong>ドラッグで並び替え:</strong> 投入した画像はドラッグ、または上下の矢印ボタンで順序を変更でき、プレビューと出力にそのまま反映されます。タッチ操作・キーボード操作にも対応しています。</li>
+          <li><strong>完全ローカル処理:</strong> すべての処理はお使いのブラウザ内（Canvas API）で完結します。機密スクリーンショットや社内資料の画像も外部送信なしで安全に結合できます。</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+</ToolLayout>

@@ -541,6 +541,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'bg-remove',
 			'image-mosaic',
 			'image-text',
+			'image-merge',
 			'favicon',
 			'ogp',
 		],
@@ -613,13 +614,43 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['画像編集', 'クロップ', '回転', '反転', '一括処理', 'ZIP'],
-		related: ['image-crop', 'image-compress', 'image-convert'],
+		related: ['image-crop', 'image-compress', 'image-convert', 'image-merge'],
 		llmsFull: {
 			useCase:
 				'画像のアスペクト比指定クロップ、任意角度回転、水平/垂直反転、一括処理',
 			inputs:
 				'imageFiles（画像ファイル群）, cropAspectRatio（切り抜き比率）, rotation（角度）, flip（反転設定）',
 			outputs: '加工済み画像ファイルまたはZIPファイル',
+		},
+	},
+	{
+		id: 'image-merge',
+		title: '画像連結・結合',
+		description: '複数画像を縦・横・グリッドで結合。データは外部送信なし',
+		href: '/image-merge',
+		icon: '🪟',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		span: 2,
+		keywords: [
+			'画像結合',
+			'画像連結',
+			'画像 縦 横',
+			'画像 グリッド',
+			'コンタクトシート',
+			'画像 並べる',
+			'1枚にまとめる',
+			'スクショ 連結',
+		],
+		related: ['image-edit', 'image-compress', 'image-convert'],
+		llmsFull: {
+			useCase:
+				'複数の画像を縦・横・グリッド（コンタクトシート）に結合し1枚の画像として出力。余白・背景色・並び替え・セルサイズ方針を指定可能',
+			inputs:
+				'imageFiles（画像ファイル群）, mode（vertical | horizontal | grid）, columns（グリッド列数）, gap（余白）, padding（外周）, background（背景色）',
+			outputs: '結合済み画像ファイル（PNG / JPEG / WebP）',
+			options:
+				'結合モード、列数、余白、外周、背景色（透過可）、セルサイズ方針、揃え、出力形式・品質',
 		},
 	},
 	{
@@ -641,7 +672,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'一括',
 			'ZIP',
 		],
-		related: ['upscale', 'image-compress', 'image-crop', 'image-base64'],
+		related: ['image-compress', 'image-crop', 'image-base64', 'image-merge'],
 		llmsFull: {
 			useCase:
 				'iPhoneのHEIC形式やWebP/AVIF画像を汎用的なJPEG/PNG形式に相互変換',
