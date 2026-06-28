@@ -1,3 +1,5 @@
+import { getNextCodePointIndex } from '../string-utils';
+
 export interface RegexMatch {
 	value: string;
 	index: number;
@@ -31,6 +33,66 @@ export const COMMON_PATTERNS = [
 ];
 
 const TIMEOUT_MS = 500;
+const MAX_MATCHES = 5000;
+
+/**
+ * 正規表現を評価する同期純粋関数（Web Worker内およびテストで共有）
+ */
+export function execRegexSync(
+	pattern: string,
+	flags: string,
+	text: string,
+	replacement?: string,
+): RegexResult {
+	if (!pattern) return { matches: [] };
+
+	try {
+		const regex = new RegExp(pattern, flags);
+		const matches: RegexMatch[] = [];
+
+		if (regex.global) {
+			let match: RegExpExecArray | null = regex.exec(text);
+			while (match !== null) {
+				matches.push({
+					value: match[0],
+					index: match.index,
+					groups: match.slice(1),
+				});
+
+				if (matches.length >= MAX_MATCHES) {
+					break;
+				}
+
+				if (match.index === regex.lastIndex) {
+					regex.lastIndex = getNextCodePointIndex(text, regex.lastIndex);
+				}
+
+				match = regex.exec(text);
+			}
+		} else {
+			const match = regex.exec(text);
+			if (match) {
+				matches.push({
+					value: match[0],
+					index: match.index,
+					groups: match.slice(1),
+				});
+			}
+		}
+
+		let replacedText: string | undefined;
+		if (replacement !== undefined) {
+			replacedText = text.replace(regex, replacement);
+		}
+
+		return { matches, replacedText };
+	} catch (err: unknown) {
+		return {
+			matches: [],
+			error: err instanceof Error ? err.message : String(err),
+		};
+	}
+}
 
 export async function testRegex(
 	pattern: string,

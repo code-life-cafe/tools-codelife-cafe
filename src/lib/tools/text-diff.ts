@@ -33,8 +33,14 @@ export function computeDiff(
 	textB: string,
 	mode: DiffMode,
 ): DiffResult {
-	const changes =
-		mode === 'lines' ? diffLines(textA, textB) : diffChars(textA, textB);
+	let changes: Change[];
+	if (mode === 'lines') {
+		const normA = textA === '' || textA.endsWith('\n') ? textA : `${textA}\n`;
+		const normB = textB === '' || textB.endsWith('\n') ? textB : `${textB}\n`;
+		changes = diffLines(normA, normB);
+	} else {
+		changes = diffChars(textA, textB);
+	}
 	const parts = mapChanges(changes);
 
 	let addedLines = 0;

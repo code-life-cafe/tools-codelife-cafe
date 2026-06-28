@@ -79,8 +79,14 @@ export default function ZenkakuHankaku() {
 
 			{/* Input Textarea */}
 			<div>
-				<Label className="text-sm font-medium mb-2 block">入力テキスト</Label>
+				<Label
+					htmlFor="zenkaku-input"
+					className="text-sm font-medium mb-2 block"
+				>
+					入力テキスト
+				</Label>
 				<Textarea
+					id="zenkaku-input"
 					value={input}
 					onChange={(e) => setInput(e.target.value)}
 					placeholder="ＡＢＣ１２３カタカナ（全角）→ ABC123ｶﾀｶﾅ（半角）"

@@ -8,6 +8,7 @@ interface CopyButtonProps {
 	variant?: 'default' | 'outline' | 'ghost' | 'secondary';
 	size?: 'default' | 'sm' | 'lg' | 'icon';
 	className?: string;
+	disabled?: boolean;
 }
 
 export default function CopyButton({
@@ -16,6 +17,7 @@ export default function CopyButton({
 	variant = 'outline',
 	size = 'sm',
 	className = '',
+	disabled = false,
 }: CopyButtonProps) {
 	const [copied, setCopied] = useState(false);
 
@@ -44,6 +46,7 @@ export default function CopyButton({
 			variant={variant}
 			size={size}
 			onClick={handleCopy}
+			disabled={disabled}
 			className={`transition-all ${copied ? 'copy-flash text-safety border-safety/50' : ''} ${className}`}
 			aria-label={copied ? 'コピーしました' : label}
 		>

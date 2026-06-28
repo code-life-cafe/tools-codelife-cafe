@@ -91,17 +91,32 @@ export function JsonCsvPage() {
 		setResult(null);
 	}, []);
 
-	const handleFileSelect = useCallback(async (file: File) => {
-		try {
-			setInput(await file.text());
-		} catch (_error) {
-			setResult({ ok: false, error: 'ファイルの読み込みに失敗しました。' });
-		}
-	}, []);
+	const handleFileSelect = useCallback(
+		async (file: File) => {
+			try {
+				const text = await file.text();
+				setInput(text);
+				setResult(
+					direction === 'json-to-csv'
+						? jsonToCsv(text, jsonOpts)
+						: csvToJson(text, csvOpts),
+				);
+			} catch (_error) {
+				setResult({ ok: false, error: 'ファイルの読み込みに失敗しました。' });
+			}
+		},
+		[direction, jsonOpts, csvOpts],
+	);
 
 	const handleSample = useCallback(() => {
-		setInput(direction === 'json-to-csv' ? SAMPLE_JSON : SAMPLE_CSV);
-	}, [direction]);
+		const sampleText = direction === 'json-to-csv' ? SAMPLE_JSON : SAMPLE_CSV;
+		setInput(sampleText);
+		setResult(
+			direction === 'json-to-csv'
+				? jsonToCsv(sampleText, jsonOpts)
+				: csvToJson(sampleText, csvOpts),
+		);
+	}, [direction, jsonOpts, csvOpts]);
 
 	const handleDownload = useCallback(() => {
 		if (!result?.ok || !result.output) return;

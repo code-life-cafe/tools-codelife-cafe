@@ -24,12 +24,23 @@ export interface MaskResult {
 const SURNAMES =
 	'佐藤|鈴木|高橋|田中|伊藤|渡辺|山本|中村|小林|加藤|吉田|山田|佐々木|山口|松本|井上|木村|林|斎藤|清水|山崎|森|池田|橋本|阿部|石川|山下|中島|石井|小川';
 
+const D = '[0-9０-９]';
+const H = '[-－]';
+const Z = '[0０]';
+const M_PRE = '[0０][7７8８9９][0０]';
+
 const PATTERNS = {
 	email: /([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g,
-	phone: /(?:0[789]0-\d{4}-\d{4}|0\d{1,4}-\d{1,4}-\d{4}|0\d{9,10})/g,
-	zipcode: /\b\d{3}-\d{4}\b/g,
-	card: /\b(?:\d{4}[ -]?){3}\d{4}\b/g,
-	mynumber: /\b\d{12}\b/g,
+	phone: new RegExp(
+		`(?:${M_PRE}${H}${D}{4}${H}${D}{4}|${Z}${D}{1,4}${H}${D}{1,4}${H}${D}{4}|${Z}${D}{9,10})`,
+		'g',
+	),
+	zipcode: new RegExp(`(?<![0-9０-９])${D}{3}${H}${D}{4}(?![0-9０-９])`, 'g'),
+	card: new RegExp(
+		`(?<![0-9０-９])(?:${D}{4}[ ${H}]?){3}${D}{4}(?![0-9０-９])`,
+		'g',
+	),
+	mynumber: new RegExp(`(?<![0-9０-９])${D}{12}(?![0-9０-９])`, 'g'),
 	name: new RegExp(
 		`\\b(?:氏名|名前)[:：\\s]*([一-龯ぁ-んァ-ン]{2,10})|(${SURNAMES})([一-龯ぁ-んァ-ン]{1,3})\\b`,
 		'g',
@@ -66,9 +77,9 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 			counts.card++;
 			ranges.push({ start: offset, end: offset + match.length, type: 'card' });
 			if (strength === 'full') return maskChar.repeat(match.length);
-			const digits = match.replace(/[ -]/g, '');
+			const digits = match.replace(/[ -－]/g, '');
 			const last4 = digits.slice(-4);
-			return match.replace(/\d/g, () => maskChar).slice(0, -4) + last4;
+			return match.replace(/[0-9０-９]/g, () => maskChar).slice(0, -4) + last4;
 		});
 	}
 
@@ -77,9 +88,10 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 			counts.phone++;
 			ranges.push({ start: offset, end: offset + match.length, type: 'phone' });
 			if (strength === 'full') return maskChar.repeat(match.length);
-			const parts = match.split('-');
+			const parts = match.split(/[-－]/);
 			if (parts.length === 3) {
-				return `${parts[0]}-${maskChar.repeat(parts[1].length)}-${parts[2]}`;
+				const sep = match.includes('－') ? '－' : '-';
+				return `${parts[0]}${sep}${maskChar.repeat(parts[1].length)}${sep}${parts[2]}`;
 			}
 			return (
 				match.slice(0, 3) +
@@ -98,7 +110,8 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 				type: 'zipcode',
 			});
 			if (strength === 'full') return maskChar.repeat(match.length);
-			return `${maskChar.repeat(3)}-${maskChar.repeat(4)}`;
+			const sep = match.includes('－') ? '－' : '-';
+			return `${maskChar.repeat(3)}${sep}${maskChar.repeat(4)}`;
 		});
 	}
 

@@ -114,12 +114,33 @@ const randomElement = <T>(arr: T[]): T =>
 const randomInt = (min: number, max: number) =>
 	Math.floor(Math.random() * (max - min + 1)) + min;
 
+export function validateDummyDataInput(
+	count: number,
+	fields: FieldType[],
+): string | null {
+	if (fields.length === 0) {
+		return '出力するフィールドを1つ以上選択してください。';
+	}
+	if (!Number.isInteger(count) || count < 1) {
+		return '生成件数は 1〜1000 件の範囲で指定してください。';
+	}
+	if (count > 1000) {
+		return '生成件数は 1〜1000 件の範囲で指定してください。';
+	}
+	return null;
+}
+
 // --- Generator ---
 export function generateDummyData(
 	fields: FieldType[],
 	count: number,
 	format: ExportFormat,
 ): string {
+	const validationError = validateDummyDataInput(count, fields);
+	if (validationError) {
+		throw new Error(validationError);
+	}
+
 	const rows = [];
 
 	for (let i = 0; i < count; i++) {

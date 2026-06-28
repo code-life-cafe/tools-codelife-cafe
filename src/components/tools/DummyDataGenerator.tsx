@@ -1,4 +1,5 @@
 import {
+	AlertTriangle,
 	Download,
 	GripVertical,
 	ListPlus,
@@ -24,6 +25,7 @@ import {
 	type ExportFormat,
 	type FieldType,
 	generateDummyData,
+	validateDummyDataInput,
 } from '@/lib/tools/dummy-data';
 
 const PRESETS: Record<string, FieldType[]> = {
@@ -58,30 +60,36 @@ export default function DummyDataGenerator() {
 	const [count, setCount] = useState<number>(10);
 	const [format, setFormat] = useState<ExportFormat>('json');
 
-	// To trigger re-generation without changing inputs
-	const [_refreshKey, setRefreshKey] = useState(0);
+	const [refreshKey, setRefreshKey] = useState(0);
 
 	const activeFields = useMemo(() => {
 		return fields.filter((f) => selectedFields.has(f.id)).map((f) => f.id);
 	}, [fields, selectedFields]);
 
+	const validationError = useMemo(() => {
+		return validateDummyDataInput(count, activeFields);
+	}, [count, activeFields]);
+
 	const [outputData, setOutputData] = useState('');
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	useEffect(() => {
+		if (validationError) {
+			setOutputData('');
+			return;
+		}
+
 		setIsGenerating(true);
 		const timer = setTimeout(() => {
-			if (activeFields.length === 0 || count < 1) {
+			try {
+				setOutputData(generateDummyData(activeFields, count, format));
+			} catch (_e) {
 				setOutputData('');
-			} else {
-				setOutputData(
-					generateDummyData(activeFields, Math.min(count, 1000), format),
-				);
 			}
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format]);
+	}, [activeFields, count, format, validationError, refreshKey]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];
@@ -130,7 +138,6 @@ export default function DummyDataGenerator() {
 		const preset = PRESETS[key];
 		if (preset) {
 			setSelectedFields(new Set(preset));
-			// Optionally reorder to match preset order
 			const orderedFields = [...ALL_FIELDS].sort((a, b) => {
 				const aIdx = preset.indexOf(a.id);
 				const bIdx = preset.indexOf(b.id);
@@ -144,7 +151,7 @@ export default function DummyDataGenerator() {
 	};
 
 	const handleDownload = () => {
-		if (!outputData) return;
+		if (!outputData || validationError) return;
 		const blob = new Blob([outputData], { type: 'text/plain;charset=utf-8' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -228,7 +235,7 @@ export default function DummyDataGenerator() {
 									max={1000}
 									value={count}
 									onChange={(e) => setCount(Number(e.target.value))}
-									className="rounded-xl"
+									className={`rounded-xl ${validationError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
 								/>
 							</div>
 
@@ -252,6 +259,7 @@ export default function DummyDataGenerator() {
 								onClick={() => setRefreshKey((k) => k + 1)}
 								className="w-full rounded-xl"
 								variant="secondary"
+								disabled={!!validationError}
 							>
 								<RefreshCw className="h-4 w-4 mr-2" />
 								再生成
@@ -271,11 +279,14 @@ export default function DummyDataGenerator() {
 								variant="outline"
 								size="sm"
 								onClick={handleDownload}
-								disabled={!outputData}
+								disabled={!outputData || !!validationError}
 							>
 								<Download className="h-4 w-4 mr-1" /> 保存
 							</Button>
-							<CopyButton text={outputData} />
+							<CopyButton
+								text={outputData}
+								disabled={!outputData || !!validationError}
+							/>
 						</div>
 					</div>
 
@@ -288,7 +299,13 @@ export default function DummyDataGenerator() {
 								</span>
 							</div>
 						)}
-						{activeFields.length === 0 ? (
+
+						{validationError ? (
+							<div className="flex-1 flex flex-col items-center justify-center text-destructive p-8 text-center bg-destructive/5">
+								<AlertTriangle className="h-10 w-10 mb-2 opacity-80" />
+								<p className="font-semibold text-base">{validationError}</p>
+							</div>
+						) : activeFields.length === 0 ? (
 							<div className="flex-1 flex items-center justify-center text-muted-foreground p-8 text-center">
 								左側のパネルから出力したいフィールドを選択してください
 							</div>

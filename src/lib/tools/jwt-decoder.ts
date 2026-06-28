@@ -19,28 +19,29 @@ function decodeBase64Url(segment: string): string {
 		normalized.length + ((4 - (normalized.length % 4)) % 4),
 		'=',
 	);
+
+	if (!/^[A-Za-z0-9+/]*={0,2}$/.test(padded)) {
+		throw new Error('無効なBase64URL文字が含まれています。');
+	}
+
 	const binary = atob(padded);
 	const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-	return new TextDecoder().decode(bytes);
+	return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
 function decodeJwtPart(segment: string): JwtDecodedPart {
 	const text = decodeBase64Url(segment);
+	const json = JSON.parse(text) as unknown;
 
-	try {
-		const json = JSON.parse(text) as unknown;
-		return {
-			json,
-			text,
-			formatted: JSON.stringify(json, null, 2),
-		};
-	} catch {
-		return {
-			json: null,
-			text,
-			formatted: text,
-		};
+	if (typeof json !== 'object' || json === null) {
+		throw new Error('JSONオブジェクトではありません。');
 	}
+
+	return {
+		json,
+		text,
+		formatted: JSON.stringify(json, null, 2),
+	};
 }
 
 function readNumericDate(payload: unknown, key: string): number | null {
@@ -105,13 +106,15 @@ export function decodeJwt(input: string, now = Date.now()): JwtDecodeResult {
 			error: null,
 			warnings,
 		};
-	} catch {
+	} catch (err) {
+		const message =
+			err instanceof Error ? err.message : 'JWTのデコードに失敗しました。';
 		return {
 			valid: false,
 			header: null,
 			payload: null,
 			signature: '',
-			error: 'Base64URLのデコードに失敗しました。JWTの形式を確認してください。',
+			error: `デコードエラー: ${message}`,
 			warnings: [],
 		};
 	}

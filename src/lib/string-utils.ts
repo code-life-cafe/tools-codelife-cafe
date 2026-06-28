@@ -1,26 +1,44 @@
 /**
- * コードポイント安全な文字列ユーティリティ
- * サロゲートペアやUnicode Code Point / Grapheme Cluster を安全に扱う共通関数群
+ * コードポイント単位で安全に文字列を操作するためのユーティリティ
  */
+
+/**
+ * 指定位置からサロゲートペアを考慮して次のコードポイントのインデックスを返す
+ */
+export function getNextCodePointIndex(str: string, index: number): number {
+	if (index >= str.length) return index + 1;
+	const code = str.charCodeAt(index);
+	// High surrogate (0xD800 - 0xDBFF)
+	if (code >= 0xd800 && code <= 0xdbff && index + 1 < str.length) {
+		const nextCode = str.charCodeAt(index + 1);
+		// Low surrogate (0xDC00 - 0xDFFF)
+		if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+			return index + 2;
+		}
+	}
+	return index + 1;
+}
 
 /**
  * 文字列をコードポイントの配列に分解する
  */
 export function getCodePoints(str: string): number[] {
-	const codePoints: number[] = [];
+	if (!str) return [];
+	const points: number[] = [];
 	for (const char of str) {
-		const cp = char.codePointAt(0);
-		if (cp !== undefined) {
-			codePoints.push(cp);
+		const code = char.codePointAt(0);
+		if (code !== undefined) {
+			points.push(code);
 		}
 	}
-	return codePoints;
+	return points;
 }
 
 /**
- * コードポイント配列から文字列を復元する
+ * コードポイントの配列から文字列を復元する
  */
 export function fromCodePoints(codePoints: number[]): string {
+	if (!codePoints || codePoints.length === 0) return '';
 	return String.fromCodePoint(...codePoints);
 }
 
@@ -31,14 +49,14 @@ export function fromCodePoints(codePoints: number[]): string {
  */
 export function escapeUnicode(str: string, useCodePointSyntax = false): string {
 	if (!str) return '';
-
+	const codePoints = getCodePoints(str);
 	let result = '';
-	for (const char of str) {
-		const codePoint = char.codePointAt(0);
-		if (codePoint === undefined) continue;
-
-		if (useCodePointSyntax) {
-			const hex = codePoint.toString(16).toUpperCase();
+	for (const codePoint of codePoints) {
+		// ASCII printable characters (except backslash) are kept as-is if desired, but usually all non-ASCII or non-printable are escaped.
+		if (codePoint < 128 && codePoint !== 92) {
+			result += String.fromCodePoint(codePoint);
+		} else if (useCodePointSyntax) {
+			const hex = codePoint.toString(16).padStart(4, '0');
 			result += `\\u{${hex}}`;
 		} else {
 			if (codePoint > 0xffff) {
@@ -67,15 +85,9 @@ export function unescapeUnicode(unicodeStr: string): string {
 	return unicodeStr.replace(
 		/\\u(?:\{([0-9a-fA-F]+)\}|([0-9a-fA-F]{4}))/g,
 		(_, hexCodePoint, hexCodeUnit) => {
-			if (hexCodePoint) {
-				const cp = parseInt(hexCodePoint, 16);
-				return String.fromCodePoint(cp);
-			}
-			if (hexCodeUnit) {
-				const cu = parseInt(hexCodeUnit, 16);
-				return String.fromCharCode(cu);
-			}
-			return _;
+			const hex = hexCodePoint || hexCodeUnit;
+			const code = parseInt(hex, 16);
+			return String.fromCodePoint(code);
 		},
 	);
 }
