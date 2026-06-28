@@ -62,7 +62,7 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 
 		const hashTool = lastCall.tools.find(
 			(t: WebMcpMockTool) => t.name === 'generate_hash',
-		)!;
+		);
 		expect(hashTool.inputSchema.required).toContain('text');
 		expect(hashTool.inputSchema.required).toContain('algorithm');
 	});
@@ -78,8 +78,8 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 
 		const result = await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			return await tool.execute({ text: 'hello', algorithm: 'md5' });
 		});
 
@@ -97,8 +97,8 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 
 		const result = (await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			return await tool.execute({ text: null });
 		})) as { isError: boolean; error: string };
 
@@ -149,7 +149,7 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 
 		const taxTool = lastCall.tools.find(
 			(t: WebMcpMockTool) => t.name === 'calc_tax',
-		)!;
+		);
 		expect(taxTool.inputSchema.required).toContain('amount');
 		expect(taxTool.inputSchema.required).toContain('taxRate');
 		expect(taxTool.inputSchema.required).toContain('mode');
@@ -166,8 +166,8 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 
 		const result = await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
 			return await tool.execute({
 				amount: 10000,
 				taxRate: '10',
@@ -195,8 +195,8 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 
 		const result = (await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
 			return await tool.execute({ amount: 'not a number' });
 		})) as { isError: boolean; error: string };
 
@@ -299,8 +299,8 @@ test.describe('WebMCP — no external network requests with input data', () => {
 
 		await page.evaluate(async (input) => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
 			await tool.execute({ text: input, algorithm: 'md5' });
 		}, secretInput);
 

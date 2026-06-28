@@ -29,7 +29,7 @@ test('formatJson: 小数点・指数表記はそのまま整形される', async
 	const result = formatJson('{"pi":3.14159,"sci":1.5e10}');
 	assert.equal(result.success, true);
 	const parsed = JSON.parse(result.output);
-	assert.ok(Math.abs(parsed.pi - 3.14159) < 1e-5);
+	assert.ok(Math.abs(parsed.pi - Math.PI) < 1e-5);
 });
 
 test('formatJson: 構文エラーは success=false で返す', () => {

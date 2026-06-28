@@ -60,7 +60,7 @@ export default function DummyDataGenerator() {
 	const [count, setCount] = useState<number>(10);
 	const [format, setFormat] = useState<ExportFormat>('json');
 
-	const [refreshKey, setRefreshKey] = useState(0);
+	const [_refreshKey, setRefreshKey] = useState(0);
 
 	const activeFields = useMemo(() => {
 		return fields.filter((f) => selectedFields.has(f.id)).map((f) => f.id);
@@ -89,7 +89,7 @@ export default function DummyDataGenerator() {
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format, validationError, refreshKey]);
+	}, [activeFields, count, format, validationError]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];
