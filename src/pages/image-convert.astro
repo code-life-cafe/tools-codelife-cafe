@@ -1,15 +1,16 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { ImageConvertPage } from '../components/image-convert/ImageConvertPage';
+
+const toolEntry = await getEntry('tools', 'image-convert');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: image-convert');
+}
 ---
 
-<ToolLayout
-  title="画像形式変換（HEIC・WebP・AVIF→JPEG/PNG）"
-  description="HEIC・WebP・AVIF・PNG・JPEG をブラウザだけで相互変換できる無料ツール。iPhoneのHEIC写真をJPEGに一括変換、品質指定・ZIP一括ダウンロード対応。完全クライアントサイド処理で画像はサーバーに送信されません。"
-  path="/image-convert"
->
+<ToolLayout tool={toolEntry}>
   <ImageConvertPage client:load />
-
   <div slot="usage" class="mt-8">
     <details class="group rounded-xl border border-border p-4" open>
       <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">

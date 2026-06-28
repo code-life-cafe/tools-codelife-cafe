@@ -1,44 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { TaxCalcPage } from '../components/tools/tax/TaxCalcPage';
+
+const toolEntry = await getEntry('tools', 'tax');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: tax');
+}
 ---
 
-<ToolLayout
-  title="消費税計算（税込・税抜・複数明細・軽減税率対応）"
-  description="消費税の税込・税抜金額をブラウザだけで即時計算できる無料ツール。複数明細の税率別集計、インボイス制度の端数処理、標準10%・軽減税率8%・過去税率に対応。登録不要・広告控えめ。"
-  path="/tax"
->
+<ToolLayout tool={toolEntry}>
   <TaxCalcPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>
-          消費税の税込・税抜金額をブラウザだけで即時に計算できる無料のオンラインツールです。「消費税 計算」「税込 計算」「税抜 計算」をしたいときに、単一金額または複数明細を入力するだけで自動的に結果が表示されます。サーバーへの送信は一切行われません。
-        </p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>
-            <strong>方向の選び方:</strong>
-            「税抜 → 税込」は商品の税抜価格から消費税額と税込価格を求めます。「税込 → 税抜」はレシートなどに記載された税込価格から消費税額と税抜価格を逆算します。複数明細モードでは、単価・数量・税率を行ごとに入力できます。
-          </li>
-          <li>
-            <strong>軽減税率の対象:</strong>
-            「軽減税率 計算」が必要なのは、飲食料品（酒類・外食を除く）や定期購読の新聞など、消費税法で定められた品目です。税率セレクタから「8%（軽減税率）」を選択すると、これらの品目向けの計算ができます。外食やお酒、テイクアウトでも一部対象外となる場合があるため、対象品目か不明な場合は国税庁の資料をご確認ください。
-          </li>
-          <li>
-            <strong>消費税 端数処理の使い分け:</strong>
-            「切り捨て」は最も一般的な処理方法で、多くの小売店のレジで採用されています。「四捨五入」は計算上の誤差を平均的に抑えたい場合に、「切り上げ」は税額を多めに見積もりたい場合に使用します。どの端数処理が適用されるかは事業者ごとに異なるため、実際の請求書・レシートと照合してご利用ください。
-          </li>
-          <li>
-            <strong>インボイス制度における端数処理の注意:</strong>
-            インボイス制度（適格請求書）では、税率ごとに合計した金額に対して端数処理を1回行うのが原則です。複数明細モードでは、明細ごとではなく税率区分ごとに合計してから端数処理するため、8%（軽減税率）と10%が混在する請求書・領収書の確認に使えます。
-          </li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

@@ -1,29 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import UnicodeConverterTool from '../components/tools/UnicodeConverter.tsx';
+
+const toolEntry = await getEntry('tools', 'unicode-converter');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: unicode-converter');
+}
 ---
 
-<ToolLayout
-  title="ユニコード変換"
-  description="テキストとユニコードエスケープシーケンス（\\uXXXX）を相互変換。完全クライアントサイド処理で安全に利用できます。"
-  path="/unicode-converter"
->
+<ToolLayout tool={toolEntry}>
   <UnicodeConverterTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>テキストとユニコードエスケープシーケンス（\\uXXXX）を相互に変換するツールです。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>JSONファイルなどに含まれる <code>\\uXXXX</code> 形式の文字列をデコードして読みたい場合</li>
-          <li>プログラムのソースコード内に直接記述するために、日本語などの文字をエスケープしたい場合</li>
-          <li>Webアプリケーションのレスポンスやログに含まれるユニコード文字列の解析</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

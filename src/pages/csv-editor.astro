@@ -1,34 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import CsvEditorTool from '../components/tools/CsvEditor.tsx';
+
+const toolEntry = await getEntry('tools', 'csv-editor');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: csv-editor');
+}
 ---
 
-<ToolLayout
-  title="CSVビューア/エディタ（Excel取込・フィルタ・グラフ）"
-  description="CSV・TSV・Excel(.xlsx)をブラウザだけで表示・編集・フィルタ・並べ替え・グラフ化できる無料ツール。Shift-JIS対応、完全クライアントサイド処理でデータは外部送信されません。"
-  path="/csv-editor"
->
+<ToolLayout tool={toolEntry}>
   <CsvEditorTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>Excelなどの専用ソフトを立ち上げずに、ブラウザ上で素早くCSV・TSV・Excel(.xlsx)ファイルを閲覧・編集・分析できます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>Excel(.xlsx) / TSV / CSVの直接読み込み</strong>: `.xlsx` ファイルの複数シート閲覧やTSVの取り込みに対応。</li>
-          <li><strong>高度な複数条件フィルタ</strong>: テキスト・数値・日付の型認識によるAND/OR複合条件絞り込み。</li>
-          <li><strong>マルチカラム安定ソート</strong>: 優先順位指定、日本語照合順序（五十音順）・数値・日付による並べ替え。</li>
-          <li><strong>ゼロ依存のSVGグラフ描画</strong>: 棒グラフ・折れ線・円グラフ・散布図の可視化とSVG/PNGエクスポート。</li>
-          <li><strong>テーブル編集＆Undo</strong>: セルの直接修正、行・列の追加・削除、元に戻す（Undo）操作。</li>
-        </ul>
-        <div class="mt-2 text-xs bg-muted/50 p-2 rounded">
-          🔒 完全クライアントサイド処理のため、入力データが外部サーバーに送信されることは一切ありません。
-        </div>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

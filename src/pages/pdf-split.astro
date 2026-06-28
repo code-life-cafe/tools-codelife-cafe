@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { PdfSplitPage } from '../components/pdf-split/PdfSplitPage';
+
+const toolEntry = await getEntry('tools', 'pdf-split');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: pdf-split');
+}
 ---
 
-<ToolLayout
-  title="PDF分割・ページ抽出（アップロード不要）"
-  description="PDFの分割・ページ抽出をブラウザだけで実行できる無料ツール。範囲指定・1ページずつ分割・ZIP一括ダウンロード対応。完全クライアントサイド処理でPDFはサーバーに送信されません。"
-  path="/pdf-split"
->
+<ToolLayout tool={toolEntry}>
   <PdfSplitPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>PDFを範囲指定で分割したり、必要なページだけを抽出できる無料のオンラインツールです。1ページずつ一枚ずつの分割やZIP一括ダウンロードにも対応。アップロードしない完全クライアントサイド処理のため、契約書・請求書などの機密PDFも安全に処理できます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>範囲記法:</strong> 「<code>1-3,5,8-</code>」のようにカンマ区切りで指定します。「<code>1-3</code>」は1〜3ページ、「<code>5</code>」は5ページのみ、「<code>8-</code>」は8ページから最後までを表します。全角数字や全角カンマもそのまま入力できます。</li>
-          <li><strong>「範囲で分割」と「ページ抽出」の違い:</strong> 範囲で分割は指定した範囲ごとに<strong>別々のPDF</strong>を作ります（例: <code>1-3,4-10</code> → 2ファイル）。ページ抽出は指定したページを<strong>1つのPDF</strong>にまとめます（例: <code>2,4</code> → 2ページのPDFが1つ）。</li>
-          <li><strong>複数ファイルはZIPで一括ダウンロード:</strong> 出力が2ファイル以上になる場合はZIPでまとめてダウンロードされます。個別のダウンロードリンクも一覧に表示されます。</li>
-          <li><strong>パスワード付きPDFは非対応:</strong> 暗号化されたPDFは分割できません。パスワードを解除してからお試しください（本ツールに復号機能はありません）。しおり（アウトライン）は分割後のPDFに引き継がれません。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

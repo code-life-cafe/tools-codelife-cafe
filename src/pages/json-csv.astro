@@ -1,42 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { JsonCsvPage } from '../components/tools/json-csv/JsonCsvPage';
+
+const toolEntry = await getEntry('tools', 'json-csv');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: json-csv');
+}
 ---
 
-<ToolLayout
-  title="JSON ↔ CSV 相互変換ツール"
-  description="JSONとCSVをブラウザだけで相互変換できる無料ツール。ネスト構造のフラット化、BOM付きUTF-8出力でExcelの文字化けも防止。完全クライアントサイド処理でデータはサーバーに送信されません。"
-  path="/json-csv"
->
+<ToolLayout tool={toolEntry}>
   <JsonCsvPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>
-          JSONとCSVの相互変換をオンラインで無料で行えるツールです。APIレスポンスのJSONをExcelで集計したいとき、CSVデータをプログラムで扱えるJSONにしたいときに、入力を貼り付けるだけで自動変換します。
-        </p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>
-            <strong>Excelで文字化けさせないコツ（BOM付きUTF-8）:</strong>
-            日本語のUTF-8 CSVをExcelで開くと文字化けすることがあります。これはExcelがBOM（バイトオーダーマーク）のないUTF-8をShift_JISと誤判定するためです。本ツールは「BOM付きUTF-8」オプションが標準でONになっており、ダウンロードしたCSVをそのままExcelで開いても文字化けしません。
-          </li>
-          <li>
-            <strong>ネストJSONのフラット化:</strong>
-            <code>{'{"user":{"name":"太郎"}}'}</code> のようなネスト構造は <code>user.name</code>
-            というドット記法の列に展開され、表計算ソフトでそのまま扱えます。配列は <code>items.0</code>
-            のようにインデックス付きの列になります。CSV→JSON方向では「ドット記法キーをネスト復元」をONにすると元の構造に戻せます。
-          </li>
-          <li>
-            <strong>型推論:</strong>
-            CSV→JSON変換時、数値・真偽値・空セル（null）を自動で型変換します。電話番号や郵便番号のような先頭ゼロ付きの値（007など）は文字列のまま保持されるので安心です。
-          </li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

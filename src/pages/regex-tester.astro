@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import RegexTesterTool from '../components/tools/RegexTester.tsx';
+
+const toolEntry = await getEntry('tools', 'regex-tester');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: regex-tester');
+}
 ---
 
-<ToolLayout
-  title="正規表現テスター"
-  description="正規表現のリアルタイムテスト・マッチ確認・置換。よく使うパターン集付き。"
-  path="/regex-tester"
->
+<ToolLayout tool={toolEntry}>
   <RegexTesterTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>ブラウザ上で即座に実行できる正規表現テスターです。マッチ箇所をハイライト表示し、キャプチャグループも確認できます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>プログラムに組み込む前の正規表現の挙動テスト</li>
-          <li>置換（Replace）モードで <code>$1</code> などの後方参照テスト</li>
-          <li>入力データから電話番号やURLだけを抽出できるかの検証</li>
-          <li>複雑なキャプチャグループのキャプチャ内容の確認</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

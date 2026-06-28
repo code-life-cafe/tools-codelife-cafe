@@ -1,35 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { OgpGeneratorPage } from '../components/ogp/OgpGeneratorPage';
+
+const toolEntry = await getEntry('tools', 'ogp');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: ogp');
+}
 ---
 
-<ToolLayout
-  title="OGP画像ジェネレーター（SNSシェアカード作成）"
-  description="テンプレートとテキストからOGP画像（1200×630）をブラウザだけで作成できる無料ツール。ブログやSNSのシェアカードに。完全クライアントサイド処理で画像・入力はサーバーに送信されません。"
-  path="/ogp"
->
+<ToolLayout tool={toolEntry}>
   <OgpGeneratorPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 OGP画像とは・使い方
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p><strong>OGP（Open Graph Protocol）画像</strong>は、TwitterやFacebook、LINEなどでURLをシェアしたときに表示されるサムネイル画像です。適切なOGP画像を設定することで、SNSでの視認性とクリック率を大幅に向上させることができます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>推奨サイズ:</strong> <code>1200×630px</code>（アスペクト比 1.91:1）がSNS各社で最も安定して表示されるサイズです。本ツールはこのサイズで出力します。</li>
-          <li><strong>文字数の目安:</strong> タイトルは<strong>20〜40文字</strong>が目安です。長すぎるとフォントサイズが小さくなり、短すぎると余白が目立ちます。</li>
-          <li><strong>テンプレートの選び方:</strong> ブログ記事には「シンプル」、イベント告知には「帯」、写真を活かしたい場合は「写真背景」がおすすめです。</li>
-          <li><strong>HTMLへの設定方法:</strong> ダウンロードした画像をサーバーにアップロードし、HTMLの<code>&lt;head&gt;</code>内に以下のタグを追加します。</li>
-        </ul>
-        <pre class="rounded-md bg-muted p-3 text-xs overflow-x-auto"><code>&lt;meta property="og:image" content="https://example.com/ogp.png" /&gt;
-&lt;meta property="og:image:width" content="1200" /&gt;
-&lt;meta property="og:image:height" content="630" /&gt;
-&lt;meta name="twitter:card" content="summary_large_image" /&gt;</code></pre>
-        <p class="text-xs">完全ローカル処理: テンプレート選択からPNG出力まで、すべてブラウザ内（Canvas API）で完結します。入力したテキストやアップロードした画像がサーバーに送信されることはありません。</p>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

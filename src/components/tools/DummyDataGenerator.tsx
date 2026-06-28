@@ -74,6 +74,7 @@ export default function DummyDataGenerator() {
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	useEffect(() => {
+		void refreshKey;
 		if (validationError) {
 			setOutputData('');
 			return;
@@ -89,7 +90,7 @@ export default function DummyDataGenerator() {
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format, validationError, refreshKey]);
+	}, [activeFields, count, format, refreshKey, validationError]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];

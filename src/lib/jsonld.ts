@@ -9,6 +9,8 @@ export interface ToolMeta {
 	path: string;
 	summary: string;
 	category?: string;
+	howto?: string[];
+	faq?: { q: string; a: string }[];
 }
 
 const BASE_URL = 'https://tools.codelife.cafe';
@@ -99,27 +101,29 @@ export function generateJsonLd(
 	categoryHref?: string,
 ): Record<string, unknown> {
 	const url = `${BASE_URL}${tool.path}`;
-	const appObj = {
-		'@type': 'SoftwareApplication',
-		'@id': `${url}#app`,
-		name: tool.title,
-		description: tool.summary,
-		url,
-		applicationCategory: 'UtilitiesApplication',
-		operatingSystem: 'Any',
-		inLanguage: 'ja',
-		isAccessibleForFree: true,
-		offers: {
-			'@type': 'Offer',
-			price: '0',
-			priceCurrency: 'JPY',
-			availability: 'https://schema.org/InStock',
+	const graph: unknown[] = [
+		{
+			'@type': 'SoftwareApplication',
+			'@id': `${url}#app`,
+			name: tool.title,
+			description: tool.summary,
 			url,
+			applicationCategory: 'UtilitiesApplication',
+			operatingSystem: 'Any',
+			inLanguage: 'ja',
+			isAccessibleForFree: true,
+			offers: {
+				'@type': 'Offer',
+				price: '0',
+				priceCurrency: 'JPY',
+				availability: 'https://schema.org/InStock',
+				url,
+			},
+			publisher: {
+				'@id': `${BASE_URL}/#org`,
+			},
 		},
-		publisher: {
-			'@id': `${BASE_URL}/#org`,
-		},
-	};
+	];
 
 	const items = [
 		{
@@ -152,13 +156,41 @@ export function generateJsonLd(
 		});
 	}
 
-	const breadcrumbObj = {
+	graph.push({
 		'@type': 'BreadcrumbList',
 		itemListElement: items,
-	};
+	});
+
+	if (tool.howto && tool.howto.length > 0) {
+		graph.push({
+			'@type': 'HowTo',
+			'@id': `${url}#howto`,
+			name: `${tool.title}の使い方`,
+			step: tool.howto.map((stepText, index) => ({
+				'@type': 'HowToStep',
+				position: index + 1,
+				text: stepText,
+			})),
+		});
+	}
+
+	if (tool.faq && tool.faq.length > 0) {
+		graph.push({
+			'@type': 'FAQPage',
+			'@id': `${url}#faq`,
+			mainEntity: tool.faq.map((item) => ({
+				'@type': 'Question',
+				name: item.q,
+				acceptedAnswer: {
+					'@type': 'Answer',
+					text: item.a,
+				},
+			})),
+		});
+	}
 
 	return {
 		'@context': 'https://schema.org',
-		'@graph': [appObj, breadcrumbObj],
+		'@graph': graph,
 	};
 }

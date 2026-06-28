@@ -177,28 +177,30 @@ test('jsonld: generateJsonLd が正しい @graph 構造を生成すること', (
 		path: '/test-tool',
 		summary: 'テスト用の概要です',
 		category: '開発ツール',
-		hasHowTo: true,
-		hasFaq: true,
-		faqItems: [{ question: '質問1', answer: '回答1' }],
+		howto: ['ステップ1', 'ステップ2'],
+		faq: [{ q: '質問1', a: '回答1' }],
 	};
 
-	const result = generateJsonLd(meta) as {
+	const result = generateJsonLd(meta, '/category/dev') as {
 		'@context': string;
 		'@graph': Array<Record<string, unknown>>;
 	};
 
 	assert.equal(result['@context'], 'https://schema.org');
 	assert.equal(Array.isArray(result['@graph']), true);
-	assert.equal(result['@graph'].length, 3);
+	assert.equal(result['@graph'].length, 4);
 
 	const software = result['@graph'][0];
 	assert.equal(software['@type'], 'SoftwareApplication');
 	assert.equal(software.name, 'テストツール');
 
-	const howto = result['@graph'][1];
+	const breadcrumb = result['@graph'][1];
+	assert.equal(breadcrumb['@type'], 'BreadcrumbList');
+
+	const howto = result['@graph'][2];
 	assert.equal(howto['@type'], 'HowTo');
 	assert.equal(howto.name, 'テストツールの使い方');
 
-	const faq = result['@graph'][2];
+	const faq = result['@graph'][3];
 	assert.equal(faq['@type'], 'FAQPage');
 });

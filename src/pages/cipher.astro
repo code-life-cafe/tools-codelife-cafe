@@ -1,29 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { CipherPage } from '../components/tools/cipher/CipherPage';
+
+const toolEntry = await getEntry('tools', 'cipher');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: cipher');
+}
 ---
 
-<ToolLayout
-  title="暗号化・難読化ツール"
-  description="シーザー暗号・ROT13・文字列反転・モールス信号をブラウザ内で変換。ひらがな・カタカナ対応のシーザー暗号、ブルートフォース解析付き。完全クライアントサイド処理でデータも安心。"
-  path="/cipher"
->
+<ToolLayout tool={toolEntry}>
   <CipherPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>シーザー暗号:</strong> シフト数を指定して文字をずらします。本ツールは英字だけでなく、ひらがな・カタカナにも対応しています。全パターンを確認するブルートフォース解析機能で、暗号化されたテキストの解読も可能です。</li>
-          <li><strong>ROT13:</strong> 13文字シフトする方式で、掲示板などのネタバレ防止によく利用されます。</li>
-          <li><strong>文字列反転:</strong> 文字列の順序を逆にします。サロゲートペアや結合文字（濁点など）も正しく維持されます。</li>
-          <li><strong>モールス信号:</strong> アマチュア無線や謎解き、CTFなどで使用されるモールス信号のエンコードおよびデコードに対応しています。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

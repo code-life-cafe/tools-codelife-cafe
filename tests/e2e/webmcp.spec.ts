@@ -56,15 +56,18 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 		);
 		expect(calls.length).toBeGreaterThan(0);
 
-		const lastCall = calls.at(-1)!;
+		const lastCall = calls.at(-1);
+		expect(lastCall).toBeDefined();
+		if (!lastCall) throw new Error('WebMCP registration call is missing');
 		const toolNames = lastCall.tools.map((t: WebMcpMockTool) => t.name);
 		expect(toolNames).toContain('generate_hash');
 
 		const hashTool = lastCall.tools.find(
 			(t: WebMcpMockTool) => t.name === 'generate_hash',
-		)!;
-		expect(hashTool.inputSchema.required).toContain('text');
-		expect(hashTool.inputSchema.required).toContain('algorithm');
+		);
+		expect(hashTool).toBeDefined();
+		expect(hashTool!.inputSchema.required).toContain('text');
+		expect(hashTool!.inputSchema.required).toContain('algorithm');
 	});
 
 	test('generate_hash execute returns correct hash for valid input', async ({
@@ -78,8 +81,9 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 
 		const result = await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
+			if (!tool) throw new Error('generate_hash tool is not registered');
 			return await tool.execute({ text: 'hello', algorithm: 'md5' });
 		});
 
@@ -97,8 +101,9 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 
 		const result = (await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
+			if (!tool) throw new Error('generate_hash tool is not registered');
 			return await tool.execute({ text: null });
 		})) as { isError: boolean; error: string };
 
@@ -143,16 +148,19 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 		);
 		expect(calls.length).toBeGreaterThan(0);
 
-		const lastCall = calls.at(-1)!;
+		const lastCall = calls.at(-1);
+		expect(lastCall).toBeDefined();
+		if (!lastCall) throw new Error('WebMCP registration call is missing');
 		const toolNames = lastCall.tools.map((t: WebMcpMockTool) => t.name);
 		expect(toolNames).toContain('calc_tax');
 
 		const taxTool = lastCall.tools.find(
 			(t: WebMcpMockTool) => t.name === 'calc_tax',
-		)!;
-		expect(taxTool.inputSchema.required).toContain('amount');
-		expect(taxTool.inputSchema.required).toContain('taxRate');
-		expect(taxTool.inputSchema.required).toContain('mode');
+		);
+		expect(taxTool).toBeDefined();
+		expect(taxTool!.inputSchema.required).toContain('amount');
+		expect(taxTool!.inputSchema.required).toContain('taxRate');
+		expect(taxTool!.inputSchema.required).toContain('mode');
 	});
 
 	test('calc_tax execute returns correct result for valid input', async ({
@@ -166,8 +174,9 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 
 		const result = await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
+			if (!tool) throw new Error('calc_tax tool is not registered');
 			return await tool.execute({
 				amount: 10000,
 				taxRate: '10',
@@ -195,8 +204,9 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 
 		const result = (await page.evaluate(async () => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'calc_tax');
+			if (!tool) throw new Error('calc_tax tool is not registered');
 			return await tool.execute({ amount: 'not a number' });
 		})) as { isError: boolean; error: string };
 
@@ -299,8 +309,9 @@ test.describe('WebMCP — no external network requests with input data', () => {
 
 		await page.evaluate(async (input) => {
 			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
-				.at(-1)!
-				.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash')!;
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'generate_hash');
+			if (!tool) throw new Error('generate_hash tool is not registered');
 			await tool.execute({ text: input, algorithm: 'md5' });
 		}, secretInput);
 

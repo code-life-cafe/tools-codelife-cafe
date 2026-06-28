@@ -1,15 +1,16 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { JwtDecoder } from '../components/tools/JwtDecoder';
+
+const toolEntry = await getEntry('tools', 'jwt-decoder');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: jwt-decoder');
+}
 ---
 
-<ToolLayout
-  title="JWTデコーダー"
-  description="JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認に使えます。"
-  path="/jwt-decoder"
->
+<ToolLayout tool={toolEntry}>
   <JwtDecoder client:load />
-
   <div slot="usage" class="mt-8">
     <details class="group rounded-xl border border-border p-4" open>
       <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">

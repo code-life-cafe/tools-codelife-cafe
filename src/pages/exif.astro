@@ -1,15 +1,16 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { ExifToolPage } from '../components/exif/ExifToolPage';
+
+const toolEntry = await getEntry('tools', 'exif');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: exif');
+}
 ---
 
-<ToolLayout
-  title="EXIF確認・削除（位置情報の除去）"
-  description="写真のEXIF（撮影日時・カメラ情報・GPS位置情報）をブラウザだけで確認し、ワンクリックで削除できる無料ツール。SNS投稿前のプライバシー対策に。完全クライアントサイド処理で画像はサーバーに送信されません。"
-  path="/exif"
->
+<ToolLayout tool={toolEntry}>
   <ExifToolPage client:load />
-
   <div slot="usage" class="mt-8">
     <details class="group rounded-xl border border-border p-4" open>
       <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">

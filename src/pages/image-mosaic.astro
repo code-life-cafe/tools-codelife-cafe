@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import ImageMosaicPage from '../components/image-mosaic/ImageMosaicPage';
+
+const toolEntry = await getEntry('tools', 'image-mosaic');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: image-mosaic');
+}
 ---
 
-<ToolLayout
-  title="画像モザイク・ぼかしツール"
-  description="画像の一部に四角形/円形のモザイク・ぼかしをブラウザだけでかけ、絵文字や任意画像スタンプも配置できる無料オンラインツール。スクリーンショットの個人情報や機密情報のマスキングに。完全クライアントサイド処理で画像はサーバーに送信されません。"
-  path="/image-mosaic"
->
+<ToolLayout tool={toolEntry}>
   <ImageMosaicPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>スクリーンショットや写真の見せたくない部分をドラッグで選択するだけで、ブラウザ内でモザイク・ぼかし加工やスタンプ配置ができる無料の画像マスキングツールです。インストール不要で、画像やスタンプ画像がサーバーに送信されることは一切ありません。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>スクリーンショットの個人情報マスキング:</strong> 画像を読み込み、氏名・メールアドレス・社外秘情報などが写っている範囲をドラッグで囲むだけ。四角形/円形を切り替えられ、複数の範囲に重ねて適用でき、元に戻す／やり直しにも対応しています。</li>
-          <li><strong>モザイクとぼかしの使い分け:</strong> 文字を確実に判読不能にしたい場合は「モザイク」（粗さを大きめに）、人物の顔や背景を自然に隠したい場合は「ぼかし」がおすすめです。顔など丸い対象は円形範囲で自然に隠せます。</li>
-          <li><strong>絵文字・任意画像スタンプ:</strong> 「絵文字」モードでは好きな絵文字を入力して配置できます。「画像スタンプ」モードではPNG/JPEG/WebPの任意画像ファイルを選び、ドラッグした範囲内に縦横比を保ったまま配置できます。</li>
-          <li><strong>完全ローカル処理:</strong> 加工はすべてお使いのブラウザ内（Canvas API）で完結します。元画像・スタンプ画像を外部サービスにアップロードせずにマスキングできるため、業務利用でも安心です。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

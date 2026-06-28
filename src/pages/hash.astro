@@ -1,42 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { HashPage } from '../components/tools/hash-generator/HashPage';
+
+const toolEntry = await getEntry('tools', 'hash');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: hash');
+}
 ---
 
-<ToolLayout
-  title="ハッシュ値計算ツール（MD5 / SHA-1 / SHA-256 / SHA-512 / CRC32）"
-  description="テキストやファイルのMD5・SHA-1・SHA-256・SHA-512・CRC32ハッシュ値をブラウザだけで計算できる無料ツール。期待値との照合でダウンロードファイルの改ざん・破損チェックも。完全クライアントサイド処理でデータはサーバーに送信されません。"
-  path="/hash"
->
+<ToolLayout tool={toolEntry}>
   <HashPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>
-          ハッシュ値の計算をオンラインで完結できるツールです。テキストはもちろん、ファイルをドラッグ＆ドロップするだけでSHA-256などのチェックサムを取得できます。すべてブラウザ内で処理されるため、機密ファイルを外部サービスに送信する必要はありません。
-        </p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>
-            <strong>ダウンロードファイルの改ざん・破損チェック:</strong>
-            配布元サイトに記載されたハッシュ値（チェックサム）をコピーし、「期待値との照合」欄に貼り付けます。ダウンロードしたファイルをドロップして計算すると、一致（✅）か不一致（❌）かを自動で判定します。MD5の確認にもツール上でそのまま対応できます。
-          </li>
-          <li>
-            <strong>アルゴリズムの使い分け:</strong>
-            セキュリティ用途（改ざん検知・パスワード関連など）には SHA-256 以上を使用してください。MD5・SHA-1
-            は衝突攻撃が知られているため、ファイルの同一性確認や互換目的に限定して使うことを推奨します。CRC32
-            は誤り検出向けの軽量なチェックサムです。
-          </li>
-          <li>
-            <strong>テキストのハッシュ化:</strong>
-            入力するたびに自動で計算されます。日本語や絵文字を含むテキストもUTF-8でエンコードして正確に計算します。
-          </li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

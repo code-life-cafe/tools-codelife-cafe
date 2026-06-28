@@ -1,10 +1,9 @@
 ---
 import { readFile } from 'node:fs/promises';
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { ZipcodePage } from '../components/zipcode/ZipcodePage';
 
-// データのバージョン（YYYY-MM）を metadata.json から取得する。
-// 未生成の場合でもビルドが通るよう、失敗時は空文字にフォールバックする。
 let dataVersion = '';
 try {
   const metaUrl = new URL(
@@ -19,31 +18,14 @@ try {
 const sourceLabel = dataVersion
   ? `出典: 日本郵便 郵便番号データ（${dataVersion}時点）`
   : '出典: 日本郵便 郵便番号データ';
+
+const toolEntry = await getEntry('tools', 'zipcode');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: zipcode');
+}
 ---
 
-<ToolLayout
-  title="郵便番号から住所変換（一括対応）"
-  description="郵便番号から住所をブラウザだけで検索・一括変換できる無料ツール。Excelからの貼り付け、CSVダウンロード対応。完全クライアントサイド処理で顧客リストなどの機密データもサーバーに送信されません。"
-  path="/zipcode"
->
+<ToolLayout tool={toolEntry}>
   <ZipcodePage client:load />
-
   <p class="mt-6 text-xs text-muted-foreground">{sourceLabel}</p>
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>郵便番号から住所をブラウザ内だけで検索・一括変換できる無料のオンラインツールです。顧客住所リストなどの機密データを外部APIに送信せず処理できるため、業務でも安心して使えます。日本郵便の郵便番号データをこのサイト内に静的ファイルとして同梱しており、入力した郵便番号が外部サーバーに送られることはありません。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>Excelの列からの一括変換:</strong> 「一括変換」タブを開き、Excelやスプレッドシートの郵便番号の列をコピーしてそのまま貼り付けます。「住所に変換」を押すと、都道府県・市区町村・町域に分割した結果が表示され、BOM付きUTF-8のCSV（Excelで文字化けしない形式）としてダウンロードできます。最大1万行まで対応しています。</li>
-          <li><strong>該当なし郵便番号の扱い:</strong> 入力が7桁の郵便番号として読み取れない行は「形式エラー」、データに存在しない郵便番号は「該当なし」と備考に表示されます。大口事業所の個別郵便番号（事業所固有番号）には対応していません。複数の町域がある郵便番号は1件目を採用し、備考に「他N件」と表示します。</li>
-          <li><strong>データの更新時期について:</strong> 住所データは日本郵便が公開する郵便番号データのスナップショットです（{dataVersion ? `${dataVersion}時点` : '配布時点'}）。最新の住所情報と差異がある場合があります。住所→郵便番号の逆引きには対応していません。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

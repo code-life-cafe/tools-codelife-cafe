@@ -1,15 +1,16 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
-import BgRemoveTool from '../components/tools/BgRemove.tsx';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import BgRemoveTool from '../components/tools/BgRemove';
+
+const toolEntry = await getEntry('tools', 'bg-remove');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: bg-remove');
+}
 ---
 
-<ToolLayout
-  title="背景削除"
-  description="AIがブラウザ内で画像の背景を自動削除。画像はアップロードされません。"
-  path="/bg-remove"
->
+<ToolLayout tool={toolEntry}>
   <BgRemoveTool client:load />
-
   <div slot="usage" class="mt-8">
     <details class="group rounded-xl border border-border p-4" open>
       <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">

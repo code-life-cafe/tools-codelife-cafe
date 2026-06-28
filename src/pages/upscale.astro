@@ -1,15 +1,16 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import UpscaleTool from '../components/upscale/UpscalePage.tsx';
+
+const toolEntry = await getEntry('tools', 'upscale');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: upscale');
+}
 ---
 
-<ToolLayout
-  title="画像アップスケール・ノイズ除去（ブラウザAI）"
-  description="画像をブラウザ内のAIで高解像度化（2x/4x）・ノイズ除去できる無料ツール。アップロード不要、完全クライアントサイド処理で画像はサーバーに送信されません。"
-  path="/upscale"
->
+<ToolLayout tool={toolEntry}>
   <UpscaleTool client:load />
-
   <div slot="usage" class="mt-8">
     <details class="group rounded-xl border border-border p-4" open>
       <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">

@@ -1,33 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { AiSpreadsheetPrompt } from '../components/tools/AiSpreadsheetPrompt';
+
+const toolEntry = await getEntry('tools', 'ai-spreadsheet-prompt');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: ai-spreadsheet-prompt');
+}
 ---
 
-<ToolLayout
-  title="AI表データプロンプト生成"
-  description="CSV・TSV・Excel貼り付けデータを、AIに分析や要約を依頼しやすいプロンプトへ変換します。"
-  path="/ai-spreadsheet-prompt"
->
+<ToolLayout tool={toolEntry}>
   <AiSpreadsheetPrompt client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>Excelやスプレッドシートからコピーした表データ、CSV、TSVを貼り付けるだけで、AIチャットにそのまま渡しやすいMarkdown表付きプロンプトを作成できます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>売上表やアンケート結果をAIに分析してもらう</li>
-          <li>CSVの表記ゆれ、欠損値、重複の確認観点をまとめる</li>
-          <li>表データをJSON化するための指示文を素早く作る</li>
-          <li>長い表は先頭行だけを共有し、追加行を分割して依頼する</li>
-        </ul>
-        <div class="mt-2 text-xs bg-muted/50 p-2 rounded">
-          ⚠️ 入力データはブラウザ内だけで処理されます。AIサービスへ送信する前に、個人情報や機密情報が含まれていないか必ず確認してください。
-        </div>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

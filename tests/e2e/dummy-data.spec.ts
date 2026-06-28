@@ -30,4 +30,20 @@ test.describe('Dummy Data Generator Tool', () => {
 		// 4. Verify output changes to CSV layout (should contain English header ID)
 		await expect(previewContainer).toContainText('name');
 	});
+	test('同一設定の再生成クリックで出力が変わる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('dummy-data');
+		await toolPage.goto();
+
+		const previewContainer = page.locator('pre');
+		await expect(previewContainer).toBeVisible();
+		const before = await previewContainer.textContent();
+
+		await page.getByRole('button', { name: '再生成' }).click();
+		await expect
+			.poll(async () => previewContainer.textContent())
+			.not.toEqual(before);
+	});
 });

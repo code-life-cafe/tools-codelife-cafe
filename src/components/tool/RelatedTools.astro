@@ -1,35 +1,53 @@
 ---
-import { toolCatalog } from '../../lib/tools/catalog';
+import { getRelatedTools, toolCatalog, type ToolCatalogItem } from '../../lib/tools/catalog';
 import ToolCard from '../common/ToolCard.astro';
 
 interface Props {
-	relatedSlugs: string[];
+	toolId?: string;
+	relatedSlugs?: string[];
 }
 
-const { relatedSlugs } = Astro.props;
+const { toolId, relatedSlugs } = Astro.props;
 
-// relatedSlugsに指定されたスラッグに対応するツールをtoolCatalogから取得（存在しないスラッグは自動除外・警告出力）
-const validTools = (relatedSlugs || [])
-	.map((slug) => {
-		// slugが "/csv-editor" や "csv-editor" の両方に対応
-		const cleanSlug = slug.replace(/^\//, '');
-		const found = toolCatalog.find((t) => t.id === cleanSlug || t.href === `/${cleanSlug}`);
-		if (!found) {
-			console.warn(`[RelatedTools] 関連ツール "${slug}" はカタログ内に存在しないため除外されました。`);
-		}
-		return found;
-	})
-	.filter((tool): tool is NonNullable<typeof tool> => tool !== undefined);
+// frontmatter の related を最優先し、不足分だけ catalog.ts の同カテゴリ補完を使う
+const LIMIT = 3;
+let validTools: ToolCatalogItem[] = [];
+const seen = new Set<string>();
+
+const normalizeSlug = (slug: string) => slug.replace(/^\//, '').replace(/^tools\//, '');
+const findBySlug = (slug: string) => {
+	const normalized = normalizeSlug(slug);
+	return toolCatalog.find((t) => t.id === normalized || t.href === `/${normalized}` || t.href === `/tools/${normalized}`);
+};
+const pushTool = (tool: ToolCatalogItem | undefined) => {
+	if (!tool || tool.id === toolId || seen.has(tool.id) || validTools.length >= LIMIT) return;
+	seen.add(tool.id);
+	validTools.push(tool);
+};
+
+for (const slug of relatedSlugs ?? []) {
+	pushTool(findBySlug(slug));
+}
+
+if (toolId && validTools.length < LIMIT) {
+	for (const tool of getRelatedTools(toolId, LIMIT)) {
+		pushTool(tool);
+	}
+} else if (!toolId && validTools.length === 0 && relatedSlugs && relatedSlugs.length > 0) {
+	const found = findBySlug(relatedSlugs[0]);
+	if (found) validTools = getRelatedTools(found.id, LIMIT);
+}
 ---
 
 {validTools.length > 0 && (
-	<section class="mt-12 pt-8 border-t border-border" aria-labelledby="related-tools-heading">
-		<h2 id="related-tools-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
-			<span>🔗</span> 関連ツール
+	<section id="related-tools-section" class="mt-8" aria-labelledby="related-tools-heading">
+		<h2 id="related-tools-heading" class="text-lg font-semibold mb-4 text-foreground">
+			関連ツール
 		</h2>
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 			{validTools.map((t) => (
 				<ToolCard
+					id={t.id}
 					title={t.title}
 					description={t.description}
 					href={t.href}

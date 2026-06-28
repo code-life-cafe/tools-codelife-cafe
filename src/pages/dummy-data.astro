@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import DummyDataGenerator from '../components/tools/DummyDataGenerator.tsx';
+
+const toolEntry = await getEntry('tools', 'dummy-data');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: dummy-data');
+}
 ---
 
-<ToolLayout
-  title="ダミーデータ生成（日本語）"
-  description="日本語の氏名・住所・電話番号等のダミーデータを一括生成。JSON/CSV/TSV出力対応。"
-  path="/dummy-data"
->
+<ToolLayout tool={toolEntry}>
   <DummyDataGenerator client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>画面モックアップやシステムのテスト稼働に必要な「それらしい日本語のリスト」を一瞬で生成します。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>データベースに初期投入するテストデータの用意</li>
-          <li>ワイヤーフレームやデザインカンプに流し込む大量の氏名や住所</li>
-          <li>マスキングされた個人情報ではなく、全く架空のリストが必要な場合</li>
-          <li>エクセルやスプレッドシートへの一括コピペ（TSV形式が便利）</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { PdfMergePage } from '../components/pdf-merge/PdfMergePage';
+
+const toolEntry = await getEntry('tools', 'pdf-merge');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: pdf-merge');
+}
 ---
 
-<ToolLayout
-  title="PDF結合（アップロード不要・ブラウザ完結）"
-  description="複数のPDFや画像を1つのPDFにブラウザだけで結合できる無料ツール。並べ替え対応、登録不要。完全クライアントサイド処理で契約書などの機密ファイルもサーバーに送信されません。"
-  path="/pdf-merge"
->
+<ToolLayout tool={toolEntry}>
   <PdfMergePage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>複数のPDFをまとめて1つのファイルにできる、無料のPDF結合ツールです。アップロードしない完全クライアントサイド処理のため、契約書・請求書・人事資料などの機密PDFも安全に結合できます。インストール・会員登録は不要で、ブラウザだけで完結します。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>結合順の変更:</strong> ファイル一覧の行をドラッグするか、上下の矢印ボタンで並べ替えられます。一覧の上から順に結合されます。</li>
-          <li><strong>画像をPDF化して差し込む:</strong> JPEG / PNG 画像もそのまま追加できます。画像は1枚につき1ページのPDFページとして、指定した位置に挿入されます（GIF・WebPは <a href="/image-compress" class="text-primary hover:underline">画像圧縮・リサイズ</a> で変換してください）。</li>
-          <li><strong>パスワード付きPDFは非対応:</strong> 暗号化されたPDFは結合できません。パスワードを解除してからお試しください（本ツールに復号機能はありません）。</li>
-          <li><strong>しおり・フォームの扱い:</strong> 結合後のPDFにはしおり（アウトライン）は引き継がれません。フォームフィールド（AcroForm）の完全な保持も保証されません。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

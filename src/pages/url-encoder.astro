@@ -1,27 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import UrlEncoderTool from '../components/tools/UrlEncoder.tsx';
+
+const toolEntry = await getEntry('tools', 'url-encoder');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: url-encoder');
+}
 ---
 
-<ToolLayout
-  title="URLエンコード / デコード"
-  description="日本語を含むURLやクエリパラメータをブラウザ内で安全にエンコード・デコードします。encodeURIComponent と encodeURI モード切替対応。"
-  path="/url-encoder"
->
+<ToolLayout tool={toolEntry}>
   <UrlEncoderTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>コンポーネントモード</strong>: クエリパラメータやURLの一部を変換したい場合に使用します (<code>encodeURIComponent</code> 相当)。<code>/</code> や <code>?</code> などもエンコードされます。</li>
-          <li><strong>フルURLモード</strong>: URL全体を変換したい場合に使用します (<code>encodeURI</code> 相当)。<code>http://</code> や <code>/</code> 構造文字はエンコードされずにそのまま残ります。</li>
-          <li>ログやGETリクエストから取得したエンコード済み文字列を読める状態に戻したい（デコードしたい）。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import Base64Converter from '../components/tools/Base64Converter.tsx';
+
+const toolEntry = await getEntry('tools', 'base64');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: base64');
+}
 ---
 
-<ToolLayout
-  title="Base64エンコード/デコード"
-  description="テキスト・ファイルのBase64エンコード/デコードをブラウザ内で実行。Data URI出力対応。"
-  path="/base64"
->
+<ToolLayout tool={toolEntry}>
   <Base64Converter client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>テキストやファイルをBase64形式にエンコード、またはBase64からデコードするツールです。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>Basic認証用のヘッダー文字列を生成したい</li>
-          <li>APIのペイロードに含まれるBase64文字列をデコードして読みたい</li>
-          <li>小さな画像ファイルをCSSやHTMLに直接埋め込むためにData URI形式に変換したい</li>
-          <li>フォントファイルなどをBase64化してバンドルしたい</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

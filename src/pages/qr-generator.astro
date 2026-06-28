@@ -1,32 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import QrGeneratorTool from '../components/tools/QrGenerator.tsx';
 
-
+const toolEntry = await getEntry('tools', 'qr-generator');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: qr-generator');
+}
 ---
 
-<ToolLayout
-  title="QRコード生成"
-  description="URLやテキストからQRコードを即座に生成。サイズ・色のカスタマイズ、PNG/SVGダウンロード対応。"
-  path="/qr-generator"
->
+<ToolLayout tool={toolEntry}>
   <QrGeneratorTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>URLやテキストを入力するだけでQRコードを生成できます。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>WebサイトのURLをQRコードにしたい</li>
-          <li>印刷物に掲載するQRコードを作成したい</li>
-          <li>Wi-Fi接続情報をQRコードで共有したい</li>
-          <li>名刺やちらしに載せるQRコードが必要</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

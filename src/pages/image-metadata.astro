@@ -1,29 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import { ImageMetadataPage } from '../components/image-metadata/ImageMetadataPage';
+
+const toolEntry = await getEntry('tools', 'image-metadata');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: image-metadata');
+}
 ---
 
-<ToolLayout
-  title="画像メタデータ削除ツール（Exif / GPS 情報削除）"
-  description="JPEG・PNG・WebP画像のExifやGPS位置情報などのメタデータを、ブラウザ内だけで削除できる無料ツール。画像はサーバーに送信されません。"
-  path="/image-metadata"
->
+<ToolLayout tool={toolEntry}>
   <ImageMetadataPage client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・安全性
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>共有前の写真やスクリーンショットから、撮影日時・GPS位置情報・カメラ機種などの画像メタデータを削除します。Canvas APIで画像を再エンコードするため、処理はブラウザ内で完結します。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>位置情報の削除:</strong> スマートフォン写真に含まれるGPS情報を取り除き、SNSや資料共有前の安全確認に役立ちます。</li>
-          <li><strong>一括処理:</strong> JPEG・PNG・WebP画像を最大20枚までまとめて処理し、ZIPで一括ダウンロードできます。</li>
-          <li><strong>形式変換も可能:</strong> 元の形式を維持するほか、JPEG・PNG・WebPへの変換も選べます。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

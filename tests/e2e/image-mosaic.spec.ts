@@ -150,9 +150,10 @@ test.describe('画像モザイク・ぼかし', () => {
 			buffer: BLUE_PNG,
 		});
 		await expect(page.getByText('blue.png')).toBeVisible();
-		await dragOnCanvas(page, canvas, { x: 260, y: 200 }, { x: 320, y: 260 });
+		await dragOnCanvas(page, canvas, { x: 140, y: 140 }, { x: 220, y: 220 });
+		await page.waitForTimeout(500);
 		await expect
-			.poll(() => getCanvasPixel(page, 'editor-canvas', 290, 230))
+			.poll(() => getCanvasPixel(page, 'editor-canvas', 180, 180))
 			.toEqual(BLUE);
 	});
 

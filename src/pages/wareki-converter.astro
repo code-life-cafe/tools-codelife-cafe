@@ -1,30 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import WarekiConverterTool from '../components/tools/WarekiConverter.tsx';
+
+const toolEntry = await getEntry('tools', 'wareki-converter');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: wareki-converter');
+}
 ---
 
-<ToolLayout
-  title="和暦↔西暦変換"
-  description="明治〜令和の和暦と西暦を相互変換。干支・年齢も同時表示。ブラウザ内処理でデータ送信なし。"
-  path="/wareki-converter"
->
+<ToolLayout tool={toolEntry}>
   <WarekiConverterTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>西暦と和暦を素早く相互変換し、干支・年齢も確認できるツールです。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>履歴書や公的書類の作成時に年を変換したい</li>
-          <li>ある年の干支を調べたい</li>
-          <li>現在の年齢を確認したい</li>
-          <li>「令和元年」などの元年表記に対応</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

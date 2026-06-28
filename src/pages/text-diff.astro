@@ -1,32 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import TextDiffTool from '../components/tools/TextDiff.tsx';
 
-
+const toolEntry = await getEntry('tools', 'text-diff');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: text-diff');
+}
 ---
 
-<ToolLayout
-  title="テキスト差分比較"
-  description="2つのテキストの違いをハイライト表示。行単位・文字単位の切替対応。"
-  path="/text-diff"
->
+<ToolLayout tool={toolEntry}>
   <TextDiffTool client:load />
-
-  <div slot="usage" class="mt-8">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>2つのテキストを比較して差分をハイライト表示します。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li>設定ファイルの変更箇所を確認したい</li>
-          <li>コードレビューの差分を確認したい</li>
-          <li>文書のバージョン間の違いを比較したい</li>
-          <li>翻訳テキストの差分チェック</li>
-        </ul>
-      </div>
-    </details>
-  </div>
 </ToolLayout>

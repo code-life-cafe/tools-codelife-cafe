@@ -1,42 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import PhoneFormatterPage from '../components/phone-formatter/PhoneFormatterPage';
+
+const toolEntry = await getEntry('tools', 'phone-formatter');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: phone-formatter');
+}
 ---
 
-<ToolLayout
-  title="電話番号フォーマッタ & E.164変換"
-  description="日本の電話番号をE.164・国際表記・国内表記にワンクリック変換。固定電話・携帯・IP電話を自動判別。CSV一括変換対応。完全クライアントサイド処理で電話番号データも安心。"
-  path="/phone-formatter"
->
-  <div class="mt-8">
-    <PhoneFormatterPage client:load />
-  </div>
-
-  <div slot="usage" class="mt-12">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-4 text-sm text-muted-foreground">
-
-        <div>
-          <h3 class="font-semibold text-foreground mb-2">E.164形式とは？</h3>
-          <p>「国番号 + 市外局番の先頭0を除いた番号」の形式です。例: <code class="font-mono bg-muted px-1 rounded">03-1234-5678</code> → <code class="font-mono bg-muted px-1 rounded">+81312345678</code></p>
-          <p class="mt-1">SaaS・CRM・通話APIなどのシステム連携で国際標準として広く使われています。</p>
-        </div>
-
-        <div>
-          <h3 class="font-semibold text-foreground mb-2">主なユースケース</h3>
-          <ul class="list-disc pl-5 space-y-1">
-            <li><strong>SaaS連携:</strong> Salesforce・HubSpot等のCRMへのインポートにはE.164形式が必要なケースがあります。</li>
-            <li><strong>CRMデータクレンジング:</strong> 既存の顧客データベースの電話番号を統一フォーマットに変換。</li>
-            <li><strong>海外拠点との共有:</strong> 国際電話番号形式（+81）で互いに理解しやすい形式に変換。</li>
-            <li><strong>一括変換:</strong> CSV形式で複数の電話番号を一度に変換し、加工済みCSVをダウンロード。</li>
-          </ul>
-        </div>
-
-      </div>
-    </details>
-  </div>
+<ToolLayout tool={toolEntry}>
+  <PhoneFormatterPage client:load />
 </ToolLayout>

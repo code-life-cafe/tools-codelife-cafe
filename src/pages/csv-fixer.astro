@@ -1,31 +1,14 @@
 ---
-import ToolLayout from '../components/common/ToolLayout.astro';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
 import CsvFixerTool from '../components/tools/CsvFixer';
+
+const toolEntry = await getEntry('tools', 'csv-fixer');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: csv-fixer');
+}
 ---
 
-<ToolLayout
-  title="CSV文字化け修復"
-  description="ファイルをドラッグ＆ドロップするだけでCSVの文字化けを修復。Shift_JIS・UTF-8・EUC-JPの自動検出・変換、BOM付与、改行コード統一に対応。完全クライアントサイド処理で安心。"
-  path="/csv-fixer"
->
-  <div class="mt-8">
-    <CsvFixerTool client:load />
-  </div>
-
-  <div slot="usage" class="mt-12">
-    <details class="group rounded-xl border border-border p-4" open>
-      <summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
-        📖 使い方・ユースケース
-        <span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
-      </summary>
-      <div class="mt-4 space-y-3 text-sm text-muted-foreground">
-        <p>Excelで開くと文字化けしてしまうCSVファイルを、正常に読み込める形式に変換するツールです。</p>
-        <ul class="list-disc pl-5 space-y-1">
-          <li><strong>システムからダウンロードしたCSVが文字化けする:</strong> 大半はUTF-8で出力されていますが、日本のExcelは標準でShift_JISとして読み込もうとするため文字化けが発生します。「BOM付きUTF-8」または「Shift_JIS」に変換することで解決します。</li>
-          <li><strong>Macで作ったCSVをWindowsに渡したい:</strong> 改行コードが異なる場合があります。改行コードの設定で「CRLF (Windows)」を指定して変換してください。</li>
-          <li><strong>即時変換モード:</strong> 同じ形式のファイルを繰り返し処理する場合、オプションで「即時変換」をオンにすると、ドラッグ＆ドロップ後すぐに変換済みのファイルがダウンロードされます。</li>
-        </ul>
-      </div>
-    </details>
-  </div>
+<ToolLayout tool={toolEntry}>
+  <CsvFixerTool client:load />
 </ToolLayout>
