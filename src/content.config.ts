@@ -27,7 +27,7 @@ const toolsCollection = defineCollection({
 			z.object({
 				q: z.string(),
 				a: z.string(),
-			})
+			}),
 		),
 		related: z.array(z.string()).default([]),
 		updated: z.coerce.date(),
