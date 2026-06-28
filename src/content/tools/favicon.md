@@ -1,7 +1,7 @@
 ---
-title: "ファビコン生成（マルチサイズICO・PWA一括対応）"
+title: "ファビコン生成"
 description: "1枚の画像から favicon.ico・各サイズPNG・apple-touch-icon・Android用アイコン・site.webmanifest をブラウザだけで一括生成。"
-category: "生成ツール"
+category: "開発ツール"
 summary: "1枚の画像から favicon.ico や各サイズPNG、apple-touch-icon、PWA用マニフェストアイコンを一括生成。各種デバイスやブラウザに対応するファビコンセットが手軽に揃います。"
 useCases:
   - "自作WebサイトやWebアプリケーションのファビコン（アイコン）を素早く用意したい"
@@ -16,8 +16,8 @@ faq:
     a: "512×512px以上の正方形画像（PNG/JPEG/WebP/SVG）を推奨します。高解像度の原本を使うことで縮小時も綺麗に生成されます。"
   - q: "どのようなファイルとコードが出力されますか？"
     a: "favicon.ico（16/32/48px内包）、apple-touch-icon.png（180px）、Android用アイコン（192/512px）、site.webmanifest および HTML記述用 `<link>` タグが出力されます。"
-  - q: "アップロードしたロゴ画像が外部サーバーに蓄積されることはありますか？"
-    a: "ありません。ICO形式へのマルチサイズエンコードを含め、すべての処理はお使いのブラウザ内（Canvas API）で完結します。"
+  - q: "PWA対応に必要な manifest.json や各種サイズのアイコン一式もまとめて生成されますか？"
+    a: "はい。.ico ファイルに加え、192x192, 512x512, apple-touch-icon などの主要サイズセットをZIPで一括出力します。"
 related:
   - "image-compress"
   - "color"

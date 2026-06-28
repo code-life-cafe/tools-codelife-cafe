@@ -1,7 +1,7 @@
 ---
 title: "カラーコード変換"
 description: "HEX・RGB・HSL・CMYKのカラーコードをブラウザだけで相互変換できる無料ツール。カラーピッカー連動・ワンクリックコピー対応。登録不要、完全クライアントサイド処理。"
-category: "ユーティリティ"
+category: "開発ツール"
 summary: "「この色、RGBだと何？」「HEXをCMYKにしたい」を一発解決。HEX・RGB・HSL・CMYKを相互変換。カラーピッカー連動・ワンクリックコピーでデザイン作業が加速。"
 useCases:
   - "WebデザインのHEXカラーを印刷用のCMYKに変換したい"

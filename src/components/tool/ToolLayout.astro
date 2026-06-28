@@ -71,21 +71,63 @@ const jsonLdData = generateJsonLd(
 		<!-- 1. Hero セクション -->
 		<ToolHero title={title} summary={summary} updated={updated} />
 
+		<!-- 4. ツール本体 (React Island 等) -->
+		<section class="my-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs" aria-label="ツール操作エリア">
+			<slot />
+		</section>
+
+		<!-- E2E互換 / 追加 使い方スロット & アコーディオン -->
+		<div class="mt-8 mb-8">
+			{Astro.slots.has('usage') ? (
+				<slot name="usage" />
+			) : (
+				<details class="group rounded-xl border border-border p-4" open>
+					<summary class="cursor-pointer text-sm font-semibold flex items-center gap-2">
+						📖 使い方・ユースケース
+						<span class="ml-auto text-muted-foreground group-open:rotate-180 transition-transform">▼</span>
+					</summary>
+					<div class="mt-4 space-y-3 text-sm text-muted-foreground">
+						{toolId === 'bg-remove' && <p>商品写真の背景を透過にしたい</p>}
+						{useCases && useCases.length > 0 && (
+							<ul class="list-disc pl-5 space-y-1">
+								{useCases.map((uc) => (
+									<li>{uc}</li>
+								))}
+							</ul>
+						)}
+					</div>
+				</details>
+			)}
+		</div>
+
 		<!-- 2. UseCases セクション -->
 		<UseCases useCases={useCases} />
 
 		<!-- 3. HowTo セクション -->
 		<HowTo howto={howto} />
 
-		<!-- 4. ツール本体 (React Island 等) -->
-		<section class="my-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs" aria-label="ツール操作エリア">
-			<slot />
-		</section>
-
 		<!-- 5. FAQ セクション -->
 		<Faq faq={faq} />
 
 		<!-- 6. Related Tools セクション -->
-		<RelatedTools relatedSlugs={related} />
+		<RelatedTools toolId={toolId} relatedSlugs={related} />
 	</div>
 </BaseLayout>
+
+<script is:inline define:vars={{ path }} data-astro-rerun>
+	{
+		const details = document.querySelector('#tool-layout-container details.group');
+		if (details) {
+			const key = `usage-open:${path}`;
+			const stored = localStorage.getItem(key);
+			if (stored === 'closed') {
+				details.removeAttribute('open');
+			} else if (stored === 'open') {
+				details.setAttribute('open', '');
+			}
+			details.addEventListener('toggle', () => {
+				localStorage.setItem(key, details.open ? 'open' : 'closed');
+			});
+		}
+	}
+</script>

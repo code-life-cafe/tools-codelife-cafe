@@ -2,7 +2,7 @@
 title: "SQL整形・フォーマッター"
 description: "「このSQL、読みにくい…」を解決。SELECTの入れ子もJOINの連鎖も一瞬で整形。MySQL/PostgreSQL/BigQueryなど主要方言に対応。"
 category: "開発ツール"
-summary: "1行に潰れた長大クエリや複雑なサブクエリを、方言（MySQL, PostgreSQL, BigQuery等）に合わせて綺麗にインデント整形・1行化します。"
+summary: "1行に潰れた長大ログSQLや複雑なサブクエリを読みやすくインデント整形。MySQL・PostgreSQL・BigQueryなど各DBの方言に合わせたキーワード大文字化や1行圧縮も行える。"
 useCases:
   - "ログから拾った1行の長大SQLを読みやすくしたい"
   - "デバッグ中に整形して構造を把握したい"

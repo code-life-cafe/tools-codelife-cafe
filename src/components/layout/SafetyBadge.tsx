@@ -20,6 +20,7 @@ export default function SafetyBadge() {
 					<ShieldCheck className="h-4 w-4" />
 					<span className="hidden sm:inline">入力データは送信されません</span>
 					<span className="sm:hidden">ローカル処理</span>
+					<span className="sr-only">完全クライアントサイド処理</span>
 					<Info className="h-3 w-3 opacity-50" />
 				</button>
 			</PopoverTrigger>

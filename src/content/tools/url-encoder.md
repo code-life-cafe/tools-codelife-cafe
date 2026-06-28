@@ -1,8 +1,8 @@
 ---
-title: "URLエンコード/デコード"
+title: "URLエンコード / デコード"
 description: "「URLに日本語が入って文字化け…」を一発解決。クエリパラメータもパスも安全にエンコード/デコード。コンポーネント単位とフルURLの両モード対応。"
 category: "エンコード/デコード"
-summary: "日本語が含まれるURLやクエリパラメータの文字化けを防ぐエンコード/デコードツール。`encodeURI` / `encodeURIComponent` の両モードに対応。"
+summary: "日本語が含まれるURLをシェアした際の文字化けや、UTMパラメータ・APIクエリの送信エラーを防止。Component単位とFull URL単位の適切なエンコード/デコードを選択できる。"
 useCases:
   - "日本語を含むURLをシェアしたら文字化けした"
   - "Google AnalyticsのUTMパラメータに日本語キャンペーン名を入れたい"

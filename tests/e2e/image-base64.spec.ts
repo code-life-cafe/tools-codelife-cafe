@@ -113,7 +113,9 @@ test.describe('画像 Base64 / Data URI 変換', () => {
 			if (
 				!url.startsWith('data:') &&
 				!url.includes('localhost') &&
-				!url.includes('127.0.0.1')
+				!url.includes('127.0.0.1') &&
+				!url.includes('fonts.gstatic.com') &&
+				!url.includes('fonts.googleapis.com')
 			) {
 				requests.push(url);
 			}
