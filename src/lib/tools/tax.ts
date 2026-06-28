@@ -296,10 +296,16 @@ export function calculateInvoiceTax(
 	const grouped = new Map<string, InvoiceRateSummary>();
 	const calculatedLines = lines.map((line) => {
 		const lineAmount = line.amount * line.quantity;
+		const lineTaxResult = calculateTax({
+			amount: lineAmount,
+			rate: line.rate,
+			direction,
+			rounding,
+		});
 		const lineResult: InvoiceLineResult = {
 			...line,
-			base: direction === 'exclusive-to-inclusive' ? lineAmount : 0,
-			total: direction === 'inclusive-to-exclusive' ? lineAmount : 0,
+			base: lineTaxResult.base,
+			total: lineTaxResult.total,
 		};
 		const key = rateGroupKey(line.rate, line.reduced);
 		const current = grouped.get(key) ?? {
