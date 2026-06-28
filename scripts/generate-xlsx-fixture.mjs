@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// 決定的な ZIP (stored 方式) 生成関数
 function crc32(bytes) {
 	let c = 0xffffffff;
 	for (let i = 0; i < bytes.length; i++) {
@@ -29,8 +28,7 @@ function createZip(entries) {
 
 	for (const entry of entries) {
 		const nameBytes = encoder.encode(entry.name);
-		const data =
-			typeof entry.data === 'string' ? encoder.encode(entry.data) : entry.data;
+		const data = typeof entry.data === 'string' ? encoder.encode(entry.data) : entry.data;
 		const crcVal = crc32(data);
 		const size = data.length;
 
@@ -38,8 +36,8 @@ function createZip(entries) {
 		const lv = new DataView(local.buffer);
 		lv.setUint32(0, 0x04034b50, true);
 		lv.setUint16(4, 20, true);
-		lv.setUint16(6, 0x0800, true); // UTF-8
-		lv.setUint16(8, 0, true); // Stored
+		lv.setUint16(6, 0x0800, true);
+		lv.setUint16(8, 0, true);
 		lv.setUint16(10, 0, true);
 		lv.setUint16(12, 0x21, true);
 		lv.setUint32(14, crcVal, true);
@@ -88,10 +86,7 @@ function createZip(entries) {
 	ev.setUint32(16, offset, true);
 	ev.setUint16(20, 0, true);
 
-	const totalLen =
-		localParts.reduce((a, b) => a + b.length, 0) +
-		centralParts.reduce((a, b) => a + b.length, 0) +
-		eocd.length;
+	const totalLen = localParts.reduce((a, b) => a + b.length, 0) + centralParts.reduce((a, b) => a + b.length, 0) + eocd.length;
 	const result = new Uint8Array(totalLen);
 	let pos = 0;
 	for (const p of [...localParts, ...centralParts, eocd]) {
@@ -145,12 +140,13 @@ const entries = [
 	{
 		name: 'xl/sharedStrings.xml',
 		data: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="6" uniqueCount="6">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="7" uniqueCount="7">
   <si><t>名前</t></si>
   <si><t>年齢</t></si>
   <si><t>日付</t></si>
   <si><t>田中</t></si>
   <si><t>佐藤</t></si>
+  <si><t>部署名</t></si>
   <si><t>開発部</t></si>
 </sst>`,
 	},
@@ -195,6 +191,9 @@ const entries = [
     <row r="1">
       <c r="A1" t="s"><v>5</v></c>
     </row>
+    <row r="2">
+      <c r="A2" t="s"><v>6</v></c>
+    </row>
   </sheetData>
 </worksheet>`,
 	},
@@ -203,9 +202,6 @@ const entries = [
 const zipBytes = createZip(entries);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const outPath = path.join(
-	__dirname,
-	'../tests/fixtures/sample-multisheet.xlsx',
-);
+const outPath = path.join(__dirname, '../tests/fixtures/sample-multisheet.xlsx');
 fs.writeFileSync(outPath, zipBytes);
 console.log('Generated:', outPath);

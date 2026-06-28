@@ -32,17 +32,19 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 		);
 		await expect(page.getByRole('button', { name: /行を追加/i })).toBeVisible();
 
-		const inputs = page.locator('table input[type="text"]');
-		await expect(inputs.nth(0)).toHaveValue('名前');
-		await expect(inputs.nth(3)).toHaveValue('田中');
+		const tbodyInputs = page.locator('table tbody input[type="text"]');
+		// 1st data row (田中)
+		await expect(tbodyInputs.nth(0)).toHaveValue('田中');
+		// 2nd data row (佐藤)
+		await expect(tbodyInputs.nth(3)).toHaveValue('佐藤');
 
 		// Cell editing
-		await inputs.nth(3).fill('田中太郎');
-		await expect(inputs.nth(3)).toHaveValue('田中太郎');
+		await tbodyInputs.nth(0).fill('田中太郎');
+		await expect(tbodyInputs.nth(0)).toHaveValue('田中太郎');
 
 		// Undo
 		await page.getByRole('button', { name: 'Undo' }).click();
-		await expect(inputs.nth(3)).toHaveValue('田中');
+		await expect(tbodyInputs.nth(0)).toHaveValue('田中');
 	});
 
 	test('should import TSV file correctly', async ({ page, createToolPage }) => {
@@ -57,9 +59,9 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 			'data-state',
 			'active',
 		);
-		const inputs = page.locator('table input[type="text"]');
-		await expect(inputs.nth(0)).toHaveValue('名前');
-		await expect(inputs.nth(3)).toHaveValue('山田');
+		const tbodyInputs = page.locator('table tbody input[type="text"]');
+		await expect(tbodyInputs.nth(0)).toHaveValue('山田');
+		await expect(tbodyInputs.nth(3)).toHaveValue('鈴木');
 	});
 
 	test('should import multi-sheet XLSX and switch sheets', async ({
@@ -84,13 +86,12 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 		).toBeVisible();
 		await expect(page.getByRole('button', { name: /部署一覧/ })).toBeVisible();
 
-		const inputs = page.locator('table input[type="text"]');
-		await expect(inputs.nth(0)).toHaveValue('名前');
-		await expect(inputs.nth(3)).toHaveValue('田中');
+		const tbodyInputs = page.locator('table tbody input[type="text"]');
+		await expect(tbodyInputs.nth(0)).toHaveValue('田中');
 
 		// Switch sheet
 		await page.getByRole('button', { name: /部署一覧/ }).click();
-		await expect(inputs.nth(0)).toHaveValue('開発部');
+		await expect(tbodyInputs.nth(0)).toHaveValue('開発部');
 	});
 
 	test('should apply advanced filter, multi-sort, and render chart', async ({
@@ -112,11 +113,11 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 		// Add Filter Condition
 		await page.getByRole('button', { name: /条件を追加/ }).click();
 		const filterInput = page.locator('input[placeholder="値"]');
-		await filterInput.fill('100');
+		await filterInput.fill('ん'); // 品名に「ん」が含まれる (りんご, みかん) -> 2行
 
 		// Verify table filtered count in tab stats
 		await page.getByRole('tab', { name: /テーブル/ }).click();
-		await expect(page.locator('table tbody tr')).toHaveCount(3); // 価格 >= 100 or contains 100
+		await expect(page.locator('table tbody tr')).toHaveCount(2);
 
 		// Switch to Chart tab
 		await page.getByRole('tab', { name: /グラフ/ }).click();
