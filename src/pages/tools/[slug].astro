@@ -1,7 +1,8 @@
 ---
 import { getCollection } from 'astro:content';
 import ToolLayout from '../../components/tool/ToolLayout.astro';
-import CsvFixerTool from '../../components/tools/CsvFixer';
+import ToolIsland from '../../components/tool/ToolIsland';
+import { getToolComponent } from '../../components/tool/registry';
 
 export async function getStaticPaths() {
 	const toolEntries = await getCollection('tools');
@@ -13,14 +14,15 @@ export async function getStaticPaths() {
 
 const { entry } = Astro.props;
 const slug = entry.id;
+const hasComponent = getToolComponent(slug) !== null;
 ---
 
 <ToolLayout tool={entry}>
-	{slug === 'csv-mojibake' || slug === 'csv-fixer' ? (
-		<CsvFixerTool client:load />
+	{hasComponent ? (
+		<ToolIsland slug={slug} client:load />
 	) : (
 		<div class="p-8 text-center text-muted-foreground">
-			ツールコンポーネントを読み込んでいます...
+			このツールには操作エリアがありません。
 		</div>
 	)}
 </ToolLayout>

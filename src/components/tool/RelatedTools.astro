@@ -8,12 +8,16 @@ interface Props {
 
 const { relatedSlugs } = Astro.props;
 
-// relatedSlugsに指定されたスラッグに対応するツールをtoolCatalogから取得（存在しないスラッグは自動除外）
+// relatedSlugsに指定されたスラッグに対応するツールをtoolCatalogから取得（存在しないスラッグは自動除外・警告出力）
 const validTools = (relatedSlugs || [])
 	.map((slug) => {
 		// slugが "/csv-editor" や "csv-editor" の両方に対応
 		const cleanSlug = slug.replace(/^\//, '');
-		return toolCatalog.find((t) => t.id === cleanSlug || t.href === `/${cleanSlug}`);
+		const found = toolCatalog.find((t) => t.id === cleanSlug || t.href === `/${cleanSlug}`);
+		if (!found) {
+			console.warn(`[RelatedTools] 関連ツール "${slug}" はカタログ内に存在しないため除外されました。`);
+		}
+		return found;
 	})
 	.filter((tool): tool is NonNullable<typeof tool> => tool !== undefined);
 ---
