@@ -75,9 +75,9 @@ test.describe('Layout & Navigation', () => {
 
 		// 現在ページ（リンクなし、aria-current="page"）
 		const current = nav.locator('[aria-current="page"]');
-		await expect(current).toHaveText('CSVビューア/エディタ');
+		await expect(current).toHaveText(/^CSVビューア\/エディタ/);
 		await expect(
-			nav.getByRole('link', { name: 'CSVビューア/エディタ' }),
+			nav.getByRole('link', { name: /^CSVビューア\/エディタ/ }),
 		).toHaveCount(0);
 	});
 
@@ -111,7 +111,7 @@ test.describe('Layout & Navigation', () => {
 		expect(current).toMatchObject({
 			'@type': 'ListItem',
 			position: 3,
-			name: 'CSVビューア/エディタ',
+			name: 'CSVビューア/エディタ（Excel取込・フィルタ・グラフ）',
 		});
 		expect(current.item).toBeUndefined();
 	});

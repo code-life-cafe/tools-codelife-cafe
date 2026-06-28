@@ -16,6 +16,10 @@ const { title, description, path, ogImage = '/og-image.png' } = Astro.props;
 const siteName = "CODE:LIFE Tools";
 const siteUrl = "https://tools.codelife.cafe";
 const fullTitle = `${title} | ${siteName}`;
+
+// Cloudflare Web Analytics（Cookieレス・同意バナー不要・個人追跡なし）。
+// トークンは PUBLIC_CF_BEACON_TOKEN 環境変数から注入し、未設定時はビーコンを出力しない。
+const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
 ---
 
 <!DOCTYPE html>
@@ -88,5 +92,13 @@ const fullTitle = `${title} | ${siteName}`;
       });
     }
   </script>
+  {cfBeaconToken && (
+    <script
+      is:inline
+      defer
+      src="https://static.cloudflareinsights.com/beacon.min.js"
+      data-cf-beacon={JSON.stringify({ token: cfBeaconToken })}
+    ></script>
+  )}
 </body>
 </html>

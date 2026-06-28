@@ -12,11 +12,18 @@ export function encodeBase64(text: string): string {
 
 export function decodeBase64(base64: string): string {
 	try {
-		// Basic validation
-		if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64.replace(/\s/g, ''))) {
+		let cleaned = base64
+			.replace(/\s/g, '')
+			.replace(/-/g, '+')
+			.replace(/_/g, '/');
+		const pad = (4 - (cleaned.length % 4)) % 4;
+		if (pad === 1) cleaned += '=';
+		else if (pad === 2) cleaned += '==';
+
+		if (!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) {
 			throw new Error('不正なBase64文字列です。');
 		}
-		const binString = atob(base64);
+		const binString = atob(cleaned);
 		const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0) ?? 0);
 		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 	} catch (_error) {

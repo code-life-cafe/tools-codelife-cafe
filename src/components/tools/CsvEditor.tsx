@@ -3,11 +3,19 @@ import {
 	Copy,
 	Download,
 	FileSpreadsheet,
+	Filter,
+	PieChart,
 	Plus,
+	RotateCcw,
+	Table,
 	Trash2,
 	Upload,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChartPanel } from '@/components/csv-editor/ChartPanel';
+import { FilterPanel } from '@/components/csv-editor/FilterPanel';
+import { SheetPicker } from '@/components/csv-editor/SheetPicker';
+import { SortPanel } from '@/components/csv-editor/SortPanel';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -26,6 +34,18 @@ import {
 	getColumnLabel,
 	parseCsv,
 } from '@/lib/tools/csv-editor';
+import {
+	type Column,
+	type FilterGroup,
+	inferColumnType,
+	queryRows,
+	type SortKey,
+} from '@/lib/tools/table-query';
+import {
+	isDecompressionStreamSupported,
+	parseXlsx,
+	type SheetData,
+} from '@/lib/tools/xlsx-reader';
 
 const ROWS_PER_PAGE = 50;
 
@@ -33,25 +53,100 @@ export default function CsvEditor() {
 	const [activeTab, setActiveTab] = useState('input');
 	const [inputText, setInputText] = useState('');
 	const [delimiter, setDelimiter] = useState(',');
-
-	const [csvData, setCsvData] = useState<CsvData | null>(null);
-	const [error, setError] = useState<string>('');
 	const [hasHeader, setHasHeader] = useState(true);
 
+	// Multi-sheet XLSX support
+	const [sheets, setSheets] = useState<SheetData[]>([]);
+	const [activeSheetIdx, setActiveSheetIdx] = useState(0);
+
+	// Source of truth table data
+	const [csvData, setCsvData] = useState<CsvData | null>(null);
+	const [error, setError] = useState<string>('');
 	const [currentPage, setCurrentPage] = useState(1);
+
+	// Query pipeline states
+	const [filterGroup, setFilterGroup] = useState<FilterGroup>({
+		combinator: 'and',
+		conditions: [],
+	});
+	const [sortKeys, setSortKeys] = useState<SortKey[]>([]);
+
+	// Undo stack for row/cell edits only
+	const [undoStack, setUndoStack] = useState<string[][][]>([]);
+
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	// Sync table edits to text area
+	// Columns definition with type inference
+	const columns: Column[] = useMemo(() => {
+		if (!csvData || csvData.colCount === 0) return [];
+		const result: Column[] = [];
+		const headerRow =
+			hasHeader && csvData.rows.length > 0 ? csvData.rows[0] : null;
+		const sampleRows = hasHeader ? csvData.rows.slice(1) : csvData.rows;
+
+		for (let c = 0; c < csvData.colCount; c++) {
+			const colId = `c${c}`;
+			const name =
+				headerRow?.[c] && headerRow[c].trim() !== ''
+					? headerRow[c]
+					: `列 ${getColumnLabel(c)}`;
+			const samples = sampleRows.map((r) => r[c] ?? '');
+			const colType = inferColumnType(samples);
+			result.push({ id: colId, name, type: colType });
+		}
+		return result;
+	}, [csvData, hasHeader]);
+
+	// Display indices after filtering & sorting
+	const displayIndices = useMemo(() => {
+		if (!csvData) return [];
+		// If header is enabled, row index 0 is header row
+		const dataIndices = hasHeader
+			? Array.from(
+					{ length: Math.max(0, csvData.rows.length - 1) },
+					(_, i) => i + 1,
+				)
+			: Array.from({ length: csvData.rows.length }, (_, i) => i);
+
+		return queryRows(csvData.rows, columns, {
+			filter: filterGroup,
+			sortKeys,
+		}).filter((idx) => dataIndices.includes(idx));
+	}, [csvData, columns, filterGroup, sortKeys, hasHeader]);
+
+	// Sync table edits to text area when on input tab
 	useEffect(() => {
 		if (csvData && activeTab === 'edit') {
 			setInputText(exportCsv(csvData, delimiter));
 		}
 	}, [csvData, delimiter, activeTab]);
 
-	// Apply CSV parsing
+	// Push current state to undo stack before mutation
+	const pushUndo = useCallback(() => {
+		if (!csvData) return;
+		setUndoStack((prev) => [...prev.slice(-19), csvData.rows]);
+	}, [csvData]);
+
+	const handleUndo = () => {
+		if (undoStack.length === 0) return;
+		const previousRows = undoStack[undoStack.length - 1];
+		setUndoStack((prev) => prev.slice(0, -1));
+		if (previousRows) {
+			const maxCols = Math.max(...previousRows.map((r) => r.length), 1);
+			setCsvData({ rows: previousRows, colCount: maxCols });
+		}
+	};
+
+	const resetQueryState = useCallback(() => {
+		setFilterGroup({ combinator: 'and', conditions: [] });
+		setSortKeys([]);
+	}, []);
+
+	// Parse CSV text input
 	const handleParse = () => {
 		if (!inputText.trim()) {
 			setCsvData(null);
+			setSheets([]);
 			setError('');
 			return;
 		}
@@ -61,40 +156,104 @@ export default function CsvEditor() {
 			setCsvData(null);
 		} else {
 			setCsvData(data);
+			setSheets([{ name: 'Sheet1', rows: data.rows }]);
+			setActiveSheetIdx(0);
 			setError('');
 			setActiveTab('edit');
 			setCurrentPage(1);
+			setUndoStack([]);
+			resetQueryState();
 		}
 	};
 
-	// Upload file
+	// File Upload Handler (.csv, .tsv, .xlsx)
+	const processFile = async (file: File) => {
+		setError('');
+		const fileNameLower = file.name.toLowerCase();
+		const isXlsx = fileNameLower.endsWith('.xlsx');
+		const isTsv = fileNameLower.endsWith('.tsv');
+
+		if (isXlsx) {
+			if (!isDecompressionStreamSupported()) {
+				setError(
+					'お使いのブラウザは .xlsx ファイルの直接読み込みに対応していません。Excel で CSV としてエクスポートしてからお試しください。Chrome / Edge / Safari の最新版であれば直接読み込めます。',
+				);
+				return;
+			}
+			try {
+				const res = await parseXlsx(file);
+				if (res.sheets.length === 0) {
+					setError('有効なシートが見つかりませんでした。');
+					return;
+				}
+				setSheets(res.sheets);
+				setActiveSheetIdx(0);
+				const activeRows = res.sheets[0].rows;
+				const maxCols = Math.max(...activeRows.map((r) => r.length), 1);
+				setCsvData({ rows: activeRows, colCount: maxCols });
+				setInputText(
+					exportCsv({ rows: activeRows, colCount: maxCols }, delimiter),
+				);
+				setActiveTab('edit');
+				setCurrentPage(1);
+				setUndoStack([]);
+				resetQueryState();
+			} catch (err) {
+				setError(err instanceof Error ? err.message : String(err));
+			}
+		} else {
+			// CSV / TSV
+			const mappedDelim = isTsv ? '\t' : delimiter;
+			if (isTsv) setDelimiter('\t');
+
+			const reader = new FileReader();
+			reader.onload = (evt) => {
+				const text = evt.target?.result as string;
+				setInputText(text);
+				const { data, error: err } = parseCsv(text, mappedDelim);
+				if (err) {
+					setError(err);
+				} else {
+					setCsvData(data);
+					setSheets([{ name: file.name, rows: data.rows }]);
+					setActiveSheetIdx(0);
+					setError('');
+					setActiveTab('edit');
+					setCurrentPage(1);
+					setUndoStack([]);
+					resetQueryState();
+				}
+			};
+			reader.readAsText(file);
+		}
+	};
+
 	const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = (evt) => {
-			const text = evt.target?.result as string;
-			setInputText(text);
-			// Auto-detect TSV vs CSV poorly by extension, default to comma
-			const mappedDelim = file.name.endsWith('.tsv') ? '\t' : ',';
-			setDelimiter(mappedDelim);
-
-			const { data, error: err } = parseCsv(text, mappedDelim);
-			if (err) {
-				setError(err);
-			} else {
-				setCsvData(data);
-				setError('');
-				setActiveTab('edit');
-				setCurrentPage(1);
-			}
-		};
-		reader.readAsText(file);
-		// Reset input
+		processFile(file);
 		if (fileInputRef.current) fileInputRef.current.value = '';
 	};
 
-	// Download Output
+	const handleSelectSheet = (idx: number) => {
+		if (!sheets[idx]) return;
+		if (csvData) {
+			setSheets((prev) =>
+				prev.map((s, i) =>
+					i === activeSheetIdx ? { ...s, rows: csvData.rows } : s,
+				),
+			);
+		}
+		setActiveSheetIdx(idx);
+		const targetRows = sheets[idx].rows;
+		const maxCols = Math.max(...targetRows.map((r) => r.length), 1);
+		setCsvData({ rows: targetRows, colCount: maxCols });
+		setInputText(exportCsv({ rows: targetRows, colCount: maxCols }, delimiter));
+		setCurrentPage(1);
+		setUndoStack([]);
+	};
+
+	// Downloads
 	const handleDownload = () => {
 		if (!csvData) return;
 		const result = exportCsv(csvData, delimiter);
@@ -132,7 +291,7 @@ export default function CsvEditor() {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `exported.json`;
+		a.download = 'exported.json';
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
@@ -145,41 +304,44 @@ export default function CsvEditor() {
 		navigator.clipboard.writeText(result);
 	};
 
-	// Editor Actions
-	const updateCell = (rIdx: number, cIdx: number, value: string) => {
+	// Editor Cell / Row Mutations
+	const updateCell = (
+		originalRowIdx: number,
+		colIdx: number,
+		value: string,
+	) => {
 		if (!csvData) return;
+		pushUndo();
 		const newRows = [...csvData.rows];
-		newRows[rIdx] = [...newRows[rIdx]];
-		newRows[rIdx][cIdx] = value;
+		newRows[originalRowIdx] = [...newRows[originalRowIdx]];
+		newRows[originalRowIdx][colIdx] = value;
 		setCsvData({ ...csvData, rows: newRows });
 	};
 
 	const addRow = () => {
 		if (!csvData) return;
+		pushUndo();
 		const newRow = Array(csvData.colCount).fill('');
 		const newRows = [...csvData.rows, newRow];
 		setCsvData({ ...csvData, rows: newRows });
-		// Go to last page
-		setCurrentPage(Math.ceil(newRows.length / ROWS_PER_PAGE));
+		setCurrentPage(Math.ceil((displayIndices.length + 1) / ROWS_PER_PAGE));
 	};
 
-	const removeRow = (rIdx: number) => {
+	const removeRow = (originalRowIdx: number) => {
 		if (!csvData) return;
+		pushUndo();
 		const newRows = [...csvData.rows];
-		newRows.splice(rIdx, 1);
+		newRows.splice(originalRowIdx, 1);
 
-		// If no rows left, add one empty row to prevent complete break
 		if (newRows.length === 0) {
 			newRows.push(Array(csvData.colCount).fill(''));
 		}
-
 		setCsvData({ ...csvData, rows: newRows });
-		const totalPages = Math.ceil(newRows.length / ROWS_PER_PAGE);
-		if (currentPage > totalPages) setCurrentPage(Math.max(1, totalPages));
 	};
 
 	const addColumn = () => {
 		if (!csvData) return;
+		pushUndo();
 		const newColCount = csvData.colCount + 1;
 		const newRows = csvData.rows.map((r, rIdx) => {
 			if (rIdx === 0 && hasHeader) {
@@ -190,33 +352,58 @@ export default function CsvEditor() {
 		setCsvData({ rows: newRows, colCount: newColCount });
 	};
 
-	const removeColumn = (cIdx: number) => {
+	const removeColumn = (colIdx: number) => {
 		if (!csvData) return;
-		if (csvData.colCount <= 1) return; // Cannot remove last column
+		if (csvData.colCount <= 1) return;
+		pushUndo();
 		const newColCount = csvData.colCount - 1;
 		const newRows = csvData.rows.map((r) => {
 			const nr = [...r];
-			nr.splice(cIdx, 1);
+			nr.splice(colIdx, 1);
 			return nr;
 		});
 		setCsvData({ rows: newRows, colCount: newColCount });
 	};
 
-	const clearData = () => {
-		setCsvData(null);
-		setInputText('');
-		setActiveTab('input');
+	// Column Header Click Sort Helper
+	const handleHeaderClick = (colId: string) => {
+		const existing = sortKeys.find((k) => k.columnId === colId);
+		if (!existing) {
+			setSortKeys([{ columnId: colId, direction: 'asc' }]);
+		} else if (existing.direction === 'asc') {
+			setSortKeys([{ columnId: colId, direction: 'desc' }]);
+		} else {
+			setSortKeys([]);
+		}
 	};
 
-	// Pagination logic
-	const totalRows = csvData ? csvData.rows.length : 0;
-	const totalPages = Math.ceil(totalRows / ROWS_PER_PAGE) || 1;
+	const clearData = () => {
+		setCsvData(null);
+		setSheets([]);
+		setInputText('');
+		setActiveTab('input');
+		setFilterGroup({ combinator: 'and', conditions: [] });
+		setSortKeys([]);
+		setUndoStack([]);
+	};
+
+	// Pagination Math
+	const totalDisplayRows = displayIndices.length;
+	const totalPages = Math.ceil(totalDisplayRows / ROWS_PER_PAGE) || 1;
+
+	useEffect(() => {
+		if (currentPage > totalPages) {
+			setCurrentPage(totalPages);
+		}
+	}, [currentPage, totalPages]);
+
 	const startIndex = (currentPage - 1) * ROWS_PER_PAGE;
-	const endIndex = Math.min(startIndex + ROWS_PER_PAGE, totalRows);
-	const currentRows = csvData ? csvData.rows.slice(startIndex, endIndex) : [];
+	const endIndex = Math.min(startIndex + ROWS_PER_PAGE, totalDisplayRows);
+	const currentPageIndices = displayIndices.slice(startIndex, endIndex);
 
 	return (
 		<div className="space-y-6">
+			{/* Top Control Bar */}
 			<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-4 rounded-xl border">
 				<div className="flex items-center gap-4 flex-wrap">
 					<div>
@@ -253,7 +440,7 @@ export default function CsvEditor() {
 					<div className="pt-5">
 						<input
 							type="file"
-							accept=".csv,.tsv,.txt"
+							accept=".csv,.tsv,.xlsx,.txt"
 							className="hidden"
 							ref={fileInputRef}
 							onChange={handleFileUpload}
@@ -265,7 +452,9 @@ export default function CsvEditor() {
 							className="h-8"
 						>
 							<Upload className="h-4 w-4 sm:mr-2" />
-							<span className="hidden sm:inline">読込</span>
+							<span className="hidden sm:inline">
+								ファイル読込 (.csv / .tsv / .xlsx)
+							</span>
 						</Button>
 					</div>
 				</div>
@@ -273,6 +462,17 @@ export default function CsvEditor() {
 				<div className="flex gap-2 w-full sm:w-auto">
 					{csvData && (
 						<>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={handleUndo}
+								disabled={undoStack.length === 0}
+								className="h-8 flex-1 sm:flex-none"
+								title="元に戻す (Undo)"
+							>
+								<RotateCcw className="h-4 w-4 sm:mr-2" />
+								<span className="hidden sm:inline">Undo</span>
+							</Button>
 							<Button
 								variant="outline"
 								size="sm"
@@ -298,7 +498,7 @@ export default function CsvEditor() {
 								className="h-8 flex-1 sm:flex-none"
 							>
 								<Download className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">CSV</span>
+								<span className="hidden sm:inline">エクスポート</span>
 							</Button>
 						</>
 					)}
@@ -314,17 +514,26 @@ export default function CsvEditor() {
 				</div>
 			</div>
 
+			{/* Main Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
-				<TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-					<TabsTrigger value="input">テキスト入力</TabsTrigger>
+				<TabsList className="grid w-full grid-cols-4 max-w-[600px]">
+					<TabsTrigger value="input">テキスト</TabsTrigger>
 					<TabsTrigger value="edit" disabled={!csvData}>
-						テーブル編集
+						<Table className="h-3.5 w-3.5 mr-1 hidden sm:inline" /> テーブル
+					</TabsTrigger>
+					<TabsTrigger value="filter-sort" disabled={!csvData}>
+						<Filter className="h-3.5 w-3.5 mr-1 hidden sm:inline" />{' '}
+						絞込・ソート
+					</TabsTrigger>
+					<TabsTrigger value="chart" disabled={!csvData}>
+						<PieChart className="h-3.5 w-3.5 mr-1 hidden sm:inline" /> グラフ
 					</TabsTrigger>
 				</TabsList>
 
+				{/* Text Input Tab */}
 				<TabsContent value="input" className="mt-4 space-y-4">
 					<div className="flex items-center justify-between">
-						<Label>テキストデータ</Label>
+						<Label>CSV / TSV テキストデータ</Label>
 						<Button size="sm" onClick={handleParse} disabled={!inputText}>
 							パースして編集へ
 						</Button>
@@ -332,13 +541,14 @@ export default function CsvEditor() {
 					<Textarea
 						value={inputText}
 						onChange={(e) => setInputText(e.target.value)}
-						placeholder={'A,B,C\n1,2,3\n4,5,6'}
+						placeholder="名前,年齢,部署&#10;田中,25,開発&#10;佐藤,30,営業"
 						className="min-h-[400px] font-mono-tool text-sm leading-5 rounded-xl border"
 						spellCheck={false}
 					/>
 					{error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 				</TabsContent>
 
+				{/* Table Edit Tab */}
 				<TabsContent
 					value="edit"
 					className="mt-4 border rounded-xl bg-card overflow-hidden flex flex-col min-h-[500px]"
@@ -352,8 +562,14 @@ export default function CsvEditor() {
 						</div>
 					) : (
 						<div className="flex flex-col h-full w-full overflow-hidden">
-							{/* Pagination Top Bar */}
-							<div className="border-b bg-muted/20 p-2 flex items-center justify-between">
+							<SheetPicker
+								sheets={sheets}
+								activeSheet={activeSheetIdx}
+								onSelectSheet={handleSelectSheet}
+							/>
+
+							{/* Pagination & Stats Top Bar */}
+							<div className="border-b bg-muted/20 p-2 flex items-center justify-between flex-wrap gap-2">
 								<div className="flex items-center gap-2">
 									<Button
 										variant="outline"
@@ -374,8 +590,9 @@ export default function CsvEditor() {
 								</div>
 
 								<div className="flex items-center gap-4 text-sm">
-									<span className="text-muted-foreground">
-										全 {totalRows} 行
+									<span className="text-muted-foreground text-xs">
+										全 {csvData.rows.length - (hasHeader ? 1 : 0)} 行中{' '}
+										{totalDisplayRows} 行表示 ({csvData.colCount} 列)
 									</span>
 									<div className="flex items-center gap-1">
 										<Button
@@ -408,50 +625,68 @@ export default function CsvEditor() {
 								<table className="w-max border-collapse font-mono-tool text-sm min-w-full">
 									<thead>
 										<tr>
-											<th className="border bg-muted/50 w-10 sticky top-0 left-0 z-20"></th>
-											{Array.from({ length: csvData.colCount }).map(
-												(_, cIdx) => (
+											<th className="border bg-muted/50 w-10 sticky top-0 left-0 z-20" />
+											{columns.map((col, cIdx) => {
+												const activeSort = sortKeys.find(
+													(k) => k.columnId === col.id,
+												);
+												return (
 													<th
-														// biome-ignore lint/suspicious/noArrayIndexKey: column indices are the identifier
-														key={`h-${cIdx}`}
-														className="border bg-muted/50 p-1 min-w-[120px] sticky top-0 z-10 group"
+														key={col.id}
+														className="border bg-muted/50 p-1.5 min-w-[140px] sticky top-0 z-10 group select-none cursor-pointer hover:bg-muted/70 transition-colors"
+														onClick={() => handleHeaderClick(col.id)}
 													>
-														<div className="flex items-center justify-between px-2">
-															<span className="font-semibold text-muted-foreground">
-																{getColumnLabel(cIdx)}
-															</span>
-															{csvData.colCount > 1 && (
-																<button
-																	type="button"
-																	onClick={() => removeColumn(cIdx)}
-																	className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity"
-																	title="列を削除"
-																>
-																	<Trash2 className="h-3 w-3" />
-																</button>
-															)}
+														<div className="flex items-center justify-between px-1">
+															<div className="flex items-center gap-1 overflow-hidden">
+																<span className="font-semibold text-foreground truncate">
+																	{col.name}
+																</span>
+																<span className="text-[10px] text-muted-foreground font-normal">
+																	({col.type})
+																</span>
+															</div>
+															<div className="flex items-center gap-1">
+																{activeSort && (
+																	<span className="text-primary text-xs font-bold">
+																		{activeSort.direction === 'asc' ? '↑' : '↓'}
+																	</span>
+																)}
+																{csvData.colCount > 1 && (
+																	<button
+																		type="button"
+																		onClick={(e) => {
+																			e.stopPropagation();
+																			removeColumn(cIdx);
+																		}}
+																		className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity"
+																		title="列を削除"
+																	>
+																		<Trash2 className="h-3 w-3" />
+																	</button>
+																)}
+															</div>
 														</div>
 													</th>
-												),
-											)}
+												);
+											})}
 										</tr>
 									</thead>
 									<tbody>
-										{currentRows.map((row, relativeIndex) => {
-											const absoluteIndex = startIndex + relativeIndex;
+										{currentPageIndices.map((origRowIdx, relativeIndex) => {
+											const rowData = csvData.rows[origRowIdx] ?? [];
 											return (
 												<tr
-													key={`r-${absoluteIndex}`}
+													key={`r-${origRowIdx}`}
 													className="group hover:bg-muted/10"
 												>
 													<td className="border bg-muted/30 text-center sticky left-0 z-10 w-10 p-0">
 														<div className="flex items-center justify-center relative w-full h-full min-h-[36px]">
 															<span className="text-xs text-muted-foreground group-hover:opacity-0 transition-opacity absolute">
-																{absoluteIndex + 1}
+																{startIndex + relativeIndex + 1}
 															</span>
 															<button
 																type="button"
-																onClick={() => removeRow(absoluteIndex)}
+																onClick={() => removeRow(origRowIdx)}
 																className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity absolute"
 																title="行を削除"
 															>
@@ -459,21 +694,16 @@ export default function CsvEditor() {
 															</button>
 														</div>
 													</td>
-													{row.map((cell, cIdx) => (
+													{columns.map((col, cIdx) => (
 														<td
-															// biome-ignore lint/suspicious/noArrayIndexKey: grid cell position is the identifier
-															key={`c-${absoluteIndex}-${cIdx}`}
-															className="border p-0 min-w-[120px]"
+															key={`c-${origRowIdx}-${col.id}`}
+															className="border p-0 min-w-[140px]"
 														>
 															<input
 																type="text"
-																value={cell}
+																value={rowData[cIdx] ?? ''}
 																onChange={(e) =>
-																	updateCell(
-																		absoluteIndex,
-																		cIdx,
-																		e.target.value,
-																	)
+																	updateCell(origRowIdx, cIdx, e.target.value)
 																}
 																className="w-full h-full min-h-[36px] px-2 py-1 bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-colors"
 															/>
@@ -488,7 +718,43 @@ export default function CsvEditor() {
 						</div>
 					)}
 				</TabsContent>
+
+				{/* Filter & Sort Tab */}
+				<TabsContent value="filter-sort" className="mt-4 space-y-4">
+					<FilterPanel
+						columns={columns}
+						filterGroup={filterGroup}
+						onChangeFilterGroup={(fg) => {
+							setFilterGroup(fg);
+							setCurrentPage(1);
+						}}
+					/>
+					<SortPanel
+						columns={columns}
+						sortKeys={sortKeys}
+						onChangeSortKeys={(sk) => {
+							setSortKeys(sk);
+							setCurrentPage(1);
+						}}
+					/>
+				</TabsContent>
+
+				{/* Chart Tab */}
+				<TabsContent value="chart" className="mt-4">
+					{csvData && (
+						<ChartPanel
+							rows={csvData.rows}
+							displayIndices={displayIndices}
+							columns={columns}
+						/>
+					)}
+				</TabsContent>
 			</Tabs>
+
+			{/* Privacy Note */}
+			<div className="text-center text-xs text-muted-foreground pt-4 border-t">
+				🔒 データはサーバーに送信されません。すべてブラウザ内で処理されます。
+			</div>
 		</div>
 	);
 }

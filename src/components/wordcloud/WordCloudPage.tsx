@@ -47,6 +47,8 @@ export function WordCloudPage() {
 	const [frequencies, setFrequencies] = useState<WordFrequency[]>([]);
 	const [placedWords, setPlacedWords] = useState<PlacedWord[]>([]);
 	const [error, setError] = useState<string | null>(null);
+	// テキストを入力して解析が完了したかどうか（足切り除外と初期状態を区別するため）
+	const [hasAnalyzed, setHasAnalyzed] = useState<boolean>(false);
 
 	const workerRef = useRef<Worker | null>(null);
 	const runIdRef = useRef<number>(0);
@@ -64,6 +66,7 @@ export function WordCloudPage() {
 				setPlacedWords([]);
 				setError(null);
 				setIsAnalyzing(false);
+				setHasAnalyzed(false);
 				return;
 			}
 
@@ -100,6 +103,7 @@ export function WordCloudPage() {
 					} finally {
 						if (currentRunId === runIdRef.current) {
 							setIsAnalyzing(false);
+							setHasAnalyzed(true);
 						}
 					}
 				} else if (data.type === 'ERROR') {
@@ -107,6 +111,7 @@ export function WordCloudPage() {
 					setPlacedWords([]);
 					setError(data.error);
 					setIsAnalyzing(false);
+					setHasAnalyzed(true);
 				}
 			};
 
@@ -185,6 +190,9 @@ export function WordCloudPage() {
 				placedWords={placedWords}
 				layoutOptions={layoutOptions}
 				isLoading={isAnalyzing}
+				allWordsFiltered={
+					hasAnalyzed && !isAnalyzing && placedWords.length === 0 && !error
+				}
 			/>
 
 			{/* エクスポートボタン */}

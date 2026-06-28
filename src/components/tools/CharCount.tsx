@@ -1,4 +1,4 @@
-import { Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, Info, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,11 @@ export default function CharCount() {
 			unit: '文字',
 		},
 		{
+			label: '見た目の文字数 (Grapheme)',
+			value: formatNumber(result.graphemes),
+			unit: '文字',
+		},
+		{
 			label: '文字数（空白除く）',
 			value: formatNumber(result.charsWithoutSpaces),
 			unit: '文字',
@@ -42,11 +47,6 @@ export default function CharCount() {
 			unit: 'bytes',
 		},
 		{ label: '行数', value: formatNumber(result.lines), unit: '行' },
-		{
-			label: '原稿用紙（400字）',
-			value: formatNumber(result.manuscriptPages),
-			unit: '枚',
-		},
 	];
 
 	return (
@@ -54,7 +54,9 @@ export default function CharCount() {
 			{/* Input Textarea */}
 			<div>
 				<div className="flex items-center justify-between mb-2">
-					<Label className="text-sm font-medium">入力テキスト</Label>
+					<Label htmlFor="char-count-input" className="text-sm font-medium">
+						入力テキスト
+					</Label>
 					<div className="flex gap-2">
 						<CopyButton text={text} />
 						<Button
@@ -69,12 +71,29 @@ export default function CharCount() {
 					</div>
 				</div>
 				<Textarea
+					id="char-count-input"
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					placeholder="ここに文章を入力すると、リアルタイムで文字数がカウントされます。"
 					className="min-h-[200px] font-mono-tool rounded-xl focus:ring-2 focus:ring-primary"
 				/>
 			</div>
+
+			{/* SJIS Warning Alert */}
+			{result.hasUnsupportedShiftJis && (
+				<div className="rounded-xl border border-amber-500/50 bg-amber-500/10 p-4 text-sm text-amber-600 dark:text-amber-400 flex items-start gap-3">
+					<AlertTriangle className="h-5 w-5 shrink-0 mt-0.5 text-amber-500" />
+					<div>
+						<p className="font-semibold mb-1">
+							Shift-JIS 非対応文字が検出されました (
+							{formatNumber(result.unsupportedShiftJisCount)} 文字)
+						</p>
+						<p className="text-xs opacity-90">
+							絵文字や一部のUnicode漢字など、Shift-JIS（Windows-31J）の文字コードに含まれない文字が存在します。従来のシステムやSJIS形式ファイルへのエクスポート時に文字化けする可能性があります。
+						</p>
+					</div>
+				</div>
+			)}
 
 			{/* Stats Grid */}
 			<div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

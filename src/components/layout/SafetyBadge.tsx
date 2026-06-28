@@ -36,7 +36,8 @@ export default function SafetyBadge() {
 					<div className="rounded-md bg-muted p-3 text-xs text-muted-foreground space-y-1">
 						<p>✅ 入力データは端末内で処理</p>
 						<p>✅ ページを閉じると処理中データは消去</p>
-						<p>✅ 広告・アクセス解析スクリプトは不使用</p>
+						<p>✅ 広告スクリプトは不使用</p>
+						<p>✅ アクセス解析はCookieなし・個人追跡なし</p>
 						<p>ℹ️ AI機能ではモデル取得のための通信が発生する場合があります</p>
 						<p>✅ ソースコードはGitHubで公開中</p>
 					</div>

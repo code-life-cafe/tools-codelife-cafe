@@ -193,7 +193,12 @@ export default function JsonFormatter() {
 
 			{/* Input */}
 			<div>
-				<Label className="text-sm font-medium mb-2 block">入力JSON</Label>
+				<Label
+					htmlFor="json-input-textarea"
+					className="text-sm font-medium mb-2 block"
+				>
+					入力JSON
+				</Label>
 				<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex h-[250px]">
 					{/* 行番号ガター */}
 					<div
@@ -215,6 +220,7 @@ export default function JsonFormatter() {
 					</div>
 					{/* Textarea */}
 					<Textarea
+						id="json-input-textarea"
 						value={input}
 						onChange={(e) => handleInputChange(e.target.value)}
 						onScroll={handleInputScroll}

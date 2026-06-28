@@ -20,6 +20,10 @@ jobs:
       - name: Security audit
         run: npm audit --audit-level=high
       - run: npm run build
+        env:
+          # Cloudflare Web Analytics のサイトトークン（公開値。HTMLに出力される）。
+          # GitHub の Settings > Secrets and variables > Actions > Variables に登録。
+          PUBLIC_CF_BEACON_TOKEN: ${{ vars.PUBLIC_CF_BEACON_TOKEN }}
       - name: Get git commit hash
         run: echo "GIT_HASH=$(git rev-parse HEAD)" >> $GITHUB_ENV
       - uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0

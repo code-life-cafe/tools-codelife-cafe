@@ -33,6 +33,16 @@ const ZODIAC = [
 	'未',
 ];
 
+export function isValidDate(year: number, month: number, day: number): boolean {
+	if (month < 1 || month > 12 || day < 1 || day > 31) return false;
+	const date = new Date(year, month - 1, day);
+	return (
+		date.getFullYear() === year &&
+		date.getMonth() === month - 1 &&
+		date.getDate() === day
+	);
+}
+
 export function getZodiac(year: number): string {
 	if (year < 0) return '';
 	return ZODIAC[year % 12];
@@ -53,6 +63,18 @@ export function seirekiToWareki(
 	month: number,
 	day: number,
 ): WarekiResult {
+	if (!isValidDate(year, month, day)) {
+		return {
+			gengo: null,
+			warekiYear: null,
+			warekiString: 'エラー',
+			seirekiYear: year,
+			zodiac: getZodiac(year),
+			age: getAge(year),
+			error: '存在しない日付です。月・日の入力内容を確認してください。',
+		};
+	}
+
 	if (year < 1868) {
 		return {
 			gengo: null,
@@ -128,6 +150,22 @@ export function warekiToSeireki(
 	const era = ERAS[eraIndex];
 	const startYear = era.start.getFullYear();
 	const seirekiYear = startYear + warekiYear - 1;
+
+	if (
+		month !== undefined &&
+		day !== undefined &&
+		!isValidDate(seirekiYear, month, day)
+	) {
+		return {
+			gengo,
+			warekiYear,
+			warekiString: formatWarekiYear(gengo, warekiYear),
+			seirekiYear,
+			zodiac: getZodiac(seirekiYear),
+			age: getAge(seirekiYear),
+			error: '存在しない日付です。月・日の入力内容を確認してください。',
+		};
+	}
 
 	let error: string | undefined;
 

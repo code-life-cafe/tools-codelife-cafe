@@ -174,10 +174,7 @@ for (const [zen, han] of Object.entries(symbolMap)) {
 
 function convertSymbols(text: string, direction: Direction): string {
 	if (direction === 'toHankaku') {
-		return text.replace(
-			new RegExp(`[${Object.keys(symbolMap).join('')}]`, 'g'),
-			(ch) => symbolMap[ch] ?? ch,
-		);
+		return text.replace(/[！-～　]/g, (ch) => symbolMap[ch] ?? ch);
 	}
 	// 半角→全角: only convert specific symbols
 	return text.replace(
