@@ -1,0 +1,29 @@
+---
+interface Props {
+	useCases: string[];
+}
+
+const { useCases } = Astro.props;
+---
+
+{useCases && useCases.length > 0 && (
+	<section class="mb-10" aria-labelledby="usecases-heading">
+		<h2 id="usecases-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+			<span>💡</span> こんなお困りごと・シーンでお使いいただけます
+		</h2>
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			{useCases.map((useCase, index) => (
+				<div class="rounded-xl border border-border/60 bg-card/50 p-4 text-card-foreground shadow-xs flex flex-col justify-between">
+					<div class="flex items-start gap-3">
+						<span class="inline-flex items-center justify-center rounded-full bg-primary/10 text-primary w-6 h-6 text-xs font-semibold shrink-0 mt-0.5">
+							{index + 1}
+						</span>
+						<p class="text-sm leading-relaxed text-foreground/90 font-medium">
+							{useCase}
+						</p>
+					</div>
+				</div>
+			))}
+		</div>
+	</section>
+)}
