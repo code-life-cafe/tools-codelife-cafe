@@ -20,8 +20,8 @@ faq:
     a: "ブラウザのメモリ上限まで。数百MBのファイルはメモリ不足になる可能性があるため注意。"
 related:
   - "url-encoder"
-  - "unicode-converter"
-  - "hash"
+  - "image-base64"
+  - "cipher"
 updated: 2026-06-28
 keywords:
   - "Base64"

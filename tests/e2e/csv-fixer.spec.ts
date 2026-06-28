@@ -13,7 +13,7 @@ test.describe('CSV文字化け修復ツール', () => {
 	test('Shift_JISファイルが正しく検出・変換されること', async ({ page }) => {
 		// Check elements exist
 		await expect(
-			page.getByText('CSVファイルをドラッグ＆ドロップ'),
+			page.getByRole('button', { name: /CSVファイルを選択またはドラッグ/ }),
 		).toBeVisible();
 
 		// Setup file to upload
