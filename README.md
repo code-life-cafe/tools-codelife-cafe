@@ -26,7 +26,7 @@
 |--------|------|
 | [JSON整形](/json-formatter) | JSONの整形・圧縮・バリデーション |
 | [JSON ↔ CSV 変換](/json-csv) | JSONとCSVの相互変換。ネスト展開・型推論・BOM付きUTF-8出力（Excel文字化け対策） |
-| [CSVビューア/エディタ](/csv-editor) | CSVをテーブル形式で閲覧・編集・エクスポート |
+| [CSVビューア/エディタ](/csv-editor) | CSV/TSV/Excel(.xlsx)を閲覧・編集・フィルタ・ソート・グラフ化 |
 | [CSV文字化け修復](/csv-fixer) | CSVの文字コード自動判定・変換（Shift_JIS/UTF-8/EUC-JP等） |
 | [電話番号フォーマッタ](/phone-formatter) | 日本語の電話番号をE.164・国際表記・国内表記に即変換。CSV一括変換対応。 |
 | [ダミーデータ生成](/dummy-data) | 日本語の氏名・住所・電話番号等の一括生成（JSON/CSV/TSV） |
