@@ -83,7 +83,7 @@ export function caesarBruteForce(input: string): BruteForceResult[] {
 	const results: BruteForceResult[] = [];
 
 	for (let shift = 1; shift <= maxShift; shift++) {
-		const result = caesarCipher(input, { shift, direction: 'encode' });
+		const result = caesarCipher(input, { shift, direction: 'decode' });
 		results.push({
 			shift,
 			output: result.output,

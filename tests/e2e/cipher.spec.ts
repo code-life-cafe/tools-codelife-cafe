@@ -136,20 +136,20 @@ test.describe('Cipher Tool', () => {
 			page
 				.locator('button')
 				.filter({ hasText: 'シフト 1:' })
-				.filter({ hasText: 'bcd' }),
+				.filter({ hasText: 'zab' }),
 		).toBeVisible();
 		await expect(
 			page
 				.locator('button')
 				.filter({ hasText: 'シフト 25:' })
-				.filter({ hasText: 'zab' }),
+				.filter({ hasText: 'bcd' }),
 		).toBeVisible();
 
 		// Click a pattern to set shift
 		await page
 			.locator('button')
 			.filter({ hasText: 'シフト 5:' })
-			.filter({ hasText: 'fgh' })
+			.filter({ hasText: 'vwx' })
 			.click();
 
 		// The shift slider input should now be 5
