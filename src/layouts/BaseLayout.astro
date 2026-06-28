@@ -69,6 +69,25 @@ const fullTitle = `${title} | ${siteName}`;
     });
   </script>
 
+  <script is:inline>
+    window.__codelifeTrackQueue = window.__codelifeTrackQueue ?? [];
+    window.__codelifeTrack = (eventName, props) => {
+      window.__codelifeTrackQueue.push({ eventName, props });
+    };
+  </script>
+  <script>
+    import { track, type AnalyticsEventName, type AnalyticsProps } from '../lib/analytics';
+
+    const queuedEvents = window.__codelifeTrackQueue ?? [];
+    window.__codelifeTrack = (eventName: AnalyticsEventName, props?: AnalyticsProps) => {
+      track(eventName, props);
+    };
+    for (const event of queuedEvents) {
+      track(event.eventName, event.props);
+    }
+    window.__codelifeTrackQueue = [];
+  </script>
+
   <slot name="head" />
 </head>
 <body class="min-h-screen flex flex-col">

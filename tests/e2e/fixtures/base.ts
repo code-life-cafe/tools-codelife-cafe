@@ -18,7 +18,7 @@ async function waitForClientLoadIslands(page: Page) {
 
 export const test = baseTest.extend<MyFixtures>({
 	page: async ({ page }, use) => {
-		// Block analytics to prevent test timeouts/flakiness
+		// Block known third-party analytics scripts to prevent test timeouts/flakiness
 		await page.route('**/*googletagmanager*', (route) => route.abort());
 		const originalGoto = page.goto.bind(page);
 		page.goto = async (...args: Parameters<Page['goto']>) => {

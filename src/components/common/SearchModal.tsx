@@ -2,6 +2,7 @@ import { Search } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { track } from '@/lib/analytics';
 import { toolCatalog } from '@/lib/tools/catalog';
 import { searchTools } from '@/lib/tools/search';
 
@@ -10,6 +11,7 @@ export default function SearchModal() {
 	const [query, setQuery] = useState('');
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const trackedEmptyQueries = useRef<Set<string>>(new Set());
 
 	const filteredTools = query ? searchTools(query) : toolCatalog;
 
@@ -42,11 +44,25 @@ export default function SearchModal() {
 		if (isOpen) {
 			setQuery('');
 			setActiveIndex(0);
+			trackedEmptyQueries.current.clear();
 			setTimeout(() => {
 				inputRef.current?.focus();
 			}, 0);
 		}
 	}, [isOpen]);
+
+	useEffect(() => {
+		const trimmed = query.trim();
+		if (!isOpen || !trimmed || filteredTools.length > 0) return;
+		if (trackedEmptyQueries.current.has(trimmed)) return;
+
+		const timer = window.setTimeout(() => {
+			trackedEmptyQueries.current.add(trimmed);
+			track('search_empty', { q: trimmed });
+		}, 500);
+
+		return () => window.clearTimeout(timer);
+	}, [isOpen, query, filteredTools.length]);
 
 	// Handle keyboard navigation within the modal
 	useEffect(() => {

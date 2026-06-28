@@ -8,6 +8,8 @@ interface Props {
   categoryId?: string;
   categoryColor?: string;
   span?: number;
+  analyticsFrom?: string;
+  analyticsTo?: string;
 }
 
 const {
@@ -19,12 +21,16 @@ const {
   categoryId,
   categoryColor = 'border-l-primary',
   span = 1,
+  analyticsFrom,
+  analyticsTo,
 } = Astro.props;
 ---
 
 <a
   href={href}
   data-category={categoryId}
+  data-related-from={analyticsFrom}
+  data-related-to={analyticsTo}
   class:list={[
     'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30',
     categoryColor,

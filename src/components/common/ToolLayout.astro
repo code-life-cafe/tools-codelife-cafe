@@ -117,6 +117,8 @@ const breadcrumbSchema = {
               icon={t.icon}
               category={t.category}
               categoryColor={t.categoryColor}
+              analyticsFrom={tool.id}
+              analyticsTo={t.id}
             />
           ))}
         </div>
@@ -139,6 +141,76 @@ const breadcrumbSchema = {
       details.addEventListener('toggle', () => {
         localStorage.setItem(key, details.open ? 'open' : 'closed');
       });
+    }
+  }
+</script>
+
+<script is:inline define:vars={{ toolId: tool?.id }} data-astro-rerun>
+  {
+    const container = document.querySelector('#tool-layout-container');
+    const emitTrack = (eventName, props) => {
+      window.__codelifeTrack?.(eventName, props);
+    };
+
+    if (container && toolId) {
+      const sharedParams = new URLSearchParams(window.location.search);
+      const isSharedUrl =
+        sharedParams.has('shared') ||
+        sharedParams.has('share') ||
+        sharedParams.get('from') === 'share' ||
+        sharedParams.get('utm_source') === 'share';
+      if (isSharedUrl) {
+        const sharedKey = `analytics:shared_url_open:${toolId}:${window.location.href}`;
+        if (sessionStorage.getItem(sharedKey) !== 'true') {
+          sessionStorage.setItem(sharedKey, 'true');
+          emitTrack('shared_url_open', { tool: toolId });
+        }
+      }
+
+      let engaged = false;
+      const markEngaged = (event) => {
+        if (engaged) return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        if (target.closest('nav, [aria-labelledby="related-tools-heading"], a')) return;
+        engaged = true;
+        emitTrack('tool_engage', { tool: toolId });
+      };
+
+      const runLabelPattern =
+        /(実行|変換|生成|計算|整形|圧縮|結合|分割|抽出|解析|アップスケール|背景削除|再処理|再生成|フォーマット|minify|デコード|エンコード)/i;
+      const ignoredRunLabelPattern =
+        /(ダウンロード|コピー|クリア|リセット|選択|前へ|後ろへ|上へ|下へ|閉じる|キャンセル|ソースコード)/;
+      const markRun = (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const control = target?.closest('button, [role="button"], input[type="submit"]');
+        if (!control || control.closest('[aria-labelledby="related-tools-heading"]')) return;
+
+        const label = `${control.textContent ?? ''} ${control.getAttribute('aria-label') ?? ''} ${
+          control.getAttribute('data-testid') ?? ''
+        }`;
+        if (ignoredRunLabelPattern.test(label)) return;
+        if (control.hasAttribute('data-analytics-run') || runLabelPattern.test(label)) {
+          emitTrack('tool_run', { tool: toolId });
+        }
+      };
+
+      const markRelatedClick = (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const link = target?.closest('a[data-related-from][data-related-to]');
+        if (!link) return;
+        emitTrack('related_click', {
+          from: link.getAttribute('data-related-from') ?? '',
+          to: link.getAttribute('data-related-to') ?? '',
+        });
+      };
+
+      container.addEventListener('input', markEngaged, { capture: true });
+      container.addEventListener('change', markEngaged, { capture: true });
+      container.addEventListener('pointerdown', markEngaged, { capture: true });
+      container.addEventListener('keydown', markEngaged, { capture: true });
+      container.addEventListener('click', markRun, { capture: true });
+      container.addEventListener('click', markRelatedClick, { capture: true });
     }
   }
 </script>
