@@ -1,0 +1,26 @@
+---
+import { getCollection } from 'astro:content';
+import ToolLayout from '../../components/tool/ToolLayout.astro';
+import CsvFixerTool from '../../components/tools/CsvFixer';
+
+export async function getStaticPaths() {
+	const toolEntries = await getCollection('tools');
+	return toolEntries.map((entry) => ({
+		params: { slug: entry.id },
+		props: { entry },
+	}));
+}
+
+const { entry } = Astro.props;
+const slug = entry.id;
+---
+
+<ToolLayout tool={entry}>
+	{slug === 'csv-mojibake' || slug === 'csv-fixer' ? (
+		<CsvFixerTool client:load />
+	) : (
+		<div class="p-8 text-center text-muted-foreground">
+			ツールコンポーネントを読み込んでいます...
+		</div>
+	)}
+</ToolLayout>

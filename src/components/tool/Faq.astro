@@ -1,0 +1,33 @@
+---
+interface FaqItem {
+	q: string;
+	a: string;
+}
+
+interface Props {
+	faq: FaqItem[];
+}
+
+const { faq } = Astro.props;
+---
+
+{faq && faq.length > 0 && (
+	<section class="mb-12" aria-labelledby="faq-heading">
+		<h2 id="faq-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+			<span>❓</span> よくある質問 (FAQ)
+		</h2>
+		<dl class="space-y-4">
+			{faq.map((item) => (
+				<div class="rounded-xl border border-border bg-card p-5 shadow-xs">
+					<dt class="text-base font-semibold text-foreground flex items-start gap-2.5 mb-2">
+						<span class="text-primary font-bold shrink-0">Q.</span>
+						<span>{item.q}</span>
+					</dt>
+					<dd class="text-sm text-muted-foreground leading-relaxed pl-6">
+						{item.a}
+					</dd>
+				</div>
+			))}
+		</dl>
+	</section>
+)}

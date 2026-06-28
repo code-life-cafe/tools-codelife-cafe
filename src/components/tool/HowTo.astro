@@ -1,0 +1,27 @@
+---
+interface Props {
+	howto: string[];
+}
+
+const { howto } = Astro.props;
+---
+
+{howto && howto.length > 0 && (
+	<section class="mb-10" aria-labelledby="howto-heading">
+		<h2 id="howto-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+			<span>📖</span> 使い方・手順
+		</h2>
+		<ol class="space-y-3">
+			{howto.map((step, index) => (
+				<li class="flex items-start gap-3 rounded-lg border border-border p-3.5 bg-background text-sm">
+					<span class="inline-flex items-center justify-center rounded-md bg-secondary text-secondary-foreground w-6 h-6 text-xs font-bold shrink-0 mt-0.5">
+						{index + 1}
+					</span>
+					<span class="text-foreground/90 leading-relaxed pt-0.5">
+						{step}
+					</span>
+				</li>
+			))}
+		</ol>
+	</section>
+)}

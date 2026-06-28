@@ -1,0 +1,95 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ToolHero from './ToolHero.astro';
+import UseCases from './UseCases.astro';
+import HowTo from './HowTo.astro';
+import Faq from './Faq.astro';
+import RelatedTools from './RelatedTools.astro';
+import { getCategoryId, toolCatalog } from '../../lib/tools/catalog';
+
+interface Props {
+	tool: CollectionEntry<'tools'>;
+	path?: string;
+}
+
+const { tool: entry, path: customPath } = Astro.props;
+const { title, description, canonical, category, summary, useCases, howto, faq, related, updated } = entry.data;
+
+const toolId = entry.id;
+const path = customPath || `/tools/${toolId}`;
+const SITE_URL = 'https://tools.codelife.cafe';
+const canonicalUrl = canonical || `${SITE_URL}${path}`;
+
+// パンくずリスト用
+const categoryHref = category ? `/?category=${getCategoryId(category)}` : undefined;
+
+const catalogTool = toolCatalog.find((t) => t.id === toolId || t.href === path);
+const ogImage = catalogTool ? `/og/${catalogTool.id}.png` : undefined;
+
+const breadcrumbItems: { name: string; url?: string }[] = [
+	{ name: 'ホーム', url: `${SITE_URL}/` },
+	...(category && categoryHref ? [{ name: category, url: `${SITE_URL}${categoryHref}` }] : []),
+	{ name: title },
+];
+
+const breadcrumbSchema = {
+	'@context': 'https://schema.org',
+	'@type': 'BreadcrumbList',
+	itemListElement: breadcrumbItems.map((item, index) => ({
+		'@type': 'ListItem',
+		position: index + 1,
+		name: item.name,
+		...(item.url ? { item: item.url } : {}),
+	})),
+};
+---
+
+<BaseLayout title={title} description={description} path={path} ogImage={ogImage}>
+	<Fragment slot="head">
+		{canonical && <link rel="canonical" href={canonicalUrl} />}
+		<script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema).replace(/</g, '\\u003c')} />
+		<slot name="head" />
+	</Fragment>
+
+	<div id="tool-layout-container" class="transition-all duration-300 mx-auto max-w-[800px] xl:max-w-5xl px-4 sm:px-6 py-8">
+		<!-- Breadcrumbs -->
+		<nav aria-label="パンくずリスト" class="mb-6">
+			<ol class="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+				<li>
+					<a href="/" class="hover:text-foreground transition-colors">ホーム</a>
+				</li>
+				{category && categoryHref && (
+					<li class="flex items-center gap-1.5">
+						<span aria-hidden="true">›</span>
+						<a href={categoryHref} class="hover:text-foreground transition-colors">{category}</a>
+					</li>
+				)}
+				<li class="flex items-center gap-1.5">
+					<span aria-hidden="true">›</span>
+					<span aria-current="page" class="text-foreground font-medium">{title}</span>
+				</li>
+			</ol>
+		</nav>
+
+		<!-- 1. Hero セクション -->
+		<ToolHero title={title} summary={summary} updated={updated} />
+
+		<!-- 2. UseCases セクション -->
+		<UseCases useCases={useCases} />
+
+		<!-- 3. HowTo セクション -->
+		<HowTo howto={howto} />
+
+		<!-- 4. ツール本体 (React Island 等) -->
+		<section class="my-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs" aria-label="ツール操作エリア">
+			<slot />
+		</section>
+
+		<!-- 5. FAQ セクション -->
+		<Faq faq={faq} />
+
+		<!-- 6. Related Tools セクション -->
+		<RelatedTools relatedSlugs={related} />
+	</div>
+</BaseLayout>

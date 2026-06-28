@@ -1,0 +1,39 @@
+---
+import { toolCatalog } from '../../lib/tools/catalog';
+import ToolCard from '../common/ToolCard.astro';
+
+interface Props {
+	relatedSlugs: string[];
+}
+
+const { relatedSlugs } = Astro.props;
+
+// relatedSlugsに指定されたスラッグに対応するツールをtoolCatalogから取得（存在しないスラッグは自動除外）
+const validTools = (relatedSlugs || [])
+	.map((slug) => {
+		// slugが "/csv-editor" や "csv-editor" の両方に対応
+		const cleanSlug = slug.replace(/^\//, '');
+		return toolCatalog.find((t) => t.id === cleanSlug || t.href === `/${cleanSlug}`);
+	})
+	.filter((tool): tool is NonNullable<typeof tool> => tool !== undefined);
+---
+
+{validTools.length > 0 && (
+	<section class="mt-12 pt-8 border-t border-border" aria-labelledby="related-tools-heading">
+		<h2 id="related-tools-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
+			<span>🔗</span> 関連ツール
+		</h2>
+		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+			{validTools.map((t) => (
+				<ToolCard
+					title={t.title}
+					description={t.description}
+					href={t.href}
+					icon={t.icon}
+					category={t.category}
+					categoryColor={t.categoryColor}
+				/>
+			))}
+		</div>
+	</section>
+)}
