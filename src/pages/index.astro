@@ -1,15 +1,35 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ToolCard from '../components/common/ToolCard.astro';
+import JsonLd from '../components/common/JsonLd.astro';
 import { ShieldCheck } from 'lucide-react';
 import { getCategoryId, toolCatalog, toolCategories } from '../lib/tools/catalog';
+
 const schema = {
   "@context": "https://schema.org",
-  "@type": "WebSite",
-  "name": "CODE:LIFE Tools",
-  "url": "https://tools.codelife.cafe",
-  "description": "仕事で安心して使える、高速・軽量なWebツール集",
-  "inLanguage": "ja"
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://tools.codelife.cafe/#website",
+      "name": "CODE:LIFE Tools",
+      "url": "https://tools.codelife.cafe",
+      "description": "仕事で安心して使える、高速・軽量なWebツール集",
+      "inLanguage": "ja",
+      "publisher": {
+        "@id": "https://tools.codelife.cafe/#org"
+      }
+    },
+    {
+      "@type": "Person",
+      "@id": "https://tools.codelife.cafe/#org",
+      "name": "marumo",
+      "url": "https://tools.codelife.cafe",
+      "sameAs": [
+        "https://github.com/maru0014",
+        "https://github.com/maru0014/tools-codelife-cafe"
+      ]
+    }
+  ]
 };
 ---
 
@@ -19,7 +39,7 @@ const schema = {
   path="/"
 >
   <Fragment slot="head">
-    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <JsonLd data={schema} />
   </Fragment>
 
   <!-- Hero Section -->

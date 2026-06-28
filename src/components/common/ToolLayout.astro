@@ -14,8 +14,6 @@ interface Props {
 
 const { title, description, path } = Astro.props;
 
-const SITE_URL = 'https://tools.codelife.cafe';
-
 // パンくずリスト: カタログから path でカテゴリを解決する
 const tool = toolCatalog.find((t) => t.href === path);
 const category = tool?.category;
@@ -25,39 +23,23 @@ const categoryHref = category ? `/?category=${getCategoryId(category)}` : undefi
 // カタログ掲載ツールはビルド時生成のツール別 OG 画像（/og/{id}.png）を使う
 const ogImage = tool ? `/og/${tool.id}.png` : undefined;
 
-const jsonLdData = generateJsonLd({
-  title,
-  path,
-  summary: description,
-  category,
-  hasHowTo: true,
-});
+const jsonLdData = generateJsonLd(
+  {
+    title,
+    path,
+    summary: description,
+    category,
+  },
+  categoryHref
+);
 
 // 回遊カード: related 優先＋同カテゴリ補完で最大3件。0件ならセクション非表示。
 const relatedTools = tool ? getRelatedTools(tool.id) : [];
-
-const breadcrumbItems: { name: string; url?: string }[] = [
-  { name: 'ホーム', url: `${SITE_URL}/` },
-  ...(category && categoryHref ? [{ name: category, url: `${SITE_URL}${categoryHref}` }] : []),
-  { name: title },
-];
-
-const breadcrumbSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: breadcrumbItems.map((item, index) => ({
-    '@type': 'ListItem',
-    position: index + 1,
-    name: item.name,
-    ...(item.url ? { item: item.url } : {}),
-  })),
-};
 ---
 
 <BaseLayout title={title} description={description} path={path} ogImage={ogImage}>
   <Fragment slot="head">
     <JsonLd data={jsonLdData} />
-    <script is:inline type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema).replace(/</g, '\\u003c')} />
   </Fragment>
 
   <div id="tool-layout-container" class="transition-all duration-300 mx-auto max-w-[800px] xl:max-w-5xl px-4 sm:px-6 py-8">
