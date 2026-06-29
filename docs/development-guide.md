@@ -217,3 +217,20 @@ npm run build
 npm run preview
 npm test
 ```
+
+---
+
+## 8. 単体テスト方針 (Unit Testing)
+
+ビジネスロジック（`src/lib/tools/` 配下）等の単体テストは `tests/unit/` 配下に作成します。
+
+1. **テストランナーとアサーションライブラリ**
+   - Node.js 組み込みの `node:test` および `node:assert/strict` を使用します。
+   - `vitest` や `jest` などの未宣言の外部テストフレームワークはインポートしないでください。
+2. **TypeScript ファイルのインポート**
+   - Node 22 の Native TypeScript 実行（型ストリッピング）に対応するため、テストファイルおよび被テストモジュール内のローカルインポートパスには必ず `.ts` 拡張子を明記してください（例: `import { getRelatedTools } from '../../src/lib/tools/catalog.ts';`）。
+3. **単体テストの実行コマンド**
+   ```bash
+   npm run test:unit
+   ```
+
