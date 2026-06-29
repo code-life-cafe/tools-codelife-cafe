@@ -5,9 +5,13 @@ import ToolCard from '../common/ToolCard.astro';
 interface Props {
 	toolId?: string;
 	relatedSlugs?: string[];
+	excludeIds?: string[];
 }
 
-const { toolId, relatedSlugs } = Astro.props;
+const { toolId, relatedSlugs, excludeIds = [] } = Astro.props;
+
+// ワークフロー導線で既に表示済みのツールIDを除外対象に含める
+const excludeSet = new Set(excludeIds);
 
 // frontmatter の related を最優先し、不足分だけ catalog.ts の同カテゴリ補完を使う
 const LIMIT = 3;
@@ -20,7 +24,7 @@ const findBySlug = (slug: string) => {
 	return toolCatalog.find((t) => t.id === normalized || t.href === `/${normalized}` || t.href === `/tools/${normalized}`);
 };
 const pushTool = (tool: ToolCatalogItem | undefined) => {
-	if (!tool || tool.id === toolId || seen.has(tool.id) || validTools.length >= LIMIT) return;
+	if (!tool || tool.id === toolId || seen.has(tool.id) || excludeSet.has(tool.id) || validTools.length >= LIMIT) return;
 	seen.add(tool.id);
 	validTools.push(tool);
 };
@@ -46,16 +50,32 @@ if (toolId && validTools.length < LIMIT) {
 		</h2>
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 			{validTools.map((t) => (
-				<ToolCard
-					id={t.id}
-					title={t.title}
-					description={t.description}
-					href={t.href}
-					icon={t.icon}
-					category={t.category}
-					categoryColor={t.categoryColor}
-				/>
+				<div data-track-related-click data-from={toolId ?? ''} data-to={t.id}>
+					<ToolCard
+						id={t.id}
+						title={t.title}
+						description={t.description}
+						href={t.href}
+						icon={t.icon}
+						category={t.category}
+						categoryColor={t.categoryColor}
+					/>
+				</div>
 			))}
 		</div>
 	</section>
 )}
+
+<script>
+	import { track } from '../../lib/analytics';
+
+	document.addEventListener('click', (e) => {
+		const el = (e.target as HTMLElement).closest<HTMLElement>('[data-track-related-click]');
+		if (!el) return;
+		const from = el.dataset.from ?? '';
+		const to = el.dataset.to ?? '';
+		if (from && to) {
+			track('related_click', { from, to });
+		}
+	});
+</script>

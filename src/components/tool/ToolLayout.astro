@@ -6,6 +6,8 @@ import UseCases from './UseCases.astro';
 import HowTo from './HowTo.astro';
 import Faq from './Faq.astro';
 import RelatedTools from './RelatedTools.astro';
+import WorkflowNav from './WorkflowNav.astro';
+import { getWorkflowToolIds } from '../../lib/tools/workflow-sets';
 import { getCategoryId, toolCatalog, type ToolCategory } from '../../lib/tools/catalog';
 import { generateJsonLd } from '../../lib/jsonld';
 
@@ -18,6 +20,7 @@ const { tool: entry, path: customPath } = Astro.props;
 const { title, description, canonical, category, summary, useCases, howto, faq, related, updated } = entry.data;
 
 const toolId = entry.id;
+const workflowExcludeIds = getWorkflowToolIds(toolId);
 const catalogTool = toolCatalog.find((t) => t.id === toolId);
 const path = customPath || catalogTool?.href || `/tools/${toolId}`;
 const SITE_URL = 'https://tools.codelife.cafe';
@@ -85,8 +88,11 @@ const jsonLdData = generateJsonLd(
 		<!-- 5. FAQ セクション -->
 		<Faq faq={faq} />
 
-		<!-- 6. Related Tools セクション -->
-		<RelatedTools toolId={toolId} relatedSlugs={related} />
+		<!-- 6. Workflow Nav セクション -->
+		<WorkflowNav toolId={toolId} />
+
+		<!-- 7. Related Tools セクション -->
+		<RelatedTools toolId={toolId} relatedSlugs={related} excludeIds={workflowExcludeIds} />
 	</div>
 </BaseLayout>
 

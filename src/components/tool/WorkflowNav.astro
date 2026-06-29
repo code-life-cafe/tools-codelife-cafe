@@ -1,0 +1,48 @@
+---
+import { getWorkflowContext } from '../../lib/tools/workflow-sets';
+
+interface Props {
+	toolId: string;
+}
+
+const { toolId } = Astro.props;
+const ctx = getWorkflowContext(toolId);
+---
+
+{ctx && (
+	<nav aria-label={`${ctx.set.name}ワークフローナビゲーション`} class="mt-8 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs">
+		<h2 class="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
+			<span class="text-lg">📋</span>
+			{ctx.set.name}ワークフロー
+		</h2>
+		<ol class="flex flex-wrap items-center gap-2 sm:gap-1">
+			{ctx.allSteps.map((step, i) => (
+				<li class="flex items-center gap-2 sm:gap-1">
+					{i > 0 && (
+						<span aria-hidden="true" class="text-muted-foreground/50 text-sm select-none shrink-0">→</span>
+					)}
+					{step.id === toolId ? (
+						<span
+							aria-current="step"
+							class="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 text-primary px-3 py-1.5 text-sm font-semibold border border-primary/20"
+						>
+							<span class="text-base">{step.icon}</span>
+							{step.title}
+						</span>
+					) : (
+						<a
+							href={step.href}
+							data-track-related-click
+							data-from={toolId}
+							data-to={step.id}
+							class="inline-flex items-center gap-1.5 rounded-lg bg-muted/50 hover:bg-primary/10 text-muted-foreground hover:text-primary px-3 py-1.5 text-sm font-medium transition-colors border border-transparent hover:border-primary/20"
+						>
+							<span class="text-base">{step.icon}</span>
+							{step.title}
+						</a>
+					)}
+				</li>
+			))}
+		</ol>
+	</nav>
+)}
