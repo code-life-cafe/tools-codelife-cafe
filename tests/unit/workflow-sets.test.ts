@@ -1,39 +1,38 @@
-import { describe, expect, test } from 'vitest';
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import {
 	getWorkflowContext,
 	getWorkflowToolIds,
 	workflowSets,
-} from '../../src/lib/tools/workflow-sets';
+} from '../../src/lib/tools/workflow-sets.ts';
 
-describe('workflow-sets', () => {
-	test('すべてのワークフローセット内のツールがカタログに実在する', () => {
-		expect(workflowSets.length).toBeGreaterThan(0);
-	});
+test('すべてのワークフローセット内のツールがカタログに実在する', () => {
+	assert.ok(workflowSets.length > 0);
+});
 
-	test('csv-fixer のワークフローコンテキストが正しく取得できる', () => {
-		const ctx = getWorkflowContext('csv-fixer');
-		expect(ctx).not.toBeNull();
-		expect(ctx?.set.id).toBe('csv-preprocessing');
-		expect(ctx?.currentIndex).toBe(0);
-		expect(ctx?.prev).toBeNull();
-		expect(ctx?.next?.id).toBe('csv-editor');
-		expect(ctx?.allSteps.length).toBe(3);
-	});
+test('csv-fixer のワークフローコンテキストが正しく取得できる', () => {
+	const ctx = getWorkflowContext('csv-fixer');
+	assert.notEqual(ctx, null);
+	assert.equal(ctx?.set.id, 'csv-preprocessing');
+	assert.equal(ctx?.currentIndex, 0);
+	assert.equal(ctx?.prev, null);
+	assert.equal(ctx?.next?.id, 'csv-editor');
+	assert.equal(ctx?.allSteps.length, 3);
+});
 
-	test('csv-editor のワークフローコンテキスト（前後両方あり）が正しく取得できる', () => {
-		const ctx = getWorkflowContext('csv-editor');
-		expect(ctx).not.toBeNull();
-		expect(ctx?.prev?.id).toBe('csv-fixer');
-		expect(ctx?.next?.id).toBe('json-csv');
-	});
+test('csv-editor のワークフローコンテキスト（前後両方あり）が正しく取得できる', () => {
+	const ctx = getWorkflowContext('csv-editor');
+	assert.notEqual(ctx, null);
+	assert.equal(ctx?.prev?.id, 'csv-fixer');
+	assert.equal(ctx?.next?.id, 'json-csv');
+});
 
-	test('getWorkflowToolIds で自身以外のステップツールIDが取得できる', () => {
-		const ids = getWorkflowToolIds('csv-fixer');
-		expect(ids).toEqual(['csv-editor', 'json-csv']);
-	});
+test('getWorkflowToolIds で自身以外のステップツールIDが取得できる', () => {
+	const ids = getWorkflowToolIds('csv-fixer');
+	assert.deepEqual(ids, ['csv-editor', 'json-csv']);
+});
 
-	test('未所属のツールIDの場合は null / 空配列を返す', () => {
-		expect(getWorkflowContext('non-existent-tool')).toBeNull();
-		expect(getWorkflowToolIds('non-existent-tool')).toEqual([]);
-	});
+test('未所属のツールIDの場合は null / 空配列を返す', () => {
+	assert.equal(getWorkflowContext('non-existent-tool'), null);
+	assert.deepEqual(getWorkflowToolIds('non-existent-tool'), []);
 });

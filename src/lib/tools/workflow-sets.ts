@@ -1,4 +1,4 @@
-import { type ToolCatalogItem, toolCatalog } from './catalog';
+import { type ToolCatalogItem, toolCatalog } from './catalog.ts';
 
 // ---------------------------------------------------------------------------
 // 型定義
