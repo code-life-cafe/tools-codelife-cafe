@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'vitest';
-import { getWorkflowContext, getWorkflowToolIds, workflowSets } from '../../src/lib/tools/workflow-sets';
+import {
+	getWorkflowContext,
+	getWorkflowToolIds,
+	workflowSets,
+} from '../../src/lib/tools/workflow-sets';
 
 describe('workflow-sets', () => {
 	test('すべてのワークフローセット内のツールがカタログに実在する', () => {
