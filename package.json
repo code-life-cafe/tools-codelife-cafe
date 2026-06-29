@@ -49,7 +49,7 @@
 		"libheif-js": "1.19.8",
 		"lucide-react": "^1.11.0",
 		"marked": "18.0.5",
-		"onnxruntime-web": "1.26.0-dev.20260416-b7804b056c",
+		"onnxruntime-web": "1.27.0",
 		"papaparse": "^5.5.3",
 		"pdf-lib": "1.17.1",
 		"qrcode": "^1.5.4",
