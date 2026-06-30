@@ -3,48 +3,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import ToolCard from '../components/common/ToolCard.astro';
 import JsonLd from '../components/common/JsonLd.astro';
 import { ShieldCheck } from 'lucide-react';
-import { getCategoryId, toolCatalog, toolCategories } from '../lib/tools/catalog';
+import { getCategoryId, purposeCategories, toolCatalog, toolCategories } from '../lib/tools/catalog';
 import { getPopularTools } from '../lib/tools/popularity';
 
 const popularTools = getPopularTools(toolCatalog);
 
-const purposeCategories = [
-  {
-    title: "データ整形で使う",
-    icon: "📊",
-    tools: [
-      { name: "JSON整形", href: "/json-formatter" },
-      { name: "CSVエディター", href: "/csv-editor" },
-      { name: "SQL整形", href: "/sql-formatter" }
-    ]
-  },
-  {
-    title: "画像加工で使う",
-    icon: "🖼️",
-    tools: [
-      { name: "画像圧縮・リサイズ", href: "/image-compress" },
-      { name: "画像切り抜き", href: "/image-crop" },
-      { name: "背景透過・削除", href: "/bg-remove" }
-    ]
-  },
-  {
-    title: "日本語入力の困りごと",
-    icon: "🇯🇵",
-    tools: [
-      { name: "全角半角変換", href: "/zenkaku-hankaku" },
-      { name: "和暦西暦変換", href: "/wareki-converter" },
-      { name: "郵便番号検索", href: "/zipcode" }
-    ]
-  },
-  {
-    title: "PDFを扱う",
-    icon: "📄",
-    tools: [
-      { name: "PDF結合", href: "/pdf-merge" },
-      { name: "PDF分割", href: "/pdf-split" }
-    ]
-  }
-];
 
 const schema = {
   "@context": "https://schema.org",

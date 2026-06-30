@@ -54,3 +54,15 @@ npm run build
 ### 3.3 Schema Markup Validator での検証
 1. [Google Rich Results Test](https://search.google.com/test/rich-results) または [Schema Markup Validator](https://validator.schema.org/) を開きます。
 2. ビルドされた HTML または公開後の URL を入力し、エラーや警告が 0 件であることを確認します。
+
+---
+
+## 4. llms.txt と AI クローラ方針
+
+`/llms.txt` と `/llms-full.txt` は、AI 検索・AI エージェントがサイト構造と各ツールの用途を把握しやすくするための補助レイヤーです。robots.txt、sitemap、Schema.org JSON-LD を置き換えるものではなく、通常の SEO 基盤に追加する参照情報として扱います。
+
+- `/llms.txt`: サイト概要と公開ツール一覧を簡潔に出力します。
+- `/llms-full.txt`: 各ツールの URL、用途、入力、出力、主要オプションを含む詳細リファレンスを出力します。
+- `public/robots.txt`: 全体を `Allow: /` とし、Googlebot / Bingbot に加えて GPTBot / ChatGPT-User / ClaudeBot / PerplexityBot などの主要 AI クローラを不用意にブロックしない方針です。
+
+llms.txt はアクセス制御ではありません。クローラ許可・拒否は robots.txt で管理し、llms.txt には AI が参照しやすい説明とリンクを集約します。

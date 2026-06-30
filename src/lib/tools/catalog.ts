@@ -33,6 +33,18 @@ export type ToolCatalogItem = {
 	llmsFull?: ToolLlmsFullInfo;
 };
 
+export type PurposeTool = {
+	id: string;
+	name: string;
+	href: string;
+};
+
+export type PurposeCategory = {
+	title: string;
+	icon: string;
+	tools: readonly PurposeTool[];
+};
+
 export const toolCatalog: readonly ToolCatalogItem[] = [
 	{
 		id: 'zenkaku-hankaku',
@@ -947,6 +959,51 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 	},
 ];
 
+export const purposeCategories = [
+	{
+		title: 'データ整形で使う',
+		icon: '📊',
+		tools: [
+			{ id: 'json-formatter', name: 'JSON整形', href: '/json-formatter' },
+			{ id: 'csv-editor', name: 'CSVエディター', href: '/csv-editor' },
+			{ id: 'sql-formatter', name: 'SQL整形', href: '/sql-formatter' },
+		],
+	},
+	{
+		title: '画像加工で使う',
+		icon: '🖼️',
+		tools: [
+			{
+				id: 'image-compress',
+				name: '画像圧縮・リサイズ',
+				href: '/image-compress',
+			},
+			{ id: 'image-crop', name: '画像切り抜き', href: '/image-crop' },
+			{ id: 'bg-remove', name: '背景透過・削除', href: '/bg-remove' },
+		],
+	},
+	{
+		title: '日本語入力の困りごと',
+		icon: '🇯🇵',
+		tools: [
+			{ id: 'zenkaku-hankaku', name: '全角半角変換', href: '/zenkaku-hankaku' },
+			{
+				id: 'wareki-converter',
+				name: '和暦西暦変換',
+				href: '/wareki-converter',
+			},
+			{ id: 'zipcode', name: '郵便番号検索', href: '/zipcode' },
+		],
+	},
+	{
+		title: 'PDFを扱う',
+		icon: '📄',
+		tools: [
+			{ id: 'pdf-merge', name: 'PDF結合', href: '/pdf-merge' },
+			{ id: 'pdf-split', name: 'PDF分割', href: '/pdf-split' },
+		],
+	},
+] as const satisfies readonly PurposeCategory[];
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
 // Tailwind の静的解析に拾わせるため、クラス名は literal で保持する
 const categoryChipColor: Record<ToolCategory, string> = {

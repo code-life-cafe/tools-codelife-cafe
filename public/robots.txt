@@ -3,5 +3,7 @@ Allow: /
 
 # LLM / AI Reference
 # llms.txt: https://tools.codelife.cafe/llms.txt
+# AI crawlers such as GPTBot, ChatGPT-User, ClaudeBot, and PerplexityBot are not
+# blocked here; llms.txt is an additional reference layer, not an access control file.
 
 Sitemap: https://tools.codelife.cafe/sitemap-index.xml
