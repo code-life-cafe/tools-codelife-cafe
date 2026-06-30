@@ -140,6 +140,8 @@ export async function dragOnCanvas(
 	from: { x: number; y: number },
 	to: { x: number; y: number },
 ): Promise<void> {
+	await canvas.scrollIntoViewIfNeeded();
+
 	const p1 = await imagePointToPage(canvas, from.x, from.y);
 	const p2 = await imagePointToPage(canvas, to.x, to.y);
 	await page.mouse.move(p1.x, p1.y);
