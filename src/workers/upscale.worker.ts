@@ -14,7 +14,7 @@ import {
 
 // onnxruntime-web の wasm 配信元（package.json の pin と同期させること）。
 // bg-remove と同様 cdn.jsdelivr.net を使用（CSP script-src/connect-src で許可済み）。
-const ORT_VERSION = '1.26.0-dev.20260416-b7804b056c';
+const ORT_VERSION = '1.27.0';
 const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
 
 // --- メッセージ型 ---
@@ -60,7 +60,7 @@ let ortPromise: Promise<Ort> | null = null;
 
 function loadOrt(): Promise<Ort> {
 	if (!ortPromise) {
-		ortPromise = import('onnxruntime-web').then((ort: Ort) => {
+		ortPromise = import('onnxruntime-web/wasm').then((ort: Ort) => {
 			ort.env.wasm.wasmPaths = ORT_WASM_BASE;
 			ort.env.wasm.numThreads = 1; // SharedArrayBuffer 不要（COOP/COEP 変更なし）
 			ort.env.wasm.simd = true;
