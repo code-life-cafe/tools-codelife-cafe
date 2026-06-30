@@ -102,7 +102,7 @@ test.describe('トップページ カテゴリフィルタ', () => {
 		await page.goto('/');
 
 		// 別ページへ遷移して戻る
-		await page.getByRole('link', { name: /文字数カウント/ }).click();
+		await page.locator('#tool-grid').getByRole('link', { name: /文字数カウント/ }).click();
 		await expect(page).toHaveURL(/char-count/);
 		// ヘッダーロゴ（href="/"）でトップへ戻る
 		await page.locator('header a[href="/"]').click();

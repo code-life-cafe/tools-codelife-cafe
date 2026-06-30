@@ -84,7 +84,7 @@ const schema = {
   </Fragment>
 
   <!-- Hero Section -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 pt-12 pb-8">
+  <section id="home-tools-container" class="mx-auto max-w-6xl px-4 sm:px-6 pt-12 pb-8">
     <div class="text-center mb-12">
       <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
         仕事で<span class="text-primary">安心</span>して使える
@@ -301,14 +301,17 @@ const schema = {
     });
 
     // カード内・サマリーカード内のカテゴリバッジクリックでも絞り込む
-    toolGrid.addEventListener('click', (event) => {
-      const badge = (event.target as Element).closest('[data-category-badge]');
-      if (!badge) return;
-      const categoryId = badge.getAttribute('data-category-badge');
-      if (!categoryId || !validIds.has(categoryId)) return;
-      event.preventDefault();
-      applyFilter(categoryId, true);
-    });
+    const container = document.getElementById('home-tools-container');
+    if (container) {
+      container.addEventListener('click', (event) => {
+        const badge = (event.target as Element).closest('[data-category-badge]');
+        if (!badge) return;
+        const categoryId = badge.getAttribute('data-category-badge');
+        if (!categoryId || !validIds.has(categoryId)) return;
+        event.preventDefault();
+        applyFilter(categoryId, true);
+      });
+    }
 
     // `?category=<id>` での直アクセス・遷移時に初期フィルタを適用（不正値は「すべて」扱い）
     const initialId = new URL(window.location.href).searchParams.get('category') ?? '';
