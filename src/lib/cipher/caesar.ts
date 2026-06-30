@@ -1,4 +1,4 @@
-import type { BruteForceResult, CaesarOptions, CipherResult } from './types';
+import type { BruteForceResult, CaesarOptions, CipherResult } from './types.ts';
 
 const UPPERCASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 const LOWERCASE = 'abcdefghijklmnopqrstuvwxyz';

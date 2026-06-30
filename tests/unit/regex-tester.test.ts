@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { execRegexSync } from '../../src/lib/tools/regex-tester';
+import { execRegexSync } from '../../src/lib/tools/regex-tester.ts';
 
 test('execRegexSync: グローバル空文字マッチ（^ や .* 等）でフリーズせず安全に停止・列挙される', () => {
 	const result = execRegexSync('^', 'g', 'abc');

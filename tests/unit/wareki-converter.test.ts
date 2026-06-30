@@ -4,7 +4,7 @@ import {
 	isValidDate,
 	seirekiToWareki,
 	warekiToSeireki,
-} from '../../src/lib/tools/wareki-converter';
+} from '../../src/lib/tools/wareki-converter.ts';
 
 test('isValidDate: 正常系・うるう年および存在しない日付の判定', () => {
 	assert.strictEqual(

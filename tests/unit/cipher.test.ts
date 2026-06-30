@@ -4,7 +4,7 @@ import {
 	caesarBruteForce,
 	caesarCipher,
 	reverseString,
-} from '../../src/lib/cipher';
+} from '../../src/lib/cipher/index.ts';
 
 test('caesarCipher: 正のシフトでエンコード・デコードが往復一致する', () => {
 	const original = 'Hello, World!';

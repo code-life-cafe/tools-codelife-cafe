@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { decodeBase64, encodeBase64 } from '../../src/lib/tools/base64';
+import { decodeBase64, encodeBase64 } from '../../src/lib/tools/base64.ts';
 
 test('encodeBase64 & decodeBase64: 日本語・絵文字を含むテキストの往復変換が無損失', () => {
 	const text = 'こんにちは、世界！🎉';

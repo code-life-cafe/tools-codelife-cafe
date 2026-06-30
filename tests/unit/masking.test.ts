@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { maskText } from '../../src/lib/tools/masking';
+import { maskText } from '../../src/lib/tools/masking.ts';
 
 test('maskText: 全角数字の電話番号およびマイナンバー(12桁)の検出とマスキング', () => {
 	const text =

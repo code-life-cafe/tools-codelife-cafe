@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { computeDiff } from '../../src/lib/tools/text-diff';
+import { computeDiff } from '../../src/lib/tools/text-diff.ts';
 
 test('computeDiff: 末尾への行追加で既存行が未変更として維持される', () => {
 	const textA = 'line1\nline2';

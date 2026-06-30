@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { decodeJwt } from '../../src/lib/tools/jwt-decoder';
+import { decodeJwt } from '../../src/lib/tools/jwt-decoder.ts';
 
 test('decodeJwt: 正常なJWTのデコード', () => {
 	// {"alg":"HS256","typ":"JWT"}.{"sub":"1234567890","name":"山田太郎","iat":1516239022}

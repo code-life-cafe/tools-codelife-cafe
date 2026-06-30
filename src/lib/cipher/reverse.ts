@@ -1,4 +1,4 @@
-import type { CipherResult } from './types';
+import type { CipherResult } from './types.ts';
 
 export function reverseString(input: string): CipherResult {
 	let output = '';

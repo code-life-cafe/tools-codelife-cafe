@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { countChars } from '../../src/lib/tools/char-count';
+import { countChars } from '../../src/lib/tools/char-count.ts';
 
 test('countChars: 通常テキストの文字数・バイト数計算', () => {
 	const result = countChars('あいう');
