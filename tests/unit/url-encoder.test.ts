@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { decodeUrl, encodeUrl } from '../../src/lib/tools/url-encoder';
+import { decodeUrl, encodeUrl } from '../../src/lib/tools/url-encoder.ts';
 
 test('encodeUrl & decodeUrl: 正常系のエンコード・デコード往復', () => {
 	const text = 'https://example.com/検索?q=東京 天気';

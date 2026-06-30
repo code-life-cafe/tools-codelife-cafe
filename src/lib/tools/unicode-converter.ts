@@ -1,4 +1,4 @@
-import { escapeUnicode, unescapeUnicode } from '../string-utils';
+import { escapeUnicode, unescapeUnicode } from '../string-utils.ts';
 
 /**
  * テキストをユニコードエスケープシーケンス（\uXXXX / \u{XXXXX}）に変換する

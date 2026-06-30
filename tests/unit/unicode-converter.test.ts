@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { escapeUnicode, unescapeUnicode } from '../../src/lib/string-utils';
+import { escapeUnicode, unescapeUnicode } from '../../src/lib/string-utils.ts';
 import {
 	textToUnicode,
 	unicodeToText,
-} from '../../src/lib/tools/unicode-converter';
+} from '../../src/lib/tools/unicode-converter.ts';
 
 test('unicodeToText: \\uXXXX および \\u{XXXXX} 双方の形式を正しくデコードできる', () => {
 	const legacyInput = '\\u3042\\u3044\\u3046'; // あいう

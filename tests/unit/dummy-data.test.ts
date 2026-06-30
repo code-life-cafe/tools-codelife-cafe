@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import {
 	generateDummyData,
 	validateDummyDataInput,
-} from '../../src/lib/tools/dummy-data';
+} from '../../src/lib/tools/dummy-data.ts';
 
 test('validateDummyDataInput: 境界値 (0, 1, 1000, 1001) および負数のバリデーション', () => {
 	assert.strictEqual(validateDummyDataInput(1, ['name']), null, '1件は正常');

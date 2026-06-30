@@ -4,7 +4,7 @@ import {
 	exportCsv,
 	getColumnLabel,
 	parseCsv,
-} from '../../src/lib/tools/csv-editor';
+} from '../../src/lib/tools/csv-editor.ts';
 
 test('parseCsv & exportCsv: 正しい行・列構造でパースおよびエクスポートされる', () => {
 	const input = 'A,B,C\n1,2,3\n4,5,6';

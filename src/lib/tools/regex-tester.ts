@@ -1,4 +1,4 @@
-import { getNextCodePointIndex } from '../string-utils';
+import { getNextCodePointIndex } from '../string-utils.ts';
 
 export interface RegexMatch {
 	value: string;

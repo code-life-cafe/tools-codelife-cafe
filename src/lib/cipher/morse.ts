@@ -1,4 +1,4 @@
-import type { CipherResult } from './types';
+import type { CipherResult } from './types.ts';
 
 const MORSE_TABLE: Record<string, string> = {
 	// Letters
