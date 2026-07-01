@@ -48,4 +48,76 @@ test.describe('関連ツール 回遊カード', () => {
 		await section(page).locator('a[href="/hash"]').click();
 		await expect(page).toHaveURL(/\/hash$/);
 	});
+
+	const workflows = [
+		{
+			name: 'CSV前処理',
+			from: 'csv-fixer',
+			to: 'csv-editor',
+			toHref: '/csv-editor',
+		},
+		{
+			name: '画像最適化',
+			from: 'image-compress',
+			to: 'image-crop',
+			toHref: '/image-crop',
+		},
+		{
+			name: '請求・帳票作成',
+			from: 'tax',
+			to: 'pdf-merge',
+			toHref: '/pdf-merge',
+		},
+		{
+			name: '開発者ツール',
+			from: 'json-formatter',
+			to: 'hash',
+			toHref: '/hash',
+		},
+	];
+
+	for (const wf of workflows) {
+		test(`${wf.name} ワークフローの遷移と計測イベント発火を検証する`, async ({
+			page,
+			createToolPage,
+		}) => {
+			const toolPage = createToolPage(wf.from);
+			await toolPage.goto();
+
+			let relatedClickPayload: { from: string; to: string } | null = null;
+			await page.route('**/api/event', async (route) => {
+				const request = route.request();
+				if (request.method() === 'POST') {
+					const data = request.postDataJSON();
+					if (data.event === 'related_click') {
+						relatedClickPayload = data.props;
+					}
+				}
+				await route.fulfill({
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify({ success: true }),
+				});
+			});
+
+			const related = section(page);
+			const nextLink = related.locator(`a[href="${wf.toHref}"]`);
+			await expect(nextLink).toBeVisible();
+			await Promise.all([
+				page.waitForRequest(
+					(req) =>
+						req.url().endsWith('/api/event') &&
+						req.method() === 'POST' &&
+						JSON.parse(req.postData() || '{}').event === 'related_click',
+				),
+				nextLink.click(),
+			]);
+
+			await expect(page).toHaveURL(new RegExp(`${wf.toHref}$`));
+			expect(relatedClickPayload).toEqual({
+				from: wf.from,
+				to: wf.to,
+			});
+		});
+	}
 });
