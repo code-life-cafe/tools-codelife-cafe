@@ -52,7 +52,7 @@ function encodeSettings(settings: Record<string, unknown>) {
 
 test.describe('ツール設定共有URL', () => {
 	for (const tool of tools) {
-		test(`${tool.slug}: settings URL は復元・noindex・canonical固定に対応する`, async ({
+		test(`${tool.slug}: settings URL は復元・canonical固定に対応する`, async ({
 			page,
 		}) => {
 			const settingsParam = encodeSettings(tool.settings);
@@ -63,10 +63,6 @@ test.describe('ツール設定共有URL', () => {
 			await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 				'href',
 				`https://tools.codelife.cafe/${tool.slug}`,
-			);
-			await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-				'content',
-				'noindex,follow',
 			);
 
 			const restored = await page.evaluate((slug) => {
@@ -87,13 +83,24 @@ test.describe('ツール設定共有URL', () => {
 				await textboxes.first().fill(tool.secret);
 			}
 
+			await page.evaluate(() => {
+				Object.defineProperty(navigator, 'clipboard', {
+					configurable: true,
+					value: {
+						writeText: async (text: string) => {
+							window.sessionStorage.setItem('lastShareUrl', text);
+						},
+					},
+				});
+			});
 			await page
 				.getByRole('button', { name: /設定を共有/ })
 				.first()
 				.click();
 			const shareUrl = await page.evaluate(() =>
-				navigator.clipboard.readText(),
+				window.sessionStorage.getItem('lastShareUrl'),
 			);
+			expect(shareUrl).not.toBeNull();
 			expect(shareUrl).toContain(`/${tool.slug}`);
 			expect(shareUrl).toContain('settings=');
 			expect(shareUrl).not.toContain(tool.secret);

@@ -19,7 +19,6 @@ const fullTitle = `${title} | ${siteName}`;
 // Cloudflare Web Analytics（Cookieレス・同意バナー不要・個人追跡なし）。
 // トークンは PUBLIC_CF_BEACON_TOKEN 環境変数から注入し、未設定時はビーコンを出力しない。
 const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
-const hasSettingsParam = Astro.url.searchParams.has('settings');
 ---
 
 <!DOCTYPE html>
@@ -29,7 +28,6 @@ const hasSettingsParam = Astro.url.searchParams.has('settings');
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{fullTitle}</title>
   <meta name="description" content={description} />
-  {hasSettingsParam && <meta name="robots" content="noindex,follow" />}
   <meta property="og:title" content={fullTitle} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />

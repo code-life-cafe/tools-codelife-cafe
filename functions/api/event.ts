@@ -20,6 +20,7 @@ const ALLOWED_EVENTS = new Set([
 	'search_empty',
 	'related_click',
 	'shared_url_open',
+	'settings_restore',
 ]);
 
 const ALLOWED_ORIGINS = new Set([
@@ -51,21 +52,40 @@ export const onRequestPost = async (context: {
 	try {
 		const body = (await context.request.json()) as Partial<EventPayload>;
 
-		if (!body || typeof body.event !== 'string' || !ALLOWED_EVENTS.has(body.event)) {
+		if (
+			!body ||
+			typeof body.event !== 'string' ||
+			!ALLOWED_EVENTS.has(body.event)
+		) {
 			return new Response(null, { status: 204, headers });
 		}
 
 		const eventName = body.event;
-		const props = body.props && typeof body.props === 'object' ? body.props : {};
+		const props =
+			body.props && typeof body.props === 'object' ? body.props : {};
 
 		let toolSlug = '';
 		let extra1 = '';
 		let extra2 = '';
 
 		// allowlist 方式で props を抽出
-		if (eventName === 'tool_run' || eventName === 'tool_engage' || eventName === 'shared_url_open') {
-			if (typeof props.tool !== 'string') return new Response(null, { status: 204, headers });
+		if (
+			eventName === 'tool_run' ||
+			eventName === 'tool_engage' ||
+			eventName === 'shared_url_open'
+		) {
+			if (typeof props.tool !== 'string')
+				return new Response(null, { status: 204, headers });
 			toolSlug = props.tool;
+		} else if (eventName === 'settings_restore') {
+			if (
+				typeof props.tool !== 'string' ||
+				(props.source !== 'url' && props.source !== 'localStorage')
+			) {
+				return new Response(null, { status: 204, headers });
+			}
+			toolSlug = props.tool;
+			extra1 = props.source;
 		} else if (eventName === 'related_click') {
 			if (typeof props.from !== 'string' || typeof props.to !== 'string') {
 				return new Response(null, { status: 204, headers });
@@ -73,7 +93,10 @@ export const onRequestPost = async (context: {
 			toolSlug = props.from;
 			extra1 = props.to;
 		} else if (eventName === 'search_empty') {
-			if (typeof props.lengthBucket !== 'string' || typeof props.hasJapanese !== 'boolean') {
+			if (
+				typeof props.lengthBucket !== 'string' ||
+				typeof props.hasJapanese !== 'boolean'
+			) {
 				return new Response(null, { status: 204, headers });
 			}
 			extra1 = props.lengthBucket;
