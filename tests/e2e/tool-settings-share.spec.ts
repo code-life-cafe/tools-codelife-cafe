@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/base';
 
 const tools = [
@@ -50,6 +51,33 @@ function encodeSettings(settings: Record<string, unknown>) {
 	return Buffer.from(JSON.stringify(settings), 'utf8').toString('base64');
 }
 
+async function fillSensitiveInput(page: Page, slug: string, secret: string) {
+	switch (slug) {
+		case 'json-formatter':
+			await page.locator('#json-input-textarea').fill(secret);
+			break;
+		case 'regex-tester':
+			await page.getByText('テスト文字列').scrollIntoViewIfNeeded();
+			await page.locator('textarea').fill(secret);
+			break;
+		case 'csv-editor':
+			await page.locator('textarea').fill(secret);
+			break;
+		case 'tax':
+			await page.getByLabel('金額').fill(secret);
+			break;
+		case 'image-compress':
+			// ファイル名・画像データは共有URL生成対象ではないため、入力操作なしで検証する。
+			break;
+	}
+}
+
+function decodeShareSettings(shareUrl: string) {
+	const settings = new URL(shareUrl).searchParams.get('settings');
+	if (!settings) return '';
+	return Buffer.from(settings, 'base64').toString('utf8');
+}
+
 test.describe('ツール設定共有URL', () => {
 	for (const tool of tools) {
 		test(`${tool.slug}: settings URL は復元・canonical固定に対応する`, async ({
@@ -78,10 +106,7 @@ test.describe('ツール設定共有URL', () => {
 	}) => {
 		for (const tool of tools) {
 			await page.goto(`/${tool.slug}`);
-			const textboxes = page.getByRole('textbox');
-			if ((await textboxes.count()) > 0) {
-				await textboxes.first().fill(tool.secret);
-			}
+			await fillSensitiveInput(page, tool.slug, tool.secret);
 
 			await page.evaluate(() => {
 				Object.defineProperty(navigator, 'clipboard', {
@@ -101,9 +126,13 @@ test.describe('ツール設定共有URL', () => {
 				window.sessionStorage.getItem('lastShareUrl'),
 			);
 			expect(shareUrl).not.toBeNull();
+			if (!shareUrl) {
+				throw new Error('共有URLが生成されませんでした');
+			}
 			expect(shareUrl).toContain(`/${tool.slug}`);
 			expect(shareUrl).toContain('settings=');
 			expect(shareUrl).not.toContain(tool.secret);
+			expect(decodeShareSettings(shareUrl)).not.toContain(tool.secret);
 		}
 	});
 });
