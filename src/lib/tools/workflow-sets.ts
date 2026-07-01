@@ -9,6 +9,8 @@ export type WorkflowSet = {
 	id: string;
 	/** 表示名 (例: 'CSV前処理') */
 	name: string;
+	/** 一連の作業目的の説明文 */
+	description: string;
 	/** ツールIDの順序配列（前工程→後工程） */
 	steps: readonly string[];
 };
@@ -34,21 +36,29 @@ export const workflowSets: readonly WorkflowSet[] = [
 	{
 		id: 'csv-preprocessing',
 		name: 'CSV前処理',
+		description:
+			'CSVファイルの文字化けやフォーマットの乱れを修復し、データを表形式で編集・整形して、システムやデータベースへインポートしやすいデータに整備します。',
 		steps: ['csv-fixer', 'csv-editor', 'json-csv'],
 	},
 	{
 		id: 'image-processing',
-		name: '画像処理',
+		name: '画像最適化',
+		description:
+			'Webサイトや資料への掲載用に画像を圧縮し、必要な比率で切り抜き、不要なEXIFメタデータを削除してファイル容量とプライバシーを最適化します。',
 		steps: ['image-compress', 'image-crop', 'exif'],
 	},
 	{
 		id: 'invoice-document',
-		name: '請求・帳票',
+		name: '請求・帳票作成',
+		description:
+			'請求書や見積書の消費税計算（内税・外税）を行い、PDF形式で書き出した複数の書類を結合または分割して、取引先への提出用に整理します。',
 		steps: ['tax', 'pdf-merge', 'pdf-split'],
 	},
 	{
 		id: 'developer',
-		name: '開発者',
+		name: '開発者ツール',
+		description:
+			'JSONの整形、ハッシュ値的計算、Base64エンコード、正規表現の検証など、開発作業中に頻出するデータのデバッグやエンコードを行います。',
 		steps: ['json-formatter', 'hash', 'base64', 'regex-tester'],
 	},
 ];

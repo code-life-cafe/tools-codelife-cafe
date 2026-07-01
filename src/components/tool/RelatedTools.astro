@@ -1,5 +1,6 @@
 ---
 import { getRelatedTools, toolCatalog, type ToolCatalogItem } from '../../lib/tools/catalog';
+import { getWorkflowContext } from '../../lib/tools/workflow-sets';
 import ToolCard from '../common/ToolCard.astro';
 
 interface Props {
@@ -9,6 +10,9 @@ interface Props {
 }
 
 const { toolId, relatedSlugs, excludeIds = [] } = Astro.props;
+
+// ワークフローコンテキストの取得
+const workflowCtx = toolId ? getWorkflowContext(toolId) : null;
 
 // ワークフロー導線で既に表示済みのツールIDを除外対象に含める
 const excludeSet = new Set(excludeIds);
@@ -43,27 +47,133 @@ if (toolId && validTools.length < LIMIT) {
 }
 ---
 
-{validTools.length > 0 && (
-	<section id="related-tools-section" class="mt-8" aria-labelledby="related-tools-heading">
-		<h2 id="related-tools-heading" class="text-lg font-semibold mb-4 text-foreground">
-			関連ツール
-		</h2>
-		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-			{validTools.map((t) => (
-				<div data-track-related-click data-from={toolId ?? ''} data-to={t.id}>
-					<ToolCard
-						id={t.id}
-						title={t.title}
-						description={t.description}
-						href={t.href}
-						icon={t.icon}
-						category={t.category}
-						categoryColor={t.categoryColor}
-					/>
-				</div>
-			))}
+{workflowCtx ? (
+	<section id="related-tools-section" class="mt-8 rounded-2xl border border-border/80 bg-card p-5 sm:p-6 shadow-xs" aria-labelledby="related-tools-heading">
+		<div class="mb-6">
+			<h2 id="related-tools-heading" class="text-lg font-bold text-foreground flex items-center gap-2 mb-1.5">
+				<span class="text-xl">📋</span>
+				この作業の続きに
+			</h2>
+			<p class="text-sm text-muted-foreground leading-relaxed">
+				{workflowCtx.set.description}
+			</p>
+		</div>
+		<div class="flex flex-col md:flex-row items-stretch gap-4">
+			{workflowCtx.allSteps.map((step, i) => {
+				const isCurrent = step.id === toolId;
+				const isNext = workflowCtx.currentIndex + 1 === i;
+				const isCompleted = i < workflowCtx.currentIndex;
+				
+				return (
+					<>
+						{i > 0 && (
+							<div class="flex items-center justify-center text-muted-foreground/30 py-1 md:py-0 md:px-1 shrink-0 select-none">
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 hidden md:block">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+								</svg>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6 md:hidden">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+								</svg>
+							</div>
+						)}
+						
+						{isCurrent ? (
+							<div
+								class:list={[
+									"flex-1 flex flex-col justify-between overflow-hidden rounded-xl border p-5 shadow-xs transition-all duration-200 border-primary bg-primary/5 dark:bg-primary/10 border-l-[3px] border-l-primary cursor-default"
+								]}
+							>
+								<div>
+									<div class="mb-3 flex items-center justify-between gap-2">
+										<div class="flex items-center gap-2">
+											<span class="text-2xl" aria-hidden="true">{step.icon}</span>
+											<span class="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{step.category}</span>
+										</div>
+										<span class="text-xs font-semibold bg-primary text-primary-foreground px-2 py-0.5 rounded-full">現在地</span>
+									</div>
+									<div class="text-xs font-semibold text-primary/80 mb-1">
+										ステップ {i + 1}
+									</div>
+									<h3 class="text-base font-semibold mb-1 text-foreground">{step.title}</h3>
+									<p class="text-xs text-muted-foreground leading-relaxed mb-4">{step.description}</p>
+								</div>
+								<div class="mt-2 text-xs font-medium text-muted-foreground">
+									現在このツールを使用中
+								</div>
+							</div>
+						) : (
+							<a
+								href={step.href}
+								data-track-related-click
+								data-from={toolId ?? ''}
+								data-to={step.id}
+								class:list={[
+									"group flex-1 flex flex-col justify-between overflow-hidden rounded-xl border p-5 shadow-xs transition-all duration-200 border-l-[3px] border-l-primary/60 hover:scale-[1.01] hover:shadow-md",
+									isNext 
+										? "border-teal-600/30 dark:border-teal-500/30 hover:border-teal-600 dark:hover:border-teal-500 bg-teal-500/[0.02] dark:bg-teal-500/[0.04]" 
+										: "border-border bg-card hover:border-primary/30",
+									isCompleted ? "opacity-75 hover:opacity-100" : ""
+								]}
+							>
+								<div>
+									<div class="mb-3 flex items-center justify-between gap-2">
+										<div class="flex items-center gap-2">
+											<span class="text-2xl" aria-hidden="true">{step.icon}</span>
+											<span class="text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{step.category}</span>
+										</div>
+										{isNext && (
+											<span class="text-xs font-semibold bg-teal-600 dark:bg-teal-500 text-white px-2 py-0.5 rounded-full animate-pulse">次へ進む</span>
+										)}
+										{isCompleted && (
+											<span class="text-xs font-semibold bg-muted text-muted-foreground px-2 py-0.5 rounded-full flex items-center gap-0.5">✓ 完了</span>
+										)}
+									</div>
+									<div class="text-xs font-semibold text-muted-foreground mb-1">
+										ステップ {i + 1}
+									</div>
+									<h3 class="text-base font-semibold mb-1 text-foreground group-hover:text-primary transition-colors">{step.title}</h3>
+									<p class="text-xs text-muted-foreground leading-relaxed mb-4">{step.description}</p>
+								</div>
+								<div class="mt-2 text-xs font-medium">
+									{isNext && <span class="text-teal-600 dark:text-teal-400 group-hover:underline">次を試してみる →</span>}
+									{isCompleted && <span class="text-muted-foreground group-hover:text-primary group-hover:underline">もう一度使う →</span>}
+									{!isNext && !isCompleted && <span class="text-primary group-hover:underline">使ってみる →</span>}
+								</div>
+							</a>
+						)}
+					</>
+				);
+			})}
 		</div>
 	</section>
+) : (
+	validTools.length > 0 && (
+		<section id="related-tools-section" class="mt-8" aria-labelledby="related-tools-heading">
+			<div class="mb-4">
+				<h2 id="related-tools-heading" class="text-lg font-semibold text-foreground">
+					あわせて使いたいツール
+				</h2>
+				<p class="text-sm text-muted-foreground leading-relaxed mt-0.5">
+					現在の作業と組み合わせて使うことで、より効率的に作業を行えるおすすめのツールです。
+				</p>
+			</div>
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+				{validTools.map((t) => (
+					<div data-track-related-click data-from={toolId ?? ''} data-to={t.id}>
+						<ToolCard
+							id={t.id}
+							title={t.title}
+							description={t.description}
+							href={t.href}
+							icon={t.icon}
+							category={t.category}
+							categoryColor={t.categoryColor}
+						/>
+					</div>
+				))}
+			</div>
+		</section>
+	)
 )}
 
 <script>
