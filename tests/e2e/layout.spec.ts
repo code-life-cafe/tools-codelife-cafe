@@ -164,4 +164,48 @@ test.describe('Layout & Navigation', () => {
 			footer.getByRole('link', { name: /このサイトについて/i }),
 		).toBeVisible();
 	});
+
+	test('ヘッダーとフッターからGitHub・プライバシーポリシーへ到達できる', async ({
+		page,
+	}) => {
+		const header = page.locator('header');
+		await expect(
+			header.getByRole('link', { name: 'プライバシーポリシー' }),
+		).toHaveAttribute('href', '/privacy');
+		await expect(header.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+			'href',
+			'https://github.com/maru0014/tools-codelife-cafe',
+		);
+
+		const footer = page.locator('footer');
+		await expect(
+			footer.getByRole('link', { name: /プライバシーポリシー/i }),
+		).toHaveAttribute('href', '/privacy');
+		await expect(footer.getByRole('link', { name: /GitHub/i })).toHaveAttribute(
+			'href',
+			'https://github.com/maru0014/tools-codelife-cafe',
+		);
+	});
+
+	test('トップ一覧のツールカードに信頼バッジが表示される', async ({ page }) => {
+		const firstCard = page.locator('#tool-grid [data-tool-id]').first();
+		await expect(firstCard).toBeVisible();
+
+		for (const label of [
+			'入力データ非送信',
+			'Cookieなし',
+			'個人追跡なし',
+			'OSS',
+			'広告なし',
+		]) {
+			await expect(firstCard.getByText(label, { exact: true })).toBeVisible();
+		}
+
+		await expect(
+			firstCard.locator('[aria-label="信頼バッジ"] div').first(),
+		).toHaveAttribute(
+			'title',
+			/AI機能では初回実行時などに推論モデルをダウンロード/,
+		);
+	});
 });

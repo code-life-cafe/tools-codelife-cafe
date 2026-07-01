@@ -2,6 +2,7 @@
 import ThemeToggle from '../common/ThemeToggle.tsx';
 import SearchModal from '../common/SearchModal.tsx';
 import OfflineBadge from './OfflineBadge.tsx';
+import { FileText } from 'lucide-react';
 ---
 
 <header class="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-lg">
@@ -30,6 +31,15 @@ import OfflineBadge from './OfflineBadge.tsx';
     <!-- Right: Theme toggle -->
     <div class="flex items-center gap-3">
       <OfflineBadge client:load />
+      <a
+        href="/privacy"
+        class="inline-flex items-center gap-1.5 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors md:px-3"
+        title="プライバシーポリシーを開く"
+        aria-label="プライバシーポリシー"
+      >
+        <FileText className="h-5 w-5 md:h-4 md:w-4" aria-hidden="true" />
+        <span class="hidden lg:inline text-sm font-medium">プライバシー</span>
+      </a>
       <a
         href="https://github.com/maru0014/tools-codelife-cafe"
         target="_blank"
@@ -69,3 +79,4 @@ import OfflineBadge from './OfflineBadge.tsx';
   // 初回ロード時に実行
   setupSearchTrigger();
 </script>
+

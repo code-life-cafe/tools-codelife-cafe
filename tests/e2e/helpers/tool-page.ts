@@ -15,6 +15,23 @@ export class ToolPage {
 		await expect(
 			this.page.getByRole('button', { name: 'セキュリティ情報を表示' }),
 		).toBeVisible();
+
+		const trustBadges = this.page.locator('[aria-label="信頼バッジ"]').first();
+		await expect(trustBadges).toBeVisible();
+		for (const label of [
+			'入力データ非送信',
+			'Cookieなし',
+			'個人追跡なし',
+			'OSS',
+			'広告なし',
+		]) {
+			await expect(trustBadges.getByText(label, { exact: true })).toBeVisible();
+		}
+
+		await expect(trustBadges.locator('div').first()).toHaveAttribute(
+			'title',
+			/AI機能では初回実行時などに推論モデルをダウンロード/,
+		);
 	}
 
 	async expectTitle(title: string) {
