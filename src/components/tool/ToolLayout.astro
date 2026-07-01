@@ -8,6 +8,7 @@ import Faq from './Faq.astro';
 import RelatedTools from './RelatedTools.astro';
 import { getCategoryId, toolCatalog, type ToolCategory } from '../../lib/tools/catalog';
 import { generateJsonLd } from '../../lib/jsonld';
+import { normalizeCanonicalPath } from '../../lib/seo/url';
 
 interface Props {
 	tool: CollectionEntry<'tools'>;
@@ -20,8 +21,7 @@ const { title, description, canonical, category, summary, useCases, howto, faq, 
 const toolId = entry.id;
 const catalogTool = toolCatalog.find((t) => t.id === toolId);
 const path = customPath || catalogTool?.href || `/tools/${toolId}`;
-const SITE_URL = 'https://tools.codelife.cafe';
-const canonicalUrl = canonical || `${SITE_URL}${path}`;
+const canonicalPath = normalizeCanonicalPath(canonical || path);
 
 // パンくずリスト用
 const categoryHref = category ? `/?category=${getCategoryId(category as ToolCategory)}` : undefined;
@@ -41,9 +41,8 @@ const jsonLdData = generateJsonLd(
 );
 ---
 
-<BaseLayout title={title} description={description} path={path} ogImage={ogImage}>
+<BaseLayout title={title} description={description} path={canonicalPath} ogImage={ogImage}>
 	<Fragment slot="head">
-		{canonical && <link rel="canonical" href={canonicalUrl} />}
 		<script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLdData).replace(/</g, '\\u003c')} />
 		<slot name="head" />
 	</Fragment>

@@ -2,6 +2,7 @@
 import '../styles/global.css';
 import Header from '../components/layout/Header.astro';
 import Footer from '../components/layout/Footer.astro';
+import { toCanonicalUrl } from '../lib/seo/url';
 
 interface Props {
   title: string;
@@ -13,7 +14,7 @@ interface Props {
 
 const { title, description, path, ogImage = '/og-image.png' } = Astro.props;
 const siteName = "CODE:LIFE Tools";
-const siteUrl = "https://tools.codelife.cafe";
+const canonicalUrl = toCanonicalUrl(path);
 const fullTitle = `${title} | ${siteName}`;
 
 // Cloudflare Web Analytics（Cookieレス・同意バナー不要・個人追跡なし）。
@@ -31,14 +32,14 @@ const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
   <meta property="og:title" content={fullTitle} />
   <meta property="og:description" content={description} />
   <meta property="og:type" content="website" />
-  <meta property="og:url" content={`${siteUrl}${path}`} />
-  <meta property="og:image" content={`${siteUrl}${ogImage}`} />
+  <meta property="og:url" content={canonicalUrl} />
+  <meta property="og:image" content={toCanonicalUrl(ogImage)} />
   <meta property="og:locale" content="ja_JP" />
   <meta property="og:site_name" content={siteName} />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content={fullTitle} />
   <meta name="twitter:description" content={description} />
-  <link rel="canonical" href={`${siteUrl}${path}`} />
+  <link rel="canonical" href={canonicalUrl} />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#0C0A09" media="(prefers-color-scheme: dark)" />
