@@ -114,10 +114,12 @@ test.describe('関連ツール 回遊カード', () => {
 			]);
 
 			await expect(page).toHaveURL(new RegExp(`${wf.toHref}$`));
-			expect(relatedClickPayload).toEqual({
-				from: wf.from,
-				to: wf.to,
-			});
+			expect(relatedClickPayload).toEqual(
+				expect.objectContaining({
+					from: wf.from,
+					to: wf.to,
+				}),
+			);
 		});
 	}
 });

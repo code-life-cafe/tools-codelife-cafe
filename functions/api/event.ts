@@ -67,6 +67,7 @@ export const onRequestPost = async (context: {
 		let toolSlug = '';
 		let extra1 = '';
 		let extra2 = '';
+		let double1: number | undefined;
 
 		// allowlist 方式で props を抽出
 		if (
@@ -87,11 +88,17 @@ export const onRequestPost = async (context: {
 			toolSlug = props.tool;
 			extra1 = props.source;
 		} else if (eventName === 'related_click') {
-			if (typeof props.from !== 'string' || typeof props.to !== 'string') {
+			if (
+				typeof props.from !== 'string' ||
+				typeof props.to !== 'string' ||
+				typeof props.position !== 'number'
+			) {
 				return new Response(null, { status: 204, headers });
 			}
 			toolSlug = props.from;
 			extra1 = props.to;
+			extra2 = typeof props.setId === 'string' ? props.setId : '';
+			double1 = props.position;
 		} else if (eventName === 'search_empty') {
 			if (
 				typeof props.lengthBucket !== 'string' ||
@@ -105,10 +112,18 @@ export const onRequestPost = async (context: {
 
 		// Analytics Engine への書き込み
 		if (context.env?.EVENTS?.writeDataPoint) {
-			context.env.EVENTS.writeDataPoint({
+			const dataPoint: {
+				blobs?: string[];
+				doubles?: number[];
+				indexes?: string[];
+			} = {
 				blobs: [eventName, toolSlug, extra1, extra2],
 				indexes: [eventName],
-			});
+			};
+			if (double1 !== undefined) {
+				dataPoint.doubles = [double1];
+			}
+			context.env.EVENTS.writeDataPoint(dataPoint);
 		}
 
 		return new Response(null, { status: 204, headers });

@@ -7,7 +7,7 @@ export type AnalyticsEvents = {
 		tokenCount: number;
 		q_redacted?: boolean;
 	};
-	related_click: { from: string; to: string };
+	related_click: { from: string; to: string; setId?: string; position: number };
 	shared_url_open: { tool: string };
 	settings_restore: { tool: string; source: 'localStorage' | 'url' };
 };

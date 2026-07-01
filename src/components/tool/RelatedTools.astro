@@ -107,6 +107,8 @@ if (toolId && validTools.length < LIMIT) {
 								data-track-related-click
 								data-from={toolId ?? ''}
 								data-to={step.id}
+								data-set-id={workflowCtx.set.id}
+								data-position={i}
 								class:list={[
 									"group flex-1 flex flex-col justify-between overflow-hidden rounded-xl border p-5 shadow-xs transition-all duration-200 border-l-[3px] border-l-primary/60 hover:scale-[1.01] hover:shadow-md",
 									isNext 
@@ -158,8 +160,8 @@ if (toolId && validTools.length < LIMIT) {
 				</p>
 			</div>
 			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-				{validTools.map((t) => (
-					<div data-track-related-click data-from={toolId ?? ''} data-to={t.id}>
+				{validTools.map((t, i) => (
+					<div data-track-related-click data-from={toolId ?? ''} data-to={t.id} data-position={i}>
 						<ToolCard
 							id={t.id}
 							title={t.title}
@@ -184,8 +186,11 @@ if (toolId && validTools.length < LIMIT) {
 		if (!el) return;
 		const from = el.dataset.from ?? '';
 		const to = el.dataset.to ?? '';
-		if (from && to) {
-			track('related_click', { from, to });
+		const setId = el.dataset.setId;
+		const position = parseInt(el.dataset.position ?? '0', 10);
+		
+		if (from && to && !Number.isNaN(position)) {
+			track('related_click', { from, to, setId, position });
 		}
 	});
 </script>
