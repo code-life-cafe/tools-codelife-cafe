@@ -33,7 +33,7 @@ test.describe('背景削除ツール', () => {
 		const modeLabel = page.locator('label[for="mode-switch"]');
 		await expect(modeLabel).toContainText('✨ 高精度モード');
 		await expect(
-			page.getByText('BEN2（極めて高精度・アニメ対応）≈ 209MB'),
+			page.getByText('BEN2（高精度・アニメ対応）≈ 209MB'),
 		).toBeVisible();
 
 		// スイッチをOFFにして高速モードに切り替え

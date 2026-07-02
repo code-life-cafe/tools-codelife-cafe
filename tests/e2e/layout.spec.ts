@@ -187,25 +187,12 @@ test.describe('Layout & Navigation', () => {
 		);
 	});
 
-	test('トップ一覧のツールカードに信頼バッジが表示される', async ({ page }) => {
+	test('トップ一覧のツールカードに信頼バッジが重複表示されない', async ({
+		page,
+	}) => {
 		const firstCard = page.locator('#tool-grid [data-tool-id]').first();
 		await expect(firstCard).toBeVisible();
 
-		for (const label of [
-			'入力データ非送信',
-			'Cookieなし',
-			'個人追跡なし',
-			'OSS',
-			'広告なし',
-		]) {
-			await expect(firstCard.getByText(label, { exact: true })).toBeVisible();
-		}
-
-		await expect(
-			firstCard.locator('[aria-label="信頼バッジ"] div').first(),
-		).toHaveAttribute(
-			'title',
-			/AI機能では初回実行時などに推論モデルをダウンロード/,
-		);
+		await expect(firstCard.locator('[aria-label="信頼バッジ"]')).toHaveCount(0);
 	});
 });

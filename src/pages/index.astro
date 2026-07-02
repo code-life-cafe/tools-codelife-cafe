@@ -17,7 +17,7 @@ const schema = {
       "@id": "https://tools.codelife.cafe/#website",
       "name": "CODE:LIFE Tools",
       "url": "https://tools.codelife.cafe",
-      "description": "仕事で安心して使える、高速・軽量なWebツール集",
+      "description": "仕事で安心して使える、入力データをサーバーへ送信しないWebツール集",
       "inLanguage": "ja",
       "publisher": {
         "@id": "https://tools.codelife.cafe/#org"
@@ -39,7 +39,7 @@ const schema = {
 
 <BaseLayout
   title="仕事で安心して使えるWebツール集"
-  description="すべてのツールがブラウザ内で完結。サーバーへのデータ送信は一切行わない、高速・軽量なWebツール集です。"
+  description="すべてのツールがブラウザ内で完結。入力データをサーバーへ送信しないWebツール集です。"
   path="/"
 >
   <Fragment slot="head">
@@ -57,7 +57,7 @@ const schema = {
       <p class="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
         すべてのツールがブラウザ内で完結。
         <br class="hidden sm:block" />
-        サーバーへのデータ送信は<strong class="text-foreground">一切ありません</strong>。
+        入力データはサーバーへ送信されません。
       </p>
       <div class="mt-6 inline-flex items-center gap-2 rounded-full border border-safety/30 bg-safety/5 px-4 py-2 text-sm text-safety font-medium">
         <ShieldCheck className="h-4 w-4" />
@@ -198,7 +198,7 @@ const schema = {
       <div class="text-center p-6 rounded-xl bg-card border border-border">
         <div class="text-3xl mb-3">🇯🇵</div>
         <h3 class="font-semibold mb-2">日本語業務に特化</h3>
-        <p class="text-sm text-muted-foreground">全角半角変換、Shift-JISバイト数など、日本語業務で本当に必要な機能を搭載。</p>
+        <p class="text-sm text-muted-foreground">全角半角変換、Shift-JISバイト数など、日本語業務に必要な機能を搭載。</p>
       </div>
       <div class="text-center p-6 rounded-xl bg-card border border-border">
         <div class="text-3xl mb-3">🔒</div>
@@ -207,8 +207,8 @@ const schema = {
       </div>
       <div class="text-center p-6 rounded-xl bg-card border border-border">
         <div class="text-3xl mb-3">⚡</div>
-        <h3 class="font-semibold mb-2">高速・軽量</h3>
-        <p class="text-sm text-muted-foreground">入力データを送信しないリアルタイム処理。ストレスフリーに使えます。</p>
+        <h3 class="font-semibold mb-2">リアルタイム処理</h3>
+        <p class="text-sm text-muted-foreground">入力データを送信せず、ブラウザ内でその場で結果を表示します。</p>
       </div>
     </div>
   </section>
