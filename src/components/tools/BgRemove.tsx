@@ -363,7 +363,7 @@ export default function BgRemove() {
 					{mode === 'fast' ? (
 						<span>MODNet（人物特化・高速）≈ 25.9MB</span>
 					) : (
-						<span>BEN2（極めて高精度・アニメ対応）≈ 209MB</span>
+						<span>BEN2（高精度・アニメ対応）≈ 209MB</span>
 					)}
 				</div>
 			</div>

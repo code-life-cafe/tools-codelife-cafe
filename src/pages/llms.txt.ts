@@ -8,7 +8,7 @@ export const GET: APIRoute = async () => {
 		const lines: string[] = [
 			'# tools.codelife.cafe',
 			'',
-			'仕事で安心して使える、高速・軽量な日本語業務特化のWebツール集。全ツールが完全クライアントサイド処理で、入力データを外部送信しない。',
+			'仕事で安心して使える、日本語業務特化のWebツール集。全ツールが完全クライアントサイド処理で、入力データを外部送信しない。',
 			'',
 			'## Tools',
 			...toolCatalog
