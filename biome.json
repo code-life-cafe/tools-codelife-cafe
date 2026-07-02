@@ -42,7 +42,7 @@
 				"useExhaustiveDependencies": "warn"
 			},
 			"security": {
-				"noDangerouslySetInnerHtml": "warn"
+				"noDangerouslySetInnerHtml": "error"
 			},
 			"style": {
 				"noNonNullAssertion": "warn"
