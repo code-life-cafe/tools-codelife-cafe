@@ -9,9 +9,10 @@ import {
 	Share2,
 	Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
@@ -34,15 +35,8 @@ import { type ConvertItem, ConvertResultList } from './ConvertResultList';
 const ACCEPT =
 	'image/png,image/jpeg,image/webp,image/avif,image/heic,image/heif,.heic,.heif';
 
-type CompletionNotice = {
-	done: number;
-	failed: number;
-	total: number;
-};
-
 export function ImageConvertPage() {
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('image-convert');
-	const [items, setItems] = useState<ConvertItem[]>([]);
 	const [options, updateOptions, generateShareUrl] = useToolSettings(
 		'image-convert',
 		DEFAULT_UI_OPTIONS,
@@ -51,14 +45,30 @@ export function ImageConvertPage() {
 	const [processedTarget, setProcessedTarget] = useState<TargetFormat>(
 		DEFAULT_UI_OPTIONS.target,
 	);
-	const [processing, setProcessing] = useState(false);
-	const [progress, setProgress] = useState({ done: 0, total: 0 });
-	const [completion, setCompletion] = useState<CompletionNotice | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	const runIdRef = useRef(0);
-	const cancelRef = useRef(false);
-	const itemsRef = useRef<ConvertItem[]>([]);
-	itemsRef.current = items;
+
+	const {
+		items,
+		processing,
+		progress,
+		completion,
+		error,
+		setError,
+		clearCompletion,
+		start,
+		reprocess,
+		cancel,
+		clear,
+	} = useBatchProcessing<ConvertItem>({
+		fallbackErrorMessage: '画像の変換に失敗しました。',
+		releaseItem: (it) => {
+			URL.revokeObjectURL(it.previewUrl);
+			if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
+		},
+		releasePatch: (patch) => {
+			if (patch.resultUrl) URL.revokeObjectURL(patch.resultUrl);
+		},
+		onRunComplete: trackRun,
+	});
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
@@ -67,74 +77,20 @@ export function ImageConvertPage() {
 		}
 	}, [trackSharedUrlOpen]);
 
-	// アンマウント時に全 object URL を解放する
-	useEffect(() => {
-		return () => {
-			for (const it of itemsRef.current) {
-				URL.revokeObjectURL(it.previewUrl);
-				if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
-			}
-		};
-	}, []);
-
-	const updateItem = useCallback((id: string, patch: Partial<ConvertItem>) => {
-		setItems((prev) =>
-			prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
-		);
-	}, []);
-
-	const processAll = useCallback(
-		async (target: ConvertItem[], uiOptions: ConvertUiOptions) => {
-			const runId = ++runIdRef.current;
-			cancelRef.current = false;
-			setProcessing(true);
-			setProcessedTarget(uiOptions.target);
-			setCompletion(null);
-			setProgress({ done: 0, total: target.length });
-			let done = 0;
-			let failed = 0;
-
-			for (let i = 0; i < target.length; i++) {
-				if (cancelRef.current || runIdRef.current !== runId) break;
-				const item = target[i];
-				try {
-					const result = await convertOne(item.file, uiOptions);
-					const resultUrl = URL.createObjectURL(result.blob);
-					if (runIdRef.current !== runId) {
-						URL.revokeObjectURL(resultUrl);
-						break;
-					}
-					updateItem(item.id, {
-						status: 'done',
-						result: {
-							fileName: result.fileName,
-							blob: result.blob,
-							warnings: result.warnings,
-						},
-						resultUrl,
-					});
-					done++;
-				} catch (err) {
-					updateItem(item.id, {
-						status: 'error',
-						error:
-							err instanceof Error ? err.message : '画像の変換に失敗しました。',
-					});
-					failed++;
-				}
-				if (runIdRef.current === runId) {
-					setProgress({ done: i + 1, total: target.length });
-				}
-				// イベントループへ yield して UI フリーズを防ぐ
-				await new Promise((resolve) => setTimeout(resolve, 0));
-			}
-			if (runIdRef.current === runId) {
-				setProcessing(false);
-				setCompletion({ done, failed, total: target.length });
-				trackRun();
-			}
+	/** 1ファイルを現在の設定で変換する */
+	const convertItem = useCallback(
+		async (item: ConvertItem): Promise<Partial<ConvertItem>> => {
+			const result = await convertOne(item.file, options);
+			return {
+				result: {
+					fileName: result.fileName,
+					blob: result.blob,
+					warnings: result.warnings,
+				},
+				resultUrl: URL.createObjectURL(result.blob),
+			};
 		},
-		[updateItem, trackRun],
+		[options],
 	);
 
 	const handleFilesSelect = useCallback(
@@ -154,14 +110,9 @@ export function ImageConvertPage() {
 				else errors.push(v.message);
 			}
 			setError(errors.length > 0 ? errors.join('\n') : null);
-			setCompletion(null);
+			clearCompletion();
 			if (valid.length === 0) return;
 
-			// 差し替え: 前回結果と object URL を解放する
-			for (const it of itemsRef.current) {
-				URL.revokeObjectURL(it.previewUrl);
-				if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
-			}
 			const next: ConvertItem[] = valid.map(({ file, format }) => ({
 				id: createId(),
 				file,
@@ -169,19 +120,19 @@ export function ImageConvertPage() {
 				sourceFormat: format,
 				status: 'pending',
 			}));
-			setItems(next);
-			void processAll(next, options);
+			setProcessedTarget(options.target);
+			start(next, convertItem);
 		},
-		[options, processAll],
+		[options.target, setError, clearCompletion, start, convertItem],
 	);
 
 	// オプション変更時は古い完了メッセージを消す（再変換するまで結果は前回のまま）
 	const handleOptionsChange = useCallback(
 		(next: ConvertUiOptions) => {
 			updateOptions(next);
-			setCompletion(null);
+			clearCompletion();
 		},
-		[updateOptions],
+		[updateOptions, clearCompletion],
 	);
 
 	const handleShare = useCallback(() => {
@@ -192,7 +143,8 @@ export function ImageConvertPage() {
 	}, [generateShareUrl]);
 
 	const handleReconvert = useCallback(() => {
-		const reset = itemsRef.current.map((it) => {
+		setProcessedTarget(options.target);
+		reprocess((it) => {
 			if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
 			return {
 				...it,
@@ -201,37 +153,18 @@ export function ImageConvertPage() {
 				resultUrl: undefined,
 				error: undefined,
 			};
-		});
-		setItems(reset);
-		void processAll(reset, options);
-	}, [options, processAll]);
+		}, convertItem);
+	}, [options.target, reprocess, convertItem]);
 
-	const handleCancel = useCallback(() => {
-		cancelRef.current = true;
-		runIdRef.current++;
-		setProcessing(false);
-		setCompletion(null);
-	}, []);
-
-	const handleClear = useCallback(() => {
-		runIdRef.current++;
-		cancelRef.current = true;
-		for (const it of itemsRef.current) {
-			URL.revokeObjectURL(it.previewUrl);
-			if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
-		}
-		setItems([]);
-		setError(null);
-		setProcessing(false);
-		setCompletion(null);
-	}, []);
+	const handleCancel = cancel;
+	const handleClear = clear;
 
 	const handleDownload = useCallback((item: ConvertItem) => {
 		if (item.result) downloadBlob(item.result.blob, item.result.fileName);
 	}, []);
 
 	const handleDownloadZip = useCallback(async () => {
-		const done = itemsRef.current.filter(
+		const done = items.filter(
 			(
 				it,
 			): it is ConvertItem & { result: NonNullable<ConvertItem['result']> } =>
@@ -243,7 +176,7 @@ export function ImageConvertPage() {
 			done.map((it, i) => ({ name: names[i], data: it.result.blob })),
 		);
 		downloadBlob(zip, 'converted.zip');
-	}, []);
+	}, [items]);
 
 	const doneCount = items.filter((it) => it.status === 'done').length;
 
