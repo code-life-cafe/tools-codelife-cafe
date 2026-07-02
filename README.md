@@ -1,10 +1,22 @@
 # CODE:LIFE Tools
 
-**仕事で安心して使える、完全クライアントサイド処理のWebツール集。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全42種・無料）。**
 
-すべてのデータ処理はお使いのブラウザ内で完結。サーバーへのデータ送信は一切ありません。
+すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
 🔗 **[https://tools.codelife.cafe](https://tools.codelife.cafe)**
+
+## ⭐ 主力ツール
+
+日々の業務でよくある「困った」を、データを外に出さずにその場で解決します。
+
+| ツール | こんなときに |
+|--------|--------------|
+| [CSV文字化け修復](https://tools.codelife.cafe/csv-fixer) | Excelで開いたCSVが文字化けした。文字コードを自動判定してUTF-8（BOM付き）に修復 |
+| [全角⇔半角変換](https://tools.codelife.cafe/zenkaku-hankaku) | 顧客名簿のカタカナ・英数字・記号の表記ゆれを一括統一 |
+| [JSON ↔ CSV 変換](https://tools.codelife.cafe/json-csv) | APIのJSONをExcelで扱えるCSVに。ネスト展開・BOM付きUTF-8出力対応 |
+| [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
+| [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
 ## 📦 収録ツール（42種）
 
@@ -12,72 +24,73 @@
 
 | ツール | 説明 |
 |--------|------|
-| [全角⇔半角変換](/zenkaku-hankaku) | カタカナ・英数字・記号の全角⇔半角一括変換 |
-| [文字数カウント](/char-count) | 文字数・バイト数（UTF-8/Shift-JIS）・行数をリアルタイムカウント |
-| [テキスト差分](/text-diff) | 2つのテキストの差分を並列・インライン表示 |
-| [ユニコード変換](/unicode-converter) | テキストとユニコードエスケープシーケンス（\\uXXXX）を相互変換 |
-| [Markdownプレビュー](/markdown) | GFM対応のリアルタイムプレビュー。HTMLコピー・ダウンロード対応（データは外部送信なし） |
-| [JWTデコーダー](/jwt-decoder) | JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認 |
-| [ワードクラウド生成](/wordcloud) | 日本語テキストを形態素解析しワードクラウド・頻度表（CSV）化（データは外部送信なし） |
+| [全角⇔半角変換](https://tools.codelife.cafe/zenkaku-hankaku) | カタカナ・英数字・記号の全角⇔半角一括変換 |
+| [文字数カウント](https://tools.codelife.cafe/char-count) | 文字数・バイト数（UTF-8/Shift-JIS）・行数をリアルタイムカウント |
+| [テキスト差分](https://tools.codelife.cafe/text-diff) | 2つのテキストの差分を並列・インライン表示 |
+| [ユニコード変換](https://tools.codelife.cafe/unicode-converter) | テキストとユニコードエスケープシーケンス（\\uXXXX）を相互変換 |
+| [Markdownプレビュー](https://tools.codelife.cafe/markdown) | GFM対応のリアルタイムプレビュー。HTMLコピー・ダウンロード対応（データは外部送信なし） |
+| [JWTデコーダー](https://tools.codelife.cafe/jwt-decoder) | JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認 |
+| [ワードクラウド生成](https://tools.codelife.cafe/wordcloud) | 日本語テキストを形態素解析しワードクラウド・頻度表（CSV）化（データは外部送信なし） |
 
 ### データ処理
 
 | ツール | 説明 |
 |--------|------|
-| [JSON整形](/json-formatter) | JSONの整形・圧縮・バリデーション |
-| [JSON ↔ CSV 変換](/json-csv) | JSONとCSVの相互変換。ネスト展開・型推論・BOM付きUTF-8出力（Excel文字化け対策） |
-| [CSVビューア/エディタ](/csv-editor) | CSV/TSV/Excel(.xlsx)を閲覧・編集・フィルタ・ソート・グラフ化 |
-| [CSV文字化け修復](/csv-fixer) | CSVの文字コード自動判定・変換（Shift_JIS/UTF-8/EUC-JP等） |
-| [電話番号フォーマッタ](/phone-formatter) | 日本語の電話番号をE.164・国際表記・国内表記に即変換。CSV一括変換対応。 |
-| [ダミーデータ生成](/dummy-data) | 日本語の氏名・住所・電話番号等の一括生成（JSON/CSV/TSV） |
-| [郵便番号→住所変換](/zipcode) | 郵便番号から住所を検索・一括変換。Excel貼り付け・CSV出力対応（データは外部送信なし） |
-| [AI表データプロンプト生成](/ai-spreadsheet-prompt) | CSV・TSV・Excel貼り付けデータを、AIに渡しやすい分析プロンプトへ変換（データは外部送信なし） |
+| [JSON整形](https://tools.codelife.cafe/json-formatter) | JSONの整形・圧縮・バリデーション |
+| [JSON ↔ CSV 変換](https://tools.codelife.cafe/json-csv) | JSONとCSVの相互変換。ネスト展開・型推論・BOM付きUTF-8出力（Excel文字化け対策） |
+| [CSVビューア/エディタ](https://tools.codelife.cafe/csv-editor) | CSV/TSV/Excel(.xlsx)を閲覧・編集・フィルタ・ソート・グラフ化 |
+| [CSV文字化け修復](https://tools.codelife.cafe/csv-fixer) | CSVの文字コード自動判定・変換（Shift_JIS/UTF-8/EUC-JP等） |
+| [電話番号フォーマッタ](https://tools.codelife.cafe/phone-formatter) | 日本語の電話番号をE.164・国際表記・国内表記に即変換。CSV一括変換対応。 |
+| [ダミーデータ生成](https://tools.codelife.cafe/dummy-data) | 日本語の氏名・住所・電話番号等の一括生成（JSON/CSV/TSV） |
+| [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号から住所を検索・一括変換。Excel貼り付け・CSV出力対応（データは外部送信なし） |
+| [AI表データプロンプト生成](https://tools.codelife.cafe/ai-spreadsheet-prompt) | CSV・TSV・Excel貼り付けデータを、AIに渡しやすい分析プロンプトへ変換（データは外部送信なし） |
 
 ### ユーティリティ
 
 | ツール | 説明 |
 |--------|------|
-| [OGP画像ジェネレーター](/ogp) | SNSシェア用のOGP画像（1200×630）をテンプレートとテキストから作成（完全ローカル実行） |
-| [背景削除](/bg-remove) | AIがブラウザ内で画像の背景を自動削除。差し替えにも対応（完全ローカル実行） |
-| [画像アップスケール・ノイズ除去](/upscale) | Real-ESRGAN（ONNX）でブラウザ内アップスケール（2x/4x）・ノイズ除去。データは外部送信なし（完全ローカル実行） |
-| [画像モザイク・ぼかし](/image-mosaic) | 四角形/円形の範囲にモザイク・ぼかしを適用し、絵文字・任意画像スタンプも配置（完全ローカル実行） |
-| [画像テキスト挿入](/image-text) | 画像への文字入れ・注釈。縁取り・背景ボックス対応（完全ローカル実行） |
-| [画像圧縮・リサイズ](/image-compress) | JPEG/PNG/WebPの圧縮・リサイズ・変換。一括処理・目標サイズ指定・ZIP出力（完全ローカル実行） |
-| [画像形式変換](/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
-| [画像メタデータ削除](/image-metadata) | JPEG・PNG・WebP画像のExif・GPS位置情報などを削除。形式変換・一括ZIP出力対応（完全ローカル実行） |
-| [EXIF確認・削除](/exif) | 写真の撮影情報・GPS位置情報を確認し、ワンクリックで削除（完全ローカル実行） |
-| [画像トリミング・回転](/image-crop) | 画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行（完全ローカル実行） |
-| [画像のクロップ・回転・反転](/image-edit) | アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力（完全ローカル実行） |
-| [画像連結・結合](/image-merge) | 複数画像を縦・横・グリッドで1枚に結合。コンタクトシート作成・余白/背景色/並び替え対応（完全ローカル実行） |
-| [QRコード生成](/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
-| [Base64エンコード/デコード](/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
-| [URLエンコード/デコード](/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
-| [和暦⇔西暦変換](/wareki-converter) | 和暦（令和・平成等）と西暦のリアルタイム相互変換 |
-| [消費税・税込計算](/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理（切り捨て/四捨五入/切り上げ）対応 |
+| [OGP画像ジェネレーター](https://tools.codelife.cafe/ogp) | SNSシェア用のOGP画像（1200×630）をテンプレートとテキストから作成（完全ローカル実行） |
+| [背景削除](https://tools.codelife.cafe/bg-remove) | AIがブラウザ内で画像の背景を自動削除。差し替えにも対応（完全ローカル実行） |
+| [画像アップスケール・ノイズ除去](https://tools.codelife.cafe/upscale) | Real-ESRGAN（ONNX）でブラウザ内アップスケール（2x/4x）・ノイズ除去。データは外部送信なし（完全ローカル実行） |
+| [画像モザイク・ぼかし](https://tools.codelife.cafe/image-mosaic) | 四角形/円形の範囲にモザイク・ぼかしを適用し、絵文字・任意画像スタンプも配置（完全ローカル実行） |
+| [画像テキスト挿入](https://tools.codelife.cafe/image-text) | 画像への文字入れ・注釈。縁取り・背景ボックス対応（完全ローカル実行） |
+| [画像圧縮・リサイズ](https://tools.codelife.cafe/image-compress) | JPEG/PNG/WebPの圧縮・リサイズ・変換。一括処理・目標サイズ指定・ZIP出力（完全ローカル実行） |
+| [画像形式変換](https://tools.codelife.cafe/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
+| [画像メタデータ削除](https://tools.codelife.cafe/image-metadata) | JPEG・PNG・WebP画像のExif・GPS位置情報などを削除。形式変換・一括ZIP出力対応（完全ローカル実行） |
+| [EXIF確認・削除](https://tools.codelife.cafe/exif) | 写真の撮影情報・GPS位置情報を確認し、ワンクリックで削除（完全ローカル実行） |
+| [画像トリミング・回転](https://tools.codelife.cafe/image-crop) | 画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行（完全ローカル実行） |
+| [画像のクロップ・回転・反転](https://tools.codelife.cafe/image-edit) | アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力（完全ローカル実行） |
+| [画像連結・結合](https://tools.codelife.cafe/image-merge) | 複数画像を縦・横・グリッドで1枚に結合。コンタクトシート作成・余白/背景色/並び替え対応（完全ローカル実行） |
+| [QRコード生成](https://tools.codelife.cafe/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
+| [Base64エンコード/デコード](https://tools.codelife.cafe/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
+| [URLエンコード/デコード](https://tools.codelife.cafe/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
+| [和暦⇔西暦変換](https://tools.codelife.cafe/wareki-converter) | 和暦（令和・平成等）と西暦のリアルタイム相互変換 |
+| [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
 ### PDF
 
 | ツール | 説明 |
 |--------|------|
-| [PDF結合](/pdf-merge) | 複数のPDF・画像（JPEG/PNG）を1つのPDFに結合。並べ替え対応（完全ローカル実行） |
-| [PDF分割・ページ抽出](/pdf-split) | 範囲指定で分割・抽出・1ページずつ分割。ZIP一括ダウンロード対応（完全ローカル実行） |
+| [PDF結合](https://tools.codelife.cafe/pdf-merge) | 複数のPDF・画像（JPEG/PNG）を1つのPDFに結合。並べ替え対応（完全ローカル実行） |
+| [PDF分割・ページ抽出](https://tools.codelife.cafe/pdf-split) | 範囲指定で分割・抽出・1ページずつ分割。ZIP一括ダウンロード対応（完全ローカル実行） |
 
 ### 開発者向け
 
 | ツール | 説明 |
 |--------|------|
-| [正規表現チェッカー](/regex-tester) | リアルタイムマッチング・置換・キャプチャグループ表示 |
-| [ハッシュ値計算](/hash) | MD5・SHA-1・SHA-256・SHA-512・CRC32の計算と期待値照合（ファイルの改ざんチェック） |
-| [SQLフォーマッター](/sql-formatter) | SQL文の整形（MySQL, PostgreSQL等の方言対応） |
-| [個人情報マスキング](/masking) | メール・電話番号・カード番号等を自動検出してマスキング |
-| [暗号変換](/cipher) | シーザー暗号・ROT13・モールス信号・逆順等のテキスト変換 |
-| [カラーコード変換](/color) | HEX・RGB・HSL・CMYKの相互変換。カラーピッカー連動・ワンクリックコピー |
-| [ファビコン生成](/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
-| [画像Base64変換](/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
+| [正規表現チェッカー](https://tools.codelife.cafe/regex-tester) | リアルタイムマッチング・置換・キャプチャグループ表示 |
+| [ハッシュ値計算](https://tools.codelife.cafe/hash) | MD5・SHA-1・SHA-256・SHA-512・CRC32の計算と期待値照合（ファイルの改ざんチェック） |
+| [SQLフォーマッター](https://tools.codelife.cafe/sql-formatter) | SQL文の整形（MySQL, PostgreSQL等の方言対応） |
+| [個人情報マスキング](https://tools.codelife.cafe/masking) | メール・電話番号・カード番号等を自動検出してマスキング |
+| [暗号変換](https://tools.codelife.cafe/cipher) | シーザー暗号・ROT13・モールス信号・逆順等のテキスト変換 |
+| [カラーコード変換](https://tools.codelife.cafe/color) | HEX・RGB・HSL・CMYKの相互変換。カラーピッカー連動・ワンクリックコピー |
+| [ファビコン生成](https://tools.codelife.cafe/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
+| [画像Base64変換](https://tools.codelife.cafe/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
 
-## 🛡️ セキュリティ
+## 🛡️ セキュリティ・プライバシー
 
-- **完全クライアントサイド処理** — データが外部サーバーに送信されることはありません
+- **完全クライアントサイド処理** — 入力データが外部サーバーに送信されることはありません
+- **Cookieなし・個人追跡なし・広告なし** — 同意バナーも表示されません（詳細は[プライバシーポリシー](https://tools.codelife.cafe/privacy)を参照）
 - **オープンソース** — コードはすべて公開されており、処理内容を誰でも確認できます
 - **PWA対応・オフライン動作** — インストール後はオフライン環境でも全ツールを利用可能
 
