@@ -1,4 +1,6 @@
 ---
+import type { ToolIconName } from '../../lib/tools/tool-icons';
+import { ToolIcon } from './ToolIcon';
 import TrustBadges from './TrustBadges.astro';
 
 interface Props {
@@ -6,7 +8,7 @@ interface Props {
   title: string;
   description: string;
   href: string;
-  icon: string;
+  icon: ToolIconName;
   category: string;
   categoryId?: string;
   categoryColor?: string;
@@ -39,7 +41,7 @@ const {
 >
   <div>
     <div class="mb-3 flex items-center gap-2">
-      <span class="text-2xl">{icon}</span>
+      <span class="text-primary"><ToolIcon name={icon} className="h-6 w-6" /></span>
       <span
         data-category-badge={categoryId}
         title={categoryId ? `「${category}」で絞り込む` : undefined}

@@ -191,7 +191,7 @@ export function ImageBase64Page() {
 					validationMessage="ファイルサイズが10MBを超えています。"
 					label="画像をドラッグ＆ドロップ"
 					description="PNG / JPEG / WebP / GIF / SVG（最大10MB）"
-					privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+					privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 					selectedFileName={file?.name ?? null}
 					onClear={handleClearFile}
 					disabled={converting}

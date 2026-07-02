@@ -225,7 +225,7 @@ export function PdfMergePage() {
 				disabled={processing}
 				label="PDF・画像をドラッグ＆ドロップ"
 				description={`PDF / JPEG / PNG（最大${MAX_MERGE_FILES}ファイル・1ファイル100MBまで）`}
-				privacyNote="🔒 PDFや画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="PDFや画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="結合するPDF・画像を選択"
 				data-testid="pdf-merge-input"
 			/>

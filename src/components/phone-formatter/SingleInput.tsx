@@ -3,7 +3,7 @@
  * リアルタイム変換（150msデバウンス）
  */
 
-import { X } from 'lucide-react';
+import { CheckCircle2, X, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { parsePhoneNumber } from '@/lib/phone-formatter/parse';
 import type { ParseResult } from '@/lib/phone-formatter/types';
@@ -83,13 +83,15 @@ export default function SingleInput({ onResult }: SingleInputProps) {
 	const statusIndicator = {
 		idle: null,
 		valid: (
-			<span className="text-xs font-medium text-green-600 dark:text-green-400">
-				✅ 有効
+			<span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+				<CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+				有効
 			</span>
 		),
 		invalid: (
-			<span className="text-xs font-medium text-red-600 dark:text-red-400">
-				❌ 無効
+			<span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400">
+				<XCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+				無効
 			</span>
 		),
 	};

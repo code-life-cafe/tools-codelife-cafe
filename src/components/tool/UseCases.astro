@@ -1,4 +1,6 @@
 ---
+import { Lightbulb } from 'lucide-react';
+
 interface Props {
 	useCases: string[];
 }
@@ -9,7 +11,7 @@ const { useCases } = Astro.props;
 {useCases && useCases.length > 0 && (
 	<section class="mb-10" aria-labelledby="usecases-heading">
 		<h2 id="usecases-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
-			<span>💡</span> こんなお困りごと・シーンでお使いいただけます
+			<Lightbulb className="h-5 w-5 text-primary" aria-hidden="true" /> こんなお困りごと・シーンでお使いいただけます
 		</h2>
 		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 			{useCases.map((useCase, index) => (

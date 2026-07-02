@@ -1,4 +1,4 @@
-import { Upload, X } from 'lucide-react';
+import { Lock, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -61,7 +61,7 @@ export function FileDropzone({
 	validate,
 	label = 'ファイルをドラッグ＆ドロップ',
 	description = 'またはクリックしてファイルを選択',
-	privacyNote = '🔒 ファイルはサーバーに送信されません。すべてブラウザ内で処理されます。',
+	privacyNote = 'ファイルはサーバーに送信されません。すべてブラウザ内で処理されます。',
 	selectedFileName,
 	onClear,
 	disabled = false,
@@ -169,7 +169,10 @@ export function FileDropzone({
 				<div className="text-center">
 					<p className="text-sm font-medium">{label}</p>
 					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-					<p className="mt-2 text-xs text-muted-foreground">{privacyNote}</p>
+					<p className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
+						<Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+						{privacyNote}
+					</p>
 				</div>
 				<input
 					ref={fileInputRef}

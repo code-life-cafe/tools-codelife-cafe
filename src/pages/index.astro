@@ -2,7 +2,8 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import ToolCard from '../components/common/ToolCard.astro';
 import JsonLd from '../components/common/JsonLd.astro';
-import { ShieldCheck } from 'lucide-react';
+import { History, Languages, LayoutGrid, Lock, ShieldCheck, Star, Target, Zap } from 'lucide-react';
+import { ToolIcon } from '../components/common/ToolIcon';
 import { getCategoryId, purposeCategories, toolCatalog, toolCategories } from '../lib/tools/catalog';
 import { getPopularTools } from '../lib/tools/popularity';
 
@@ -68,13 +69,13 @@ const schema = {
     <!-- 1. 目的別ブロック -->
     <div class="mb-12 border-b border-border/50 pb-12">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-        <span class="text-2xl">🎯</span> 目的から探す
+        <Target className="h-6 w-6 text-primary" aria-hidden="true" /> 目的から探す
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {purposeCategories.map((purpose) => (
           <div class="rounded-xl border border-border bg-card p-5 shadow-xs">
             <h3 class="font-bold text-sm text-muted-foreground mb-4 flex items-center gap-1.5 border-b border-border/50 pb-2">
-              <span class="text-base">{purpose.icon}</span> {purpose.title}
+              <ToolIcon name={purpose.icon} className="h-4 w-4 text-primary" /> {purpose.title}
             </h3>
             <div class="flex flex-col gap-2">
               {purpose.tools.map((t) => (
@@ -95,7 +96,7 @@ const schema = {
     <!-- 2. 最近使ったツール -->
     <div id="recent-tools-section" class="mb-12 border-b border-border/50 pb-12 hidden">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-        <span class="text-2xl">🔁</span> 最近使ったツール
+        <History className="h-6 w-6 text-primary" aria-hidden="true" /> 最近使ったツール
       </h2>
       <div id="recent-tools-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <!-- JSで動的にクローンが挿入されます -->
@@ -105,7 +106,7 @@ const schema = {
     <!-- 3. よく使われるツール（人気順） -->
     <div class="mb-12 border-b border-border/50 pb-12">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-        <span class="text-2xl">⭐</span> よく使われるツール
+        <Star className="h-6 w-6 text-primary" aria-hidden="true" /> よく使われるツール
       </h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {popularTools.map((tool) => (
@@ -126,7 +127,7 @@ const schema = {
     <!-- 4. すべてのツール（カテゴリ絞り込み） -->
     <div class="mb-12">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
-        <span class="text-2xl">🗂️</span> すべてのツール
+        <LayoutGrid className="h-6 w-6 text-primary" aria-hidden="true" /> すべてのツール
       </h2>
 
       <!-- Category filter chips -->
@@ -196,17 +197,17 @@ const schema = {
   <section class="mx-auto max-w-6xl px-4 sm:px-6 py-12">
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
       <div class="text-center p-6 rounded-xl bg-card border border-border">
-        <div class="text-3xl mb-3">🇯🇵</div>
+        <div class="mb-3 flex justify-center text-primary"><Languages className="h-8 w-8" aria-hidden="true" /></div>
         <h3 class="font-semibold mb-2">日本語業務に特化</h3>
         <p class="text-sm text-muted-foreground">全角半角変換、Shift-JISバイト数など、日本語業務で本当に必要な機能を搭載。</p>
       </div>
       <div class="text-center p-6 rounded-xl bg-card border border-border">
-        <div class="text-3xl mb-3">🔒</div>
+        <div class="mb-3 flex justify-center text-primary"><Lock className="h-8 w-8" aria-hidden="true" /></div>
         <h3 class="font-semibold mb-2">完全クライアントサイド</h3>
         <p class="text-sm text-muted-foreground">すべてのデータ処理はブラウザ内で完結。機密データも安心して扱えます。</p>
       </div>
       <div class="text-center p-6 rounded-xl bg-card border border-border">
-        <div class="text-3xl mb-3">⚡</div>
+        <div class="mb-3 flex justify-center text-primary"><Zap className="h-8 w-8" aria-hidden="true" /></div>
         <h3 class="font-semibold mb-2">高速・軽量</h3>
         <p class="text-sm text-muted-foreground">入力データを送信しないリアルタイム処理。ストレスフリーに使えます。</p>
       </div>

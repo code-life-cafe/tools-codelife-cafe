@@ -5,6 +5,7 @@ import {
 	CheckCircle2,
 	Download,
 	FileText,
+	Info,
 	Loader2,
 	UploadCloud,
 	Zap,
@@ -260,7 +261,7 @@ function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 			)}
 
 			<p className="mt-4 text-xs text-center text-muted-foreground flex items-center justify-center gap-1.5">
-				ℹ️
+				<Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
 				このツールは完全にブラウザ上で動作します。ファイルはサーバーに送信されません。
 			</p>
 		</div>

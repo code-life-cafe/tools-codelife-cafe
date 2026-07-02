@@ -232,7 +232,7 @@ export function ExifToolPage() {
 				disabled={processing}
 				label="画像をドラッグ＆ドロップ"
 				description={`JPEG / TIFF / WebP（最大${MAX_DISPLAY_FILES}枚・1枚50MBまで）`}
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="EXIF を確認する画像を選択"
 				data-testid="exif-input"
 			/>
@@ -489,7 +489,13 @@ function ExifCard({
 					{item.warnings && item.warnings.length > 0 && (
 						<div className="mt-1 text-xs text-amber-600 dark:text-amber-400">
 							{item.warnings.map((w) => (
-								<p key={w}>⚠ {w}</p>
+								<p key={w} className="flex items-center gap-1">
+									<AlertTriangle
+										className="h-3.5 w-3.5 shrink-0"
+										aria-hidden="true"
+									/>
+									{w}
+								</p>
 							))}
 						</div>
 					)}

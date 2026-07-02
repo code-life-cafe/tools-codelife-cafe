@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getSearchQueryMetadata, track } from '@/lib/analytics';
 import { toolCatalog } from '@/lib/tools/catalog';
 import { searchTools } from '@/lib/tools/search';
+import { ToolIcon } from './ToolIcon';
 
 export default function SearchModal() {
 	const [isOpen, setIsOpen] = useState(false);
@@ -149,8 +150,8 @@ export default function SearchModal() {
 									onClick={() => setIsOpen(false)}
 								>
 									<div className="flex items-center gap-3">
-										<span className="text-xl" aria-hidden="true">
-											{tool.icon}
+										<span className="text-primary" aria-hidden="true">
+											<ToolIcon name={tool.icon} className="h-5 w-5" />
 										</span>
 										<div className="flex flex-col">
 											<span

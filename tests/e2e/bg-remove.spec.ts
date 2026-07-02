@@ -31,14 +31,14 @@ test.describe('背景削除ツール', () => {
 		await expect(modeSwitch).toBeChecked(); // デフォルトで高精度モード (checked = true)
 
 		const modeLabel = page.locator('label[for="mode-switch"]');
-		await expect(modeLabel).toContainText('✨ 高精度モード');
+		await expect(modeLabel).toContainText('高精度モード');
 		await expect(
 			page.getByText('BEN2（極めて高精度・アニメ対応）≈ 209MB'),
 		).toBeVisible();
 
 		// スイッチをOFFにして高速モードに切り替え
 		await modeSwitch.click();
-		await expect(modeLabel).toContainText('⚡ 高速モード');
+		await expect(modeLabel).toContainText('高速モード');
 		await expect(
 			page.getByText('MODNet（人物特化・高速）≈ 25.9MB'),
 		).toBeVisible();

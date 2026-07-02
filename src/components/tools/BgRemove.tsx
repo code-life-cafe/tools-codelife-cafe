@@ -4,6 +4,7 @@ import {
 	Loader2,
 	RefreshCw,
 	Scissors,
+	Sparkles,
 	Upload,
 	Wand2,
 	X,
@@ -344,12 +345,16 @@ export default function BgRemove() {
 			<div className="flex items-center justify-between rounded-xl border border-border bg-card p-4">
 				<div className="flex items-center gap-3">
 					<div className="flex items-center gap-2">
-						<Zap className="h-4 w-4 text-amber-500" />
+						{mode === 'fast' ? (
+							<Zap className="h-4 w-4 text-amber-500" aria-hidden="true" />
+						) : (
+							<Sparkles className="h-4 w-4 text-amber-500" aria-hidden="true" />
+						)}
 						<Label
 							htmlFor="mode-switch"
 							className="text-sm font-medium cursor-pointer"
 						>
-							{mode === 'fast' ? '⚡ 高速モード' : '✨ 高精度モード'}
+							{mode === 'fast' ? '高速モード' : '高精度モード'}
 						</Label>
 					</div>
 					<Switch

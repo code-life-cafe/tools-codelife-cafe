@@ -3,7 +3,7 @@
  * カラム表示切替・ページネーション・無効行ハイライト
  */
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { getNumberTypeLabel } from '@/lib/phone-formatter/classify';
@@ -174,15 +174,15 @@ export default function ResultTable({
 									{visibleColumns.includes('status') && (
 										<td className="px-3 py-2 text-xs">
 											{result.valid ? (
-												<span className="text-green-600 dark:text-green-400 font-medium">
-													✅
+												<span className="inline-flex text-green-600 dark:text-green-400 font-medium">
+													<CheckCircle2 className="h-4 w-4" aria-label="有効" />
 												</span>
 											) : (
 												<span
-													className="text-red-600 dark:text-red-400 font-medium"
+													className="inline-flex text-red-600 dark:text-red-400 font-medium"
 													title={result.error}
 												>
-													❌
+													<XCircle className="h-4 w-4" aria-label="無効" />
 												</span>
 											)}
 										</td>

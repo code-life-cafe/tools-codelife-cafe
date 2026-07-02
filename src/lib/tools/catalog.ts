@@ -1,3 +1,5 @@
+import type { ToolIconName } from './tool-icons';
+
 export type ToolCategory =
 	| 'テキスト変換'
 	| 'テキスト解析'
@@ -21,7 +23,7 @@ export type ToolCatalogItem = {
 	title: string;
 	description: string;
 	href: string;
-	icon: string;
+	icon: ToolIconName;
 	category: ToolCategory;
 	categoryColor: string;
 	span?: 2;
@@ -41,7 +43,7 @@ export type PurposeTool = {
 
 export type PurposeCategory = {
 	title: string;
-	icon: string;
+	icon: ToolIconName;
 	tools: readonly PurposeTool[];
 };
 
@@ -52,7 +54,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'カタカナ・英数字・記号の全角半角を一括変換。カテゴリ別に細かく制御できます。',
 		href: '/zenkaku-hankaku',
-		icon: '🔄',
+		icon: 'ArrowLeftRight',
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		span: 2,
@@ -71,7 +73,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'文字数・バイト数・行数をリアルタイムカウント。Shift-JIS対応。',
 		href: '/char-count',
-		icon: '🔢',
+		icon: 'Calculator',
 		category: 'テキスト解析',
 		categoryColor: 'border-l-accent',
 		keywords: ['文字数', 'バイト数', '行数', 'Shift-JIS'],
@@ -89,7 +91,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'JSON整形',
 		description: 'JSONの整形・圧縮・構文チェック。インデント幅も選べます。',
 		href: '/json-formatter',
-		icon: '{ }',
+		icon: 'Braces',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['JSON', 'フォーマット', 'バリデーション'],
@@ -107,7 +109,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認に使えます。',
 		href: '/jwt-decoder',
-		icon: '🎫',
+		icon: 'Ticket',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['JWT', 'JSON Web Token', 'デコード', '認証', 'トークン'],
@@ -125,7 +127,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'2つのテキストの違いをハイライト表示。行単位・文字単位の切替対応。',
 		href: '/text-diff',
-		icon: '📝',
+		icon: 'FileDiff',
 		category: 'テキスト解析',
 		categoryColor: 'border-l-accent',
 		span: 2,
@@ -145,7 +147,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'URLやテキストからQRコードを即座に生成。サイズ・色のカスタマイズ可能。',
 		href: '/qr-generator',
-		icon: '📱',
+		icon: 'QrCode',
 		category: '生成ツール',
 		categoryColor: 'border-l-chart-3',
 		keywords: ['QR', 'コード'],
@@ -162,7 +164,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: '和暦↔西暦変換',
 		description: '明治〜令和の和暦と西暦を相互変換。干支・年齢も同時表示。',
 		href: '/wareki-converter',
-		icon: '🎌',
+		icon: 'CalendarDays',
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['和暦', '西暦', '元号', '年齢'],
@@ -181,7 +183,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応。',
 		href: '/url-encoder',
-		icon: '🔗',
+		icon: 'Link',
 		category: 'エンコード/デコード',
 		categoryColor: 'border-l-primary',
 		keywords: ['URL', 'encodeURI', 'decodeURI', 'パーセントエンコード'],
@@ -199,7 +201,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'テキスト・ファイルのBase64エンコード/デコードをブラウザ内で実行。',
 		href: '/base64',
-		icon: '🔐',
+		icon: 'Binary',
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['Base64', 'エンコード', 'デコード'],
@@ -216,7 +218,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'正規表現のリアルタイムテスト・マッチ確認・置換。よく使うパターン集付き。',
 		href: '/regex-tester',
-		icon: '✨',
+		icon: 'Regex',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['正規表現', 'regex', '置換'],
@@ -234,7 +236,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'SQLの整形・圧縮をブラウザ内で実行。MySQL/PostgreSQL等の方言対応。',
 		href: '/sql-formatter',
-		icon: '💾',
+		icon: 'Database',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['SQL', 'MySQL', 'PostgreSQL'],
@@ -252,7 +254,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'日本語の氏名・住所・電話番号等のダミーデータを一括生成。JSON/CSVなど出力。',
 		href: '/dummy-data',
-		icon: '🎲',
+		icon: 'Dices',
 		category: '生成ツール',
 		categoryColor: 'border-l-chart-3',
 		keywords: ['テストデータ', 'JSON', 'CSV'],
@@ -270,7 +272,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'メール・電話番号・カード番号等の個人情報を自動検出してマスキング。',
 		href: '/masking',
-		icon: '🛡️',
+		icon: 'Shield',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['個人情報', 'マスキング', 'メール', '電話番号'],
@@ -289,7 +291,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'CSV・TSV・Excel貼り付けデータを、AIに渡しやすい分析プロンプトへ変換。',
 		href: '/ai-spreadsheet-prompt',
-		icon: '🤖',
+		icon: 'Bot',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		span: 2,
@@ -309,7 +311,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'CSV/TSV/Excel(.xlsx)をブラウザ上で表示・編集・フィルタ・ソート・グラフ化。',
 		href: '/csv-editor',
-		icon: '📊',
+		icon: 'Table',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		span: 2,
@@ -338,7 +340,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'テキストとユニコードエスケープシーケンス（\\uXXXX）を相互変換。',
 		href: '/unicode-converter',
-		icon: '🔣',
+		icon: 'Hash',
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		keywords: ['Unicode', 'ユニコード', '\\uXXXX'],
@@ -355,7 +357,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'CSVのShift_JIS文字化けをブラウザで即座に修復。自動検出・BOM付与対応。',
 		href: '/csv-fixer',
-		icon: '📝',
+		icon: 'Wrench',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['CSV', '文字化け', 'Shift_JIS', 'BOM'],
@@ -373,7 +375,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'日本の電話番号をE.164・国際表記・国内表記に即変換。CSV一括変換対応。',
 		href: '/phone-formatter',
-		icon: '📞',
+		icon: 'Phone',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['電話番号', 'E.164', 'CSV'],
@@ -391,7 +393,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'シーザー暗号・ROT13・モールス信号などをブラウザ内で相互変換。',
 		href: '/cipher',
-		icon: '🔑',
+		icon: 'KeyRound',
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['暗号', '難読化', 'ROT13', 'モールス信号', 'シーザー暗号'],
@@ -410,7 +412,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'JSONとCSVを相互変換。ネスト展開・型推論・Excel文字化け対策のBOM付きUTF-8出力に対応。',
 		href: '/json-csv',
-		icon: '🔁',
+		icon: 'Repeat',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['JSON', 'CSV', '変換', 'BOM', 'Excel', 'フラット化'],
@@ -428,7 +430,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'MD5・SHA-256等のハッシュ値をテキスト・ファイルから計算。ファイルの改ざん・破損チェックに。',
 		href: '/hash',
-		icon: '🔏',
+		icon: 'Fingerprint',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['ハッシュ', 'MD5', 'SHA-256', 'チェックサム', 'CRC32', '改ざん'],
@@ -446,7 +448,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'AIがブラウザ内で画像の背景を自動削除。画像はアップロードされません。',
 		href: '/bg-remove',
-		icon: '✂️',
+		icon: 'ImageMinus',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['背景削除', '透過', 'AI', '画像', 'アップロード不要'],
@@ -469,7 +471,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: '画像アップスケール',
 		description: 'ブラウザ内AIで高解像度化・ノイズ除去。データは外部送信なし。',
 		href: '/upscale',
-		icon: '✨',
+		icon: 'Sparkles',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -499,7 +501,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'四角形/円形のモザイク・ぼかしと絵文字・任意画像スタンプで安全にマスキング。画像はアップロードされません。',
 		href: '/image-mosaic',
-		icon: '🟫',
+		icon: 'SquareDashed',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -526,7 +528,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'画像への文字入れ・注釈をブラウザで。縁取り・背景ボックス・ドラッグ配置に対応。',
 		href: '/image-text',
-		icon: '🔤',
+		icon: 'Type',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['テキスト', '文字入れ', '画像', '注釈', 'キャプション'],
@@ -543,7 +545,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'一括圧縮・目標サイズ指定・WebP変換に対応。画像はアップロードされません。',
 		href: '/image-compress',
-		icon: '🗜️',
+		icon: 'Shrink',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -580,7 +582,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'Exif・GPS位置情報などをブラウザ内で削除。画像はアップロードされません。',
 		href: '/image-metadata',
-		icon: '🧹',
+		icon: 'Eraser',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -606,7 +608,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行。画像はアップロードされません。',
 		href: '/image-crop',
-		icon: '✂️',
+		icon: 'Crop',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -632,7 +634,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力に対応。画像はアップロードされません。',
 		href: '/image-edit',
-		icon: '🧭',
+		icon: 'RotateCw',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['画像編集', 'クロップ', '回転', '反転', '一括処理', 'ZIP'],
@@ -650,7 +652,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: '画像連結・結合',
 		description: '複数画像を縦・横・グリッドで結合。データは外部送信なし',
 		href: '/image-merge',
-		icon: '🪟',
+		icon: 'LayoutGrid',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		span: 2,
@@ -680,7 +682,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: '画像形式変換',
 		description: 'HEIC・WebP・AVIFをJPEG等へ変換。データは外部送信なし。',
 		href: '/image-convert',
-		icon: '🖼️',
+		icon: 'Image',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -708,7 +710,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'郵便番号から住所を検索・一括変換。CSV出力対応。データは外部送信なし。',
 		href: '/zipcode',
-		icon: '📮',
+		icon: 'MapPin',
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: [
@@ -733,7 +735,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'PDF結合',
 		description: '複数PDF・画像を1つに。データは外部送信なし。',
 		href: '/pdf-merge',
-		icon: '📄',
+		icon: 'FileStack',
 		category: 'PDF',
 		categoryColor: 'border-l-destructive',
 		keywords: [
@@ -756,7 +758,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'PDF分割・ページ抽出',
 		description: '範囲指定で分割・抽出。データは外部送信なし。',
 		href: '/pdf-split',
-		icon: '✂️',
+		icon: 'Scissors',
 		category: 'PDF',
 		categoryColor: 'border-l-destructive',
 		keywords: [
@@ -782,7 +784,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'税込⇔税抜を即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理に対応。',
 		href: '/tax',
-		icon: '🧾',
+		icon: 'Receipt',
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['消費税', '税込', '税抜', '軽減税率', '端数処理', '計算'],
@@ -801,7 +803,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'HEX・RGB・HSL・CMYKを相互変換。カラーピッカー連動・ワンクリックコピー対応。',
 		href: '/color',
-		icon: '🎨',
+		icon: 'Palette',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['カラーコード', 'HEX', 'RGB', 'HSL', 'CMYK', '色', '変換'],
@@ -818,7 +820,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'GFM対応のリアルタイムプレビュー。HTMLコピー・ダウンロード可。データは外部送信なし。',
 		href: '/markdown',
-		icon: '📄',
+		icon: 'FileText',
 		category: 'テキスト変換',
 		categoryColor: 'border-l-primary',
 		keywords: ['Markdown', 'マークダウン', 'プレビュー', 'GFM', 'HTML'],
@@ -836,7 +838,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		description:
 			'日本語テキストを形態素解析しワードクラウド化。データは外部送信なし。',
 		href: '/wordcloud',
-		icon: '☁️',
+		icon: 'Cloud',
 		category: 'テキスト解析',
 		categoryColor: 'border-l-accent',
 		keywords: [
@@ -860,7 +862,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'OGP画像ジェネレーター',
 		description: 'SNSシェアカードをブラウザで生成。データは外部送信なし',
 		href: '/ogp',
-		icon: '🖼️',
+		icon: 'ImagePlus',
 		category: '生成ツール',
 		categoryColor: 'border-l-chart-3',
 		keywords: [
@@ -886,7 +888,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'ファビコン生成',
 		description: '画像から favicon 一式を生成。データは外部送信なし。',
 		href: '/favicon',
-		icon: '🔖',
+		icon: 'Bookmark',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: [
@@ -911,7 +913,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: '画像Base64変換',
 		description: '画像をBase64/Data URIへ相互変換。データは外部送信なし。',
 		href: '/image-base64',
-		icon: '🔣',
+		icon: 'FileCode',
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: [
@@ -936,7 +938,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		title: 'EXIF確認・削除',
 		description: '写真の位置情報・撮影情報を確認して削除。データは外部送信なし',
 		href: '/exif',
-		icon: '🔍',
+		icon: 'ScanSearch',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: [
@@ -962,7 +964,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 export const purposeCategories = [
 	{
 		title: 'データ整形で使う',
-		icon: '📊',
+		icon: 'Table',
 		tools: [
 			{ id: 'json-formatter', name: 'JSON整形', href: '/json-formatter' },
 			{ id: 'csv-editor', name: 'CSVエディター', href: '/csv-editor' },
@@ -971,7 +973,7 @@ export const purposeCategories = [
 	},
 	{
 		title: '画像加工で使う',
-		icon: '🖼️',
+		icon: 'Image',
 		tools: [
 			{
 				id: 'image-compress',
@@ -984,7 +986,7 @@ export const purposeCategories = [
 	},
 	{
 		title: '日本語入力の困りごと',
-		icon: '🇯🇵',
+		icon: 'Languages',
 		tools: [
 			{ id: 'zenkaku-hankaku', name: '全角半角変換', href: '/zenkaku-hankaku' },
 			{
@@ -997,7 +999,7 @@ export const purposeCategories = [
 	},
 	{
 		title: 'PDFを扱う',
-		icon: '📄',
+		icon: 'FileText',
 		tools: [
 			{ id: 'pdf-merge', name: 'PDF結合', href: '/pdf-merge' },
 			{ id: 'pdf-split', name: 'PDF分割', href: '/pdf-split' },

@@ -1,3 +1,4 @@
+import { Lightbulb } from 'lucide-react';
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -218,7 +219,10 @@ export function AnalysisOptions({
 					</div>
 
 					<div className="rounded border border-dashed p-2.5 text-xs text-muted-foreground bg-muted/30">
-						<p className="font-semibold text-foreground">💡 モード補足</p>
+						<p className="flex items-center gap-1 font-semibold text-foreground">
+							<Lightbulb className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+							モード補足
+						</p>
 						<p className="mt-1">
 							現在「かんたんモード
 							(TinySegmenter)」で動作中です。品詞タグが付与されないため品詞フィルタは利用できませんが、完全にクライアントサイド即座に解析されます。

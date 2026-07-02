@@ -209,7 +209,7 @@ export function ImageMergePage() {
 				disabled={busy}
 				label="画像をドラッグ＆ドロップ"
 				description={`またはクリックして画像を選択（最大${MAX_FILE_COUNT}枚）`}
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="結合する画像を選択"
 				data-testid="image-merge-input"
 			/>

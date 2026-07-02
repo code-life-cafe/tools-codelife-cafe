@@ -2,6 +2,7 @@ import {
 	Download,
 	ImageUp,
 	Loader2,
+	Lock,
 	Sparkles,
 	TriangleAlert,
 } from 'lucide-react';
@@ -162,8 +163,9 @@ export function UpscalePage() {
 	return (
 		<div className="space-y-6">
 			{/* プライバシー注記 */}
-			<p className="text-sm text-muted-foreground">
-				🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。
+			<p className="flex items-center gap-1 text-sm text-muted-foreground">
+				<Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+				画像はサーバーに送信されません。すべてブラウザ内で処理されます。
 			</p>
 
 			{/* 入力 */}
@@ -326,8 +328,11 @@ export function UpscalePage() {
 								)}
 							</span>
 							{maxNeedsWarning && (
-								<span className="mt-1 block text-destructive">
-									⚠️
+								<span className="mt-1 flex items-center gap-1 text-destructive">
+									<TriangleAlert
+										className="h-3.5 w-3.5 shrink-0"
+										aria-hidden="true"
+									/>
 									「最高品質」はWebGPU非対応の本端末では非常に低速です。「高速」を推奨します。
 								</span>
 							)}

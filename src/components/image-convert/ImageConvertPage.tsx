@@ -263,7 +263,7 @@ export function ImageConvertPage() {
 				disabled={processing}
 				label="画像をドラッグ＆ドロップ"
 				description={`HEIC / WebP / AVIF / PNG / JPEG（最大${MAX_BATCH_FILES}ファイル・1ファイル50MBまで）`}
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="変換する画像を選択"
 				data-testid="image-convert-input"
 			/>

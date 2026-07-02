@@ -204,7 +204,7 @@ export function PdfSplitPage() {
 				disabled={processing}
 				label="PDFをドラッグ＆ドロップ"
 				description="PDFファイル（1ファイル100MBまで）"
-				privacyNote="🔒 PDFはサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="PDFはサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="分割するPDFを選択"
 				selectedFileName={file?.name ?? null}
 				onClear={file ? handleClear : undefined}

@@ -1,4 +1,6 @@
 ---
+import { BookOpen } from 'lucide-react';
+
 interface Props {
 	howto: string[];
 }
@@ -9,7 +11,7 @@ const { howto } = Astro.props;
 {howto && howto.length > 0 && (
 	<section class="mb-10" aria-labelledby="howto-heading">
 		<h2 id="howto-heading" class="text-xl font-bold mb-4 flex items-center gap-2 text-foreground">
-			<span>📖</span> 使い方・手順
+			<BookOpen className="h-5 w-5 text-primary" aria-hidden="true" /> 使い方・手順
 		</h2>
 		<ol class="space-y-3">
 			{howto.map((step, index) => (

@@ -79,13 +79,15 @@ export function HashVerifier({
 				)}
 				{verdict.kind === 'match' && (
 					<span className="inline-flex items-center gap-1.5 rounded-full bg-green-500/10 px-3 py-1 font-medium text-green-600 dark:text-green-500">
-						<CheckCircle2 className="h-4 w-4 shrink-0" />✅ 一致（
+						<CheckCircle2 className="h-4 w-4 shrink-0" />
+						一致（
 						{HASH_ALGORITHM_LABELS[verdict.algorithm]}）
 					</span>
 				)}
 				{verdict.kind === 'mismatch' && (
 					<span className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1 font-medium text-destructive">
-						<XCircle className="h-4 w-4 shrink-0" />❌ 不一致（
+						<XCircle className="h-4 w-4 shrink-0" />
+						不一致（
 						{HASH_ALGORITHM_LABELS[verdict.algorithm]}）
 					</span>
 				)}

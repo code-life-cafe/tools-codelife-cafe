@@ -3,6 +3,7 @@ import {
 	AlignLeft,
 	Download,
 	ImagePlus,
+	Lock,
 	Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
@@ -504,8 +505,8 @@ export function OgpGeneratorPage() {
 					※ Twitter / Facebook では画像の端がトリミングされる場合があります
 				</p>
 
-				<p className="text-center text-xs text-muted-foreground">
-					🔒
+				<p className="flex items-center justify-center gap-1 text-center text-xs text-muted-foreground">
+					<Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
 					アップロードした画像・入力はサーバーに送信されません。すべてブラウザ内で処理されます。
 				</p>
 			</div>

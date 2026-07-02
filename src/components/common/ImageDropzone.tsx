@@ -2,7 +2,7 @@
 // ドラッグ＆ドロップ / ファイルピッカー / クリップボード貼り付けに対応。
 // バリデーションは行わず、選択された File をそのまま親へ渡す（エラー表示の一元化のため）
 
-import { Upload } from 'lucide-react';
+import { Lock, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type ImageDropzoneProps = {
@@ -105,8 +105,9 @@ export function ImageDropzone({
 					</p>
 				</div>
 			</button>
-			<p className="mt-3 text-center text-xs text-muted-foreground">
-				🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。
+			<p className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+				<Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+				画像はサーバーに送信されません。すべてブラウザ内で処理されます。
 			</p>
 			<input
 				ref={fileInputRef}

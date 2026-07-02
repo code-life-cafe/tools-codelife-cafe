@@ -159,13 +159,13 @@ export function validateJson(input: string): FormatResult {
 	try {
 		// バリデーションは精度よりも構文チェックが目的のため通常のparseを使用
 		JSON.parse(input);
-		return { success: true, output: '✅ 有効なJSONです' };
+		return { success: true, output: '有効なJSONです' };
 	} catch (e) {
 		const error = e as SyntaxError;
 		return {
 			success: false,
 			output: '',
-			error: `❌ ${error.message}`,
+			error: error.message,
 		};
 	}
 }

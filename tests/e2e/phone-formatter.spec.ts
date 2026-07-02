@@ -65,7 +65,9 @@ test.describe('電話番号フォーマッタ', () => {
 	test('不正な入力(abc)で日本語エラーが表示される', async ({ page }) => {
 		await page.locator('#phone-input').fill('abc');
 
-		await expect(page.getByText('❌ 無効')).toBeVisible({ timeout: 2000 });
+		await expect(page.getByText('無効', { exact: true })).toBeVisible({
+			timeout: 2000,
+		});
 		// 変換結果カードが表示されないこと
 		await expect(page.locator('[aria-label="変換結果"]')).not.toBeVisible();
 	});
@@ -73,7 +75,7 @@ test.describe('電話番号フォーマッタ', () => {
 	test('空入力時は何も表示されない', async ({ page }) => {
 		// 最初から空なので結果カードがないことを確認
 		await expect(page.locator('[aria-label="変換結果"]')).not.toBeVisible();
-		await expect(page.getByText('❌ 無効')).not.toBeVisible();
+		await expect(page.getByText('無効', { exact: true })).not.toBeVisible();
 	});
 
 	test('IP電話(050)の種別が正しく表示される', async ({ page }) => {

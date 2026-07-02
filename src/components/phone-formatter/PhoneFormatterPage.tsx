@@ -2,6 +2,7 @@
  * 電話番号フォーマッタ オーケストレーターコンポーネント
  * 全状態管理・モード切り替え
  */
+import { Info } from 'lucide-react';
 import { useState } from 'react';
 import type { BulkResult, ParseResult } from '@/lib/phone-formatter/types';
 import BulkInput from './BulkInput';
@@ -39,8 +40,8 @@ export default function PhoneFormatterPage() {
 		<div className="space-y-6">
 			{/* プライバシー通知 */}
 			<div className="flex items-start gap-2 rounded-lg bg-safety/5 border border-safety/20 px-4 py-3">
-				<span aria-hidden="true" className="text-safety text-sm mt-0.5">
-					ℹ️
+				<span aria-hidden="true" className="text-safety mt-0.5">
+					<Info className="h-4 w-4 shrink-0" />
 				</span>
 				<p className="text-xs text-muted-foreground">
 					このツールは完全にブラウザ上で動作します。電話番号がサーバーに送信されることはありません。

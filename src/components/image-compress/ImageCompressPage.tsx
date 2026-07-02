@@ -272,7 +272,7 @@ export function ImageCompressPage() {
 				disabled={processing}
 				label="画像をドラッグ＆ドロップ"
 				description={`JPEG / PNG / WebP（最大${MAX_FILE_COUNT}枚・1枚50MBまで）`}
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理され、再エンコードによりEXIF・位置情報などのメタデータも除去されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理され、再エンコードによりEXIF・位置情報などのメタデータも除去されます。"
 				inputAriaLabel="圧縮する画像を選択"
 				data-testid="image-compress-input"
 			/>

@@ -4,6 +4,7 @@ import {
 	Download,
 	FileSpreadsheet,
 	Filter,
+	Lock,
 	PieChart,
 	Plus,
 	RotateCcw,
@@ -795,8 +796,9 @@ export default function CsvEditor() {
 			</Tabs>
 
 			{/* Privacy Note */}
-			<div className="text-center text-xs text-muted-foreground pt-4 border-t">
-				🔒 データはサーバーに送信されません。すべてブラウザ内で処理されます。
+			<div className="flex items-center justify-center gap-1 text-center text-xs text-muted-foreground pt-4 border-t">
+				<Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
+				データはサーバーに送信されません。すべてブラウザ内で処理されます。
 			</div>
 		</div>
 	);

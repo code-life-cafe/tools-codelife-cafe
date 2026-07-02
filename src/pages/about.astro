@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { ShieldCheck } from 'lucide-react';
+import { Languages, ShieldCheck, Zap } from 'lucide-react';
 ---
 
 <BaseLayout
@@ -43,7 +43,7 @@ import { ShieldCheck } from 'lucide-react';
 
         <!-- Feature 2 -->
         <div class="rounded-xl border border-border bg-card p-6 flex flex-col items-center text-center">
-          <div class="text-4xl mb-4">🇯🇵</div>
+          <div class="mb-4 flex justify-center text-primary"><Languages className="h-9 w-9" aria-hidden="true" /></div>
           <h3 class="text-lg font-bold mb-3">日本語業務に特化</h3>
           <ul class="text-sm text-muted-foreground space-y-2 text-left w-full list-disc pl-5">
             <li>全角半角変換、Shift-JISバイト数など日本固有の機能</li>
@@ -53,7 +53,7 @@ import { ShieldCheck } from 'lucide-react';
 
         <!-- Feature 3 -->
         <div class="rounded-xl border border-border bg-card p-6 flex flex-col items-center text-center">
-          <div class="text-4xl mb-4">⚡</div>
+          <div class="mb-4 flex justify-center text-primary"><Zap className="h-9 w-9" aria-hidden="true" /></div>
           <h3 class="text-lg font-bold mb-3">高速・軽量</h3>
           <ul class="text-sm text-muted-foreground space-y-2 text-left w-full list-disc pl-5">
             <li>入力データを送信しないリアルタイム処理</li>

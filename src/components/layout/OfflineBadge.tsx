@@ -2,7 +2,11 @@ import {
 	AlertTriangle,
 	CheckCircle2,
 	Download,
+	Lightbulb,
+	MonitorDown,
 	RefreshCw,
+	Smartphone,
+	TabletSmartphone,
 	WifiOff,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -272,8 +276,12 @@ export default function OfflineBadge() {
 						</>
 					) : (
 						<>
-							<h4 className="font-semibold text-sm">
-								📲 オフラインでツールを使う
+							<h4 className="flex items-center gap-1.5 font-semibold text-sm">
+								<TabletSmartphone
+									className="h-4 w-4 shrink-0"
+									aria-hidden="true"
+								/>
+								オフラインでツールを使う
 							</h4>
 							<p className="text-sm text-muted-foreground leading-relaxed font-sans">
 								すべてのツールと画面（約{cacheInfo.totalCount || '---'}
@@ -287,18 +295,40 @@ export default function OfflineBadge() {
 								オフラインモードを有効化（一括ダウンロード）
 							</button>
 							<div className="border-t border-border/60 my-2 pt-2">
-								<p className="text-xs text-muted-foreground mb-1.5">
-									💡 PWAとしてインストールすることもできます：
+								<p className="flex items-center gap-1 text-xs text-muted-foreground mb-1.5">
+									<Lightbulb
+										className="h-3.5 w-3.5 shrink-0"
+										aria-hidden="true"
+									/>
+									PWAとしてインストールすることもできます：
 								</p>
 								<div className="rounded-md bg-muted p-2.5 text-xs text-muted-foreground space-y-1">
-									<p>
-										🍎 <strong>iOS/Safari:</strong> 共有 → ホーム画面に追加
+									<p className="flex items-center gap-1.5">
+										<Smartphone
+											className="h-3.5 w-3.5 shrink-0"
+											aria-hidden="true"
+										/>
+										<span>
+											<strong>iOS/Safari:</strong> 共有 → ホーム画面に追加
+										</span>
 									</p>
-									<p>
-										🤖 <strong>Android/Chrome:</strong> アプリをインストール
+									<p className="flex items-center gap-1.5">
+										<Smartphone
+											className="h-3.5 w-3.5 shrink-0"
+											aria-hidden="true"
+										/>
+										<span>
+											<strong>Android/Chrome:</strong> アプリをインストール
+										</span>
 									</p>
-									<p>
-										🖥️ <strong>PC/Chrome:</strong> アドレスバー右の ＋ をクリック
+									<p className="flex items-center gap-1.5">
+										<MonitorDown
+											className="h-3.5 w-3.5 shrink-0"
+											aria-hidden="true"
+										/>
+										<span>
+											<strong>PC/Chrome:</strong> アドレスバー右の ＋ をクリック
+										</span>
 									</p>
 								</div>
 							</div>

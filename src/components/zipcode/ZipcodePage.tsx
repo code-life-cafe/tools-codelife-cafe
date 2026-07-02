@@ -1,6 +1,6 @@
 // ZipcodePage — 郵便番号→住所変換のオーケストレーター（単発検索 / 一括変換のタブ切替）
 
-import { AlertTriangle, Loader2, Search } from 'lucide-react';
+import { AlertTriangle, Loader2, Lock, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Input } from '@/components/ui/input';
@@ -157,8 +157,8 @@ export function ZipcodePage() {
 				<BulkConvertPanel />
 			</TabsContent>
 
-			<p className="pt-2 text-xs text-muted-foreground">
-				🔒
+			<p className="flex items-center gap-1 pt-2 text-xs text-muted-foreground">
+				<Lock className="h-3 w-3 shrink-0" aria-hidden="true" />
 				入力された郵便番号は外部に送信されません。住所データはこのサイト内の静的ファイルから取得します。
 			</p>
 		</Tabs>

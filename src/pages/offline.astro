@@ -1,4 +1,5 @@
 ---
+import { Lightbulb } from 'lucide-react';
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
@@ -20,7 +21,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </p>
       <div class="bg-muted/50 rounded-lg p-4 text-sm text-left inline-block w-full border border-border/50">
         <h3 class="font-semibold text-foreground mb-2 flex items-center gap-2">
-          <span>💡</span> オフライン時の動作について
+          <Lightbulb className="h-4 w-4 text-primary" aria-hidden="true" /> オフライン時の動作について
         </h3>
         <ul class="list-disc list-inside space-y-1.5 text-muted-foreground ml-1">
           <li>CODE:LIFE Tools はすべてクライアントサイドで動作します。入力データはサーバーに送信されません。</li>

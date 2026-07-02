@@ -191,7 +191,7 @@ export function FaviconGeneratorPage() {
 				onClear={source ? handleClear : undefined}
 				label="画像をドラッグ＆ドロップ"
 				description="PNG / JPEG / WebP / SVG（最大20MB・正方形・512px以上を推奨）"
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="ファビコンの元画像を選択"
 				data-testid="favicon-input"
 			/>

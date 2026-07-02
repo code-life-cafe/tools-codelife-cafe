@@ -265,7 +265,7 @@ export default function ImageEditPage() {
 				disabled={processing}
 				label="画像をドラッグ＆ドロップ"
 				description={`PNG / JPEG / WebP（最大${MAX_FILE_COUNT}枚・1枚50MBまで）`}
-				privacyNote="🔒 画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
+				privacyNote="画像はサーバーに送信されません。すべてブラウザ内で処理されます。"
 				inputAriaLabel="編集する画像を選択"
 				data-testid="image-edit-input"
 			/>

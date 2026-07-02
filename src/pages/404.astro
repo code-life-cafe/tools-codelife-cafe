@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { ToolIcon } from '../components/common/ToolIcon';
 import { toolCatalog } from '../lib/tools/catalog';
 
 // 404ページに表示する人気ツール
@@ -60,7 +61,7 @@ const popularTools = POPULAR_TOOL_IDS.map((id) =>
                 href={tool.href}
                 class="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               >
-                <span aria-hidden="true">{tool.icon}</span>
+                <span class="text-primary" aria-hidden="true"><ToolIcon name={tool.icon} className="h-4 w-4" /></span>
                 <span>{tool.title}</span>
               </a>
             </li>
