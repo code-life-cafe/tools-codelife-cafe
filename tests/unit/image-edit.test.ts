@@ -137,6 +137,18 @@ test('computeRotatedSize: 45° 回転の外接矩形は √2 倍を切り上げ'
 	});
 });
 
+test('computeRotatedSize: 任意角度では外接矩形を縮めない（画像が欠けない）', () => {
+	// 2520×4753 @ -166° は width の数学的下界が 3595.000000000732 となり、
+	// 一律のイプシロン減算だと ceil が 3595 に縮んで画像端が欠けるケース
+	const rad = Math.abs(((-166 % 360) * Math.PI) / 180);
+	const cos = Math.abs(Math.cos(rad));
+	const sin = Math.abs(Math.sin(rad));
+	assert.deepEqual(computeRotatedSize(2520, 4753, -166), {
+		width: Math.ceil(2520 * cos + 4753 * sin),
+		height: Math.ceil(2520 * sin + 4753 * cos),
+	});
+});
+
 // ---------------------------------------------------------------------------
 // buildEditedFilename / mimeForFormat / needsBackgroundComposite
 // ---------------------------------------------------------------------------
