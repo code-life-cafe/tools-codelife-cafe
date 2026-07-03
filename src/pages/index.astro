@@ -9,6 +9,20 @@ import { getPopularTools } from '../lib/tools/popularity';
 
 const popularTools = getPopularTools(toolCatalog);
 
+// WebMCP 用のツールカタログサマリー。catalog.ts 全体（llmsFull 等を含む約36KB）を
+// クライアントバンドルへ含めないよう、必要なフィールドのみ JSON で DOM に埋め込む。
+const webMcpCatalog = toolCatalog
+  .filter((t) => t.published !== false)
+  .map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    url: `https://tools.codelife.cafe${t.href}`,
+    category: t.category,
+    keywords: t.keywords,
+  }));
+const webMcpCatalogJson = JSON.stringify(webMcpCatalog).replace(/</g, "\\u003c");
+
 
 const schema = {
   "@context": "https://schema.org",
@@ -214,6 +228,26 @@ const schema = {
     </div>
   </section>
 </BaseLayout>
+
+<script is:inline type="application/json" id="webmcp-site-catalog" set:html={webMcpCatalogJson} />
+
+<script>
+  import { provideToolsFromFactory } from '../lib/webmcp';
+  import { createSiteTools, type SiteToolSummary } from '../lib/webmcp/tools/site.webmcp';
+
+  // AIエージェント向けにサイト共通の WebMCP ツール（一覧・検索）をページ読み込み時に登録する
+  function setupWebMcpSiteTools() {
+    const el = document.getElementById('webmcp-site-catalog');
+    if (!el?.textContent) return;
+    try {
+      const catalog = JSON.parse(el.textContent) as SiteToolSummary[];
+      provideToolsFromFactory(createSiteTools(catalog));
+    } catch (e) {
+      console.error('WebMCP site tools registration failed:', e);
+    }
+  }
+  setupWebMcpSiteTools();
+</script>
 
 <script>
   function setupCategoryFilter() {

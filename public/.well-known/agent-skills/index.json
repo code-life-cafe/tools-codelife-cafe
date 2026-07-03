@@ -1,0 +1,12 @@
+{
+	"$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+	"skills": [
+		{
+			"name": "tools-codelife-cafe-guide",
+			"type": "skill-md",
+			"description": "Guide for using tools.codelife.cafe, a collection of privacy-first Japanese business web tools that run entirely client-side.",
+			"url": "https://tools.codelife.cafe/.well-known/agent-skills/tools-guide/SKILL.md",
+			"digest": "sha256:e73ea2d0cc065364ec1db5a5f2ac850e832ecab048afb92e571ba2b538a440ba"
+		}
+	]
+}

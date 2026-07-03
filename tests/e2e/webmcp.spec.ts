@@ -236,6 +236,75 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 	});
 });
 
+test.describe('WebMCP Tool Registration — homepage', () => {
+	test('list_tools / search_tools are registered on page load', async ({
+		page,
+	}) => {
+		await page.addInitScript(WEBMCP_INIT_SCRIPT);
+
+		await page.goto('/');
+
+		const calls = await page.evaluate(
+			() => (window as unknown as WebMcpMockWindow).__webmcpCalls,
+		);
+		expect(calls.length).toBeGreaterThan(0);
+
+		const lastCall = calls.at(-1);
+		expect(lastCall).toBeDefined();
+		if (!lastCall) throw new Error('WebMCP registration call is missing');
+		const toolNames = lastCall.tools.map((t: WebMcpMockTool) => t.name);
+		expect(toolNames).toContain('list_tools');
+		expect(toolNames).toContain('search_tools');
+	});
+
+	test('list_tools execute returns the published tool catalog', async ({
+		page,
+	}) => {
+		await page.addInitScript(WEBMCP_INIT_SCRIPT);
+
+		await page.goto('/');
+
+		const result = (await page.evaluate(async () => {
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'list_tools');
+			if (!tool) throw new Error('list_tools tool is not registered');
+			return await tool.execute({});
+		})) as { tools: { id: string; url: string }[] };
+
+		expect(result.tools.length).toBeGreaterThan(0);
+		const hashEntry = result.tools.find((t) => t.id === 'hash');
+		expect(hashEntry?.url).toBe('https://tools.codelife.cafe/hash');
+	});
+
+	test('search_tools execute returns matching tools', async ({ page }) => {
+		await page.addInitScript(WEBMCP_INIT_SCRIPT);
+
+		await page.goto('/');
+
+		const result = (await page.evaluate(async () => {
+			const tool = (window as unknown as WebMcpMockWindow).__webmcpCalls
+				.at(-1)
+				?.tools.find((t: WebMcpMockTool) => t.name === 'search_tools');
+			if (!tool) throw new Error('search_tools tool is not registered');
+			return await tool.execute({ query: 'ハッシュ' });
+		})) as { tools: { id: string }[] };
+
+		expect(result.tools.map((t) => t.id)).toContain('hash');
+	});
+
+	test('homepage loads without error when modelContext is absent', async ({
+		page,
+	}) => {
+		const errors: string[] = [];
+		page.on('pageerror', (err) => errors.push(err.message));
+
+		await page.goto('/');
+
+		expect(errors).toHaveLength(0);
+	});
+});
+
 test.describe('WebMCP — no modelContext', () => {
 	test('/hash page loads without error when modelContext is absent', async ({
 		page,
