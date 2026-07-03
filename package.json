@@ -13,6 +13,7 @@
 		"test:unit": "node --test \"tests/unit/*.test.ts\"",
 		"preview": "astro preview --host",
 		"preview:ci": "astro preview",
+		"generate:fixtures": "node scripts/generate-qr-fixtures.ts",
 		"lint": "biome check src/ tests/",
 		"lint:fix": "biome check --write src/ tests/",
 		"astro": "astro",
@@ -61,7 +62,8 @@
 		"tailwindcss": "^4.2.4",
 		"tiny-segmenter": "0.2.0",
 		"tw-animate-css": "^1.3.4",
-		"typescript": "^6.0.3"
+		"typescript": "^6.0.3",
+		"zxing-wasm": "3.1.0"
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.8",

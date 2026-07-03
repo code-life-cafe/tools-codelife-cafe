@@ -39,7 +39,12 @@ try {
 } catch {
 	// _astro/ が存在しない場合は空配列のまま続行
 }
-const assetURLs = assetFiles.map((f) => `/_astro/${f}`);
+// zxing-wasm（QRコード読み取り、/qr-reader 専用）の WASM チャンクはサイズが大きく、
+// 他ツールと違って初回訪問時に必ず使うとは限らないため precache 対象から除外する。
+// 代わりに sw.js の fetch ハンドラ（/_astro/ 以下は cache-first）でランタイムキャッシュされる。
+const assetURLs = assetFiles
+	.filter((f) => !/zxing_reader.*\.wasm$/i.test(f))
+	.map((f) => `/_astro/${f}`);
 
 // ページHTML内容 + アセットURLからキャッシュバージョンハッシュを計算（内容変更時に自動失効）
 const pageContents = await Promise.all(
