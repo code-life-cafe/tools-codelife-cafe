@@ -9,7 +9,8 @@ const DIST = './dist';
 // dist/ 直下のディレクトリ（各ルートページ）を収集
 // `data` は静的データ配信用（/data/zipcode/*.json 等）、`og` は OGP 画像
 // （generate-og-images.mjs が生成）、`models` は AI 超解像モデル（/upscale が実行時に取得、
-// ~5MB）でいずれもページではないため除外。これらはプリキャッシュせず、Service Worker の
+// ~5MB）、ドットディレクトリ（/.well-known/ 等のメタデータ配信）はいずれも
+// ページではないため除外。これらはプリキャッシュせず、Service Worker の
 // ランタイム cache-first で扱う（モデルはブラウザ Cache に乗るが precache には含めない）。
 const entries = await readdir(DIST, { withFileTypes: true });
 const pageURLs = [
@@ -19,6 +20,7 @@ const pageURLs = [
 			(d) =>
 				d.isDirectory() &&
 				!d.name.startsWith('_') &&
+				!d.name.startsWith('.') &&
 				d.name !== 'data' &&
 				d.name !== 'og' &&
 				d.name !== 'models',
