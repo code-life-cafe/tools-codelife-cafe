@@ -24,6 +24,7 @@ export default function ImageUploader({ onDecoded }: ImageUploaderProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [zeroDetectHint, setZeroDetectHint] = useState(false);
 	const cancelRef = useRef(false);
+	const runIdRef = useRef(0); // 実行中バッチを識別し、古いバッチの結果混入を防ぐ
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const validateBatch = useCallback((files: File[]): string | null => {
@@ -56,12 +57,16 @@ export default function ImageUploader({ onDecoded }: ImageUploaderProps) {
 			setError(null);
 			setZeroDetectHint(false);
 			cancelRef.current = false;
+			// 実行中バッチがあれば無効化し、新しいバッチだけが結果を反映できるようにする
+			const runId = ++runIdRef.current;
+			const isCurrentRun = () =>
+				runIdRef.current === runId && !cancelRef.current;
 			setBatch({ total: files.length, done: 0, currentFileName: null });
 
 			let detectedAny = false;
 
 			for (const file of files) {
-				if (cancelRef.current) break;
+				if (!isCurrentRun()) break;
 
 				setBatch((prev) =>
 					prev ? { ...prev, currentFileName: file.name } : prev,
@@ -69,6 +74,8 @@ export default function ImageUploader({ onDecoded }: ImageUploaderProps) {
 
 				try {
 					const symbols = await decodeImageFile(file.name, file);
+					// デコード待ちの間にキャンセル/新バッチ開始された場合は結果を破棄する
+					if (!isCurrentRun()) break;
 					if (symbols.length > 0) {
 						detectedAny = true;
 						onDecoded(
@@ -78,14 +85,17 @@ export default function ImageUploader({ onDecoded }: ImageUploaderProps) {
 					}
 				} catch {
 					// 破損ファイル等はスキップして続行
+					if (!isCurrentRun()) break;
 				}
 
 				setBatch((prev) => (prev ? { ...prev, done: prev.done + 1 } : prev));
 			}
 
-			setBatch(null);
-			if (!detectedAny && !cancelRef.current) {
-				setZeroDetectHint(true);
+			if (runIdRef.current === runId) {
+				setBatch(null);
+				if (!detectedAny && !cancelRef.current) {
+					setZeroDetectHint(true);
+				}
 			}
 		},
 		[validateBatch, onDecoded],

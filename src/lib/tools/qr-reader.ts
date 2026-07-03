@@ -106,7 +106,20 @@ export function addResult(
 }
 
 // --- 永続化（localStorage） ---
-
+//
+// 注意（AGENTS.mdの例外・意図的な設計判断）:
+// AGENTS.mdの原則は「localStorage/URLに保存してよいのは設定値だけ。入力本文・
+// ファイル内容・画像データ・個人情報を保存してはいけない」だが、本ツールの
+// 自動保存機能（qr-reader:results）はスキャン結果（Wi-Fiパスワード・vCard等の
+// 個人情報を含みうるrawValue）を保存する、この原則に対する唯一かつ明示的な
+// 例外である。これはNotion設計書のUC-1（受付・イベント業務での「うっかり
+// リロード」によるデータ消失防止）を満たすための必須要件であり、以下の緩和策を
+// 実装した上でユーザーが明示的にオプトインする場合のみ有効化される:
+//   - 既定でOFF（ONにしない限り一切書き込まない）
+//   - 初回ON時に「Wi-Fiパスワード等が端末内に平文保存される」同意ダイアログを表示
+//   - ON→OFF切替時は確認の上で保存データを即座に削除
+//   - 復元時も自動上書き/自動破棄はせず必ずユーザー確認を挟む
+// 詳細はAutosaveToggleコンポーネントとNotion設計書を参照。
 const STORAGE_KEY = 'qr-reader:results';
 const AUTOSAVE_KEY = 'qr-reader:autosave';
 const STORAGE_VERSION = 1;

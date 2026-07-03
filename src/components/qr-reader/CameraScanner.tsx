@@ -23,6 +23,7 @@ export default function CameraScanner({
 	const streamRef = useRef<MediaStream | null>(null);
 	const rafRef = useRef<number | null>(null);
 	const decodingRef = useRef(false); // Worker への同時リクエストを1件までに制限
+	const cancelledRef = useRef(false); // getUserMedia 応答待ち中のアンマウント/停止を検知
 	const lastDecodeAtRef = useRef(0);
 	const lastValueRef = useRef<{ value: string; at: number } | null>(null);
 	const onDetectedRef = useRef(onDetected);
@@ -41,6 +42,11 @@ export default function CameraScanner({
 			streamRef.current = null;
 		}
 		terminateWorker();
+		// Worker終了時に確実に応答が来るとは限らないため、次回起動時に
+		// captureAndDecodeLoop が固まらないようここでも明示的に解除する
+		decodingRef.current = false;
+		// getUserMedia の応答待ち中に呼ばれた場合、後から解決するストリームを破棄する
+		cancelledRef.current = true;
 	}, []);
 
 	const captureAndDecodeLoop = useCallback(() => {
@@ -110,17 +116,34 @@ export default function CameraScanner({
 			return;
 		}
 		setStatus('starting');
+		cancelledRef.current = false;
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: { facingMode: { ideal: 'environment' } },
 				audio: false,
 			});
+			// 許可待ちの間にアンマウント/モード切替/非表示でstopCameraが
+			// 先に呼ばれている場合、このストリームをバックグラウンドで
+			// 動かし続けないよう即座に破棄する
+			if (cancelledRef.current) {
+				for (const track of stream.getTracks()) {
+					track.stop();
+				}
+				return;
+			}
 			streamRef.current = stream;
 			if (videoRef.current) {
 				videoRef.current.srcObject = stream;
 				await videoRef.current.play().catch(() => {
 					// 一部ブラウザは play() を Promise 拒否するが再生自体は継続する
 				});
+			}
+			if (cancelledRef.current) {
+				for (const track of stream.getTracks()) {
+					track.stop();
+				}
+				streamRef.current = null;
+				return;
 			}
 			setStatus('active');
 			captureAndDecodeLoop();
