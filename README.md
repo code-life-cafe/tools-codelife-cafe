@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全42種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全43種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（42種）
+## 📦 収録ツール（43種）
 
 ### テキスト処理
 
@@ -62,6 +62,7 @@
 | [画像のクロップ・回転・反転](https://tools.codelife.cafe/image-edit) | アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力（完全ローカル実行） |
 | [画像連結・結合](https://tools.codelife.cafe/image-merge) | 複数画像を縦・横・グリッドで1枚に結合。コンタクトシート作成・余白/背景色/並び替え対応（完全ローカル実行） |
 | [QRコード生成](https://tools.codelife.cafe/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
+| [QRコード読み取り](https://tools.codelife.cafe/qr-reader) | カメラや画像ファイルからQRコードを読み取り。URL・Wi-Fi・連絡先も自動判定しCSV出力（完全ローカル実行） |
 | [Base64エンコード/デコード](https://tools.codelife.cafe/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](https://tools.codelife.cafe/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
 | [和暦⇔西暦変換](https://tools.codelife.cafe/wareki-converter) | 和暦（令和・平成等）と西暦のリアルタイム相互変換 |
