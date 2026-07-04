@@ -8,6 +8,7 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
@@ -28,6 +29,12 @@ type OutputFile = {
 	pageNumbers: number[];
 };
 
+type SplitResult = {
+	outputs: OutputFile[];
+	zipBlob: Blob | null;
+	zipName: string;
+};
+
 export function PdfSplitPage() {
 	const [file, setFile] = useState<File | null>(null);
 	const [pageCount, setPageCount] = useState(0);
@@ -35,12 +42,13 @@ export function PdfSplitPage() {
 	const [mode, setMode] = useState<SplitMode>('range');
 	const [rangeInput, setRangeInput] = useState('');
 	const [extractInput, setExtractInput] = useState('');
-	const [processing, setProcessing] = useState(false);
-	const [progress, setProgress] = useState({ done: 0, total: 0 });
-	const [error, setError] = useState<string | null>(null);
-	const [outputs, setOutputs] = useState<OutputFile[]>([]);
-	const [zipBlob, setZipBlob] = useState<Blob | null>(null);
-	const [zipName, setZipName] = useState('');
+	const { processing, progress, result, setResult, error, setError, run } =
+		useSingleResultProcessing<SplitResult>({
+			fallbackErrorMessage: '処理に失敗しました。',
+		});
+	const outputs = result?.outputs ?? [];
+	const zipBlob = result?.zipBlob ?? null;
+	const zipName = result?.zipName ?? '';
 	// 読み込み中に別ファイルが選択された場合、古い loadPdfInfo の結果で
 	// 新しい選択を上書きしないためのリクエストトークン
 	const loadIdRef = useRef(0);
@@ -74,10 +82,8 @@ export function PdfSplitPage() {
 		(mode === 'single' || currentParse?.ok === true);
 
 	const resetOutputs = useCallback(() => {
-		setOutputs([]);
-		setZipBlob(null);
-		setZipName('');
-	}, []);
+		setResult(null);
+	}, [setResult]);
 
 	const handleFileSelect = useCallback(
 		async (selected: File) => {
@@ -117,7 +123,7 @@ export function PdfSplitPage() {
 				if (loadId === loadIdRef.current) setLoading(false);
 			}
 		},
-		[resetOutputs],
+		[resetOutputs, setError],
 	);
 
 	const handleClear = useCallback(() => {
@@ -129,7 +135,7 @@ export function PdfSplitPage() {
 		setRangeInput('');
 		setExtractInput('');
 		resetOutputs();
-	}, [resetOutputs]);
+	}, [resetOutputs, setError]);
 
 	const handleRun = useCallback(async () => {
 		if (!file || pageCount === 0) return;
@@ -147,47 +153,37 @@ export function PdfSplitPage() {
 			ranges = mode === 'extract' ? [parsed.ranges.flat()] : parsed.ranges;
 		}
 
-		setProcessing(true);
-		setError(null);
-		resetOutputs();
-		setProgress({ done: 0, total: ranges.length });
-		try {
-			// bytes はこのスコープ内のみで保持し、処理完了後に参照を解放する
-			const bytes = new Uint8Array(await file.arrayBuffer());
-			const results = await splitPdf(bytes, ranges, baseName, (done, total) =>
-				setProgress({ done, total }),
-			);
-			const files: OutputFile[] = results.map((r) => ({
-				blob: new Blob([r.bytes as Uint8Array<ArrayBuffer>], {
-					type: 'application/pdf',
-				}),
-				fileName: r.fileName,
-				pageNumbers: r.pageNumbers,
-			}));
-			setOutputs(files);
+		await run(ranges.length, async (onProgress) => {
+			try {
+				// bytes はこのスコープ内のみで保持し、処理完了後に参照を解放する
+				const bytes = new Uint8Array(await file.arrayBuffer());
+				const results = await splitPdf(bytes, ranges, baseName, onProgress);
+				const files: OutputFile[] = results.map((r) => ({
+					blob: new Blob([r.bytes as Uint8Array<ArrayBuffer>], {
+						type: 'application/pdf',
+					}),
+					fileName: r.fileName,
+					pageNumbers: r.pageNumbers,
+				}));
 
-			if (files.length === 1) {
-				downloadBlob(files[0].blob, files[0].fileName);
-			} else {
+				if (files.length === 1) {
+					downloadBlob(files[0].blob, files[0].fileName);
+					return { outputs: files, zipBlob: null, zipName: '' };
+				}
 				const names = dedupeZipNames(files.map((f) => f.fileName));
 				const zip = await buildZip(
 					files.map((f, i) => ({ name: names[i], data: f.blob })),
 				);
-				const name = `${baseName}_split.zip`;
-				setZipBlob(zip);
-				setZipName(name);
-				downloadBlob(zip, name);
+				const zipName = `${baseName}_split.zip`;
+				downloadBlob(zip, zipName);
+				return { outputs: files, zipBlob: zip, zipName };
+			} catch (err) {
+				throw err instanceof Error
+					? new Error(`処理に失敗しました: ${err.message}`)
+					: err;
 			}
-		} catch (err) {
-			setError(
-				err instanceof Error
-					? `処理に失敗しました: ${err.message}`
-					: '処理に失敗しました。',
-			);
-		} finally {
-			setProcessing(false);
-		}
-	}, [file, pageCount, mode, rangeInput, extractInput, baseName, resetOutputs]);
+		});
+	}, [file, pageCount, mode, rangeInput, extractInput, baseName, run]);
 
 	const runLabel =
 		mode === 'range'
