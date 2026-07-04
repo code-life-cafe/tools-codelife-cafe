@@ -194,6 +194,26 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 		[run, itemsRef],
 	);
 
+	/**
+	 * 既存の items のリソースは解放せず、末尾に追加する。
+	 * 複数回に分けて選択を蓄積したい2段階フロー（都度追加・個別削除）で使う。
+	 */
+	const append = useCallback((next: TItem[]) => {
+		setItems((prev) => [...prev, ...next]);
+	}, []);
+
+	/** id で指定した1アイテムのみリソースを解放して取り除く */
+	const removeItem = useCallback(
+		(id: string) => {
+			setItems((prev) => {
+				const target = prev.find((it) => it.id === id);
+				if (target) options.releaseItem?.(target);
+				return prev.filter((it) => it.id !== id);
+			});
+		},
+		[options.releaseItem],
+	);
+
 	/** 現在の items を resetItem で初期化し直して再処理する（再圧縮・再変換） */
 	const reprocess = useCallback(
 		(
@@ -242,6 +262,8 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 		start,
 		hold,
 		startHeld,
+		append,
+		removeItem,
 		reprocess,
 		cancel,
 		clear,

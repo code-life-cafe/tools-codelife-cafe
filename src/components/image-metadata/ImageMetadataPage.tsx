@@ -1,5 +1,5 @@
 import { CheckCircle2, Download, Loader2, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	MAX_METADATA_FILE_COUNT,
@@ -28,12 +29,12 @@ const ACCEPT = 'image/jpeg,image/png,image/webp';
 
 type MetadataItem = {
 	id: string;
+	status: 'pending' | 'done' | 'error';
+	error?: string;
 	file: File;
 	previewUrl: string;
-	status: 'ready' | 'processing' | 'done' | 'error';
 	result?: StripMetadataResult;
 	resultUrl?: string;
-	error?: string;
 };
 
 const DEFAULT_OPTIONS: StripMetadataOptions = {
@@ -42,6 +43,11 @@ const DEFAULT_OPTIONS: StripMetadataOptions = {
 	background: '#ffffff',
 };
 
+function releaseMetadataItem(item: MetadataItem): void {
+	URL.revokeObjectURL(item.previewUrl);
+	if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
+}
+
 function formatBytes(bytes: number): string {
 	if (bytes < 1024) return `${bytes} B`;
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -49,102 +55,57 @@ function formatBytes(bytes: number): string {
 }
 
 export function ImageMetadataPage() {
-	const [items, setItems] = useState<MetadataItem[]>([]);
 	const [options, setOptions] = useState<StripMetadataOptions>(DEFAULT_OPTIONS);
-	const [processing, setProcessing] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const itemsRef = useRef<MetadataItem[]>([]);
-	itemsRef.current = items;
 
-	useEffect(() => {
-		return () => {
-			for (const item of itemsRef.current) {
-				URL.revokeObjectURL(item.previewUrl);
-				if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
-			}
-		};
-	}, []);
+	const {
+		items,
+		processing,
+		progress,
+		error,
+		setError,
+		append,
+		removeItem,
+		startHeld,
+	} = useBatchProcessing<MetadataItem>({
+		fallbackErrorMessage: '処理に失敗しました。',
+		releaseItem: releaseMetadataItem,
+	});
 
-	const onFiles = useCallback((files: File[]) => {
-		setError(null);
-		const countError = validateMetadataFileCount(
-			itemsRef.current.length,
-			files.length,
-		);
-		if (countError) {
-			setError(countError);
-			return;
-		}
-		const next: MetadataItem[] = [];
-		for (const file of files) {
-			const validationError = validateMetadataImageFile(file);
-			if (validationError) {
-				setError(`${file.name}: ${validationError}`);
-				continue;
+	const onFiles = useCallback(
+		(files: File[]) => {
+			setError(null);
+			const countError = validateMetadataFileCount(items.length, files.length);
+			if (countError) {
+				setError(countError);
+				return;
 			}
-			next.push({
-				id: createId(),
-				file,
-				previewUrl: URL.createObjectURL(file),
-				status: 'ready',
-			});
-		}
-		if (next.length > 0) setItems((prev) => [...prev, ...next]);
-	}, []);
+			const next: MetadataItem[] = [];
+			for (const file of files) {
+				const validationError = validateMetadataImageFile(file);
+				if (validationError) {
+					setError(`${file.name}: ${validationError}`);
+					continue;
+				}
+				next.push({
+					id: createId(),
+					status: 'pending',
+					file,
+					previewUrl: URL.createObjectURL(file),
+				});
+			}
+			// 選択時は保持のみ行い、「メタデータを削除」ボタン押下まで処理を開始しない
+			if (next.length > 0) append(next);
+		},
+		[items.length, append, setError],
+	);
 
-	const removeItem = useCallback((id: string) => {
-		setItems((prev) => {
-			const target = prev.find((item) => item.id === id);
-			if (target) {
-				URL.revokeObjectURL(target.previewUrl);
-				if (target.resultUrl) URL.revokeObjectURL(target.resultUrl);
-			}
-			return prev.filter((item) => item.id !== id);
+	const processAll = useCallback(() => {
+		startHeld(async (item) => {
+			const result = await stripImageMetadata(item.file, options);
+			const resultUrl = URL.createObjectURL(result.blob);
+			return { result, resultUrl };
 		});
-	}, []);
-
-	const processAll = useCallback(async () => {
-		setError(null);
-		setProcessing(true);
-		for (const item of itemsRef.current) {
-			setItems((prev) =>
-				prev.map((it) =>
-					it.id === item.id ? { ...it, status: 'processing' } : it,
-				),
-			);
-			try {
-				const result = await stripImageMetadata(item.file, options);
-				const resultUrl = URL.createObjectURL(result.blob);
-				setItems((prev) =>
-					prev.map((it) => {
-						if (it.id !== item.id) return it;
-						if (it.resultUrl) URL.revokeObjectURL(it.resultUrl);
-						return {
-							...it,
-							status: 'done',
-							result,
-							resultUrl,
-							error: undefined,
-						};
-					}),
-				);
-			} catch (err) {
-				setItems((prev) =>
-					prev.map((it) =>
-						it.id === item.id
-							? {
-									...it,
-									status: 'error',
-									error:
-										err instanceof Error ? err.message : '処理に失敗しました。',
-								}
-							: it,
-					),
-				);
-			}
-		}
-		setProcessing(false);
-	}, [options]);
+	}, [startHeld, options]);
 
 	const downloadAll = useCallback(async () => {
 		const done = items.filter((item) => item.result);
@@ -164,6 +125,8 @@ export function ImageMetadataPage() {
 	}, [items]);
 
 	const doneCount = items.filter((item) => item.status === 'done').length;
+	// 逐次処理は items の並び順どおりに進むため、進捗インデックスの位置にあるアイテムが処理中とみなせる
+	const processingId = processing ? items[progress.done]?.id : undefined;
 
 	return (
 		<div className="space-y-6">
@@ -281,7 +244,7 @@ export function ImageMetadataPage() {
 								<p className="text-muted-foreground">
 									元サイズ: {formatBytes(item.file.size)}
 								</p>
-								{item.status === 'processing' && (
+								{item.id === processingId && (
 									<p className="text-primary">処理中...</p>
 								)}
 								{item.status === 'error' && (
