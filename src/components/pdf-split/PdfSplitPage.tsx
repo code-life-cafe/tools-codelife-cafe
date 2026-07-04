@@ -42,7 +42,7 @@ export function PdfSplitPage() {
 	const [mode, setMode] = useState<SplitMode>('range');
 	const [rangeInput, setRangeInput] = useState('');
 	const [extractInput, setExtractInput] = useState('');
-	const { processing, progress, result, setResult, error, setError, run } =
+	const { processing, progress, result, clearResult, error, setError, run } =
 		useSingleResultProcessing<SplitResult>({
 			fallbackErrorMessage: '処理に失敗しました。',
 		});
@@ -82,8 +82,8 @@ export function PdfSplitPage() {
 		(mode === 'single' || currentParse?.ok === true);
 
 	const resetOutputs = useCallback(() => {
-		setResult(null);
-	}, [setResult]);
+		clearResult();
+	}, [clearResult]);
 
 	const handleFileSelect = useCallback(
 		async (selected: File) => {
@@ -170,20 +170,40 @@ export function PdfSplitPage() {
 					downloadBlob(files[0].blob, files[0].fileName);
 					return { outputs: files, zipBlob: null, zipName: '' };
 				}
-				const names = dedupeZipNames(files.map((f) => f.fileName));
-				const zip = await buildZip(
-					files.map((f, i) => ({ name: names[i], data: f.blob })),
-				);
-				const zipName = `${baseName}_split.zip`;
-				downloadBlob(zip, zipName);
-				return { outputs: files, zipBlob: zip, zipName };
+
+				try {
+					const names = dedupeZipNames(files.map((f) => f.fileName));
+					const zip = await buildZip(
+						files.map((f, i) => ({ name: names[i], data: f.blob })),
+					);
+					const zipName = `${baseName}_split.zip`;
+					downloadBlob(zip, zipName);
+					return { outputs: files, zipBlob: zip, zipName };
+				} catch (zipErr) {
+					// ZIP化に失敗しても分割済みファイル自体は個別ダウンロード可能な状態で残す
+					setError(
+						zipErr instanceof Error
+							? `ZIP作成に失敗しました: ${zipErr.message}`
+							: 'ZIP作成に失敗しました。',
+					);
+					return { outputs: files, zipBlob: null, zipName: '' };
+				}
 			} catch (err) {
 				throw err instanceof Error
 					? new Error(`処理に失敗しました: ${err.message}`)
 					: err;
 			}
 		});
-	}, [file, pageCount, mode, rangeInput, extractInput, baseName, run]);
+	}, [
+		file,
+		pageCount,
+		mode,
+		rangeInput,
+		extractInput,
+		baseName,
+		run,
+		setError,
+	]);
 
 	const runLabel =
 		mode === 'range'

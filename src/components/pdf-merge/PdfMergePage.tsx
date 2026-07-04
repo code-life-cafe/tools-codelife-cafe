@@ -30,7 +30,7 @@ type MergeResult = {
 
 export function PdfMergePage() {
 	const [items, setItems] = useState<MergeItem[]>([]);
-	const { processing, progress, result, setResult, error, setError, run } =
+	const { processing, progress, result, clearResult, error, setError, run } =
 		useSingleResultProcessing<MergeResult>({
 			fallbackErrorMessage: '結合に失敗しました。',
 		});
@@ -77,7 +77,7 @@ export function PdfMergePage() {
 	const handleFilesSelect = useCallback(
 		async (files: File[]) => {
 			setError(null);
-			setResult(null);
+			clearResult();
 
 			const current = itemsRef.current;
 			const countCheck = validateMergeFileCount(current.length + files.length);
@@ -136,7 +136,7 @@ export function PdfMergePage() {
 				}
 			}
 		},
-		[updateItem, setError, setResult],
+		[updateItem, setError, clearResult],
 	);
 
 	const handleMove = useCallback((id: string, direction: -1 | 1) => {
@@ -162,16 +162,16 @@ export function PdfMergePage() {
 	const handleRemove = useCallback(
 		(id: string) => {
 			setItems((prev) => prev.filter((it) => it.id !== id));
-			setResult(null);
+			clearResult();
 		},
-		[setResult],
+		[clearResult],
 	);
 
 	const handleClear = useCallback(() => {
 		setItems([]);
 		setError(null);
-		setResult(null);
-	}, [setError, setResult]);
+		clearResult();
+	}, [setError, clearResult]);
 
 	const handleMerge = useCallback(async () => {
 		const targets = itemsRef.current.filter((it) => it.status === 'ready');

@@ -37,7 +37,8 @@ export function ImageMergePage() {
 	} | null>(null);
 	// 画像の読み込み中フラグ（結合結果の生成・ダウンロードは useSingleResultProcessing が管理）
 	const [loadingFiles, setLoadingFiles] = useState(false);
-	const { processing, error, setError, run } = useSingleResultProcessing<Blob>({
+	// 結果（結合画像）はダウンロード後にUIで参照しないため、React状態に保持しない
+	const { processing, error, setError, run } = useSingleResultProcessing<void>({
 		fallbackErrorMessage: '画像の書き出しに失敗しました。',
 	});
 	const busy = loadingFiles || processing;
@@ -197,7 +198,6 @@ export function ImageMergePage() {
 			);
 			const blob = await exportCanvas(merged, options);
 			downloadBlob(blob, buildMergedFilename(options.output));
-			return blob;
 		});
 	}, [items, options, run]);
 

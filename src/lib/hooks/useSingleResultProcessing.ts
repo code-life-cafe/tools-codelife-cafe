@@ -87,6 +87,7 @@ export function useSingleResultProcessing<TResult>(
 	const run = useCallback(
 		(total: number, processor: SingleResultProcessor<TResult>) => {
 			lifecycle.releaseAll();
+			lifecycle.track([]);
 			setError(null);
 			setResult(null);
 			setProcessing(true);
@@ -118,21 +119,27 @@ export function useSingleResultProcessing<TResult>(
 		setProcessing(false);
 	}, [lifecycle]);
 
+	/** 表示中の結果を解放して非表示にする（トラッカーにも反映するため、次ランや unmount 時に二重解放しない） */
+	const clearResult = useCallback(() => {
+		lifecycle.releaseAll();
+		lifecycle.track([]);
+		setResult(null);
+	}, [lifecycle]);
+
 	/** 結果・エラーを破棄して初期状態に戻す */
 	const clear = useCallback(() => {
 		lifecycle.cancel();
-		lifecycle.releaseAll();
-		setResult(null);
+		clearResult();
 		setError(null);
 		setProcessing(false);
 		setProgress({ done: 0, total: 0 });
-	}, [lifecycle]);
+	}, [lifecycle, clearResult]);
 
 	return {
 		processing,
 		progress,
 		result,
-		setResult,
+		clearResult,
 		error,
 		setError,
 		run,
