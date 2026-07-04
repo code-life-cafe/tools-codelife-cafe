@@ -1,9 +1,11 @@
 // useBatchProcessing — 複数ファイル逐次処理の共通フック
 // 進捗表示・キャンセル・中断検知（runId）・ObjectURL 等のリソース解放という
 // バッチ処理ページ共通の状態機械を一元管理する。
+// ランのライフサイクル管理は useProcessingLifecycle に委譲している。
 // 使用例: ImageCompressPage / ImageConvertPage
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useProcessingLifecycle } from './useProcessingLifecycle';
 
 /** バッチ処理対象アイテムに最低限必要なフィールド */
 export type BatchItemBase = {
@@ -45,23 +47,17 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 	});
 	const [completion, setCompletion] = useState<BatchCompletion | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const runIdRef = useRef(0);
-	const cancelRef = useRef(false);
-	const itemsRef = useRef<TItem[]>([]);
-	itemsRef.current = items;
 
-	// アンマウント時の解放と onRunComplete から安定参照するための ref
-	const releaseItemRef = useRef(options.releaseItem);
-	releaseItemRef.current = options.releaseItem;
+	// runIdによる中断検知・キャンセル伝播・アンマウント時のリソース解放
+	const lifecycle = useProcessingLifecycle<TItem>({
+		release: options.releaseItem,
+	});
+	lifecycle.track(items);
+	const { resourcesRef: itemsRef } = lifecycle;
+
+	// onRunComplete から安定参照するための ref
 	const onRunCompleteRef = useRef(onRunComplete);
 	onRunCompleteRef.current = onRunComplete;
-
-	// アンマウント時に全アイテムのリソースを解放する
-	useEffect(() => {
-		return () => {
-			for (const it of itemsRef.current) releaseItemRef.current?.(it);
-		};
-	}, []);
 
 	const updateItem = useCallback((id: string, patch: Partial<TItem>) => {
 		setItems((prev) =>
@@ -72,8 +68,7 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 	/** target を先頭から逐次処理する（キャンセル・差し替えで中断） */
 	const run = useCallback(
 		async (target: TItem[], processItem: BatchItemProcessor<TItem>) => {
-			const runId = ++runIdRef.current;
-			cancelRef.current = false;
+			const runId = lifecycle.beginRun();
 			setProcessing(true);
 			setCompletion(null);
 			setProgress({ done: 0, total: target.length });
@@ -81,11 +76,11 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 			let failed = 0;
 
 			for (let i = 0; i < target.length; i++) {
-				if (cancelRef.current || runIdRef.current !== runId) break;
+				if (!lifecycle.isCurrent(runId)) break;
 				const item = target[i];
 				try {
 					const patch = await processItem(item);
-					if (runIdRef.current !== runId) {
+					if (!lifecycle.isCurrent(runId)) {
 						// 中断後に届いた結果はアイテムへ反映せず、リソースだけ解放する
 						releasePatch?.(patch);
 						break;
@@ -99,31 +94,31 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 					} as Partial<TItem>);
 					failed++;
 				}
-				if (runIdRef.current === runId) {
+				if (lifecycle.isCurrent(runId)) {
 					setProgress({ done: i + 1, total: target.length });
 				}
 				// イベントループへ yield して UI フリーズを防ぐ
 				await new Promise((resolve) => setTimeout(resolve, 0));
 			}
 
-			if (runIdRef.current === runId) {
+			if (lifecycle.isCurrent(runId)) {
 				setProcessing(false);
 				const result = { done, failed, total: target.length };
 				setCompletion(result);
 				onRunCompleteRef.current?.(result);
 			}
 		},
-		[fallbackErrorMessage, releasePatch, updateItem],
+		[fallbackErrorMessage, releasePatch, updateItem, lifecycle],
 	);
 
 	/** 前回の items のリソースを解放してから target に差し替え、処理を開始する */
 	const start = useCallback(
 		(target: TItem[], processItem: BatchItemProcessor<TItem>) => {
-			for (const it of itemsRef.current) releaseItemRef.current?.(it);
+			lifecycle.releaseAll();
 			setItems(target);
 			void run(target, processItem);
 		},
-		[run],
+		[run, lifecycle],
 	);
 
 	/** 現在の items を resetItem で初期化し直して再処理する（再圧縮・再変換） */
@@ -136,27 +131,25 @@ export function useBatchProcessing<TItem extends BatchItemBase>(
 			setItems(reset);
 			void run(reset, processItem);
 		},
-		[run],
+		[run, itemsRef],
 	);
 
 	/** 進行中の処理を中断する（items は保持） */
 	const cancel = useCallback(() => {
-		cancelRef.current = true;
-		runIdRef.current++;
+		lifecycle.cancel();
 		setProcessing(false);
 		setCompletion(null);
-	}, []);
+	}, [lifecycle]);
 
 	/** 全アイテムを破棄して初期状態に戻す */
 	const clear = useCallback(() => {
-		runIdRef.current++;
-		cancelRef.current = true;
-		for (const it of itemsRef.current) releaseItemRef.current?.(it);
+		lifecycle.cancel();
+		lifecycle.releaseAll();
 		setItems([]);
 		setError(null);
 		setProcessing(false);
 		setCompletion(null);
-	}, []);
+	}, [lifecycle]);
 
 	/** 完了メッセージのみ消す（オプション変更時など） */
 	const clearCompletion = useCallback(() => {

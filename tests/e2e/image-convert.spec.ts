@@ -214,6 +214,21 @@ test.describe('画像形式変換', () => {
 		}
 	});
 
+	test('処理中にキャンセルすると中断され、未処理のアイテムはpendingのまま残る', async ({
+		page,
+	}) => {
+		const files = Array.from({ length: 30 }, () => PNG);
+		await input(page).setInputFiles(files);
+
+		const cancelButton = page.getByRole('button', { name: 'キャンセル' });
+		await cancelButton.click();
+
+		await expect(cancelButton).toBeHidden();
+		// 中断により、全件が処理し終わる前に止まっている（未処理アイテムが残る）
+		await expect(page.getByText('変換中…').first()).toBeVisible();
+		await expect(page.getByTestId('convert-completion')).toBeHidden();
+	});
+
 	test('375px / 1440px でレスポンシブ表示される', async ({ page }) => {
 		await page.setViewportSize({ width: 375, height: 667 });
 		await expect(page.getByText('画像をドラッグ＆ドロップ')).toBeVisible();

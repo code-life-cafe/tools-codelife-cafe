@@ -174,6 +174,21 @@ test.describe('画像圧縮・リサイズ', () => {
 		await expect(page.getByRole('alert')).toContainText('対応していない形式');
 	});
 
+	test('処理中にキャンセルすると中断され、未処理のアイテムはpendingのまま残る', async ({
+		page,
+	}) => {
+		const files = Array.from({ length: 30 }, () => SAMPLE);
+		await fileInput(page).setInputFiles(files);
+
+		const cancelButton = page.getByRole('button', { name: 'キャンセル' });
+		await cancelButton.click();
+
+		await expect(cancelButton).toBeHidden();
+		// 中断により、全件が処理し終わる前に止まっている（未処理アイテムが残る）
+		await expect(page.getByText('処理中…').first()).toBeVisible();
+		await expect(page.getByTestId('compress-completion')).toBeHidden();
+	});
+
 	test('375px / 1440px でレスポンシブ表示される', async ({ page }) => {
 		await page.setViewportSize({ width: 375, height: 667 });
 		await expect(page.getByText('画像をドラッグ＆ドロップ')).toBeVisible();
