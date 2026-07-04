@@ -111,10 +111,26 @@ test.describe('トップページ カテゴリフィルタ', () => {
 		await page.locator('header a[href="/"]').click();
 		await expect(page).toHaveURL('/');
 
+		// 戻り遷移後、イベントリスナーのセットアップ完了を待つ
+		await expect(page.locator('#category-filter')).toHaveAttribute(
+			'data-filter-ready',
+			'true',
+		);
+
+		// Back後の初期カテゴリ状態（「すべて」がアクティブ）を明示的に検証
+		await expect(
+			page.getByRole('button', { name: 'すべて', exact: true }),
+		).toHaveAttribute('aria-pressed', 'true');
+
 		await page
 			.locator('#category-filter')
 			.getByRole('button', { name: '開発ツール' })
 			.click();
+
+		// 件数および表示カードのカテゴリ整合性を確認
 		await expect(visibleCards(page)).toHaveCount(devCount);
+		for (const card of await visibleCards(page).all()) {
+			await expect(card).toHaveAttribute('data-category', devCategory.id);
+		}
 	});
 });

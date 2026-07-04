@@ -316,6 +316,7 @@ const schema = {
     if (initialId !== '') {
       applyFilter(validIds.has(initialId) ? initialId : '', false);
     }
+    filterContainer.dataset.filterReady = 'true';
   }
 
   function setupRecentTools() {
