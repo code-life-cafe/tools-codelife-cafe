@@ -6,6 +6,7 @@ import { Download, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	buildMergedFilename,
@@ -30,12 +31,17 @@ type LoadedItem = MergeImageItem & { bitmap: ImageBitmap };
 export function ImageMergePage() {
 	const [items, setItems] = useState<LoadedItem[]>([]);
 	const [options, setOptions] = useState<MergeOptions>(DEFAULT_MERGE_OPTIONS);
-	const [error, setError] = useState<string | null>(null);
 	const [outputSize, setOutputSize] = useState<{
 		width: number;
 		height: number;
 	} | null>(null);
-	const [busy, setBusy] = useState(false);
+	// 画像の読み込み中フラグ（結合結果の生成・ダウンロードは useSingleResultProcessing が管理）
+	const [loadingFiles, setLoadingFiles] = useState(false);
+	// 結果（結合画像）はダウンロード後にUIで参照しないため、React状態に保持しない
+	const { processing, error, setError, run } = useSingleResultProcessing<void>({
+		fallbackErrorMessage: '画像の書き出しに失敗しました。',
+	});
+	const busy = loadingFiles || processing;
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const itemsRef = useRef<LoadedItem[]>([]);
@@ -91,55 +97,58 @@ export function ImageMergePage() {
 				err instanceof Error ? err.message : 'プレビューの生成に失敗しました。',
 			);
 		}
-	}, [items, options]);
+	}, [items, options, setError]);
 
-	const handleFilesSelect = useCallback(async (files: File[]) => {
-		const existing = itemsRef.current;
-		const totalCount = existing.length + files.length;
-		const totalSize =
-			existing.reduce((sum, it) => sum + it.file.size, 0) +
-			files.reduce((sum, f) => sum + f.size, 0);
-		const batchCheck = validateBatch(totalCount, totalSize);
-		if (!batchCheck.ok) {
-			setError(batchCheck.message);
-			return;
-		}
-
-		const valid: File[] = [];
-		const errors: string[] = [];
-		for (const file of files) {
-			const v = validateImageFile(file);
-			if (v.ok) valid.push(file);
-			else errors.push(`${file.name}: ${v.message}`);
-		}
-		if (valid.length === 0) {
-			setError(errors.join('\n'));
-			return;
-		}
-
-		setBusy(true);
-		const loaded: LoadedItem[] = [];
-		for (const file of valid) {
-			try {
-				const bitmap = await loadImageBitmap(file);
-				loaded.push({
-					id: createId(),
-					file,
-					previewUrl: URL.createObjectURL(file),
-					width: bitmap.width,
-					height: bitmap.height,
-					bitmap,
-				});
-			} catch {
-				errors.push(`${file.name}: 画像の読み込みに失敗しました。`);
+	const handleFilesSelect = useCallback(
+		async (files: File[]) => {
+			const existing = itemsRef.current;
+			const totalCount = existing.length + files.length;
+			const totalSize =
+				existing.reduce((sum, it) => sum + it.file.size, 0) +
+				files.reduce((sum, f) => sum + f.size, 0);
+			const batchCheck = validateBatch(totalCount, totalSize);
+			if (!batchCheck.ok) {
+				setError(batchCheck.message);
+				return;
 			}
-		}
-		setBusy(false);
-		setError(errors.length > 0 ? errors.join('\n') : null);
-		if (loaded.length > 0) {
-			setItems((prev) => [...prev, ...loaded]);
-		}
-	}, []);
+
+			const valid: File[] = [];
+			const errors: string[] = [];
+			for (const file of files) {
+				const v = validateImageFile(file);
+				if (v.ok) valid.push(file);
+				else errors.push(`${file.name}: ${v.message}`);
+			}
+			if (valid.length === 0) {
+				setError(errors.join('\n'));
+				return;
+			}
+
+			setLoadingFiles(true);
+			const loaded: LoadedItem[] = [];
+			for (const file of valid) {
+				try {
+					const bitmap = await loadImageBitmap(file);
+					loaded.push({
+						id: createId(),
+						file,
+						previewUrl: URL.createObjectURL(file),
+						width: bitmap.width,
+						height: bitmap.height,
+						bitmap,
+					});
+				} catch {
+					errors.push(`${file.name}: 画像の読み込みに失敗しました。`);
+				}
+			}
+			setLoadingFiles(false);
+			setError(errors.length > 0 ? errors.join('\n') : null);
+			if (loaded.length > 0) {
+				setItems((prev) => [...prev, ...loaded]);
+			}
+		},
+		[setError],
+	);
 
 	const handleReorder = useCallback((from: number, to: number) => {
 		setItems((prev) => {
@@ -170,13 +179,13 @@ export function ImageMergePage() {
 		setItems([]);
 		setError(null);
 		setOutputSize(null);
-	}, []);
+	}, [setError]);
 
 	const handleDownload = useCallback(async () => {
 		const canvas = canvasRef.current;
 		if (!canvas || items.length === 0) return;
-		setBusy(true);
-		try {
+
+		await run(1, async () => {
 			const sizes: ImageSize[] = items.map((it) => ({
 				width: it.width,
 				height: it.height,
@@ -189,14 +198,8 @@ export function ImageMergePage() {
 			);
 			const blob = await exportCanvas(merged, options);
 			downloadBlob(blob, buildMergedFilename(options.output));
-		} catch (err) {
-			setError(
-				err instanceof Error ? err.message : '画像の書き出しに失敗しました。',
-			);
-		} finally {
-			setBusy(false);
-		}
-	}, [items, options]);
+		});
+	}, [items, options, run]);
 
 	return (
 		<div className="space-y-6">
