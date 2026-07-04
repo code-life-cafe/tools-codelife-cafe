@@ -6,6 +6,7 @@ import { Download, FileStack, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
@@ -29,10 +30,10 @@ type MergeResult = {
 
 export function PdfMergePage() {
 	const [items, setItems] = useState<MergeItem[]>([]);
-	const [processing, setProcessing] = useState(false);
-	const [progress, setProgress] = useState({ done: 0, total: 0 });
-	const [error, setError] = useState<string | null>(null);
-	const [result, setResult] = useState<MergeResult | null>(null);
+	const { processing, progress, result, setResult, error, setError, run } =
+		useSingleResultProcessing<MergeResult>({
+			fallbackErrorMessage: '結合に失敗しました。',
+		});
 	const itemsRef = useRef<MergeItem[]>([]);
 	itemsRef.current = items;
 
@@ -135,7 +136,7 @@ export function PdfMergePage() {
 				}
 			}
 		},
-		[updateItem],
+		[updateItem, setError, setResult],
 	);
 
 	const handleMove = useCallback((id: string, direction: -1 | 1) => {
@@ -158,62 +159,59 @@ export function PdfMergePage() {
 		});
 	}, []);
 
-	const handleRemove = useCallback((id: string) => {
-		setItems((prev) => prev.filter((it) => it.id !== id));
-		setResult(null);
-	}, []);
+	const handleRemove = useCallback(
+		(id: string) => {
+			setItems((prev) => prev.filter((it) => it.id !== id));
+			setResult(null);
+		},
+		[setResult],
+	);
 
 	const handleClear = useCallback(() => {
 		setItems([]);
 		setError(null);
 		setResult(null);
-	}, []);
+	}, [setError, setResult]);
 
 	const handleMerge = useCallback(async () => {
 		const targets = itemsRef.current.filter((it) => it.status === 'ready');
 		if (targets.length === 0) return;
-		setProcessing(true);
-		setError(null);
-		setResult(null);
-		setProgress({ done: 0, total: targets.length });
-		try {
-			// bytes はこのスコープ内のみで保持し、結合完了後に参照を解放する
-			const inputs: MergeInput[] = [];
-			for (const item of targets) {
-				const bytes = new Uint8Array(await item.file.arrayBuffer());
-				inputs.push(
-					item.kind === 'pdf'
-						? { kind: 'pdf', name: item.file.name, bytes }
-						: {
-								kind: 'image',
-								name: item.file.name,
-								bytes,
-								mime: item.mime as 'image/jpeg' | 'image/png',
-							},
+
+		await run(targets.length, async (onProgress) => {
+			try {
+				// bytes はこのスコープ内のみで保持し、結合完了後に参照を解放する
+				const inputs: MergeInput[] = [];
+				for (const item of targets) {
+					const bytes = new Uint8Array(await item.file.arrayBuffer());
+					inputs.push(
+						item.kind === 'pdf'
+							? { kind: 'pdf', name: item.file.name, bytes }
+							: {
+									kind: 'image',
+									name: item.file.name,
+									bytes,
+									mime: item.mime as 'image/jpeg' | 'image/png',
+								},
+					);
+				}
+				const merged = await mergePdfs(inputs, onProgress);
+				inputs.length = 0;
+				const blob = new Blob([merged as Uint8Array<ArrayBuffer>], {
+					type: 'application/pdf',
+				});
+				const pageCount = targets.reduce(
+					(sum, it) => sum + (it.pageCount ?? 1),
+					0,
 				);
+				downloadBlob(blob, 'merged.pdf');
+				return { blob, pageCount };
+			} catch (err) {
+				throw err instanceof Error
+					? new Error(`結合に失敗しました: ${err.message}`)
+					: err;
 			}
-			const merged = await mergePdfs(inputs, (done, total) =>
-				setProgress({ done, total }),
-			);
-			inputs.length = 0;
-			const blob = new Blob([merged as Uint8Array<ArrayBuffer>], {
-				type: 'application/pdf',
-			});
-			const pageCount = itemsRef.current
-				.filter((it) => it.status === 'ready')
-				.reduce((sum, it) => sum + (it.pageCount ?? 1), 0);
-			setResult({ blob, pageCount });
-			downloadBlob(blob, 'merged.pdf');
-		} catch (err) {
-			setError(
-				err instanceof Error
-					? `結合に失敗しました: ${err.message}`
-					: '結合に失敗しました。',
-			);
-		} finally {
-			setProcessing(false);
-		}
-	}, []);
+		});
+	}, [run]);
 
 	return (
 		<div className="space-y-6">
