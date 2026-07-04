@@ -6,6 +6,15 @@ import { decodeFrame, terminateWorker } from '@/lib/tools/qr-reader';
 const DECODE_INTERVAL_MS = 200; // 150-250ms の範囲でスロットリング
 const SAME_VALUE_DEDUPE_MS = 1500;
 
+type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+const CORNER_POSITION: Record<Corner, string> = {
+	'top-left': 'top-0 left-0 border-t-4 border-l-4 rounded-tl-lg',
+	'top-right': 'top-0 right-0 border-t-4 border-r-4 rounded-tr-lg',
+	'bottom-left': 'bottom-0 left-0 border-b-4 border-l-4 rounded-bl-lg',
+	'bottom-right': 'bottom-0 right-0 border-b-4 border-r-4 rounded-br-lg',
+};
+
 interface CameraScannerProps {
 	onDetected: (value: string) => void;
 	onSwitchToImageMode: () => void;
@@ -28,12 +37,23 @@ export default function CameraScanner({
 	const lastValueRef = useRef<{ value: string; at: number } | null>(null);
 	const onDetectedRef = useRef(onDetected);
 	onDetectedRef.current = onDetected;
+	const [flash, setFlash] = useState(false);
+	const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [reducedMotion] = useState(
+		() =>
+			typeof window !== 'undefined' &&
+			window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+	);
 
 	// --- カメラ停止（トラック停止 + Worker 終了） ---
 	const stopCamera = useCallback(() => {
 		if (rafRef.current !== null) {
 			cancelAnimationFrame(rafRef.current);
 			rafRef.current = null;
+		}
+		if (flashTimeoutRef.current) {
+			clearTimeout(flashTimeoutRef.current);
+			flashTimeoutRef.current = null;
 		}
 		if (streamRef.current) {
 			for (const track of streamRef.current.getTracks()) {
@@ -98,6 +118,9 @@ export default function CameraScanner({
 						return;
 					}
 					lastValueRef.current = { value, at: nowMs };
+					setFlash(true);
+					if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+					flashTimeoutRef.current = setTimeout(() => setFlash(false), 250);
 					onDetectedRef.current(value);
 				})
 				.catch(() => {
@@ -248,7 +271,7 @@ export default function CameraScanner({
 	}
 
 	return (
-		<div className="relative overflow-hidden rounded-xl border border-border bg-black aspect-video">
+		<div className="relative mx-auto w-full max-w-[480px] aspect-square overflow-hidden rounded-xl border border-border bg-black">
 			{/* biome-ignore lint/a11y/useMediaCaption: カメラプレビューには音声トラックがない */}
 			<video
 				ref={videoRef}
@@ -266,8 +289,22 @@ export default function CameraScanner({
 				</div>
 			)}
 			{status === 'active' && (
-				<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-					<div className="h-2/3 w-2/3 rounded-2xl border-2 border-white/70" />
+				// 正方形ファインダー: 周囲を半透明マスクでシェーディングし、
+				// 四隅コーナーマークで読み取り対象範囲を明示する（html5-qrcode方式）。
+				<div
+					className="pointer-events-none absolute inset-[10%] rounded-lg"
+					style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.45)' }}
+					data-testid="qr-viewfinder"
+					data-flash={flash ? 'true' : 'false'}
+				>
+					{(Object.keys(CORNER_POSITION) as Corner[]).map((corner) => (
+						<span
+							key={corner}
+							className={`absolute h-6 w-6 ${CORNER_POSITION[corner]} ${
+								flash ? 'border-emerald-400' : 'border-white/80'
+							} ${reducedMotion ? '' : 'transition-colors duration-150'}`}
+						/>
+					))}
 				</div>
 			)}
 		</div>
