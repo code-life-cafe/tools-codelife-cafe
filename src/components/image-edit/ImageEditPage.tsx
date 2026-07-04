@@ -67,6 +67,7 @@ export default function ImageEditPage() {
 		releaseItem: releaseEditItem,
 		onRunComplete: () => {
 			const results = resultsRef.current;
+			resultsRef.current = [];
 			if (results.length === 1) {
 				downloadEditedFile(results[0]);
 			} else if (results.length > 1) {
@@ -216,6 +217,7 @@ export default function ImageEditPage() {
 
 	const handleClear = useCallback(() => {
 		clearBatch();
+		resultsRef.current = [];
 		setCrop(null);
 		setEditOps(DEFAULT_EDIT_OPS);
 		setAspectPreset('free');

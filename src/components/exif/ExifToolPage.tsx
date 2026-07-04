@@ -114,7 +114,9 @@ export function ExifToolPage() {
 		fallbackErrorMessage: 'メタデータの削除に失敗しました。',
 		releaseItem: releaseExifItem,
 		onRunComplete: () => {
-			void downloadResults(resultsRef.current);
+			const results = resultsRef.current;
+			resultsRef.current = [];
+			void downloadResults(results);
 		},
 	});
 
@@ -196,6 +198,7 @@ export function ExifToolPage() {
 
 	const handleClear = useCallback(() => {
 		clearBatch();
+		resultsRef.current = [];
 		setBakeOri(false);
 	}, [clearBatch]);
 

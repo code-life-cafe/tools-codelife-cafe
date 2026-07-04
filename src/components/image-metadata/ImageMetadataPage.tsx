@@ -102,6 +102,8 @@ export function ImageMetadataPage() {
 	const processAll = useCallback(() => {
 		startHeld(async (item) => {
 			const result = await stripImageMetadata(item.file, options);
+			// オプション変更後の再実行では前回の resultUrl が残っているため、先に解放してから差し替える
+			if (item.resultUrl) URL.revokeObjectURL(item.resultUrl);
 			const resultUrl = URL.createObjectURL(result.blob);
 			return { result, resultUrl };
 		});
