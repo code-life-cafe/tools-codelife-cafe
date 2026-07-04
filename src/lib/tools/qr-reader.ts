@@ -212,6 +212,91 @@ export function loadAutosaveSetting(): boolean {
 	}
 }
 
+// --- スキャン成功フィードバック（ビープ音・振動） ---
+//
+// 完全クライアントサイドの通知API（Web Audio API / Vibration API）のみを使い、
+// 新規npm依存は追加しない。失敗してもスキャン機能自体は止めず、静かに無視する。
+const BEEP_KEY = 'qr-reader:beep';
+
+export function saveBeepSetting(enabled: boolean): void {
+	try {
+		localStorage.setItem(BEEP_KEY, enabled ? '1' : '0');
+	} catch {
+		// ignore
+	}
+}
+
+export function loadBeepSetting(): boolean {
+	try {
+		return localStorage.getItem(BEEP_KEY) === '1';
+	} catch {
+		return false;
+	}
+}
+
+let audioContext: AudioContext | null = null;
+
+/**
+ * ビープ音再生用の AudioContext を明示的なユーザー操作（トグルON等）の
+ * タイミングで初期化・resumeする。自動再生ポリシー対策。
+ */
+export function initBeepAudioContext(): void {
+	try {
+		if (!audioContext) {
+			audioContext = new AudioContext();
+		}
+		if (audioContext.state === 'suspended') {
+			void audioContext.resume();
+		}
+	} catch {
+		// AudioContext 非対応環境等は無視
+	}
+}
+
+/**
+ * 短いビープ音を OscillatorNode で生成して再生する。音声ファイルは使用しない。
+ * 再生失敗時（AudioContext未初期化・自動再生制限等）はスキャン機能を止めず無視する。
+ */
+export function playBeep(): void {
+	try {
+		if (!audioContext) {
+			audioContext = new AudioContext();
+		}
+		if (audioContext.state === 'suspended') {
+			void audioContext.resume();
+		}
+		const oscillator = audioContext.createOscillator();
+		const gain = audioContext.createGain();
+		oscillator.type = 'sine';
+		oscillator.frequency.value = 880;
+		gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+		gain.gain.exponentialRampToValueAtTime(
+			0.001,
+			audioContext.currentTime + 0.12,
+		);
+		oscillator.connect(gain);
+		gain.connect(audioContext.destination);
+		oscillator.start();
+		oscillator.stop(audioContext.currentTime + 0.12);
+	} catch {
+		// ignore
+	}
+}
+
+/**
+ * 対応端末のみ短時間振動する。iOS Safari等 navigator.vibrate 非対応環境では
+ * 機能検出により何もしない（エラーにしない）。
+ */
+export function vibrateDevice(): void {
+	try {
+		if (typeof navigator.vibrate === 'function') {
+			navigator.vibrate(50);
+		}
+	} catch {
+		// ignore
+	}
+}
+
 // --- CSV出力 ---
 
 const FORMAT_LABEL: Record<ScanFormat, string> = {

@@ -1,11 +1,13 @@
 import { Info } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import AutosaveToggle from '@/components/qr-reader/AutosaveToggle';
+import BeepToggle from '@/components/qr-reader/BeepToggle';
 import CameraScanner from '@/components/qr-reader/CameraScanner';
 import ExportBar from '@/components/qr-reader/ExportBar';
 import ImageUploader from '@/components/qr-reader/ImageUploader';
 import ModeTabs, { type ScanMode } from '@/components/qr-reader/ModeTabs';
 import ResultsList from '@/components/qr-reader/ResultsList';
+import ScanToast from '@/components/qr-reader/ScanToast';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -20,22 +22,37 @@ import {
 	buildCsv,
 	clearResults,
 	downloadCsv,
+	initBeepAudioContext,
 	loadAutosaveSetting,
+	loadBeepSetting,
 	loadResults,
+	playBeep,
 	type ScanResult,
 	saveAutosaveSetting,
+	saveBeepSetting,
 	saveResults,
 	terminateWorker,
+	vibrateDevice,
 } from '@/lib/tools/qr-reader';
+
+const SCAN_TOAST_DURATION_MS = 1000;
 
 export default function QrReader() {
 	const [mode, setMode] = useState<ScanMode>('camera');
 	const [results, setResults] = useState<ScanResult[]>([]);
 	const [autosave, setAutosave] = useState(false);
+	const [beepEnabled, setBeepEnabled] = useState(false);
+	const [toastMessage, setToastMessage] = useState<string | null>(null);
+	const [reducedMotion] = useState(
+		() =>
+			typeof window !== 'undefined' &&
+			window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+	);
+	const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
 	const pendingRestoreRef = useRef<ScanResult[] | null>(null);
 
-	// --- 初回マウント: autosave 設定を読み込み、有効かつ残存データがあれば復元確認 ---
+	// --- 初回マウント: autosave / beep 設定を読み込み、有効かつ残存データがあれば復元確認 ---
 	useEffect(() => {
 		const savedAutosave = loadAutosaveSetting();
 		setAutosave(savedAutosave);
@@ -46,12 +63,37 @@ export default function QrReader() {
 				setRestoreDialogOpen(true);
 			}
 		}
+		setBeepEnabled(loadBeepSetting());
 	}, []);
 
 	// --- Worker の完全終了（ページ離脱・アンマウント時） ---
 	useEffect(() => {
 		return () => terminateWorker();
 	}, []);
+
+	// --- トースト表示中のタイマーをアンマウント時にクリア ---
+	useEffect(() => {
+		return () => {
+			if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+		};
+	}, []);
+
+	const showScanToast = (message: string) => {
+		if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+		setToastMessage(message);
+		toastTimeoutRef.current = setTimeout(
+			() => setToastMessage(null),
+			SCAN_TOAST_DURATION_MS,
+		);
+	};
+
+	// 視覚（トースト）＋聴覚（ビープ、トグルON時のみ）＋触覚（対応端末のみ）の
+	// 多層フィードバック。重複クールダウンを通過し結果リストに行が追加された時のみ発火する。
+	const notifyScanSuccess = (message: string) => {
+		showScanToast(message);
+		if (beepEnabled) playBeep();
+		vibrateDevice();
+	};
 
 	const handleAddValue = (rawValue: string, source: ScanResult['source']) => {
 		setResults((prev) => {
@@ -63,11 +105,15 @@ export default function QrReader() {
 
 	const handleCameraDetected = (value: string) => {
 		handleAddValue(value, 'camera');
+		notifyScanSuccess('✓ 読み取り成功');
 	};
 
 	const handleImageDecoded = (fileName: string, values: string[]) => {
 		for (const value of values) {
 			handleAddValue(value, { image: fileName });
+		}
+		if (values.length > 0) {
+			notifyScanSuccess(`✓ ${values.length}件検出`);
 		}
 	};
 
@@ -79,6 +125,12 @@ export default function QrReader() {
 		} else {
 			clearResults();
 		}
+	};
+
+	const handleBeepChange = (enabled: boolean) => {
+		setBeepEnabled(enabled);
+		saveBeepSetting(enabled);
+		if (enabled) initBeepAudioContext();
 	};
 
 	const handleExportCsv = () => {
@@ -123,17 +175,21 @@ export default function QrReader() {
 
 			<ModeTabs mode={mode} onModeChange={setMode} />
 
-			{mode === 'camera' ? (
-				<CameraScanner
-					key="camera"
-					onDetected={handleCameraDetected}
-					onSwitchToImageMode={() => setMode('image')}
-				/>
-			) : (
-				<ImageUploader onDecoded={handleImageDecoded} />
-			)}
+			<div className="relative">
+				{mode === 'camera' ? (
+					<CameraScanner
+						key="camera"
+						onDetected={handleCameraDetected}
+						onSwitchToImageMode={() => setMode('image')}
+					/>
+				) : (
+					<ImageUploader onDecoded={handleImageDecoded} />
+				)}
+				<ScanToast message={toastMessage} reducedMotion={reducedMotion} />
+			</div>
 
 			<AutosaveToggle enabled={autosave} onChange={handleAutosaveChange} />
+			<BeepToggle enabled={beepEnabled} onChange={handleBeepChange} />
 
 			<div className="space-y-3">
 				<div className="flex items-center justify-between">

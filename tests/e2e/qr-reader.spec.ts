@@ -198,6 +198,72 @@ test.describe('QRコード読み取りツール', () => {
 		expect(text).toMatch(/'=1\+1/);
 	});
 
+	test('画像アップロードで読み取り成功トーストが表示され自動的に消える', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: '画像から読み取り' }).click();
+		await page
+			.getByLabel('QRコード画像を選択')
+			.setInputFiles(fixture('single-qr.png'));
+
+		const toast = page.getByTestId('scan-toast');
+		await expect(toast).toContainText('1件検出');
+		await expect(toast).toHaveCount(0, { timeout: 3000 });
+	});
+
+	test('複数QRを含む画像では検出件数入りトーストが表示される', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: '画像から読み取り' }).click();
+		await page
+			.getByLabel('QRコード画像を選択')
+			.setInputFiles(fixture('multi-qr-2codes.png'));
+
+		await expect(page.getByTestId('scan-toast')).toContainText('2件検出');
+	});
+
+	test('prefers-reduced-motion環境でもトーストは表示されるがアニメーションが抑制される', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: '画像から読み取り' }).click();
+		await page
+			.getByLabel('QRコード画像を選択')
+			.setInputFiles(fixture('single-qr.png'));
+
+		const toast = page.getByTestId('scan-toast');
+		await expect(toast).toContainText('1件検出');
+		await expect(toast).toHaveAttribute('data-reduced-motion', 'true');
+	});
+
+	test('読み取り音トグルがONの状態をリロード後も保持する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		const beepSwitch = page.getByRole('switch', { name: '読み取り音' });
+		await expect(beepSwitch).not.toBeChecked();
+		await beepSwitch.click();
+		await expect(beepSwitch).toBeChecked();
+
+		await page.reload();
+		await expect(page.getByRole('switch', { name: '読み取り音' })).toBeChecked();
+	});
+
 	test('キーボード操作でタブ・トグル・ボタンを操作できる', async ({
 		page,
 		createToolPage,
