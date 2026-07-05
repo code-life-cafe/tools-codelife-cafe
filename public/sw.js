@@ -4,10 +4,13 @@ const CACHE_NAME = 'cl-tools-__HASH__';
 const MIN_ASSETS = [
 	'/',
 	'/offline/',
-	'/manifest.webmanifest',
-	'/favicon.svg',
-	'/icon-192x192.png',
-	'/icon-512x512.png',
+	'/site.webmanifest',
+	'/favicon.ico',
+	'/favicon-16x16.png',
+	'/favicon-32x32.png',
+	'/apple-touch-icon.png',
+	'/android-chrome-192x192.png',
+	'/android-chrome-512x512.png',
 ];
 
 // PWA インストール時にプリキャッシュする全ページ（ビルドスクリプトが注入）
