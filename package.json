@@ -67,7 +67,7 @@
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.8",
-		"@biomejs/biome": "2.5.1",
+		"@biomejs/biome": "2.5.2",
 		"@playwright/test": "^1.61.1",
 		"@types/d3-cloud": "1.2.9",
 		"@types/d3-scale": "4.0.9",
@@ -76,7 +76,7 @@
 		"@types/papaparse": "^5.5.2",
 		"satori": "^0.26.0",
 		"schema-dts": "^2.0.0",
-		"sharp": "^0.35.2"
+		"sharp": "^0.35.3"
 	},
 	"overrides": {
 		"esbuild": "^0.28.1",
