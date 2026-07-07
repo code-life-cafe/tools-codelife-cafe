@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import UnixTimeTool from '../components/tools/UnixTime.tsx';
+
+const toolEntry = await getEntry('tools', 'unix-time');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: unix-time');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <UnixTimeTool client:load />
+</ToolLayout>

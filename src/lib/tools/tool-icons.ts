@@ -42,6 +42,7 @@ import {
 	SquareDashed,
 	Table,
 	Ticket,
+	Timer,
 	Type,
 	Wrench,
 } from 'lucide-react';
@@ -93,6 +94,7 @@ export const toolIconMap = {
 	SquareDashed,
 	Table,
 	Ticket,
+	Timer,
 	Type,
 	Wrench,
 } satisfies Record<string, LucideIcon>;

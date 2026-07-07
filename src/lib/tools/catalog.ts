@@ -954,6 +954,39 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'unix-time',
+		title: 'UNIXタイムスタンプ⇔日時変換',
+		description:
+			'秒〜ナノ秒・Slack TSを自動判定してリアルタイム変換。ISO 8601・RFC 3339・和暦・Discord形式も同時出力。',
+		href: '/unix-time',
+		icon: 'Timer',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'UNIXタイムスタンプ',
+			'UNIX時間',
+			'エポック秒',
+			'epoch',
+			'日時変換',
+			'Slack TS',
+			'Discordタイムスタンプ',
+			'和暦',
+			'ISO 8601',
+			'RFC 3339',
+		],
+		related: ['wareki-converter', 'jwt-decoder', 'hash'],
+		llmsFull: {
+			useCase:
+				'UNIXタイムスタンプ（秒/ミリ秒/マイクロ秒/ナノ秒/Slack TS）と日時文字列の相互変換、ISO 8601・RFC 3339・和暦・Discordタグの同時出力',
+			inputs:
+				'value（タイムスタンプ数値または日時文字列）, format（unix-s | unix-ms | unix-us | unix-ns | slack-ts、省略時は自動判定）, timeZone（IANAタイムゾーン）',
+			outputs:
+				'{ isoUtc: string, isoLocal: string, rfc3339: string, wareki: string, unixSeconds: string, unixMilliseconds: string, discord: object, relative: string }',
+			options:
+				'タイムゾーン選択、複数候補からの形式切替、一括変換（複数行貼り付け）',
+		},
+	},
+	{
 		id: 'exif',
 		title: 'EXIF確認・削除',
 		description: '写真の位置情報・撮影情報を確認して削除。データは外部送信なし',
