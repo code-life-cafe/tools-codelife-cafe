@@ -1,11 +1,12 @@
 import { AlertTriangle, KeyRound, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { decodeJwt } from '@/lib/tools/jwt-decoder';
 
 const SAMPLE_JWT =
@@ -28,8 +29,15 @@ function ResultCard({ title, value }: { title: string; value: string }) {
 }
 
 export function JwtDecoder() {
+	const { trackRun } = useToolAnalytics('jwt-decoder');
 	const [input, setInput] = useState(SAMPLE_JWT);
 	const result = useMemo(() => decodeJwt(input), [input]);
+
+	useEffect(() => {
+		if (input.trim() && !result.error) {
+			trackRun();
+		}
+	}, [input, result.error, trackRun]);
 
 	return (
 		<div className="space-y-6">

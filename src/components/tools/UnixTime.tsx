@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	batchRowsToDelimitedText,
@@ -70,6 +71,7 @@ function OutputRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function UnixTime() {
+	const { trackRun } = useToolAnalytics('unix-time');
 	const [settings, updateSettings] = useToolSettings<Settings>('unix-time', {
 		timeZone: 'Asia/Tokyo',
 	});
@@ -130,6 +132,12 @@ export default function UnixTime() {
 		if (batchText.trim() === '') return [];
 		return convertBatch(batchText, timeZone);
 	}, [batchText, timeZone]);
+
+	useEffect(() => {
+		if (outputs || batchRows.length > 0) {
+			trackRun();
+		}
+	}, [outputs, batchRows, trackRun]);
 
 	const handleNowClick = () => {
 		const nanos = nowInstantNanos();

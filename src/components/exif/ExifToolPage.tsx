@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	bakeOrientation,
 	type ExifData,
@@ -97,6 +98,7 @@ async function downloadResults(results: StrippedResult[]): Promise<void> {
 }
 
 export function ExifToolPage() {
+	const { trackRun } = useToolAnalytics('exif');
 	const [bakeOri, setBakeOri] = useState(false);
 	// 実行中に生成された結果を直接蓄積する（itemsのstate反映を待たずに完了時点でダウンロードするため）
 	const resultsRef = useRef<StrippedResult[]>([]);
@@ -114,6 +116,7 @@ export function ExifToolPage() {
 		fallbackErrorMessage: 'メタデータの削除に失敗しました。',
 		releaseItem: releaseExifItem,
 		onRunComplete: () => {
+			trackRun();
 			const results = resultsRef.current;
 			resultsRef.current = [];
 			void downloadResults(results);

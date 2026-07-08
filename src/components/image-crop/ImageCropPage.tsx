@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type CropOptions,
 	clampCropOptions,
@@ -20,6 +21,7 @@ type LoadedImage = {
 };
 
 export function ImageCropPage() {
+	const { trackRun } = useToolAnalytics('image-crop');
 	const [loaded, setLoaded] = useState<LoadedImage | null>(null);
 	const [crop, setCrop] = useState<CropOptions | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -186,7 +188,15 @@ export function ImageCropPage() {
 								className="mx-auto max-h-[560px] max-w-full rounded-lg bg-white"
 							/>
 						</div>
-						<ExportBar getCanvas={renderPreview} baseName={loaded.fileName} />
+						<ExportBar
+							getCanvas={() => {
+								const canvas = renderPreview();
+								// 切り抜き結果をダウンロードした時のみ計測する
+								if (canvas) trackRun();
+								return canvas;
+							}}
+							baseName={loaded.fileName}
+						/>
 					</section>
 				</div>
 			)}

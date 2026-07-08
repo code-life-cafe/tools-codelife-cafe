@@ -1,13 +1,15 @@
 import { ArrowLeftRight, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { textToUnicode, unicodeToText } from '@/lib/tools/unicode-converter';
 
 export default function UnicodeConverter() {
+	const { trackRun } = useToolAnalytics('unicode-converter');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('encode');
 
@@ -26,6 +28,12 @@ export default function UnicodeConverter() {
 			};
 		}
 	}, [input, direction]);
+
+	useEffect(() => {
+		if (input.trim() && result.output && !result.error) {
+			trackRun();
+		}
+	}, [input, result, trackRun]);
 
 	return (
 		<div className="space-y-6">

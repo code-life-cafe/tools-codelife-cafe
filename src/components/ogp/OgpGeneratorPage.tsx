@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { downloadBlob, exportCanvas } from '@/lib/tools/image-common';
 import {
 	type BgKind,
@@ -125,6 +126,8 @@ function MiniDropzone({
 // ---------------------------------------------------------------------------
 
 export function OgpGeneratorPage() {
+	const { trackRun } = useToolAnalytics('ogp');
+
 	// テンプレート・背景
 	const [template, setTemplate] = useState<OgpTemplate>('simple');
 	const [bgType, setBgType] = useState<'solid' | 'gradient'>('solid');
@@ -269,7 +272,9 @@ export function OgpGeneratorPage() {
 		const canvas = renderOgp(spec);
 		const blob = await exportCanvas(canvas, { format: 'png' });
 		downloadBlob(blob, 'ogp.png');
-	}, [buildSpec]);
+		// OGP画像生成・ダウンロードの分析計測
+		trackRun();
+	}, [buildSpec, trackRun]);
 
 	const canDownload = title.trim().length > 0;
 

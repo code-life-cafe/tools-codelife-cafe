@@ -1,11 +1,12 @@
 import { ArrowLeftRight, ArrowUpDown, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	decodeUrl,
 	encodeUrl,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/tools/url-encoder';
 
 export default function UrlEncoder() {
+	const { trackRun } = useToolAnalytics('url-encoder');
 	const [mode, setMode] = useState<UrlEncodeMode>('component');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('decode');
 	const [textInput, setTextInput] = useState('');
@@ -34,6 +36,12 @@ export default function UrlEncoder() {
 			};
 		}
 	}, [textInput, direction, mode]);
+
+	useEffect(() => {
+		if (textInput.trim() && textResult.output && !textResult.error) {
+			trackRun();
+		}
+	}, [textInput, textResult, trackRun]);
 
 	// Swap input and output
 	const handleSwap = () => {

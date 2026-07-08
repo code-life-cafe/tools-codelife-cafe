@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
@@ -36,6 +37,7 @@ type SplitResult = {
 };
 
 export function PdfSplitPage() {
+	const { trackRun } = useToolAnalytics('pdf-split');
 	const [file, setFile] = useState<File | null>(null);
 	const [pageCount, setPageCount] = useState(0);
 	const [loading, setLoading] = useState(false);
@@ -158,6 +160,8 @@ export function PdfSplitPage() {
 				// bytes はこのスコープ内のみで保持し、処理完了後に参照を解放する
 				const bytes = new Uint8Array(await file.arrayBuffer());
 				const results = await splitPdf(bytes, ranges, baseName, onProgress);
+				// 分割・抽出実行の分析計測
+				trackRun();
 				const files: OutputFile[] = results.map((r) => ({
 					blob: new Blob([r.bytes as Uint8Array<ArrayBuffer>], {
 						type: 'application/pdf',
@@ -203,6 +207,7 @@ export function PdfSplitPage() {
 		baseName,
 		run,
 		setError,
+		trackRun,
 	]);
 
 	const runLabel =

@@ -1,5 +1,6 @@
 import { AlertCircle, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import type {
 	AnalyzeOptions,
 	PlacedWord,
@@ -37,6 +38,7 @@ const INITIAL_LAYOUT_OPTIONS: WordCloudLayoutOptions = {
 };
 
 export function WordCloudPage() {
+	const { trackRun } = useToolAnalytics('wordcloud');
 	const [text, setText] = useState<string>('');
 	const [options, setOptions] = useState<AnalyzeOptions>(INITIAL_OPTIONS);
 	const [layoutOptions, setLayoutOptions] = useState<WordCloudLayoutOptions>(
@@ -90,6 +92,8 @@ export function WordCloudPage() {
 				const data = e.data;
 				if (data.type === 'SUCCESS') {
 					setFrequencies(data.result.frequencies);
+					// 有効な頻度結果が得られた解析のみ計測する
+					if (data.result.frequencies.length > 0) trackRun();
 					try {
 						const placed = await computeLayout(
 							data.result.frequencies,
@@ -130,7 +134,7 @@ export function WordCloudPage() {
 			};
 			worker.postMessage(msg);
 		},
-		[],
+		[trackRun],
 	);
 
 	useEffect(() => {

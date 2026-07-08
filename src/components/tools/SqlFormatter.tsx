@@ -74,7 +74,7 @@ const SQL_KEYWORDS = [
 ];
 
 export default function SqlFormatter() {
-	const { trackSharedUrlOpen } = useToolAnalytics('sql-formatter');
+	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('sql-formatter');
 	const [input, setInput] = useState('');
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
 		'sql-formatter',
@@ -113,7 +113,11 @@ export default function SqlFormatter() {
 		const res = formatSql(input, opts);
 		setManualOutput(res.output);
 		setManualError(res.error || null);
-	}, [input, dialect, indent, uppercase, compress]);
+		// 整形が成功した（エラーなく出力が得られた）時点で実行を計測
+		if (res.output && !res.error) {
+			trackRun();
+		}
+	}, [input, dialect, indent, uppercase, compress, trackRun]);
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);

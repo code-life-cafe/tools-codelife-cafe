@@ -21,6 +21,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type ExportFormat,
 	type FieldType,
@@ -53,6 +54,7 @@ const ALL_FIELDS: FieldItem[] = [
 ];
 
 export default function DummyDataGenerator() {
+	const { trackRun } = useToolAnalytics('dummy-data');
 	const [fields, setFields] = useState<FieldItem[]>(ALL_FIELDS);
 	const [selectedFields, setSelectedFields] = useState<Set<FieldType>>(
 		new Set(['name', 'kana', 'email', 'phone']),
@@ -84,13 +86,14 @@ export default function DummyDataGenerator() {
 		const timer = setTimeout(() => {
 			try {
 				setOutputData(generateDummyData(activeFields, count, format));
+				trackRun();
 			} catch (_e) {
 				setOutputData('');
 			}
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format, refreshKey, validationError]);
+	}, [activeFields, count, format, refreshKey, validationError, trackRun]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];

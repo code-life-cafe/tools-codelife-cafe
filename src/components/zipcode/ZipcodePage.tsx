@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	createZipLookup,
 	formatAddress,
@@ -17,28 +18,34 @@ import { fetchZipChunk } from './fetchChunk';
 type SearchStatus = 'idle' | 'searching' | 'found' | 'not-found' | 'error';
 
 function SingleSearch() {
+	const { trackRun } = useToolAnalytics('zipcode');
 	const [query, setQuery] = useState('');
 	const [records, setRecords] = useState<ZipRecord[]>([]);
 	const [status, setStatus] = useState<SearchStatus>('idle');
 	const lookupRef = useRef(createZipLookup(fetchZipChunk));
 	const runIdRef = useRef(0);
 
-	const runSearch = useCallback((zip7: string) => {
-		const runId = ++runIdRef.current;
-		setStatus('searching');
-		lookupRef.current
-			.lookup(zip7)
-			.then((recs) => {
-				if (runIdRef.current !== runId) return;
-				setRecords(recs);
-				setStatus(recs.length > 0 ? 'found' : 'not-found');
-			})
-			.catch(() => {
-				if (runIdRef.current !== runId) return;
-				setRecords([]);
-				setStatus('error');
-			});
-	}, []);
+	const runSearch = useCallback(
+		(zip7: string) => {
+			const runId = ++runIdRef.current;
+			setStatus('searching');
+			lookupRef.current
+				.lookup(zip7)
+				.then((recs) => {
+					if (runIdRef.current !== runId) return;
+					setRecords(recs);
+					setStatus(recs.length > 0 ? 'found' : 'not-found');
+					// 住所が見つかった検索のみ計測する
+					if (recs.length > 0) trackRun();
+				})
+				.catch(() => {
+					if (runIdRef.current !== runId) return;
+					setRecords([]);
+					setStatus('error');
+				});
+		},
+		[trackRun],
+	);
 
 	// 7桁が揃った時点で自動検索する
 	const normalized = useMemo(() => normalizeZip(query), [query]);

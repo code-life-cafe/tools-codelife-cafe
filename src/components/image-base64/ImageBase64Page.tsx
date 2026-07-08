@@ -11,6 +11,7 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildSnippet,
 	dataUriToBlob,
@@ -42,6 +43,7 @@ function truncate(s: string): string {
 }
 
 export function ImageBase64Page() {
+	const { trackRun } = useToolAnalytics('image-base64');
 	const [mode, setMode] = useState<Mode>('encode');
 
 	const [file, setFile] = useState<File | null>(null);
@@ -66,26 +68,31 @@ export function ImageBase64Page() {
 
 	// --- Encode ---
 
-	const handleFileSelect = useCallback(async (f: File) => {
-		const validation = validateImageFile(f);
-		if (!validation.ok) {
-			setEncodeError(validation.message);
-			return;
-		}
-		setFile(f);
-		setEncodeError(null);
-		setConverting(true);
-		try {
-			const uri = await fileToDataUri(f);
-			setDataUri(uri);
-		} catch (err) {
-			setEncodeError(
-				err instanceof Error ? err.message : '変換に失敗しました。',
-			);
-		} finally {
-			setConverting(false);
-		}
-	}, []);
+	const handleFileSelect = useCallback(
+		async (f: File) => {
+			const validation = validateImageFile(f);
+			if (!validation.ok) {
+				setEncodeError(validation.message);
+				return;
+			}
+			setFile(f);
+			setEncodeError(null);
+			setConverting(true);
+			try {
+				const uri = await fileToDataUri(f);
+				setDataUri(uri);
+				// 画像→Base64 変換成功の分析計測
+				trackRun();
+			} catch (err) {
+				setEncodeError(
+					err instanceof Error ? err.message : '変換に失敗しました。',
+				);
+			} finally {
+				setConverting(false);
+			}
+		},
+		[trackRun],
+	);
 
 	const handleClearFile = useCallback(() => {
 		setFile(null);
@@ -136,6 +143,8 @@ export function ImageBase64Page() {
 				setDecodedExt(ext);
 				setDecodedBlob(blob);
 				setDecodeError(null);
+				// Base64→画像 デコード成功の分析計測
+				trackRun();
 			} catch (err) {
 				if (decodedUrlRef.current) {
 					URL.revokeObjectURL(decodedUrlRef.current);
@@ -152,7 +161,7 @@ export function ImageBase64Page() {
 		}, 300);
 
 		return () => clearTimeout(timer);
-	}, [mode, decodeInput]);
+	}, [mode, decodeInput, trackRun]);
 
 	useEffect(() => {
 		return () => {

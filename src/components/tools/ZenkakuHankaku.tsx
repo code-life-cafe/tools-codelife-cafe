@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,7 +14,7 @@ import {
 } from '@/lib/tools/zenkaku-hankaku';
 
 export default function ZenkakuHankaku() {
-	useToolAnalytics('zenkaku-hankaku');
+	const { trackRun } = useToolAnalytics('zenkaku-hankaku');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<Direction>('toHankaku');
 	const [options, setOptions] = useState<ConversionOptions>({
@@ -25,6 +25,13 @@ export default function ZenkakuHankaku() {
 	});
 
 	const output = input ? convert(input, direction, options) : '';
+
+	// 非空の入力から変換結果が生成された時点で実行を計測（空入力・マウント時は発火しない）
+	useEffect(() => {
+		if (input) {
+			trackRun();
+		}
+	}, [input, direction, options, trackRun]);
 
 	const toggleOption = useCallback((key: keyof ConversionOptions) => {
 		setOptions((prev) => ({ ...prev, [key]: !prev[key] }));

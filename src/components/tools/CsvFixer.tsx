@@ -42,6 +42,7 @@ import type {
 	ConversionOptions as EncodingConversionOptions,
 	EncodingType,
 } from '@/lib/encoding/types';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { loadSettings, saveSettings } from '@/lib/settings/storage';
 import type { UserSettings } from '@/lib/settings/types';
 import { cn } from '@/lib/utils';
@@ -622,6 +623,7 @@ interface DownloadButtonProps {
 	sourceEncoding: EncodingType;
 	options: EncodingConversionOptions;
 	disabled: boolean;
+	onConverted?: () => void;
 	globalStatus?:
 		| 'idle'
 		| 'detecting'
@@ -637,6 +639,7 @@ function DownloadButton({
 	sourceEncoding,
 	options,
 	disabled,
+	onConverted,
 	globalStatus,
 }: DownloadButtonProps) {
 	const [status, setStatus] = useState<
@@ -679,6 +682,7 @@ function DownloadButton({
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
 
 			setStatus('success');
+			onConverted?.();
 
 			setTimeout(() => {
 				setStatus((prev) => (prev === 'success' ? 'idle' : prev));
@@ -745,6 +749,7 @@ function DownloadButton({
 // --- Main Exported Component ---
 
 export default function CsvFixer() {
+	const { trackRun } = useToolAnalytics('csv-fixer');
 	const [file, setFile] = useState<File | null>(null);
 	const [buffer, setBuffer] = useState<ArrayBuffer | null>(null);
 	const [detection, setDetection] = useState<DetectionResult | null>(null);
@@ -886,6 +891,7 @@ export default function CsvFixer() {
 			document.body.removeChild(a);
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
 			setStatus('done');
+			trackRun();
 		} catch (e) {
 			console.error(e);
 			setStatus('error');
@@ -978,6 +984,7 @@ export default function CsvFixer() {
 									sourceEncoding={effectiveEncoding}
 									options={settings}
 									disabled={isPreviewLoading || status === 'error'}
+									onConverted={trackRun}
 									globalStatus={status}
 								/>
 							)}

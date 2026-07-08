@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	MAX_METADATA_FILE_COUNT,
@@ -55,6 +56,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function ImageMetadataPage() {
+	const { trackRun } = useToolAnalytics('image-metadata');
 	const [options, setOptions] = useState<StripMetadataOptions>(DEFAULT_OPTIONS);
 
 	const {
@@ -69,6 +71,7 @@ export function ImageMetadataPage() {
 	} = useBatchProcessing<MetadataItem>({
 		fallbackErrorMessage: '処理に失敗しました。',
 		releaseItem: releaseMetadataItem,
+		onRunComplete: trackRun, // メタデータ削除実行の分析計測
 	});
 
 	const onFiles = useCallback(

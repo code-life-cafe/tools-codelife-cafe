@@ -1,5 +1,5 @@
 import { ArrowLeftRight, Calendar } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type Gengo,
 	seirekiToWareki,
@@ -21,6 +22,7 @@ import {
 type Direction = 'toWareki' | 'toSeireki';
 
 export default function WarekiConverter() {
+	const { trackRun } = useToolAnalytics('wareki-converter');
 	const currentDate = new Date();
 
 	const [direction, setDirection] = useState<Direction>('toWareki');
@@ -51,6 +53,12 @@ export default function WarekiConverter() {
 		if (result.error) return '';
 		return `${result.warekiString} / ${result.seirekiYear}年 / ${result.zodiac}年 / ${result.age}歳`;
 	}, [result]);
+
+	useEffect(() => {
+		if (!result.error) {
+			trackRun();
+		}
+	}, [result, trackRun]);
 
 	return (
 		<div className="space-y-6">

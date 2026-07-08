@@ -1,5 +1,5 @@
 import { Copy, Sparkles } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -10,6 +10,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	generateSpreadsheetPrompt,
 	type PromptTask,
@@ -19,6 +20,7 @@ import {
 const SAMPLE_DATA = `商品名\tカテゴリ\t売上\t粗利率\nコーヒー豆A\t食品\t128000\t32%\nマグカップ\t雑貨\t54000\t45%\nギフトセット\t食品\t212000\t38%`;
 
 export function AiSpreadsheetPrompt() {
+	const { trackRun } = useToolAnalytics('ai-spreadsheet-prompt');
 	const [input, setInput] = useState(SAMPLE_DATA);
 	const [format, setFormat] = useState<SpreadsheetInputFormat>('auto');
 	const [task, setTask] = useState<PromptTask>('analyze');
@@ -39,6 +41,12 @@ export function AiSpreadsheetPrompt() {
 			maxRows: finalMaxRows,
 		});
 	}, [input, format, task, customInstruction, maxRows]);
+
+	useEffect(() => {
+		if (input.trim() && result.prompt) {
+			trackRun();
+		}
+	}, [input, result.prompt, trackRun]);
 
 	const copyPrompt = async () => {
 		if (!result.prompt) return;

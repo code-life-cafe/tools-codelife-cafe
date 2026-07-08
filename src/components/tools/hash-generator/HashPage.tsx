@@ -14,6 +14,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	HASH_ALGORITHM_LABELS,
 	HASH_ALGORITHMS,
@@ -36,6 +37,7 @@ const MB = 1024 * 1024;
 const FILE_TOO_LARGE_MESSAGE = `ファイルサイズが上限（${MAX_FILE_SIZE / MB}MB）を超えています。`;
 
 export function HashPage() {
+	const { trackRun } = useToolAnalytics('hash');
 	const [inputMode, setInputMode] = useState<InputMode>('text');
 	const [text, setText] = useState('');
 	const [file, setFile] = useState<File | null>(null);
@@ -73,6 +75,7 @@ export function HashPage() {
 				if (runIdRef.current === runId) {
 					setResults(computed);
 					setError(null);
+					trackRun();
 				}
 			} catch (err) {
 				if (runIdRef.current === runId) {
@@ -87,7 +90,7 @@ export function HashPage() {
 			}
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [inputMode, text, algorithms]);
+	}, [inputMode, text, algorithms, trackRun]);
 
 	// --- ファイル計算 ---
 	const runFileHash = useCallback(
@@ -100,7 +103,10 @@ export function HashPage() {
 				const computed = await hashFile(target, selected, (percent) => {
 					if (runIdRef.current === runId) setProgress(percent);
 				});
-				if (runIdRef.current === runId) setResults(computed);
+				if (runIdRef.current === runId) {
+					setResults(computed);
+					trackRun();
+				}
 			} catch (err) {
 				if (runIdRef.current === runId) {
 					setError(
@@ -114,7 +120,7 @@ export function HashPage() {
 				if (runIdRef.current === runId) setComputing(false);
 			}
 		},
-		[],
+		[trackRun],
 	);
 
 	// warnLevel は validateHashFile を単一のソースとして使用する

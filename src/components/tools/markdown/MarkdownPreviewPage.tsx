@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { downloadBlob } from '@/lib/download';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { buildStandaloneHtml, renderMarkdown } from '@/lib/tools/markdown';
 import { cn } from '@/lib/utils';
 
@@ -53,6 +54,7 @@ function greet(name) {
 `;
 
 export function MarkdownPreviewPage() {
+	const { trackRun } = useToolAnalytics('markdown');
 	const [input, setInput] = useState('');
 	const [html, setHtml] = useState('');
 	const [error, setError] = useState<string | null>(null);
@@ -71,6 +73,8 @@ export function MarkdownPreviewPage() {
 					if (cancelled) return;
 					setHtml(result);
 					setError(null);
+					// 変換結果が出た時のみ計測する
+					if (result) trackRun();
 				})
 				.catch((err: unknown) => {
 					if (cancelled) return;
@@ -82,7 +86,7 @@ export function MarkdownPreviewPage() {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [input]);
+	}, [input, trackRun]);
 
 	const handleClear = useCallback(() => {
 		setInput('');

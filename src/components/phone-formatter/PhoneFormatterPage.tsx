@@ -4,6 +4,7 @@
  */
 import { Info } from 'lucide-react';
 import { useState } from 'react';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import type { BulkResult, ParseResult } from '@/lib/phone-formatter/types';
 import BulkInput from './BulkInput';
 import ExportButtons from './ExportButtons';
@@ -16,6 +17,7 @@ const DEFAULT_VISIBLE_COLUMNS = ['#', 'input', 'e164', 'type', 'status'];
 const STORAGE_KEY = 'phone-formatter-mode';
 
 export default function PhoneFormatterPage() {
+	const { trackRun } = useToolAnalytics('phone-formatter');
 	const [mode, setMode] = useState<'single' | 'bulk'>(() => {
 		// SSR時はデフォルト値
 		if (typeof window === 'undefined') return 'single';
@@ -54,7 +56,12 @@ export default function PhoneFormatterPage() {
 			{/* 単一入力モード */}
 			{mode === 'single' && (
 				<div className="space-y-4">
-					<SingleInput onResult={setSingleResult} />
+					<SingleInput
+						onResult={(result) => {
+							setSingleResult(result);
+							if (result) trackRun();
+						}}
+					/>
 					<ResultCard result={singleResult} />
 				</div>
 			)}
@@ -66,6 +73,7 @@ export default function PhoneFormatterPage() {
 						onBulkResult={(result) => {
 							setBulkResult(result);
 							setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+							if (result) trackRun();
 						}}
 					/>
 

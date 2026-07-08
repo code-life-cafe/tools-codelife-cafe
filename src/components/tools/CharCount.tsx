@@ -1,5 +1,5 @@
 import { AlertTriangle, Info, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,10 +13,17 @@ function formatNumber(n: number): string {
 }
 
 export default function CharCount() {
-	useToolAnalytics('char-count');
+	const { trackRun } = useToolAnalytics('char-count');
 	const [text, setText] = useState('');
 
 	const result = useMemo(() => countChars(text), [text]);
+
+	// テキストが実際に入力された（非空）時点でカウント実行を計測
+	useEffect(() => {
+		if (text) {
+			trackRun();
+		}
+	}, [text, trackRun]);
 	const twitter = useMemo(
 		() => getTwitterProgress(result.charsWithSpaces),
 		[result.charsWithSpaces],

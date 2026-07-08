@@ -6,6 +6,7 @@ import { useCallback, useState } from 'react';
 import { ExportBar } from '@/components/common/ExportBar';
 import { ImageDropzone } from '@/components/common/ImageDropzone';
 import { Button } from '@/components/ui/button';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	createId,
 	DOWNSCALE_EDGE,
@@ -39,6 +40,7 @@ function sourceSize(source: HTMLImageElement | HTMLCanvasElement) {
 }
 
 export default function ImageTextPage() {
+	const { trackRun } = useToolAnalytics('image-text');
 	const [phase, setPhase] = useState<Phase>({ kind: 'empty' });
 	const [error, setError] = useState<string | null>(null);
 	const [layers, setLayers] = useState<TextLayer[]>([]);
@@ -228,7 +230,12 @@ export default function ImageTextPage() {
 						</Button>
 					</div>
 					<ExportBar
-						getCanvas={() => renderTextLayers(phase.source, layers)}
+						getCanvas={() => {
+							const canvas = renderTextLayers(phase.source, layers);
+							// テキストレイヤーを配置してダウンロードした時のみ計測する
+							if (canvas && layers.length > 0) trackRun();
+							return canvas;
+						}}
 						baseName={phase.fileName}
 					/>
 				</>

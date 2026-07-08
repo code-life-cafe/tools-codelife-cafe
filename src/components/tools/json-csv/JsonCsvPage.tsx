@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { downloadBlob } from '@/lib/download';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildCsvBlob,
 	type ConvertResult,
@@ -48,6 +49,7 @@ const SAMPLE_CSV = [
 ].join('\r\n');
 
 export function JsonCsvPage() {
+	const { trackRun } = useToolAnalytics('json-csv');
 	const [direction, setDirection] = useState<Direction>('json-to-csv');
 	const [input, setInput] = useState('');
 	const [result, setResult] = useState<ConvertResult | null>(null);
@@ -77,7 +79,8 @@ export function JsonCsvPage() {
 				? jsonToCsv(input, jsonOpts)
 				: csvToJson(input, csvOpts),
 		);
-	}, [input, direction, jsonOpts, csvOpts]);
+		trackRun();
+	}, [input, direction, jsonOpts, csvOpts, trackRun]);
 
 	// 自動変換（300ms debounce）。1MB以上は手動実行に切り替え
 	useEffect(() => {

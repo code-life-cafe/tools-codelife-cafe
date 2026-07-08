@@ -11,6 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	defaultOptions,
 	downloadDataUrl,
@@ -51,6 +52,7 @@ function getContrastRatio(hex1: string, hex2: string) {
 }
 
 export default function QrGenerator() {
+	const { trackRun } = useToolAnalytics('qr-generator');
 	const [text, setText] = useState('');
 	const [options, setOptions] = useState<QROptions>(defaultOptions);
 	const [qrDataUrl, setQrDataUrl] = useState('');
@@ -78,13 +80,14 @@ export default function QrGenerator() {
 				]);
 				setQrDataUrl(dataUrl);
 				setQrSvg(svg);
+				trackRun();
 			} catch {
 				// ignore
 			}
 		}, 150);
 
 		return () => clearTimeout(timer);
-	}, [text, options]);
+	}, [text, options, trackRun]);
 
 	const handleDownloadPng = useCallback(() => {
 		if (qrDataUrl) downloadDataUrl(qrDataUrl, 'qrcode.png');

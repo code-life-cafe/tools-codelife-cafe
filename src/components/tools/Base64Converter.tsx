@@ -1,5 +1,11 @@
 import { ArrowLeftRight, Download, Trash2, UploadCloud } from 'lucide-react';
-import { type DragEvent, useCallback, useMemo, useState } from 'react';
+import {
+	type DragEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,7 +23,7 @@ import {
 } from '@/lib/tools/base64';
 
 export default function Base64Converter() {
-	useToolAnalytics('base64');
+	const { trackRun } = useToolAnalytics('base64');
 	const [tab, setTab] = useState('text');
 
 	// Text Tab State
@@ -51,6 +57,13 @@ export default function Base64Converter() {
 		}
 	}, [textInput, direction]);
 
+	// エンコード/デコードが成功して変換結果が得られた時点で実行を計測（空入力・エラー時は発火しない）
+	useEffect(() => {
+		if (textResult.output && !textResult.error) {
+			trackRun();
+		}
+	}, [textResult, trackRun]);
+
 	// Handlers for File Drop
 	const handleDrop = useCallback(
 		async (e: DragEvent<HTMLDivElement>) => {
@@ -63,6 +76,8 @@ export default function Base64Converter() {
 					setFileName(file.name);
 					const b64 = await fileToBase64(file, withDataUri);
 					setFileOutput(b64);
+					// ファイルのBase64変換が完了した時点で実行を計測
+					trackRun();
 				} catch (_err) {
 					alert('ファイルの読み込みに失敗しました。');
 				} finally {
@@ -70,7 +85,7 @@ export default function Base64Converter() {
 				}
 			}
 		},
-		[withDataUri],
+		[withDataUri, trackRun],
 	);
 
 	// Download decoded text
@@ -267,6 +282,8 @@ export default function Base64Converter() {
 												setFileName(file.name);
 												const b64 = await fileToBase64(file, withDataUri);
 												setFileOutput(b64);
+												// ファイルのBase64変換が完了した時点で実行を計測
+												trackRun();
 											} catch (_err) {
 												alert('エラーが発生しました。');
 											} finally {

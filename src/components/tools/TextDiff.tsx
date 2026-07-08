@@ -1,11 +1,18 @@
 import { FileText, GitCompareArrows, Trash2 } from 'lucide-react';
-import { type DragEvent, useCallback, useMemo, useState } from 'react';
+import {
+	type DragEvent,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	computeDiff,
 	type DiffMode,
@@ -13,6 +20,7 @@ import {
 } from '@/lib/tools/text-diff';
 
 export default function TextDiff() {
+	const { trackRun } = useToolAnalytics('text-diff');
 	const [textA, setTextA] = useState('');
 	const [textB, setTextB] = useState('');
 	const [mode, setMode] = useState<DiffMode>('lines');
@@ -24,6 +32,12 @@ export default function TextDiff() {
 		if (!textA && !textB) return null;
 		return computeDiff(textA, textB, mode);
 	}, [textA, textB, mode]);
+
+	useEffect(() => {
+		if (result) {
+			trackRun();
+		}
+	}, [result, trackRun]);
 
 	const handleDrop = useCallback(
 		async (e: DragEvent<HTMLTextAreaElement>, target: 'A' | 'B') => {

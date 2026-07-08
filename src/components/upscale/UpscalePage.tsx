@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { downloadBlob } from '@/lib/download';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildUpscaledFilename,
 	computeOutputDimensions,
@@ -40,6 +41,8 @@ type Status = 'idle' | 'loading' | 'processing' | 'done' | 'error';
 const ACCEPT = 'image/png,image/jpeg,image/webp';
 
 export function UpscalePage() {
+	const { trackRun } = useToolAnalytics('upscale');
+
 	const [sourceFile, setSourceFile] = useState<File | null>(null);
 	const [sourceUrl, setSourceUrl] = useState<string | null>(null);
 	const [sourceDims, setSourceDims] = useState<{ w: number; h: number } | null>(
@@ -140,11 +143,13 @@ export function UpscalePage() {
 			setResultBlob(blob);
 			setResultUrl(url);
 			setStatus('done');
+			// アップスケール実行の分析計測
+			trackRun();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : '処理に失敗しました。');
 			setStatus('error');
 		}
-	}, [sourceFile, scale, denoise, output, quality, trackUrl]);
+	}, [sourceFile, scale, denoise, output, quality, trackUrl, trackRun]);
 
 	const handleDownload = useCallback(() => {
 		if (!resultBlob || !sourceFile) return;

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
@@ -29,6 +30,7 @@ type MergeResult = {
 };
 
 export function PdfMergePage() {
+	const { trackRun } = useToolAnalytics('pdf-merge');
 	const [items, setItems] = useState<MergeItem[]>([]);
 	const { processing, progress, result, clearResult, error, setError, run } =
 		useSingleResultProcessing<MergeResult>({
@@ -196,6 +198,8 @@ export function PdfMergePage() {
 				}
 				const merged = await mergePdfs(inputs, onProgress);
 				inputs.length = 0;
+				// 結合実行の分析計測
+				trackRun();
 				const blob = new Blob([merged as Uint8Array<ArrayBuffer>], {
 					type: 'application/pdf',
 				});
@@ -211,7 +215,7 @@ export function PdfMergePage() {
 					: err;
 			}
 		});
-	}, [run]);
+	}, [run, trackRun]);
 
 	return (
 		<div className="space-y-6">

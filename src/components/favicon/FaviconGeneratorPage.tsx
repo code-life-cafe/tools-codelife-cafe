@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildHtmlSnippet,
 	FAVICON_ASSETS,
@@ -42,6 +43,7 @@ function toFaviconOptions(ui: FaviconUiOptions): FaviconOptions {
 }
 
 export function FaviconGeneratorPage() {
+	const { trackRun } = useToolAnalytics('favicon');
 	const [source, setSource] = useState<RasterSource | null>(null);
 	const [fileName, setFileName] = useState<string | null>(null);
 	const [options, setOptions] = useState<FaviconUiOptions>(
@@ -172,7 +174,9 @@ export function FaviconGeneratorPage() {
 		];
 		const zip = await buildZip(entries);
 		downloadBlob(zip, 'favicon.zip');
-	}, []);
+		// favicon.zip 生成・ダウンロードの分析計測
+		trackRun();
+	}, [trackRun]);
 
 	const htmlSnippet = useMemo(
 		() => buildHtmlSnippet({ themeColor: options.themeColor }),

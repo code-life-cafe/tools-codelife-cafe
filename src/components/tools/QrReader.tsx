@@ -17,6 +17,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	addResult,
 	buildCsv,
@@ -38,6 +39,7 @@ import {
 const SCAN_TOAST_DURATION_MS = 1000;
 
 export default function QrReader() {
+	const { trackRun } = useToolAnalytics('qr-reader');
 	const [mode, setMode] = useState<ScanMode>('camera');
 	const [results, setResults] = useState<ScanResult[]>([]);
 	const [autosave, setAutosave] = useState(false);
@@ -96,6 +98,7 @@ export default function QrReader() {
 	};
 
 	const handleAddValue = (rawValue: string, source: ScanResult['source']) => {
+		trackRun();
 		setResults((prev) => {
 			const next = addResult(prev, rawValue, source);
 			if (autosave) saveResults(next);

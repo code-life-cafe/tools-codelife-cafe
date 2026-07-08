@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	compositeBackground,
 	type ModelMode,
@@ -59,6 +60,8 @@ const PRESET_COLORS = [
 ];
 
 export default function BgRemove() {
+	const { trackRun } = useToolAnalytics('bg-remove');
+
 	// --- 状態管理 ---
 	const [status, setStatus] = useState<Status>('idle');
 	const [mode, setMode] = useState<ModelMode>('high');
@@ -150,6 +153,8 @@ export default function BgRemove() {
 				setResultBlob(blob);
 				setResultUrl(url);
 				setStatus('done');
+				// 背景削除実行の分析計測
+				trackRun();
 			} catch (err) {
 				const message =
 					err instanceof Error ? err.message : '背景削除に失敗しました';
@@ -157,7 +162,7 @@ export default function BgRemove() {
 				setStatus('error');
 			}
 		},
-		[resultUrl],
+		[resultUrl, trackRun],
 	);
 
 	// --- ファイル処理 ---

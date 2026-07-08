@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
 	type CipherAlgorithm,
@@ -10,6 +10,7 @@ import {
 	reverseString,
 	rot13,
 } from '@/lib/cipher';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { AlgorithmInfo } from './AlgorithmInfo';
 import { BruteForcePanel } from './BruteForcePanel';
 import { DirectionToggle } from './DirectionToggle';
@@ -18,6 +19,7 @@ import { OutputPanel } from './OutputPanel';
 import { ShiftSlider } from './ShiftSlider';
 
 export function CipherPage() {
+	const { trackRun } = useToolAnalytics('cipher');
 	const [activeTab, setActiveTab] = useState<CipherAlgorithm>('caesar');
 	const [input, setInput] = useState('');
 
@@ -65,6 +67,12 @@ export function CipherPage() {
 			return 'エラーが発生しました';
 		}
 	}, [input, activeTab, caesarShift, caesarDirection, morseDirection]);
+
+	useEffect(() => {
+		if (input.trim() && output && output !== 'エラーが発生しました') {
+			trackRun();
+		}
+	}, [input, output, trackRun]);
 
 	return (
 		<div className="space-y-6">

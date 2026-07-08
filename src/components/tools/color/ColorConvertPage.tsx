@@ -1,8 +1,9 @@
 import type * as React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	formatCmyk,
 	formatHex,
@@ -28,9 +29,16 @@ const checkerboardStyle: React.CSSProperties = {
 const DEFAULT_INPUT = '#1E90FF';
 
 export function ColorConvertPage() {
+	const { trackRun } = useToolAnalytics('color');
 	const [input, setInput] = useState(DEFAULT_INPUT);
 
 	const parsed = useMemo(() => parseColor(input), [input]);
+
+	// 有効なカラーコードを認識できた（変換結果が出た）時のみ計測する
+	useEffect(() => {
+		if (!input.trim() || !parsed) return;
+		trackRun();
+	}, [input, parsed, trackRun]);
 
 	const results = useMemo(() => {
 		if (!parsed) return null;

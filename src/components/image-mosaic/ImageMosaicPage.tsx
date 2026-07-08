@@ -7,6 +7,7 @@ import { ExportBar } from '@/components/common/ExportBar';
 import { ImageDropzone } from '@/components/common/ImageDropzone';
 import { useHistoryState } from '@/components/common/useHistoryState';
 import { Button } from '@/components/ui/button';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	createId,
 	DOWNSCALE_EDGE,
@@ -40,6 +41,7 @@ type Phase =
 	  };
 
 export default function ImageMosaicPage() {
+	const { trackRun } = useToolAnalytics('image-mosaic');
 	const [phase, setPhase] = useState<Phase>({ kind: 'empty' });
 	const [error, setError] = useState<string | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -431,7 +433,12 @@ export default function ImageMosaicPage() {
 						</Button>
 					</div>
 					<ExportBar
-						getCanvas={() => renderMasked(phase.source, regions.state)}
+						getCanvas={() => {
+							const canvas = renderMasked(phase.source, regions.state);
+							// マスク領域を適用してダウンロードした時のみ計測する
+							if (canvas && regions.state.length > 0) trackRun();
+							return canvas;
+						}}
 						baseName={phase.fileName}
 					/>
 				</>

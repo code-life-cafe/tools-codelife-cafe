@@ -6,6 +6,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId } from '@/lib/tools/image-common';
 import {
 	applyEdit,
@@ -46,6 +47,7 @@ function releaseEditItem(item: EditItem): void {
 }
 
 export default function ImageEditPage() {
+	const { trackRun } = useToolAnalytics('image-edit');
 	const [editOps, setEditOps] = useState<EditOps>(DEFAULT_EDIT_OPS);
 	const [aspectPreset, setAspectPreset] = useState<AspectPreset>('free');
 	const [crop, setCrop] = useState<CropRect | null>(null);
@@ -66,6 +68,7 @@ export default function ImageEditPage() {
 		fallbackErrorMessage: '処理に失敗しました',
 		releaseItem: releaseEditItem,
 		onRunComplete: () => {
+			trackRun();
 			const results = resultsRef.current;
 			resultsRef.current = [];
 			if (results.length === 1) {

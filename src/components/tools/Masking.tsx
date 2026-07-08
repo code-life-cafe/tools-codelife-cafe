@@ -1,5 +1,5 @@
 import { Download, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type MaskChar,
 	type MaskStrength,
@@ -30,6 +31,7 @@ const TARGET_TYPES: { id: MaskTarget; label: string }[] = [
 ];
 
 export default function Masking() {
+	const { trackRun } = useToolAnalytics('masking');
 	const [text, setText] = useState('');
 	const [targets, setTargets] = useState<Set<MaskTarget>>(
 		new Set(['email', 'phone', 'zipcode', 'card', 'mynumber']),
@@ -55,6 +57,12 @@ export default function Masking() {
 	}, [text, targets, maskChar, strength]);
 
 	const totalMasked = Object.values(counts).reduce((a, b) => a + b, 0);
+
+	useEffect(() => {
+		if (text.trim() && maskedText) {
+			trackRun();
+		}
+	}, [text, maskedText, trackRun]);
 
 	const toggleTarget = (id: MaskTarget) => {
 		setTargets((prev) => {
