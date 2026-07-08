@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全43種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全44種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（43種）
+## 📦 収録ツール（44種）
 
 ### テキスト処理
 
@@ -87,6 +87,7 @@
 | [カラーコード変換](https://tools.codelife.cafe/color) | HEX・RGB・HSL・CMYKの相互変換。カラーピッカー連動・ワンクリックコピー |
 | [ファビコン生成](https://tools.codelife.cafe/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
 | [画像Base64変換](https://tools.codelife.cafe/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
+| [UNIXタイムスタンプ⇔日時変換](https://tools.codelife.cafe/unix-time) | 秒/ミリ秒/マイクロ秒/ナノ秒/Slack TSを自動判定し日時と相互変換。ISO 8601・RFC 3339・和暦・Discord形式も同時出力 |
 
 ## 🛡️ セキュリティ・プライバシー
 
