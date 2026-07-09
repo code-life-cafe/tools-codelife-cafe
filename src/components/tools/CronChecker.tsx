@@ -1,5 +1,5 @@
 import { AlertTriangle, Info, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -88,6 +88,8 @@ export default function CronChecker() {
 	const [jaInput, setJaInput] = useState('');
 	const [shareCopied, setShareCopied] = useState(false);
 
+	const isInitialMountRef = useRef(true);
+
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const exprParam = params.get('expr');
@@ -95,6 +97,12 @@ export default function CronChecker() {
 	}, []);
 
 	useEffect(() => {
+		// 初回マウント時（URLからの復元直後を含む）はURLへ書き戻さない。
+		// ユーザーが実際に入力を編集した場合のみ ?expr= を更新する。
+		if (isInitialMountRef.current) {
+			isInitialMountRef.current = false;
+			return;
+		}
 		const url = new URL(window.location.href);
 		if (input.trim()) {
 			url.searchParams.set('expr', input.trim());
@@ -140,9 +148,13 @@ export default function CronChecker() {
 		}
 	}, [schedule]);
 
+	const scheduleRaw = schedule?.raw;
 	useEffect(() => {
-		if (schedule) trackRun();
-	}, [schedule, trackRun]);
+		if (!scheduleRaw) return;
+		// キーストロークごとの計上を避けるため、入力が落ち着いてから計測する
+		const timer = setTimeout(() => trackRun(), 500);
+		return () => clearTimeout(timer);
+	}, [scheduleRaw, trackRun]);
 
 	const crontabCopy = schedule ? toCrontabLine(schedule) : null;
 	const githubCopy = schedule ? toGithubActionsSchedule(schedule) : null;

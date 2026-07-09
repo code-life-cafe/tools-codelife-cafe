@@ -11,6 +11,39 @@ interface FieldSpec {
 	aliases?: Record<string, number>;
 }
 
+/**
+ * cron方言固有の挙動を切り出す縫い目。標準5/6フィールドのパース自体は方言に依存しないが、
+ * 「日と曜日を両方指定した場合の結合方法」と「曜日フィールドの正規化」は方言ごとに異なりうる
+ * （例: Quartzは`?`によるAND/OR切替や`L` `W` `#`を持つ）。将来Quartz等を追加する際は
+ * この`CronDialect`を差し替えるだけでパーサー本体に手を入れずに済む設計にしている。
+ */
+export interface CronDialect {
+	name: string;
+	/** 日(dom)と曜日(dow)を両方指定した場合の結合ルール */
+	combineDayAndWeekday(
+		domMatch: boolean,
+		dowMatch: boolean,
+		domWildcard: boolean,
+		dowWildcard: boolean,
+	): boolean;
+	/** 曜日フィールドの値を0-6（日曜=0）へ正規化する */
+	normalizeDow(value: number): number;
+}
+
+/** Vixie cron（cron(8)由来の標準的な実装）の方言定義。日・曜日両指定時はOR、7=日曜として扱う。 */
+export const VIXIE_DIALECT: CronDialect = {
+	name: 'vixie',
+	combineDayAndWeekday(domMatch, dowMatch, domWildcard, dowWildcard) {
+		if (domWildcard && dowWildcard) return true;
+		if (domWildcard) return dowMatch;
+		if (dowWildcard) return domMatch;
+		return domMatch || dowMatch;
+	},
+	normalizeDow(value) {
+		return value === 7 ? 0 : value;
+	},
+};
+
 export interface CronField {
 	/** マッチ判定に使う昇順・重複なしの値集合 */
 	values: number[];
@@ -33,6 +66,7 @@ export interface CronSchedule {
 	daysOfMonth: CronField;
 	months: CronField;
 	daysOfWeek: CronField;
+	dialect: CronDialect;
 }
 
 const SECOND_SPEC: FieldSpec = { min: 0, max: 59 };
@@ -101,6 +135,7 @@ function parseField(
 	rawField: string,
 	spec: FieldSpec,
 	fieldLabel: string,
+	normalize?: (value: number) => number,
 ): CronField {
 	const trimmed = rawField.trim();
 	if (trimmed === '') {
@@ -178,8 +213,7 @@ function parseField(
 		}
 
 		for (let v = rangeStart; v <= rangeEnd; v += stepValue) {
-			// 曜日の 7 は 0（日曜）と同義として扱う
-			valueSet.add(spec === DOW_SPEC && v === 7 ? 0 : v);
+			valueSet.add(normalize ? normalize(v) : v);
 		}
 
 		if (singlePart && stepToken !== undefined) {
@@ -200,9 +234,12 @@ function parseField(
 
 /**
  * cron式（標準5フィールドまたは秒付き6フィールド）をパースする。
- * 不正な入力は CronParseError を投げる。
+ * 不正な入力は CronParseError を投げる。dialect省略時はVixie cron仕様を用いる。
  */
-export function parseCronExpression(expression: string): CronSchedule {
+export function parseCronExpression(
+	expression: string,
+	dialect: CronDialect = VIXIE_DIALECT,
+): CronSchedule {
 	const raw = expression.trim();
 	if (raw === '') {
 		throw new CronParseError('cron式を入力してください');
@@ -248,6 +285,7 @@ export function parseCronExpression(expression: string): CronSchedule {
 		dowRaw,
 		DOW_SPEC,
 		hasSeconds ? names[5] : names[4],
+		dialect.normalizeDow,
 	);
 
 	return {
@@ -259,6 +297,7 @@ export function parseCronExpression(expression: string): CronSchedule {
 		daysOfMonth,
 		months,
 		daysOfWeek,
+		dialect,
 	};
 }
 
@@ -288,12 +327,12 @@ function matchesDayField(schedule: CronSchedule, c: CivilTime): boolean {
 		weekdayOf(c.year, c.month, c.day),
 	);
 
-	if (schedule.daysOfMonth.isWildcard && schedule.daysOfWeek.isWildcard)
-		return true;
-	if (schedule.daysOfMonth.isWildcard) return dowMatch;
-	if (schedule.daysOfWeek.isWildcard) return domMatch;
-	// Vixie cron仕様: 両方指定時はOR
-	return domMatch || dowMatch;
+	return schedule.dialect.combineDayAndWeekday(
+		domMatch,
+		dowMatch,
+		schedule.daysOfMonth.isWildcard,
+		schedule.daysOfWeek.isWildcard,
+	);
 }
 
 function addMinutes(c: CivilTime, delta: number): CivilTime {
@@ -338,8 +377,8 @@ const MAX_ITERATIONS = 200_000;
 const MAX_YEARS_AHEAD = 8;
 
 /**
- * 指定した civil time（timeZone上の壁時計時刻）以降で、次にcron式にマッチする
- * civil timeを1件計算する。秒フィールドは分単位に丸めて扱う（呼び出し側で対応）。
+ * 指定した civil time（timeZone上の壁時計時刻）以降で、次にcron式にマッチする分を
+ * 1件計算する（秒は0固定で返す。実際の該当秒はschedule.seconds.valuesを呼び出し側で展開する）。
  */
 function findNextCivilMatch(
 	schedule: CronSchedule,
@@ -436,7 +475,8 @@ export interface NextRunOptions {
 
 /**
  * 指定タイムゾーン上でcron式が次にマッチする日時をN件返す（UTCのDate配列）。
- * 秒フィールドは考慮せず分単位で判定する（表示上は該当秒を別途付加できる）。
+ * 秒付き6フィールドの場合、1分内に複数の該当秒があれば1分につき複数件を返す
+ * （例: 「5秒おき」の6フィールド指定は5秒間隔で結果を返す）。
  */
 export function getNextRunTimes(
 	schedule: CronSchedule,
@@ -448,10 +488,20 @@ export function getNextRunTimes(
 
 	const results: Date[] = [];
 	let cursorCivil = getZonedParts(from, timeZone);
+	let currentMinuteCivil: CivilTime | null = null;
+	let pendingSeconds: number[] = [];
 
-	for (let i = 0; i < count; i++) {
-		cursorCivil = findNextCivilMatch(schedule, cursorCivil);
-		results.push(civilToUtc(cursorCivil, timeZone));
+	while (results.length < count) {
+		if (pendingSeconds.length === 0) {
+			currentMinuteCivil = findNextCivilMatch(schedule, cursorCivil);
+			pendingSeconds = [...schedule.seconds.values];
+		}
+		const second = pendingSeconds.shift();
+		if (second === undefined || !currentMinuteCivil) break;
+
+		const resultCivil: CivilTime = { ...currentMinuteCivil, second };
+		results.push(civilToUtc(resultCivil, timeZone));
+		cursorCivil = resultCivil;
 	}
 	return results;
 }
@@ -487,18 +537,19 @@ function describeDayPart(schedule: CronSchedule): string {
 		? ''
 		: joinJa(schedule.daysOfWeek.values.map((d) => `${DOW_NAMES_JA[d]}曜`));
 
-	if (!monthWildcard && !domWildcard && dowWildcard) {
-		return `毎年${monthText}${domText}`;
-	}
+	// 月を指定している場合は「毎年○月」、していなければ「毎月」を日・曜日の前に付与する
+	const monthPrefix = monthWildcard ? '毎月' : `毎年${monthText}`;
+
 	if (!domWildcard && !dowWildcard) {
-		const monthPrefix = monthWildcard ? '毎月' : `毎年${monthText}`;
+		// Vixie cron仕様: 日・曜日を両方指定した場合はOR
 		return `${monthPrefix}${domText}または${dowText}`;
 	}
 	if (!domWildcard) {
-		return monthWildcard ? `毎月${domText}` : `毎年${monthText}${domText}`;
+		return `${monthPrefix}${domText}`;
 	}
 	if (!dowWildcard) {
-		return `毎週${dowText}`;
+		if (monthWildcard) return `毎週${dowText}`;
+		return `毎年${monthText}の毎週${dowText}`;
 	}
 	if (!monthWildcard) {
 		return `毎年${monthText}の毎日`;
@@ -520,7 +571,10 @@ function describeTimePart(schedule: CronSchedule): string {
 	if (minStep && schedule.hours.isWildcard) return minStep;
 
 	const hourStep = describeStepIfAny(schedule.hours, '時間');
-	if (hourStep && schedule.minutes.values.length === 1) return hourStep;
+	if (hourStep && schedule.minutes.values.length === 1) {
+		const minute = schedule.minutes.values[0];
+		return minute === 0 ? hourStep : `${minute}分 ${hourStep}`;
+	}
 
 	if (schedule.hours.isWildcard && schedule.minutes.isWildcard) {
 		return '毎分実行';
@@ -582,6 +636,16 @@ export function lintCronSchedule(schedule: CronSchedule): CronLintIssue[] {
 			severity: 'warn',
 			message:
 				'毎分実行される設定です。サーバーやジョブへの負荷に注意してください。',
+		});
+	} else if (
+		schedule.hasSeconds &&
+		!schedule.seconds.isWildcard &&
+		schedule.seconds.stepFromWildcard &&
+		schedule.seconds.step !== undefined
+	) {
+		issues.push({
+			severity: 'warn',
+			message: `${schedule.seconds.step}秒おきに実行される高頻度な設定です（1分あたり約${Math.ceil(60 / schedule.seconds.step)}回）。サーバーやジョブへの負荷に注意してください。`,
 		});
 	}
 

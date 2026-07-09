@@ -10,6 +10,7 @@ import {
 	toAwsEventBridgeCron,
 	toCrontabLine,
 	toGithubActionsSchedule,
+	VIXIE_DIALECT,
 } from '../../src/lib/tools/cron-checker.ts';
 
 test('標準5フィールドをパースできる', () => {
@@ -61,6 +62,43 @@ test('範囲外の値はCronParseErrorを投げる', () => {
 test('空文字はCronParseErrorを投げる', () => {
 	assert.throws(() => parseCronExpression(''), CronParseError);
 	assert.throws(() => parseCronExpression('   '), CronParseError);
+});
+
+test('方言（dialect）は省略時にVixie cronが既定として使われる', () => {
+	const s = parseCronExpression('0 0 1 * 1');
+	assert.equal(s.dialect, VIXIE_DIALECT);
+	assert.equal(s.dialect.name, 'vixie');
+	// OR条件で結合されることの確認（回帰防止）
+	assert.equal(s.dialect.combineDayAndWeekday(true, false, false, false), true);
+	assert.equal(
+		s.dialect.combineDayAndWeekday(false, false, false, false),
+		false,
+	);
+	assert.equal(s.dialect.normalizeDow(7), 0);
+});
+
+test('カスタム方言を渡すと日・曜日をAND条件で結合できる（拡張性の確認）', () => {
+	const andDialect = {
+		...VIXIE_DIALECT,
+		name: 'and-dialect',
+		combineDayAndWeekday(
+			domMatch: boolean,
+			dowMatch: boolean,
+			domWildcard: boolean,
+			dowWildcard: boolean,
+		) {
+			if (domWildcard && dowWildcard) return true;
+			if (domWildcard) return dowMatch;
+			if (dowWildcard) return domMatch;
+			return domMatch && dowMatch;
+		},
+	};
+	const s = parseCronExpression('0 0 1 * 1', andDialect);
+	assert.equal(s.dialect.name, 'and-dialect');
+	assert.equal(
+		s.dialect.combineDayAndWeekday(true, false, false, false),
+		false,
+	);
 });
 
 // --- 次回実行日時 -----------------------------------------------------
@@ -127,6 +165,27 @@ test('次回実行日時を10件取得できる', () => {
 	}
 });
 
+test('秒付き6フィールド: */5 * * * * * の次回10件が5秒間隔になる', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+	const next = getNextRunTimes(s, { count: 10, from, timeZone: 'UTC' });
+	assert.equal(next.length, 10);
+	const seconds = next.map((d) => d.getUTCSeconds());
+	assert.deepEqual(seconds, [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]);
+	for (let i = 1; i < next.length; i++) {
+		assert.equal(next[i].getTime() - next[i - 1].getTime(), 5000);
+	}
+});
+
+test('秒付き6フィールド: 30 0 9 * * * の次回実行は9:00:30になる', () => {
+	const s = parseCronExpression('30 0 9 * * *');
+	const from = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+	const [next] = getNextRunTimes(s, { count: 1, from, timeZone: 'UTC' });
+	assert.equal(next.getUTCHours(), 9);
+	assert.equal(next.getUTCMinutes(), 0);
+	assert.equal(next.getUTCSeconds(), 30);
+});
+
 // --- 日本語解説 -------------------------------------------------------
 
 test('「0 9 * * 1」は「毎週月曜 9:00」と解説される', () => {
@@ -147,6 +206,16 @@ test('「0 0 1 1 *」は「毎年1月1日 0:00」と解説される', () => {
 test('「0 0 31 * *」は「毎月31日 0:00」と解説される', () => {
 	const s = parseCronExpression('0 0 31 * *');
 	assert.equal(describeCronJapanese(s), '毎月31日 0:00');
+});
+
+test('「0 9 * jan mon」は月が脱落せず「毎年1月の毎週月曜 9:00」と解説される', () => {
+	const s = parseCronExpression('0 9 * jan mon');
+	assert.equal(describeCronJapanese(s), '毎年1月の毎週月曜 9:00');
+});
+
+test('「5 */2 * * *」は分が脱落せず「毎日 5分 2時間おき」と解説される', () => {
+	const s = parseCronExpression('5 */2 * * *');
+	assert.equal(describeCronJapanese(s), '毎日 5分 2時間おき');
 });
 
 // --- cronリンター -----------------------------------------------------
@@ -190,6 +259,14 @@ test('通常の日次実行では警告が出ない', () => {
 	const s = parseCronExpression('0 9 * * *');
 	const issues = lintCronSchedule(s);
 	assert.equal(issues.length, 0);
+});
+
+test('秒ステップによる高頻度実行（5秒おき）は警告される', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const issues = lintCronSchedule(s);
+	assert.ok(
+		issues.some((i) => i.severity === 'warn' && i.message.includes('高頻度')),
+	);
 });
 
 // --- 逆引き生成 -------------------------------------------------------
@@ -260,6 +337,12 @@ test('GitHub Actions形式のYAMLスニペットを生成する', () => {
 	const s = parseCronExpression('0 9 * * 1');
 	const result = toGithubActionsSchedule(s);
 	assert.match(result.value, /schedule:\n\s+- cron: '0 9 \* \* 1'/);
+});
+
+test('GitHub Actions形式: 分がワイルドカードの場合も*として出力される（回帰防止）', () => {
+	const s = parseCronExpression('* 9 * * *');
+	const result = toGithubActionsSchedule(s);
+	assert.match(result.value, /schedule:\n\s+- cron: '\* 9 \* \* \*'/);
 });
 
 test('秒付きcron式はGitHub Actions形式に非対応の警告を返す', () => {

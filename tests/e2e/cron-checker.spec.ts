@@ -82,4 +82,16 @@ test.describe('cron式チェッカー', () => {
 		await page.getByRole('button', { name: '平日9時', exact: true }).click();
 		await expect(page.getByLabel('cron式')).toHaveValue('0 9 * * 1-5');
 	});
+
+	test('?expr= 付きURLへアクセスするとcron式が復元されること', async ({
+		page,
+	}) => {
+		await page.goto('/cron-checker?expr=*/15+*+*+*+*');
+		await page.waitForLoadState('networkidle');
+
+		await expect(page.getByLabel('cron式')).toHaveValue('*/15 * * * *');
+		await expect(page.getByTestId('cron-description')).toContainText(
+			'15分おき',
+		);
+	});
 });
