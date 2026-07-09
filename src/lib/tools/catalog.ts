@@ -1012,6 +1012,36 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			outputs: 'EXIF情報一覧およびメタデータ除去済み画像ファイル',
 		},
 	},
+	{
+		id: 'cron-checker',
+		title: 'cron式チェッカー',
+		description:
+			'cron式を日本語解説・次回実行10件（JST/UTC）で確認。日本語→cron式の逆引き生成、危険パターンの警告にも対応。',
+		href: '/cron-checker',
+		icon: 'CalendarClock',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		span: 2,
+		keywords: [
+			'cron',
+			'crontab',
+			'次回実行日時',
+			'GitHub Actions',
+			'AWS EventBridge',
+			'スケジュール',
+			'情シス',
+		],
+		related: ['unix-time', 'regex-tester', 'jwt-decoder'],
+		llmsFull: {
+			useCase:
+				'cron式（標準5フィールド/秒付き6フィールド）の解析、日本語解説生成、次回実行日時10件表示、日本語からのcron式逆引き生成、危険パターンのリンター警告、crontab/GitHub Actions/AWS EventBridge形式への変換',
+			inputs:
+				'cronExpression（cron式文字列）または日本語の実行タイミング指定文',
+			outputs:
+				'{ description: string, nextRunTimes: Date[], lintIssues: object[], generatedExpr: string }',
+			options: 'タイムゾーン選択（JST/UTC/任意IANA TZ）、出力フォーマット選択',
+		},
+	},
 ];
 
 export const purposeCategories = [

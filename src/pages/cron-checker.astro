@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import CronCheckerTool from '../components/tools/CronChecker.tsx';
+
+const toolEntry = await getEntry('tools', 'cron-checker');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: cron-checker');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <CronCheckerTool client:load />
+</ToolLayout>
