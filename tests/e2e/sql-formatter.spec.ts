@@ -132,6 +132,7 @@ test.describe('SQL Formatter Tool', () => {
 	test('restores full-size layout from a shared settings URL', async ({
 		page,
 		context,
+		browser,
 	}) => {
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -146,12 +147,40 @@ test.describe('SQL Formatter Tool', () => {
 		await page.getByRole('button', { name: '設定を共有' }).click();
 		const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
 
-		// Open the shared URL in a fresh page and confirm full-size is restored
-		const newPage = await context.newPage();
+		// localStorage を共有しない完全に新しいコンテキストで開き、
+		// フルサイズ状態が URL のみから復元されることを検証する
+		const freshContext = await browser.newContext({
+			viewport: { width: 1280, height: 900 },
+		});
+		const newPage = await freshContext.newPage();
 		await newPage.goto(shareUrl);
 		await expect(newPage.locator('#tool-layout-container')).toHaveClass(
 			/max-w-full/,
 		);
-		await newPage.close();
+		await freshContext.close();
+	});
+
+	test('keeps standard-width layout from a shared settings URL', async ({
+		page,
+		context,
+		browser,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+		// フルサイズを有効化せずに共有 URL を生成する（isExpanded: false）
+		await page.getByRole('button', { name: '設定を共有' }).click();
+		const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
+
+		const freshContext = await browser.newContext({
+			viewport: { width: 1280, height: 900 },
+		});
+		const newPage = await freshContext.newPage();
+		await newPage.goto(shareUrl);
+		const newContainer = newPage.locator('#tool-layout-container');
+		await expect(newContainer).not.toHaveClass(/max-w-full/);
+		await expect(newContainer).toHaveClass(/max-w-\[800px\]/);
+		await expect(newContainer).toHaveClass(/xl:max-w-5xl/);
+		await freshContext.close();
 	});
 });
