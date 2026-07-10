@@ -241,7 +241,7 @@ export default function JsonFormatter() {
 				>
 					入力JSON
 				</Label>
-				<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex h-[250px]">
+				<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex">
 					{/* 行番号ガター */}
 					<div
 						id="json-input-line-numbers"
@@ -267,7 +267,8 @@ export default function JsonFormatter() {
 						onChange={(e) => handleInputChange(e.target.value)}
 						onScroll={handleInputScroll}
 						placeholder={'{"name":"太郎","age":30,"city":"東京"}'}
-						className="flex-1 min-h-0 bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 resize-none border-none ring-0 shadow-none focus-visible:ring-0 rounded-none whitespace-pre"
+						resize="vertical"
+						className="flex-1 h-[250px] min-h-[240px] max-h-[80dvh] bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 border-none ring-0 shadow-none focus-visible:ring-0 rounded-none whitespace-pre"
 						spellCheck={false}
 					/>
 				</div>

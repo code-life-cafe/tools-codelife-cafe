@@ -406,7 +406,7 @@ export default function SqlFormatter() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 				{/* Input */}
 				<div>
 					<div className="flex items-center justify-between mb-2">
@@ -430,7 +430,7 @@ export default function SqlFormatter() {
 							</Button>
 						</div>
 					</div>
-					<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex h-[400px]">
+					<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex">
 						{/* Gutter */}
 						<div
 							id="line-numbers"
@@ -449,7 +449,8 @@ export default function SqlFormatter() {
 							onScroll={handleScroll}
 							placeholder="SELECT * FROM users WHERE active = 1"
 							spellCheck={false}
-							className="flex-1 min-h-0 bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 resize-none border-none ring-0 shadow-none focus-visible:ring-0 rounded-none whitespace-pre"
+							resize="vertical"
+							className="flex-1 h-[400px] min-h-[240px] max-h-[80dvh] bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 border-none ring-0 shadow-none focus-visible:ring-0 rounded-none whitespace-pre"
 						/>
 					</div>
 				</div>
