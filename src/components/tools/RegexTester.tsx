@@ -261,7 +261,7 @@ export default function RegexTester() {
 				</div>
 
 				{/* Highlight Overlay Container */}
-				<div className="relative min-h-[160px] rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex">
+				<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex">
 					{/* 行番号ガター */}
 					<div
 						id="regex-line-numbers"
@@ -289,10 +289,12 @@ export default function RegexTester() {
 						</div>
 						{/* Actual Textarea */}
 						<Textarea
+							id="regex-test-string-textarea"
 							value={text}
 							onChange={(e) => setText(e.target.value)}
 							onScroll={handleScroll}
-							className="absolute inset-0 min-h-0 bg-transparent text-foreground font-mono-tool resize-none border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
+							resize="vertical"
+							className="w-full h-[240px] min-h-[240px] max-h-[80dvh] bg-transparent text-foreground font-mono-tool border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
 							spellCheck={false}
 						/>
 					</div>
@@ -315,7 +317,7 @@ export default function RegexTester() {
 
 			<div className="relative">
 				<div
-					className={`grid grid-cols-1 md:grid-cols-2 gap-6 transition-all duration-300 ${!showReplace && 'opacity-30 grayscale blur-[1px] select-none pointer-events-none'}`}
+					className={`grid grid-cols-1 md:grid-cols-2 gap-6 items-start transition-all duration-300 ${!showReplace && 'opacity-30 grayscale blur-[1px] select-none pointer-events-none'}`}
 				>
 					<div>
 						<Label className="text-sm font-medium mb-2 block">置換文字列</Label>
@@ -337,9 +339,11 @@ export default function RegexTester() {
 							<CopyButton text={result.replacedText || ''} />
 						</div>
 						<Textarea
+							id="regex-replace-output-textarea"
 							value={result.replacedText}
 							readOnly
-							className="min-h-[120px] font-mono-tool rounded-xl bg-muted/50"
+							resize="vertical"
+							className="min-h-[240px] max-h-[80dvh] font-mono-tool rounded-xl bg-muted/50"
 						/>
 					</div>
 				</div>
