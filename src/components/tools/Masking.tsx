@@ -200,7 +200,7 @@ export default function Masking() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
 				{/* Input */}
 				<div>
 					<div className="flex items-center justify-between mb-2">
@@ -215,7 +215,7 @@ export default function Masking() {
 							<Trash2 className="h-4 w-4 mr-1" /> クリア
 						</Button>
 					</div>
-					<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex h-[300px]">
+					<div className="relative rounded-xl border border-input shadow-sm focus-within:ring-2 focus-within:ring-primary bg-background overflow-hidden flex">
 						<div
 							id="mask-highlight-overlay"
 							className="absolute inset-0 pointer-events-none p-3 text-sm leading-5 whitespace-pre-wrap break-words font-mono-tool overflow-hidden"
@@ -224,11 +224,13 @@ export default function Masking() {
 							{highlightNodes}
 						</div>
 						<Textarea
+							id="masking-input-textarea"
 							value={text}
 							onChange={(e) => setText(e.target.value)}
 							onScroll={handleScroll}
 							placeholder="山田太郎 (yamada@example.com) 090-1234-5678"
-							className="flex-1 min-h-[300px] h-full bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 resize-none border-none ring-0 shadow-none focus-visible:ring-0 rounded-none relative z-10"
+							resize="vertical"
+							className="flex-1 min-h-[240px] max-h-[80dvh] bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 border-none ring-0 shadow-none focus-visible:ring-0 rounded-none relative z-10"
 							spellCheck={false}
 						/>
 					</div>
@@ -260,9 +262,11 @@ export default function Masking() {
 						</div>
 					</div>
 					<Textarea
+						id="masking-output-textarea"
 						value={maskedText}
 						readOnly
-						className={`min-h-[300px] font-mono-tool text-sm leading-5 rounded-xl bg-card border shadow-sm ${
+						resize="vertical"
+						className={`min-h-[240px] max-h-[80dvh] font-mono-tool text-sm leading-5 rounded-xl bg-card border shadow-sm ${
 							maskedText ? 'shimmer' : ''
 						}`}
 						spellCheck={false}

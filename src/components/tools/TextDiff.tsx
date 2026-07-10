@@ -175,7 +175,7 @@ export default function TextDiff() {
 			</div>
 
 			{/* Two-pane input */}
-			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
 				<div>
 					<div className="flex items-center justify-between mb-2">
 						<Label className="text-sm font-medium">テキストA（変更前）</Label>
@@ -191,6 +191,7 @@ export default function TextDiff() {
 						</Button>
 					</div>
 					<Textarea
+						id="text-diff-textarea-a"
 						value={textA}
 						onChange={(e) => setTextA(e.target.value)}
 						onDrop={(e) => handleDrop(e, 'A')}
@@ -200,7 +201,8 @@ export default function TextDiff() {
 						}}
 						onDragLeave={() => setDragOverA(false)}
 						placeholder="変更前のテキストをここに入力..."
-						className={`min-h-[200px] font-mono-tool rounded-xl focus:ring-2 focus:ring-primary ${
+						resize="vertical"
+						className={`min-h-[240px] max-h-[80dvh] font-mono-tool rounded-xl focus:ring-2 focus:ring-primary ${
 							dragOverA ? 'border-primary border-dashed bg-primary/5' : ''
 						}`}
 					/>
@@ -224,6 +226,7 @@ export default function TextDiff() {
 						</Button>
 					</div>
 					<Textarea
+						id="text-diff-textarea-b"
 						value={textB}
 						onChange={(e) => setTextB(e.target.value)}
 						onDrop={(e) => handleDrop(e, 'B')}
@@ -233,7 +236,8 @@ export default function TextDiff() {
 						}}
 						onDragLeave={() => setDragOverB(false)}
 						placeholder="変更後のテキストをここに入力..."
-						className={`min-h-[200px] font-mono-tool rounded-xl focus:ring-2 focus:ring-primary ${
+						resize="vertical"
+						className={`min-h-[240px] max-h-[80dvh] font-mono-tool rounded-xl focus:ring-2 focus:ring-primary ${
 							dragOverB ? 'border-primary border-dashed bg-primary/5' : ''
 						}`}
 					/>

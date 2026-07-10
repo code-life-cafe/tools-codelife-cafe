@@ -28,4 +28,46 @@ test.describe('Personal Info Masking Tool', () => {
 		await expect(textareas.last()).not.toContainText('test@example.com');
 		await expect(textareas.last()).not.toContainText('090-1234-5678');
 	});
+
+	test('input and output textareas allow vertical resize with min/max height on desktop', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('masking');
+		await toolPage.goto();
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		for (const id of ['#masking-input-textarea', '#masking-output-textarea']) {
+			const textarea = page.locator(id);
+			const style = await textarea.evaluate((el) => {
+				const computed = getComputedStyle(el);
+				return {
+					resize: computed.resize,
+					minHeight: computed.minHeight,
+					maxHeight: computed.maxHeight,
+				};
+			});
+
+			expect(style.resize).toBe('vertical');
+			expect(style.minHeight).toBe('240px');
+			// 80dvh はビューポート高さ 900px の80% = 720px
+			expect(style.maxHeight).toBe('720px');
+		}
+	});
+
+	test('input and output textareas disable resize on mobile viewport', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		const toolPage = createToolPage('masking');
+		await toolPage.goto();
+
+		for (const id of ['#masking-input-textarea', '#masking-output-textarea']) {
+			const resize = await page
+				.locator(id)
+				.evaluate((el) => getComputedStyle(el).resize);
+			expect(resize).toBe('none');
+		}
+	});
 });
