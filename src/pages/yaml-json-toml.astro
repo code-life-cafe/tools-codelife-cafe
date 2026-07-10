@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import YamlJsonTomlTool from '../components/tools/YamlJsonToml.tsx';
+
+const toolEntry = await getEntry('tools', 'yaml-json-toml');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: yaml-json-toml');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <YamlJsonTomlTool client:load />
+</ToolLayout>

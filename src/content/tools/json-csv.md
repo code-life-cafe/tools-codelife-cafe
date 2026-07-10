@@ -19,9 +19,9 @@ faq:
   - q: "CSVの区切り文字がカンマではなくタブ（TSV）の場合も変換できますか？"
     a: "はい。区切り文字オプションでカンマ・タブ・セミコロン等を指定して変換可能です。"
 related:
+  - "yaml-json-toml"
   - "csv-editor"
   - "json-formatter"
-  - "csv-fixer"
 updated: 2026-06-28
 keywords:
   - "JSON"

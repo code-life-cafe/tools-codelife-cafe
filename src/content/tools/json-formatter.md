@@ -20,9 +20,9 @@ faq:
   - q: "圧縮（minify）もできる？"
     a: "はい。「圧縮」ボタンで空白・改行を除去した最小サイズのJSONを出力できます。"
 related:
+  - "yaml-json-toml"
   - "json-csv"
   - "hash"
-  - "base64"
 updated: 2026-06-28
 keywords:
   - "JSON整形"

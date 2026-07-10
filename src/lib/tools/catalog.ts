@@ -95,7 +95,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: '開発ツール',
 		categoryColor: 'border-l-chart-1',
 		keywords: ['JSON', 'フォーマット', 'バリデーション'],
-		related: ['json-csv', 'csv-editor'],
+		related: ['yaml-json-toml', 'json-csv', 'csv-editor'],
 		llmsFull: {
 			useCase: 'JSON文字列の構文チェック、整形（Pretty Print）、minify（圧縮）',
 			inputs: 'jsonString（JSON文字列）',
@@ -436,12 +436,40 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'データ処理',
 		categoryColor: 'border-l-chart-4',
 		keywords: ['JSON', 'CSV', '変換', 'BOM', 'Excel', 'フラット化'],
-		related: ['csv-editor', 'json-formatter', 'csv-fixer'],
+		related: ['csv-editor', 'json-formatter', 'yaml-json-toml'],
 		llmsFull: {
 			useCase: 'JSONオブジェクト配列とCSVテーブルデータの双方向相互変換',
 			inputs: 'data（JSON文字列またはCSVデータ）, mode（json2csv | csv2json）',
 			outputs: '変換後データ文字列',
 			options: 'BOM付与、ヘッダー行有無、区切り文字指定',
+		},
+	},
+	{
+		id: 'yaml-json-toml',
+		title: 'YAML ⇔ JSON ⇔ TOML 変換',
+		description:
+			'YAML・JSON・TOMLを相互変換。構文エラーは行・列付きの日本語で表示。インデント幅・キーソートにも対応。',
+		href: '/yaml-json-toml',
+		icon: 'Shuffle',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'YAML',
+			'JSON',
+			'TOML',
+			'変換',
+			'Kubernetes',
+			'GitHub Actions',
+			'Cargo.toml',
+		],
+		related: ['json-formatter', 'json-csv'],
+		llmsFull: {
+			useCase:
+				'YAML・JSON・TOML間の相互変換、および同一形式内での整形（インデント調整・キーソート）',
+			inputs: 'text（YAML/JSON/TOML文字列）, from/to（変換元・変換先の形式）',
+			outputs:
+				'変換後の文字列、構文エラー時は行・列付きの日本語エラーメッセージ',
+			options: 'インデント幅（2, 4, コンパクト）、キーソートのON/OFF',
 		},
 	},
 	{
