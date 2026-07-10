@@ -128,4 +128,30 @@ test.describe('SQL Formatter Tool', () => {
 		);
 		expect(resize).toBe('none');
 	});
+
+	test('restores full-size layout from a shared settings URL', async ({
+		page,
+		context,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+
+		const container = page.locator('#tool-layout-container');
+		await expect(container).not.toHaveClass(/max-w-full/);
+
+		// Enable full-size mode and copy the share URL
+		await page.getByRole('button', { name: 'フルサイズ' }).click();
+		await expect(container).toHaveClass(/max-w-full/);
+
+		await page.getByRole('button', { name: '設定を共有' }).click();
+		const shareUrl = await page.evaluate(() => navigator.clipboard.readText());
+
+		// Open the shared URL in a fresh page and confirm full-size is restored
+		const newPage = await context.newPage();
+		await newPage.goto(shareUrl);
+		await expect(newPage.locator('#tool-layout-container')).toHaveClass(
+			/max-w-full/,
+		);
+		await newPage.close();
+	});
 });

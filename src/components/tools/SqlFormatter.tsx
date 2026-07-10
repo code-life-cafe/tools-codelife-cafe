@@ -84,11 +84,12 @@ export default function SqlFormatter() {
 			indent: '2spaces' as IndentStyle,
 			uppercase: true,
 			compress: false,
+			isExpanded: false,
 		},
 	);
-	const { autoFormat, dialect, indent, uppercase, compress } = settings;
+	const { autoFormat, dialect, indent, uppercase, compress, isExpanded } =
+		settings;
 	const [shareCopied, setShareCopied] = useState(false);
-	const [isExpanded, setIsExpanded] = useState(false);
 
 	const [manualOutput, setManualOutput] = useState('');
 	const [manualError, setManualError] = useState<string | null>(null);
@@ -148,20 +149,25 @@ export default function SqlFormatter() {
 		setTimeout(() => setShareCopied(false), 2000);
 	}, [generateShareUrl]);
 
-	const toggleExpand = () => {
-		const newExpanded = !isExpanded;
-		setIsExpanded(newExpanded);
+	const applyLayoutWidth = useCallback((expanded: boolean) => {
 		const container = document.getElementById('tool-layout-container');
-		if (container) {
-			if (newExpanded) {
-				container.classList.remove('max-w-[800px]', 'xl:max-w-5xl');
-				container.classList.add('max-w-full');
-			} else {
-				container.classList.remove('max-w-full');
-				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
-			}
+		if (!container) return;
+		if (expanded) {
+			container.classList.remove('max-w-[800px]', 'xl:max-w-5xl');
+			container.classList.add('max-w-full');
+		} else {
+			container.classList.remove('max-w-full');
+			container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
 		}
+	}, []);
+
+	const toggleExpand = () => {
+		updateSettings({ isExpanded: !isExpanded });
 	};
+
+	useEffect(() => {
+		applyLayoutWidth(isExpanded);
+	}, [isExpanded, applyLayoutWidth]);
 
 	useEffect(() => {
 		return () => {
