@@ -109,7 +109,8 @@ export default function UrlEncoder() {
 								? 'https://example.com/検索?q=東京 天気\nまたは\n検索クエリ'
 								: 'https://example.com/%E6%A4%9C%E7%B4%A2?q=%E6%9D%B1%E4%BA%AC%20%E5%A4%A9%E6%B0%97'
 						}
-						className="min-h-[240px] h-full font-mono-tool resize-y rounded-xl focus:ring-2 focus:ring-primary/50 text-base"
+						resize="vertical"
+						className="min-h-[240px] h-full font-mono-tool rounded-xl focus:ring-2 focus:ring-primary/50 text-base"
 					/>
 				</div>
 
@@ -164,7 +165,8 @@ export default function UrlEncoder() {
 						value={textResult.error ? textResult.error : textResult.output}
 						readOnly
 						placeholder="変換結果がここに表示されます..."
-						className={`min-h-[240px] h-full font-mono-tool resize-y rounded-xl bg-muted/30 text-base ${
+						resize="vertical"
+						className={`min-h-[240px] h-full font-mono-tool rounded-xl bg-muted/30 text-base ${
 							textResult.error
 								? 'text-red-500 font-bold border-red-200 bg-red-50 dark:bg-red-950/20'
 								: ''

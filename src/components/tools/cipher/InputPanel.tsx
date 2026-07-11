@@ -26,7 +26,8 @@ export function InputPanel({
 	return (
 		<div className="relative flex flex-col h-full min-h-[200px]">
 			<Textarea
-				className="flex-1 font-mono resize-y p-4 text-base"
+				resize="vertical"
+				className="flex-1 font-mono p-4 text-base"
 				placeholder={placeholders[algorithm]}
 				value={value}
 				onChange={(e) => onChange(e.target.value)}

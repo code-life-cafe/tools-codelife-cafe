@@ -7,6 +7,7 @@ import { FileText, Loader2, Upload } from 'lucide-react';
 import Papa from 'papaparse';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { parseCsvColumn, processBulk } from '@/lib/phone-formatter/bulk';
 import type { BulkResult } from '@/lib/phone-formatter/types';
 import { validateCsvFile } from '@/lib/phone-formatter/validation';
@@ -238,11 +239,12 @@ export default function BulkInput({ onBulkResult }: BulkInputProps) {
 			{inputMode === 'text' && (
 				<div className="space-y-2">
 					<div className="relative">
-						<textarea
+						<Textarea
 							value={textValue}
 							onChange={(e) => setTextValue(e.target.value)}
 							placeholder={`1行に1つの電話番号を入力\n03-1234-5678\n090-1234-5678\n+81312345678`}
-							className="w-full min-h-[200px] rounded-lg border border-border bg-background px-4 py-3 text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-ring/20 placeholder:text-muted-foreground"
+							resize="vertical"
+							className="min-h-[200px] rounded-lg border-border bg-background px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring/20 placeholder:text-muted-foreground"
 							aria-label="電話番号一覧（1行1件）"
 						/>
 						{lineCount > 0 && (

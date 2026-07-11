@@ -9,7 +9,8 @@ export function OutputPanel({ value }: OutputPanelProps) {
 	return (
 		<div className="relative flex flex-col h-full min-h-[200px]">
 			<Textarea
-				className="flex-1 font-mono resize-y p-4 text-base bg-muted/50 transition-opacity duration-200"
+				resize="vertical"
+				className="flex-1 font-mono p-4 text-base bg-muted/50 transition-opacity duration-200"
 				style={{ opacity: value ? 1 : 0.7 }}
 				readOnly
 				placeholder="変換結果がここに表示されます"

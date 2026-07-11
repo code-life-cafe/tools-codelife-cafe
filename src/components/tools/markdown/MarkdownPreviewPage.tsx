@@ -217,7 +217,8 @@ function MarkdownEditor({
 			value={value}
 			onChange={(e) => onChange(e.target.value)}
 			placeholder="# 見出し&#10;&#10;Markdownを入力すると右側にプレビューが表示されます。"
-			className="min-h-96 font-mono text-sm resize-y"
+			resize="vertical"
+			className="min-h-96 font-mono text-sm"
 			aria-label="Markdown入力"
 		/>
 	);
