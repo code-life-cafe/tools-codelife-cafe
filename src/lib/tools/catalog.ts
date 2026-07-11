@@ -1041,6 +1041,35 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'uuid',
+		title: 'UUID / ULID 生成ツール',
+		description:
+			'UUID v4・UUID v7・ULID・nanoidを一括生成。表示形式変換、種類判定、時刻抽出にも対応。',
+		href: '/uuid',
+		icon: 'IdCard',
+		category: '生成ツール',
+		categoryColor: 'border-l-chart-3',
+		keywords: [
+			'UUID',
+			'ULID',
+			'nanoid',
+			'UUID v4',
+			'UUID v7',
+			'ID生成',
+			'一括生成',
+		],
+		related: ['hash', 'dummy-data', 'jwt-decoder'],
+		llmsFull: {
+			useCase:
+				'UUID v4 / v7、ULID、nanoidの一括生成、表示形式変換、種類判定、埋め込み時刻の抽出',
+			inputs:
+				'kind（uuid-v4 | uuid-v7 | ulid | nanoid）, count（生成件数 1-1000）、または判定対象のID文字列',
+			outputs:
+				'生成されたID一覧、または { kind: string, timestamp?: string } の判定結果',
+			options: 'UUIDの大文字小文字・ハイフン有無の表示切替',
+		},
+	},
+	{
 		id: 'cron-checker',
 		title: 'cron式チェッカー',
 		description:

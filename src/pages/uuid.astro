@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import { IdGeneratorPage } from '../components/tools/id-generator/IdGeneratorPage';
+
+const toolEntry = await getEntry('tools', 'uuid');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: uuid');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <IdGeneratorPage client:load />
+</ToolLayout>
