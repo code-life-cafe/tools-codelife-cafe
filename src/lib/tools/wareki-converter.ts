@@ -687,3 +687,143 @@ export function formatResultForCopy(result: ConversionResult): string {
 	}
 	return lines.join('\n');
 }
+
+/** 早見表の初期表示範囲（入力年の前後年数）。 */
+export const DEFAULT_TABLE_RANGE_YEARS = 5;
+
+/** 早見表で選択できる表示範囲（入力年の前後年数）。 */
+export const TABLE_RANGE_YEAR_OPTIONS = [3, 5, 10] as const;
+
+export type TableRangeYears = (typeof TABLE_RANGE_YEAR_OPTIONS)[number];
+
+export interface ConversionTableRow {
+	westernYear: number;
+	/** 入力年（基準年）と一致する行か。表示時のハイライトに使う。 */
+	isInputYear: boolean;
+	result: ConversionResult;
+}
+
+export interface ConversionTableResult {
+	centerWesternYear: number;
+	rangeYears: number;
+	rows: ConversionTableRow[];
+	/** 各行の notices を重複排除して集約したもの。表下部の注意表示・コピーの両方で使う。 */
+	notices: string[];
+	error?: string;
+}
+
+function emptyTableResult(
+	rangeYears: number,
+	message: string,
+): ConversionTableResult {
+	return {
+		centerWesternYear: 0,
+		rangeYears,
+		rows: [],
+		notices: [],
+		error: message,
+	};
+}
+
+/**
+ * 入力年（西暦）を中心に、前後 rangeYears 年を含む早見表を生成する。
+ * 生年月日（birthMonth/birthDay）は基準年（入力年）の行にのみ適用し、その年齢は
+ * 満年齢（exact）または不可（unavailable）になる。他の行は年単位換算のため、
+ * 年齢は常に範囲（range）で表示する。
+ */
+export function buildConversionTable(
+	centerWesternYear: number,
+	referenceDate: Date | string,
+	rangeYears: number,
+	birthMonth?: number,
+	birthDay?: number,
+): ConversionTableResult {
+	const centerResult = convertWesternYearToResult(
+		centerWesternYear,
+		referenceDate,
+		birthMonth,
+		birthDay,
+	);
+
+	if (centerResult.error) {
+		return emptyTableResult(rangeYears, centerResult.error);
+	}
+
+	const rows: ConversionTableRow[] = [];
+	const noticeSet = new Set<string>();
+
+	for (
+		let year = centerWesternYear - rangeYears;
+		year <= centerWesternYear + rangeYears;
+		year++
+	) {
+		if (year < 1) continue;
+		const isInputYear = year === centerWesternYear;
+		const result = isInputYear
+			? centerResult
+			: convertWesternYearToResult(year, referenceDate);
+		for (const notice of result.notices) noticeSet.add(notice);
+		rows.push({ westernYear: year, isInputYear, result });
+	}
+
+	return {
+		centerWesternYear,
+		rangeYears,
+		rows,
+		notices: [...noticeSet],
+	};
+}
+
+/**
+ * 和暦（元号ID・元号年）を起点に早見表を生成する。元号年の範囲外エラーや、
+ * 元号と月日の組み合わせが在位期間外であるエラーは、単年変換と同じ検証を経由する。
+ */
+export function buildConversionTableFromWareki(
+	eraId: string,
+	eraYear: number,
+	referenceDate: Date | string,
+	rangeYears: number,
+	birthMonth?: number,
+	birthDay?: number,
+): ConversionTableResult {
+	const centerResult = convertWarekiToResult(
+		eraId,
+		eraYear,
+		referenceDate,
+		birthMonth,
+		birthDay,
+	);
+
+	if (centerResult.error) {
+		return emptyTableResult(rangeYears, centerResult.error);
+	}
+
+	return buildConversionTable(
+		centerResult.westernYear,
+		referenceDate,
+		rangeYears,
+		birthMonth,
+		birthDay,
+	);
+}
+
+/**
+ * 早見表と同一の結果モデルから、コピー用テキスト（TSV形式）を生成する。
+ * 表示・コピーの不一致を防ぐため、必ずこの関数経由で文字列化する。
+ */
+export function formatTableForCopy(table: ConversionTableResult): string {
+	const header = ['和暦', '西暦', '干支', '年齢'].join('\t');
+	const rows = table.rows.map((row) =>
+		[
+			formatEraColumnText(row.result),
+			`${row.westernYear}年${row.isInputYear ? '（基準年）' : ''}`,
+			`${row.result.zodiac}年`,
+			formatAgeColumnText(row.result),
+		].join('\t'),
+	);
+	const lines = [header, ...rows];
+	for (const notice of table.notices) {
+		lines.push(`注意: ${notice}`);
+	}
+	return lines.join('\n');
+}

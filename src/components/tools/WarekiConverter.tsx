@@ -2,6 +2,7 @@ import { ArrowLeftRight, Calendar } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +22,21 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
-	type ConversionResult,
-	convertWarekiToResult,
-	convertWesternYearToResult,
+	buildConversionTable,
+	buildConversionTableFromWareki,
+	type ConversionTableResult,
+	DEFAULT_TABLE_RANGE_YEARS,
 	formatAgeColumnText,
 	formatEraColumnText,
-	formatResultForCopy,
+	formatTableForCopy,
 	normalizeWarekiInput,
+	TABLE_RANGE_YEAR_OPTIONS,
+	type TableRangeYears,
 } from '@/lib/tools/wareki-converter';
+import { cn } from '@/lib/utils';
 
 type Direction = 'toWareki' | 'toSeireki';
 
@@ -96,6 +102,9 @@ export default function WarekiConverter() {
 	const referenceDate = useMemo(() => new Date(), []);
 
 	const [direction, setDirection] = useState<Direction>('toWareki');
+	const [rangeYears, setRangeYears] = useState<TableRangeYears>(
+		DEFAULT_TABLE_RANGE_YEARS,
+	);
 
 	// State for Seireki -> Wareki
 	const [seirekiYearInput, setSeirekiYearInput] = useState<string>(
@@ -119,35 +128,42 @@ export default function WarekiConverter() {
 		if (value === NO_MONTH_DAY) setWarekiDay(NO_MONTH_DAY);
 	};
 
-	const { result, error } = useMemo((): {
-		result: ConversionResult | null;
+	const { table, error } = useMemo((): {
+		table: ConversionTableResult | null;
 		error: string | null;
 	} => {
 		if (direction === 'toWareki') {
 			const year = Number(seirekiYearInput);
 			if (seirekiYearInput.trim() === '' || Number.isNaN(year)) {
-				return { result: null, error: '西暦年を入力してください' };
+				return { table: null, error: '西暦年を入力してください' };
 			}
 			const month = seirekiMonth === NO_MONTH_DAY ? undefined : seirekiMonth;
 			const day = seirekiDay === NO_MONTH_DAY ? undefined : seirekiDay;
-			const r = convertWesternYearToResult(year, referenceDate, month, day);
-			return { result: r, error: r.error ?? null };
+			const t = buildConversionTable(
+				year,
+				referenceDate,
+				rangeYears,
+				month,
+				day,
+			);
+			return { table: t, error: t.error ?? null };
 		}
 
 		const normalized = normalizeWarekiInput(warekiInput);
 		if (!normalized.ok) {
-			return { result: null, error: normalized.error };
+			return { table: null, error: normalized.error };
 		}
 		const month = warekiMonth === NO_MONTH_DAY ? undefined : warekiMonth;
 		const day = warekiDay === NO_MONTH_DAY ? undefined : warekiDay;
-		const r = convertWarekiToResult(
+		const t = buildConversionTableFromWareki(
 			normalized.eraId,
 			normalized.eraYear,
 			referenceDate,
+			rangeYears,
 			month,
 			day,
 		);
-		return { result: r, error: r.error ?? null };
+		return { table: t, error: t.error ?? null };
 	}, [
 		direction,
 		seirekiYearInput,
@@ -156,19 +172,20 @@ export default function WarekiConverter() {
 		warekiInput,
 		warekiMonth,
 		warekiDay,
+		rangeYears,
 		referenceDate,
 	]);
 
 	const copyText = useMemo(() => {
-		if (!result || error) return '';
-		return formatResultForCopy(result);
-	}, [result, error]);
+		if (!table || error) return '';
+		return formatTableForCopy(table);
+	}, [table, error]);
 
 	useEffect(() => {
-		if (result && !error) {
+		if (table && !error) {
 			trackRun();
 		}
-	}, [result, error, trackRun]);
+	}, [table, error, trackRun]);
 
 	return (
 		<div className="space-y-6">
@@ -239,12 +256,38 @@ export default function WarekiConverter() {
 				入力内容はサーバーへ送信しません。処理はブラウザ内で完結します。
 			</p>
 
+			{/* Range selector */}
+			<div className="flex items-center gap-3 flex-wrap">
+				<Label className="text-sm font-medium whitespace-nowrap">
+					表示範囲
+				</Label>
+				<Tabs
+					value={String(rangeYears)}
+					onValueChange={(v) => setRangeYears(Number(v) as TableRangeYears)}
+				>
+					<TabsList>
+						{TABLE_RANGE_YEAR_OPTIONS.map((option) => (
+							<TabsTrigger key={option} value={String(option)}>
+								±{option}年
+							</TabsTrigger>
+						))}
+					</TabsList>
+				</Tabs>
+			</div>
+
 			{/* Result */}
 			<Card className="rounded-xl overflow-hidden border-2">
-				<div className="bg-muted/50 p-4 border-b flex justify-between items-center">
+				<div className="bg-muted/50 p-4 border-b flex justify-between items-center gap-2 flex-wrap">
 					<div className="flex items-center gap-2 text-foreground font-medium">
 						<Calendar className="h-4 w-4 text-primary" />
-						<span>変換結果</span>
+						<span>
+							変換結果（早見表）
+							{table && !error && (
+								<span className="ml-1 font-normal text-sm text-muted-foreground">
+									{table.centerWesternYear}年を中心に前後{table.rangeYears}年
+								</span>
+							)}
+						</span>
 					</div>
 					{copyText && <CopyButton text={copyText} />}
 				</div>
@@ -253,11 +296,16 @@ export default function WarekiConverter() {
 						<div className="text-center text-red-500 py-4 font-medium">
 							{error}
 						</div>
-					) : result ? (
+					) : table ? (
 						<>
-							{/* PC: 4-column table */}
+							{/* PC: 4-column table listing multiple years */}
 							<div className="hidden sm:block">
 								<Table>
+									<caption className="sr-only">
+										{table.centerWesternYear}
+										年を中心とした前後{table.rangeYears}
+										年の和暦・西暦・干支・年齢の早見表。基準年の行はハイライト表示されています。
+									</caption>
 									<TableHeader>
 										<TableRow>
 											<TableHead>和暦</TableHead>
@@ -267,60 +315,90 @@ export default function WarekiConverter() {
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										<TableRow>
-											<TableCell className="whitespace-pre-line font-bold text-foreground">
-												{formatEraColumnText(result).replace(/ \/ /g, '\n')}
-											</TableCell>
-											<TableCell className="font-bold text-foreground">
-												{result.westernYear}年
-											</TableCell>
-											<TableCell className="font-bold text-foreground">
-												{result.zodiac}年
-											</TableCell>
-											<TableCell className="font-bold text-foreground">
-												{formatAgeColumnText(result)}
-											</TableCell>
-										</TableRow>
+										{table.rows.map((row) => (
+											<TableRow
+												key={row.westernYear}
+												data-testid="wareki-row"
+												data-year={row.westernYear}
+												className={cn(
+													row.isInputYear &&
+														'bg-primary/10 hover:bg-primary/15',
+												)}
+											>
+												<TableCell className="whitespace-pre-line font-bold text-foreground">
+													{formatEraColumnText(row.result).replace(
+														/ \/ /g,
+														'\n',
+													)}
+												</TableCell>
+												<TableCell className="font-bold text-foreground">
+													<span className="inline-flex items-center gap-2">
+														{row.westernYear}年
+														{row.isInputYear && (
+															<Badge variant="default">基準年</Badge>
+														)}
+													</span>
+												</TableCell>
+												<TableCell className="font-bold text-foreground">
+													{row.result.zodiac}年
+												</TableCell>
+												<TableCell className="font-bold text-foreground">
+													{formatAgeColumnText(row.result)}
+												</TableCell>
+											</TableRow>
+										))}
 									</TableBody>
 								</Table>
 							</div>
 
-							{/* Mobile: 2-column card table */}
-							<div className="sm:hidden">
-								<Table>
-									<TableBody>
-										<TableRow>
-											<TableHead className="w-24">和暦</TableHead>
-											<TableCell className="whitespace-pre-line font-bold text-foreground">
-												{formatEraColumnText(result).replace(/ \/ /g, '\n')}
-											</TableCell>
-										</TableRow>
-										<TableRow>
-											<TableHead className="w-24">西暦</TableHead>
-											<TableCell className="font-bold text-foreground">
-												{result.westernYear}年
-											</TableCell>
-										</TableRow>
-										<TableRow>
-											<TableHead className="w-24">干支</TableHead>
-											<TableCell className="font-bold text-foreground">
-												{result.zodiac}年
-											</TableCell>
-										</TableRow>
-										<TableRow>
-											<TableHead className="w-24">年齢</TableHead>
-											<TableCell className="font-bold text-foreground">
-												{formatAgeColumnText(result)}
-											</TableCell>
-										</TableRow>
-									</TableBody>
-								</Table>
+							{/* Mobile: card list to avoid horizontal scroll */}
+							<div className="sm:hidden space-y-2">
+								{table.rows.map((row) => (
+									<div
+										key={row.westernYear}
+										data-testid="wareki-row"
+										data-year={row.westernYear}
+										className={cn(
+											'rounded-xl border p-3 space-y-2',
+											row.isInputYear && 'border-primary bg-primary/5',
+										)}
+									>
+										<div className="flex items-center justify-between">
+											<span className="font-bold text-foreground">
+												{row.westernYear}年
+											</span>
+											{row.isInputYear && (
+												<Badge variant="default">基準年</Badge>
+											)}
+										</div>
+										<div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+											<div className="col-span-2">
+												<span className="text-muted-foreground">和暦: </span>
+												<span className="font-medium text-foreground">
+													{formatEraColumnText(row.result)}
+												</span>
+											</div>
+											<div>
+												<span className="text-muted-foreground">干支: </span>
+												<span className="font-medium text-foreground">
+													{row.result.zodiac}年
+												</span>
+											</div>
+											<div>
+												<span className="text-muted-foreground">年齢: </span>
+												<span className="font-medium text-foreground">
+													{formatAgeColumnText(row.result)}
+												</span>
+											</div>
+										</div>
+									</div>
+								))}
 							</div>
 
-							{result.notices.length > 0 && (
+							{table.notices.length > 0 && (
 								<Alert>
 									<AlertDescription>
-										{result.notices.map((notice) => (
+										{table.notices.map((notice) => (
 											<p key={notice}>{notice}</p>
 										))}
 									</AlertDescription>

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	buildConversionTable,
+	buildConversionTableFromWareki,
 	calculateAge,
 	convertWarekiToResult,
 	convertWesternYearToResult,
 	ERA_DEFINITIONS,
+	formatAgeColumnText,
 	formatEraColumnText,
 	formatResultForCopy,
+	formatTableForCopy,
 	getEraCandidates,
 	getZodiac,
 	isValidDate,
@@ -602,4 +606,133 @@ test('西暦年は安全な整数のみ受け付ける', () => {
 
 test('西暦年が整数であれば干支はundefinedにならない', () => {
 	assert.strictEqual(convertWesternYearToResult(2000, REF_DATE).zodiac, '辰');
+});
+
+// --- 早見表（複数年テーブル） -----------------------------------------------
+
+test('早見表: 2009年を中心に±5年（計11行）が生成され、基準年の行がisInputYearになる', () => {
+	const table = buildConversionTable(2009, REF_DATE, 5);
+	assert.strictEqual(table.error, undefined);
+	assert.strictEqual(table.rows.length, 11);
+	assert.deepStrictEqual(
+		table.rows.map((r) => r.westernYear),
+		[2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014],
+	);
+	const inputRows = table.rows.filter((r) => r.isInputYear);
+	assert.strictEqual(inputRows.length, 1);
+	assert.strictEqual(inputRows[0]?.westernYear, 2009);
+});
+
+test('早見表: 表示範囲を変更すると行数が変わる（±3年=7行、±10年=21行）', () => {
+	assert.strictEqual(buildConversionTable(2020, REF_DATE, 3).rows.length, 7);
+	assert.strictEqual(buildConversionTable(2020, REF_DATE, 10).rows.length, 21);
+});
+
+test('早見表: 1868年を含む範囲は慶応4年/明治元年の併記行を含む', () => {
+	const table = buildConversionTable(1868, REF_DATE, 3);
+	const row1868 = table.rows.find((r) => r.westernYear === 1868);
+	assert.ok(row1868);
+	assert.strictEqual(formatEraColumnText(row1868.result), '慶応4年 / 明治元年');
+});
+
+test('早見表: 2019年を含む範囲は平成31年/令和元年の併記行を含む', () => {
+	const table = buildConversionTable(2019, REF_DATE, 3);
+	const row2019 = table.rows.find((r) => r.westernYear === 2019);
+	assert.ok(row2019);
+	assert.strictEqual(
+		formatEraColumnText(row2019.result),
+		'平成31年 / 令和元年',
+	);
+});
+
+test('早見表: 1843年以前を含む範囲では和暦欄が「対応元号なし」になり、西暦・干支は表示される', () => {
+	const table = buildConversionTable(1844, REF_DATE, 3);
+	const row1843 = table.rows.find((r) => r.westernYear === 1843);
+	assert.ok(row1843);
+	assert.strictEqual(formatEraColumnText(row1843.result), '対応元号なし');
+	assert.strictEqual(row1843.result.westernYear, 1843);
+	assert.strictEqual(row1843.result.zodiac, getZodiac(1843));
+});
+
+test('早見表: 中心年から前が1年未満になる範囲は1年未満の行を含まない', () => {
+	const table = buildConversionTable(3, REF_DATE, 5);
+	assert.ok(table.rows.every((r) => r.westernYear >= 1));
+	assert.strictEqual(table.rows[0]?.westernYear, 1);
+});
+
+test('早見表: 誕生日を指定すると基準年の行のみ満年齢になり、他の行は範囲のまま', () => {
+	const table = buildConversionTable(1970, REF_DATE, 2, 7, 12);
+	const inputRow = table.rows.find((r) => r.isInputYear);
+	assert.ok(inputRow);
+	assert.strictEqual(inputRow.result.age.kind, 'exact');
+
+	const otherRows = table.rows.filter((r) => !r.isInputYear);
+	assert.ok(otherRows.length > 0);
+	for (const row of otherRows) {
+		assert.strictEqual(row.result.age.kind, 'range');
+	}
+});
+
+test('早見表: 誕生日未指定では全行が範囲年齢になる', () => {
+	const table = buildConversionTable(1970, REF_DATE, 2);
+	for (const row of table.rows) {
+		assert.strictEqual(row.result.age.kind, 'range');
+	}
+});
+
+test('早見表: 西暦0年など無効な中心年はエラーになりrowsが空になる', () => {
+	const table = buildConversionTable(0, REF_DATE, 5);
+	assert.ok(table.error);
+	assert.deepStrictEqual(table.rows, []);
+});
+
+test('早見表: 和暦からのテーブル生成（buildConversionTableFromWareki）', () => {
+	const table = buildConversionTableFromWareki('reiwa', 1, REF_DATE, 3);
+	assert.strictEqual(table.error, undefined);
+	assert.strictEqual(table.centerWesternYear, 2019);
+	const inputRow = table.rows.find((r) => r.isInputYear);
+	assert.strictEqual(inputRow?.westernYear, 2019);
+});
+
+test('早見表: 和暦の範囲外元号年はエラーになりrowsが空になる', () => {
+	const table = buildConversionTableFromWareki('showa', 100, REF_DATE, 5);
+	assert.ok(table.error);
+	assert.deepStrictEqual(table.rows, []);
+});
+
+test('早見表のコピー結果はTSVヘッダー・基準年マーカー・注意事項を含み表示内容と一致する', () => {
+	const table = buildConversionTable(1868, REF_DATE, 1);
+	const copyText = formatTableForCopy(table);
+	const lines = copyText.split('\n');
+
+	assert.strictEqual(lines[0], '和暦\t西暦\t干支\t年齢');
+	const row1867 = table.rows.find((r) => r.westernYear === 1867);
+	assert.ok(row1867);
+	assert.strictEqual(
+		lines[1],
+		`慶応3年\t1867年\t${getZodiac(1867)}年\t${formatAgeColumnText(row1867.result)}`,
+	);
+	assert.ok(
+		lines.includes('慶応4年 / 明治元年\t1868年（基準年）\t辰年\t157〜158歳'),
+	);
+	assert.ok(
+		lines.includes(
+			'注意: 年単位の対応候補です。旧暦月日を新暦月日に変換した結果ではありません。',
+		),
+	);
+
+	for (const row of table.rows) {
+		const expectedCols = [
+			formatEraColumnText(row.result),
+			`${row.westernYear}年${row.isInputYear ? '（基準年）' : ''}`,
+			`${row.result.zodiac}年`,
+		];
+		const matchingLine = lines.find((line) =>
+			expectedCols.every((col) => line.includes(col)),
+		);
+		assert.ok(
+			matchingLine,
+			`${row.westernYear}年の行がコピー結果に含まれること`,
+		);
+	}
 });

@@ -1,4 +1,20 @@
+import type { Page } from '@playwright/test';
+import {
+	buildConversionTable,
+	DEFAULT_TABLE_RANGE_YEARS,
+	formatTableForCopy,
+} from '../../src/lib/tools/wareki-converter';
 import { expect, test } from './fixtures/base';
+
+/**
+ * 早見表の行は PC（table）とモバイル（card）で別DOM構造になっているため、
+ * data-year属性と :visible で現在のビューポートに表示されている行だけを取得する。
+ */
+function rowByYear(page: Page, year: number) {
+	return page.locator(
+		`[data-testid="wareki-row"][data-year="${year}"]:visible`,
+	);
+}
 
 test.describe('Wareki Converter Tool', () => {
 	test('should load the page correctly', async ({ createToolPage }) => {
@@ -20,7 +36,7 @@ test.describe('Wareki Converter Tool', () => {
 		await seirekiInput.fill('2000');
 
 		// Verify output (平成12年) in the result table
-		await expect(page.getByRole('cell', { name: '平成12年' })).toBeVisible();
+		await expect(rowByYear(page, 2000)).toContainText('平成12年');
 
 		// 2. Switch direction to Wareki -> Seireki
 		await page.getByRole('switch').click();
@@ -29,8 +45,47 @@ test.describe('Wareki Converter Tool', () => {
 		const warekiInput = page.locator('input[type="text"]');
 		await warekiInput.fill('令和2年');
 
-		// Verify output (2020年)
-		await expect(page.getByRole('cell', { name: '2020年' })).toBeVisible();
+		// Verify output (2020年、基準年としてハイライトされる行)
+		const row2020 = rowByYear(page, 2020);
+		await expect(row2020).toContainText('2020年');
+		await expect(row2020.getByText('基準年', { exact: true })).toBeVisible();
+	});
+
+	test('should show a multi-year lookup table centered on the input year', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('2009');
+
+		// 初期表示は入力年±5年（計11行）
+		for (const year of [2004, 2006, 2009, 2012, 2014]) {
+			await expect(rowByYear(page, year)).toBeVisible();
+		}
+		await expect(rowByYear(page, 2003)).toHaveCount(0);
+		await expect(rowByYear(page, 2015)).toHaveCount(0);
+	});
+
+	test('should change the displayed row count when the range is changed', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('2020');
+
+		await page.getByRole('tab', { name: '±3年' }).click();
+		await expect(rowByYear(page, 2017)).toBeVisible();
+		await expect(rowByYear(page, 2013)).toHaveCount(0);
+
+		await page.getByRole('tab', { name: '±10年' }).click();
+		await expect(rowByYear(page, 2013)).toBeVisible();
+		await expect(rowByYear(page, 2010)).toBeVisible();
 	});
 
 	test('should show pre-Meiji era results with a caveat notice', async ({
@@ -44,7 +99,7 @@ test.describe('Wareki Converter Tool', () => {
 		const warekiInput = page.locator('input[type="text"]');
 		await warekiInput.fill('慶応3年');
 
-		await expect(page.getByRole('cell', { name: '1867年' })).toBeVisible();
+		await expect(rowByYear(page, 1867)).toContainText('1867年');
 		await expect(
 			page.getByText(
 				'年単位の対応候補です。旧暦月日を新暦月日に変換した結果ではありません。',
@@ -63,12 +118,40 @@ test.describe('Wareki Converter Tool', () => {
 		const seirekiInput = page.locator('input[type="number"]');
 		await seirekiInput.fill('1868');
 
-		await expect(
-			page.getByRole('cell', { name: '慶応4年 明治元年' }).first(),
-		).toBeVisible();
+		const row1868 = rowByYear(page, 1868);
+		await expect(row1868).toContainText('慶応4年');
+		await expect(row1868).toContainText('明治元年');
 	});
 
-	test('should copy the exact result text matching the on-screen display', async ({
+	test('should show multiple era candidates for the 平成→令和 transition year', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('2019');
+
+		const row2019 = rowByYear(page, 2019);
+		await expect(row2019).toContainText('平成31年');
+		await expect(row2019).toContainText('令和元年');
+	});
+
+	test('should display "対応元号なし" for years before the supported range', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('1844');
+
+		await expect(rowByYear(page, 1843)).toContainText('対応元号なし');
+	});
+
+	test('should copy the exact multi-year table text matching the on-screen display', async ({
 		page,
 		context,
 		createToolPage,
@@ -82,9 +165,9 @@ test.describe('Wareki Converter Tool', () => {
 		const seirekiInput = page.locator('input[type="number"]');
 		await seirekiInput.fill('1868');
 
-		await expect(
-			page.getByRole('cell', { name: '慶応4年 明治元年' }).first(),
-		).toBeVisible();
+		const row1868 = rowByYear(page, 1868);
+		await expect(row1868).toContainText('慶応4年');
+		await expect(row1868).toContainText('明治元年');
 
 		await page.getByRole('button', { name: 'コピー' }).click();
 		await expect(
@@ -95,20 +178,13 @@ test.describe('Wareki Converter Tool', () => {
 			navigator.clipboard.readText(),
 		);
 
-		// 年齢範囲はテスト実行日に依存するため、画面表示と同じ計算式で期待値を組み立てる
-		const now = new Date();
-		const min = now.getFullYear() - 1868 - 1;
-		const max = now.getFullYear() - 1868;
-
-		expect(clipboardText).toBe(
-			[
-				'和暦: 慶応4年 / 明治元年',
-				'西暦: 1868年',
-				'干支: 辰年',
-				`年齢: ${min}〜${max}歳`,
-				'注意: 年単位の対応候補です。旧暦月日を新暦月日に変換した結果ではありません。',
-			].join('\n'),
+		// 年齢範囲はテスト実行日に依存するため、画面表示と同じロジックで期待値を組み立てる
+		const table = buildConversionTable(
+			1868,
+			new Date(),
+			DEFAULT_TABLE_RANGE_YEARS,
 		);
+		expect(clipboardText).toBe(formatTableForCopy(table));
 	});
 
 	test('should reject a non-existent date', async ({
