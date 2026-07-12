@@ -397,3 +397,209 @@ test('元号マスタはsequence昇順で12件定義されている', () => {
 		[...sequences].sort((a, b) => a - b),
 	);
 });
+
+// --- 回帰: 不存在日付のエラー処理 -----------------------------------------
+
+test('不存在日付: 西暦→和暦で2023年2月31日はエラーになり、結果を返さない', () => {
+	const result = convertWesternYearToResult(2023, REF_DATE, 2, 31);
+	assert.strictEqual(
+		result.error,
+		'存在しない日付です。月・日の入力内容を確認してください。',
+	);
+	assert.deepStrictEqual(result.eraCandidates, []);
+});
+
+test('不存在日付: 和暦→西暦で令和5年2月31日はエラーになる', () => {
+	const result = convertWarekiToResult('reiwa', 5, REF_DATE, 2, 31);
+	assert.strictEqual(
+		result.error,
+		'存在しない日付です。月・日の入力内容を確認してください。',
+	);
+});
+
+test('不存在日付: 2024年2月29日は成功、2023年2月29日と4月31日はエラー', () => {
+	assert.strictEqual(
+		convertWesternYearToResult(2024, REF_DATE, 2, 29).error,
+		undefined,
+	);
+	assert.ok(convertWesternYearToResult(2023, REF_DATE, 2, 29).error);
+	assert.ok(convertWesternYearToResult(2023, REF_DATE, 4, 31).error);
+});
+
+// --- 回帰: 明治以降の改元日判定 -------------------------------------------
+
+test('改元日判定: 月日付き入力は実際の改元日で元号を1件に確定する', () => {
+	const cases: Array<[number, number, number, string]> = [
+		[1912, 7, 29, '明治45年'],
+		[1912, 7, 30, '大正元年'],
+		[1926, 12, 24, '大正15年'],
+		[1926, 12, 25, '昭和元年'],
+		[1989, 1, 7, '昭和64年'],
+		[1989, 1, 8, '平成元年'],
+		[2019, 4, 30, '平成31年'],
+		[2019, 5, 1, '令和元年'],
+	];
+	for (const [year, month, day, expectedLabel] of cases) {
+		const result = convertWesternYearToResult(year, REF_DATE, month, day);
+		assert.deepStrictEqual(
+			result.eraCandidates.map((c) => c.label),
+			[expectedLabel],
+			`${year}-${month}-${day} は ${expectedLabel} に確定すること`,
+		);
+	}
+});
+
+test('和暦→西暦の境界検証: 元号の在位期間外の月日はエラーになる', () => {
+	assert.ok(
+		convertWarekiToResult('heisei', 1, REF_DATE, 1, 1).error,
+		'平成元年1月1日はエラー（実際は昭和64年）',
+	);
+	assert.strictEqual(
+		convertWarekiToResult('heisei', 1, REF_DATE, 1, 8).error,
+		undefined,
+		'平成元年1月8日は成功',
+	);
+	assert.ok(
+		convertWarekiToResult('reiwa', 1, REF_DATE, 4, 30).error,
+		'令和元年4月30日はエラー（実際は平成31年）',
+	);
+	assert.strictEqual(
+		convertWarekiToResult('reiwa', 1, REF_DATE, 5, 1).error,
+		undefined,
+		'令和元年5月1日は成功',
+	);
+	assert.strictEqual(
+		convertWarekiToResult('showa', 64, REF_DATE, 1, 7).error,
+		undefined,
+		'昭和64年1月7日は成功',
+	);
+	assert.ok(
+		convertWarekiToResult('showa', 64, REF_DATE, 1, 8).error,
+		'昭和64年1月8日はエラー（実際は平成元年）',
+	);
+});
+
+// --- 回帰: 1872年以前の月日をグレゴリオ暦として扱わない ---------------------
+
+test('1869年・1872年は年単位候補を表示し旧暦注意を含む', () => {
+	const r1869 = convertWesternYearToResult(1869, REF_DATE);
+	assert.deepStrictEqual(
+		r1869.eraCandidates.map((c) => c.label),
+		['明治2年'],
+	);
+	assert.ok(r1869.notices.some((n) => n.includes('旧暦月日を新暦月日')));
+
+	const r1872 = convertWesternYearToResult(1872, REF_DATE);
+	assert.deepStrictEqual(
+		r1872.eraCandidates.map((c) => c.label),
+		['明治5年'],
+	);
+	assert.ok(r1872.notices.some((n) => n.includes('旧暦月日を新暦月日')));
+
+	const r1868 = convertWesternYearToResult(1868, REF_DATE);
+	assert.deepStrictEqual(
+		r1868.eraCandidates.map((c) => c.label),
+		['慶応4年', '明治元年'],
+	);
+	assert.ok(r1868.notices.some((n) => n.includes('旧暦月日を新暦月日')));
+});
+
+test('1872年以前の月日付き入力は専用エラーになり、1873年は通常処理される', () => {
+	const result1872 = convertWesternYearToResult(1872, REF_DATE, 12, 1);
+	assert.strictEqual(
+		result1872.error,
+		'1872年以前の月日は旧暦のため、厳密な日付換算には対応していません。年のみで入力してください。',
+	);
+
+	const result1873 = convertWesternYearToResult(1873, REF_DATE, 1, 1);
+	assert.strictEqual(result1873.error, undefined);
+	assert.deepStrictEqual(
+		result1873.eraCandidates.map((c) => c.label),
+		['明治6年'],
+	);
+});
+
+// --- 回帰: 未来の生年月日で負の年齢を返さない -------------------------------
+
+test('年齢計算: 未来の生年月日はunavailableになり、負の年齢を返さない', () => {
+	assert.deepStrictEqual(calculateAge(2026, REF_DATE, 7, 11), {
+		kind: 'exact',
+		value: 0,
+		referenceDate: '2026-07-12',
+	});
+	assert.deepStrictEqual(calculateAge(2026, REF_DATE, 7, 12), {
+		kind: 'exact',
+		value: 0,
+		referenceDate: '2026-07-12',
+	});
+	assert.strictEqual(calculateAge(2026, REF_DATE, 7, 13).kind, 'unavailable');
+	assert.strictEqual(calculateAge(2026, REF_DATE, 12, 31).kind, 'unavailable');
+	assert.strictEqual(calculateAge(2027, REF_DATE).kind, 'unavailable');
+});
+
+// --- 回帰: 基準日のタイムゾーン非依存 --------------------------------------
+
+test('年齢計算: 基準日はタイムゾーンに関わらず暦日として一貫する', () => {
+	// 文字列は正規表現で直接パースするため UTC 解釈に依存しない
+	const fromString = calculateAge(1970, '2026-01-01', 1, 1);
+	assert.deepStrictEqual(fromString, {
+		kind: 'exact',
+		value: 56,
+		referenceDate: '2026-01-01',
+	});
+
+	// Date オブジェクトはローカルの年月日ゲッターで読み取る
+	const localDate = new Date(2026, 0, 1); // ローカルタイムで2026-01-01
+	const fromDate = calculateAge(1970, localDate, 1, 1);
+	assert.deepStrictEqual(fromDate, fromString);
+});
+
+// --- 回帰: 月・日の片側指定を禁止 ------------------------------------------
+
+test('月または日だけの指定はエラーになる', () => {
+	assert.strictEqual(
+		convertWesternYearToResult(2000, REF_DATE, 5, undefined).error,
+		'月と日は両方指定してください。',
+	);
+	assert.strictEqual(
+		convertWesternYearToResult(2000, REF_DATE, undefined, 15).error,
+		'月と日は両方指定してください。',
+	);
+	assert.strictEqual(
+		convertWarekiToResult('reiwa', 6, REF_DATE, 5, undefined).error,
+		'月と日は両方指定してください。',
+	);
+	assert.strictEqual(
+		convertWarekiToResult('reiwa', 6, REF_DATE, undefined, 15).error,
+		'月と日は両方指定してください。',
+	);
+});
+
+// --- 回帰: 西暦入力の整数検証 -----------------------------------------------
+
+test('西暦年は安全な整数のみ受け付ける', () => {
+	for (const invalidYear of [
+		1990.5,
+		-5,
+		0,
+		Number.NaN,
+		Number.MAX_SAFE_INTEGER + 1,
+	]) {
+		const result = convertWesternYearToResult(invalidYear, REF_DATE);
+		assert.strictEqual(
+			result.error,
+			'西暦年は1以上の整数で入力してください。',
+			`${invalidYear} は拒否されること`,
+		);
+		assert.notStrictEqual(result.zodiac, undefined);
+	}
+	assert.strictEqual(
+		getZodiac(1990.5),
+		'',
+		'小数年の干支はundefinedにならない',
+	);
+});
+
+test('西暦年が整数であれば干支はundefinedにならない', () => {
+	assert.strictEqual(convertWesternYearToResult(2000, REF_DATE).zodiac, '辰');
+});

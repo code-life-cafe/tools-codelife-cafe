@@ -1,5 +1,11 @@
 export type CalendarKind = 'gregorian' | 'lunisolar';
 
+export interface CalendarDate {
+	year: number;
+	month: number;
+	day: number;
+}
+
 export interface EraDefinition {
 	id: string;
 	name: string;
@@ -9,6 +15,12 @@ export interface EraDefinition {
 	maxEraYear: number;
 	sequence: number;
 	calendar: CalendarKind;
+	/**
+	 * 改元日を含む厳密な開始日・終了日（グレゴリオ暦で確定できる期間のみ設定）。
+	 * 月日が両方指定された入力の元号確定にのみ使用し、年単位の候補抽出には使わない。
+	 */
+	preciseStart?: CalendarDate;
+	preciseEnd?: CalendarDate;
 }
 
 export interface EraCandidate {
@@ -37,6 +49,13 @@ export interface ConversionResult {
 export type NormalizeResult =
 	| { ok: true; eraId: string; eraYear: number }
 	| { ok: false; error: string };
+
+/** 日本がグレゴリオ暦を採用した日（明治5年12月3日→明治6年1月1日）。これより前の月日は厳密な日付換算の対象外。 */
+export const GREGORIAN_ADOPTION_DATE: CalendarDate = {
+	year: 1873,
+	month: 1,
+	day: 1,
+};
 
 /**
  * 元号マスタ（旧い順）。西暦→和暦は startYear <= year <= endYear を満たす候補を
@@ -122,6 +141,10 @@ export const ERA_DEFINITIONS: EraDefinition[] = [
 		maxEraYear: 45,
 		sequence: 8,
 		calendar: 'gregorian',
+		// 明治5年12月2日までは旧暦。改元日自体は1868年（旧暦）のため、
+		// 厳密な日付判定は GREGORIAN_ADOPTION_DATE 以降にのみ適用される。
+		preciseStart: { year: 1868, month: 10, day: 23 },
+		preciseEnd: { year: 1912, month: 7, day: 29 },
 	},
 	{
 		id: 'taisho',
@@ -132,6 +155,8 @@ export const ERA_DEFINITIONS: EraDefinition[] = [
 		maxEraYear: 15,
 		sequence: 9,
 		calendar: 'gregorian',
+		preciseStart: { year: 1912, month: 7, day: 30 },
+		preciseEnd: { year: 1926, month: 12, day: 24 },
 	},
 	{
 		id: 'showa',
@@ -142,6 +167,8 @@ export const ERA_DEFINITIONS: EraDefinition[] = [
 		maxEraYear: 64,
 		sequence: 10,
 		calendar: 'gregorian',
+		preciseStart: { year: 1926, month: 12, day: 25 },
+		preciseEnd: { year: 1989, month: 1, day: 7 },
 	},
 	{
 		id: 'heisei',
@@ -152,6 +179,8 @@ export const ERA_DEFINITIONS: EraDefinition[] = [
 		maxEraYear: 31,
 		sequence: 11,
 		calendar: 'gregorian',
+		preciseStart: { year: 1989, month: 1, day: 8 },
+		preciseEnd: { year: 2019, month: 4, day: 30 },
 	},
 	{
 		id: 'reiwa',
@@ -162,6 +191,8 @@ export const ERA_DEFINITIONS: EraDefinition[] = [
 		maxEraYear: 9999,
 		sequence: 12,
 		calendar: 'gregorian',
+		preciseStart: { year: 2019, month: 5, day: 1 },
+		preciseEnd: { year: 9999, month: 12, day: 31 },
 	},
 ];
 
@@ -196,12 +227,24 @@ export function isValidDate(year: number, month: number, day: number): boolean {
 }
 
 export function getZodiac(year: number): string {
-	if (year < 0) return '';
+	if (!Number.isSafeInteger(year) || year < 0) return '';
 	return ZODIAC[year % 12];
 }
 
 function formatEraLabel(eraName: string, eraYear: number): string {
 	return eraYear === 1 ? `${eraName}元年` : `${eraName}${eraYear}年`;
+}
+
+function toEraCandidate(era: EraDefinition, westernYear: number): EraCandidate {
+	const eraYear = westernYear - era.startYear + 1;
+	return {
+		eraId: era.id,
+		eraName: era.name,
+		eraYear,
+		label: formatEraLabel(era.name, eraYear),
+		isFirstYear: eraYear === 1,
+		sequence: era.sequence,
+	};
 }
 
 /**
@@ -213,34 +256,67 @@ export function getEraCandidates(westernYear: number): EraCandidate[] {
 		(era) => westernYear >= era.startYear && westernYear <= era.endYear,
 	)
 		.sort((a, b) => a.sequence - b.sequence)
-		.map((era) => {
-			const eraYear = westernYear - era.startYear + 1;
-			return {
-				eraId: era.id,
-				eraName: era.name,
-				eraYear,
-				label: formatEraLabel(era.name, eraYear),
-				isFirstYear: eraYear === 1,
-				sequence: era.sequence,
-			};
-		});
+		.map((era) => toEraCandidate(era, westernYear));
 }
 
-function toDate(referenceDate: Date | string): Date {
-	return typeof referenceDate === 'string'
-		? new Date(referenceDate)
-		: referenceDate;
+/** preciseStart/preciseEnd を持つ元号の中から、月日を含む日付に一致するものを1件だけ返す。 */
+function findExactEra(date: CalendarDate): EraDefinition | undefined {
+	return ERA_DEFINITIONS.find(
+		(era) =>
+			era.preciseStart !== undefined &&
+			era.preciseEnd !== undefined &&
+			compareCalendarDates(date, era.preciseStart) >= 0 &&
+			compareCalendarDates(date, era.preciseEnd) <= 0,
+	);
 }
 
-function toIsoDate(date: Date): string {
-	return date.toISOString().slice(0, 10);
+function compareCalendarDates(a: CalendarDate, b: CalendarDate): number {
+	if (a.year !== b.year) return a.year - b.year;
+	if (a.month !== b.month) return a.month - b.month;
+	return a.day - b.day;
+}
+
+function parseIsoDateString(value: string): CalendarDate | null {
+	const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+	if (!match) return null;
+	return {
+		year: Number(match[1]),
+		month: Number(match[2]),
+		day: Number(match[3]),
+	};
 }
 
 /**
- * 年齢を算出する。基準日は引数として受け取り、実行時刻には依存しない。
- * - 誕生月日が判明している場合は満年齢を確定する（exact）
+ * Date | 'YYYY-MM-DD' 文字列を暦日（年・月・日）へ変換する。
+ * タイムゾーンによる暦日のずれを防ぐため、UTC変換（toISOString等）は行わない。
+ * Date は必ずローカルの年月日ゲッターで読み取り、文字列は正規表現で直接パースする。
+ */
+function toCalendarDate(input: Date | string): CalendarDate {
+	if (typeof input === 'string') {
+		const parsed = parseIsoDateString(input);
+		if (!parsed) {
+			throw new Error('referenceDate は YYYY-MM-DD 形式で指定してください');
+		}
+		return parsed;
+	}
+	return {
+		year: input.getFullYear(),
+		month: input.getMonth() + 1,
+		day: input.getDate(),
+	};
+}
+
+function formatCalendarDate(date: CalendarDate): string {
+	const pad = (n: number) => String(n).padStart(2, '0');
+	return `${date.year}-${pad(date.month)}-${pad(date.day)}`;
+}
+
+/**
+ * 年齢を算出する。基準日は暦日（タイムゾーンに依存しない年月日）として扱う。
+ * - 誕生月日が判明している場合は満年齢を確定する（exact）。誕生日が基準日より
+ *   後（未来）の場合は unavailable を返し、負の年齢を返すことはない。
  * - 年のみの場合は「基準年-生年-1」〜「基準年-生年」の範囲を返す（range）
- * - 未来の年は unavailable を返す
+ * - 生年が基準年より後（未来）の場合は unavailable を返す
  */
 export function calculateAge(
 	westernYear: number,
@@ -248,32 +324,42 @@ export function calculateAge(
 	birthMonth?: number,
 	birthDay?: number,
 ): AgeResult {
-	const refDate = toDate(referenceDate);
-	const referenceIso = toIsoDate(refDate);
-	const refYear = refDate.getFullYear();
-
-	if (westernYear > refYear) {
-		return { kind: 'unavailable', reason: '未来の年は年齢を計算できません' };
-	}
+	const refParts = toCalendarDate(referenceDate);
+	const referenceIso = formatCalendarDate(refParts);
 
 	if (birthMonth !== undefined && birthDay !== undefined) {
 		if (!isValidDate(westernYear, birthMonth, birthDay)) {
 			return { kind: 'unavailable', reason: '存在しない日付です' };
 		}
-		let value = refYear - westernYear;
+		const birthParts: CalendarDate = {
+			year: westernYear,
+			month: birthMonth,
+			day: birthDay,
+		};
+		if (compareCalendarDates(birthParts, refParts) > 0) {
+			return {
+				kind: 'unavailable',
+				reason: '未来の日付は年齢を計算できません',
+			};
+		}
+		let value = refParts.year - westernYear;
 		const hasHadBirthdayThisYear =
-			refDate.getMonth() + 1 > birthMonth ||
-			(refDate.getMonth() + 1 === birthMonth && refDate.getDate() >= birthDay);
+			birthMonth < refParts.month ||
+			(birthMonth === refParts.month && birthDay <= refParts.day);
 		if (!hasHadBirthdayThisYear) {
 			value -= 1;
 		}
 		return { kind: 'exact', value, referenceDate: referenceIso };
 	}
 
+	if (westernYear > refParts.year) {
+		return { kind: 'unavailable', reason: '未来の日付は年齢を計算できません' };
+	}
+
 	return {
 		kind: 'range',
-		min: refYear - westernYear - 1,
-		max: refYear - westernYear,
+		min: refParts.year - westernYear - 1,
+		max: refParts.year - westernYear,
 		referenceDate: referenceIso,
 	};
 }
@@ -282,24 +368,15 @@ function buildNotices(
 	westernYear: number,
 	eraCandidates: EraCandidate[],
 	age: AgeResult,
-	birthMonth: number | undefined,
-	birthDay: number | undefined,
 ): string[] {
 	const notices: string[] = [];
 
-	const hasLunisolarCandidate = eraCandidates.some(
-		(candidate) => ERA_BY_ID.get(candidate.eraId)?.calendar === 'lunisolar',
-	);
+	const isLunisolarYear = westernYear < GREGORIAN_ADOPTION_DATE.year;
 
-	if (hasLunisolarCandidate) {
+	if (isLunisolarYear && eraCandidates.length > 0) {
 		notices.push(
 			'年単位の対応候補です。旧暦月日を新暦月日に変換した結果ではありません。',
 		);
-		if (birthMonth !== undefined && birthDay !== undefined) {
-			notices.push(
-				'旧暦期間の月日は厳密な日付換算の対象外のため、年齢計算には使用していません。',
-			);
-		}
 	}
 
 	if (westernYear === MIN_SUPPORTED_YEAR) {
@@ -308,15 +385,29 @@ function buildNotices(
 
 	// 旧暦期間はそもそも年単位換算である旨を既に案内済みのため、
 	// 「誕生日前後で年齢が変わる」注記は近代以降（年のみ入力）の場合にのみ表示する。
-	if (age.kind === 'range' && !hasLunisolarCandidate) {
+	if (age.kind === 'range' && !isLunisolarYear) {
 		notices.push('誕生日前後で年齢が変わるため、範囲で表示しています。');
 	}
 
 	return notices;
 }
 
+function emptyErrorResult(message: string): ConversionResult {
+	return {
+		westernYear: 0,
+		eraCandidates: [],
+		zodiac: '',
+		age: { kind: 'unavailable', reason: message },
+		notices: [],
+		error: message,
+	};
+}
+
 /**
  * 西暦年（および任意の月日）から一覧表示用の変換結果を生成する。
+ * - 月日を指定しない場合は年単位の複数候補（改元年は複数元号）を返す
+ * - 月日を両方指定した場合は、実際の改元日に基づき元号を1件へ確定する
+ * - 1872年以前の月日付き入力は、旧暦のため厳密な日付換算の対象外として専用エラーを返す
  */
 export function convertWesternYearToResult(
 	westernYear: number,
@@ -324,32 +415,54 @@ export function convertWesternYearToResult(
 	birthMonth?: number,
 	birthDay?: number,
 ): ConversionResult {
+	if (!Number.isSafeInteger(westernYear) || westernYear < 1) {
+		return emptyErrorResult('西暦年は1以上の整数で入力してください。');
+	}
+
+	const hasMonth = birthMonth !== undefined;
+	const hasDay = birthDay !== undefined;
+	if (hasMonth !== hasDay) {
+		return emptyErrorResult('月と日は両方指定してください。');
+	}
+
+	if (hasMonth && hasDay) {
+		const month = birthMonth as number;
+		const day = birthDay as number;
+		if (!isValidDate(westernYear, month, day)) {
+			return emptyErrorResult(
+				'存在しない日付です。月・日の入力内容を確認してください。',
+			);
+		}
+
+		const dateParts: CalendarDate = { year: westernYear, month, day };
+		if (compareCalendarDates(dateParts, GREGORIAN_ADOPTION_DATE) < 0) {
+			return emptyErrorResult(
+				'1872年以前の月日は旧暦のため、厳密な日付換算には対応していません。年のみで入力してください。',
+			);
+		}
+
+		const exactEra = findExactEra(dateParts);
+		const eraCandidates = exactEra
+			? [toEraCandidate(exactEra, westernYear)]
+			: [];
+		const age = calculateAge(westernYear, referenceDate, month, day);
+		return {
+			westernYear,
+			eraCandidates,
+			zodiac: getZodiac(westernYear),
+			age,
+			notices: buildNotices(westernYear, eraCandidates, age),
+		};
+	}
+
 	const eraCandidates = getEraCandidates(westernYear);
-	const hasLunisolarCandidate = eraCandidates.some(
-		(c) => ERA_BY_ID.get(c.eraId)?.calendar === 'lunisolar',
-	);
-	const ageBirthMonth = hasLunisolarCandidate ? undefined : birthMonth;
-	const ageBirthDay = hasLunisolarCandidate ? undefined : birthDay;
-
-	const age = calculateAge(
-		westernYear,
-		referenceDate,
-		ageBirthMonth,
-		ageBirthDay,
-	);
-
+	const age = calculateAge(westernYear, referenceDate);
 	return {
 		westernYear,
 		eraCandidates,
 		zodiac: getZodiac(westernYear),
 		age,
-		notices: buildNotices(
-			westernYear,
-			eraCandidates,
-			age,
-			birthMonth,
-			birthDay,
-		),
+		notices: buildNotices(westernYear, eraCandidates, age),
 	};
 }
 
@@ -476,7 +589,8 @@ function parseYearToken(token: string): number | null {
 
 /**
  * 元号IDと元号年（および任意の月日）から一覧表示用の変換結果を生成する。
- * maxEraYear を超える入力は範囲外エラーとして返す。
+ * maxEraYear を超える入力は範囲外エラーとして返す。月日を指定した場合、その
+ * 元号の実際の在位期間外であれば「元号と月日の組み合わせが一致しない」エラーを返す。
  */
 export function convertWarekiToResult(
 	eraId: string,
@@ -487,28 +601,54 @@ export function convertWarekiToResult(
 ): ConversionResult {
 	const era = ERA_BY_ID.get(eraId);
 	if (!era) {
-		return {
-			westernYear: 0,
-			eraCandidates: [],
-			zodiac: '',
-			age: { kind: 'unavailable', reason: '不正な元号です' },
-			notices: [],
-			error: '不正な元号です',
-		};
+		return emptyErrorResult('不正な元号です');
 	}
 
-	if (eraYear < 1 || eraYear > era.maxEraYear) {
-		return {
-			westernYear: 0,
-			eraCandidates: [],
-			zodiac: '',
-			age: { kind: 'unavailable', reason: '範囲外の元号年です' },
-			notices: [],
-			error: `${era.name}は1〜${era.maxEraYear}年の範囲で入力してください`,
-		};
+	if (
+		!Number.isSafeInteger(eraYear) ||
+		eraYear < 1 ||
+		eraYear > era.maxEraYear
+	) {
+		return emptyErrorResult(
+			`${era.name}は1〜${era.maxEraYear}年の範囲で入力してください`,
+		);
 	}
 
 	const westernYear = era.startYear + eraYear - 1;
+
+	const hasMonth = birthMonth !== undefined;
+	const hasDay = birthDay !== undefined;
+	if (hasMonth !== hasDay) {
+		return emptyErrorResult('月と日は両方指定してください。');
+	}
+
+	if (hasMonth && hasDay) {
+		const month = birthMonth as number;
+		const day = birthDay as number;
+		if (!isValidDate(westernYear, month, day)) {
+			return emptyErrorResult(
+				'存在しない日付です。月・日の入力内容を確認してください。',
+			);
+		}
+
+		const dateParts: CalendarDate = { year: westernYear, month, day };
+		if (compareCalendarDates(dateParts, GREGORIAN_ADOPTION_DATE) < 0) {
+			return emptyErrorResult(
+				'1872年以前の月日は旧暦のため、厳密な日付換算には対応していません。年のみで入力してください。',
+			);
+		}
+
+		const exactEra = findExactEra(dateParts);
+		if (!exactEra || exactEra.id !== era.id) {
+			const actualLabel = exactEra
+				? formatEraLabel(exactEra.name, dateParts.year - exactEra.startYear + 1)
+				: '対応元号なし';
+			return emptyErrorResult(
+				`指定した和暦と月日の組み合わせが一致しません（該当日は${actualLabel}です）。`,
+			);
+		}
+	}
+
 	return convertWesternYearToResult(
 		westernYear,
 		referenceDate,
