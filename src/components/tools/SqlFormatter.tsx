@@ -4,6 +4,7 @@ import {
 	Download,
 	Maximize2,
 	Minimize2,
+	MoveDiagonal2,
 	Rows2,
 	Share2,
 	Trash2,
@@ -533,11 +534,17 @@ export default function SqlFormatter() {
 						</div>
 					</div>
 					{error ? (
-						<div className="rounded-xl border-2 border-red-500 shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card">
+						<div className="group/codeblock relative rounded-xl border-2 border-red-500 shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card">
 							<div className="p-4 text-red-500 font-medium font-mono-tool text-sm whitespace-pre-wrap flex items-start gap-2 max-w-full">
 								<Code2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
 								<div className="break-all">{error}</div>
 							</div>
+							<span
+								aria-hidden="true"
+								className="pointer-events-none absolute bottom-1 right-1 hidden items-center justify-center text-muted-foreground/50 transition-colors duration-150 motion-reduce:transition-none md:flex md:group-hover/codeblock:text-muted-foreground md:group-focus-within/codeblock:text-muted-foreground"
+							>
+								<MoveDiagonal2 className="h-3.5 w-3.5" />
+							</span>
 						</div>
 					) : output && (autoFormat || manualOutput) ? (
 						<CodeBlock
@@ -550,7 +557,7 @@ export default function SqlFormatter() {
 							{highlightedNodes}
 						</CodeBlock>
 					) : (
-						<div className="rounded-xl border shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card flex items-center justify-center text-muted-foreground p-6 text-center">
+						<div className="group/codeblock relative rounded-xl border shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card flex items-center justify-center text-muted-foreground p-6 text-center">
 							<div>
 								<Code2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
 								<p className="text-sm">
@@ -559,6 +566,12 @@ export default function SqlFormatter() {
 									整形されたコードが表示されます
 								</p>
 							</div>
+							<span
+								aria-hidden="true"
+								className="pointer-events-none absolute bottom-1 right-1 hidden items-center justify-center text-muted-foreground/50 transition-colors duration-150 motion-reduce:transition-none md:flex md:group-hover/codeblock:text-muted-foreground md:group-focus-within/codeblock:text-muted-foreground"
+							>
+								<MoveDiagonal2 className="h-3.5 w-3.5" />
+							</span>
 						</div>
 					)}
 				</div>
