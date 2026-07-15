@@ -1,8 +1,10 @@
 import {
 	Code2,
+	Columns2,
 	Download,
 	Maximize2,
 	Minimize2,
+	Rows2,
 	Share2,
 	Trash2,
 } from 'lucide-react';
@@ -20,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -28,6 +31,7 @@ import {
 	type SqlDialect,
 	type SqlFormatOptions,
 } from '@/lib/tools/sql-formatter';
+import { cn } from '@/lib/utils';
 
 const SQL_KEYWORDS = [
 	'SELECT',
@@ -85,10 +89,22 @@ export default function SqlFormatter() {
 			uppercase: true,
 			compress: false,
 			isExpanded: false,
+			layout: 'horizontal' as 'horizontal' | 'vertical',
 		},
 	);
 	const { autoFormat, dialect, indent, uppercase, compress, isExpanded } =
 		settings;
+	// 不正値や旧形式の共有設定を受け取った場合は左右レイアウトへ安全にフォールバックする
+	const layout: 'horizontal' | 'vertical' =
+		settings.layout === 'vertical' ? 'vertical' : 'horizontal';
+	const setLayout = useCallback(
+		(value: string) => {
+			if (value === 'horizontal' || value === 'vertical') {
+				updateSettings({ layout: value });
+			}
+		},
+		[updateSettings],
+	);
 	const [shareCopied, setShareCopied] = useState(false);
 
 	const [manualOutput, setManualOutput] = useState('');
@@ -356,6 +372,30 @@ export default function SqlFormatter() {
 
 					<div className="w-px h-6 bg-border mx-2 hidden sm:block"></div>
 
+					<ToggleGroup
+						type="single"
+						value={layout}
+						onValueChange={setLayout}
+						aria-label="入力・出力のレイアウト"
+						variant="outline"
+						className="hidden sm:flex"
+					>
+						<ToggleGroupItem
+							value="horizontal"
+							aria-label="左右に並べて表示"
+							title="左右レイアウト"
+						>
+							<Columns2 className="h-4 w-4" />
+						</ToggleGroupItem>
+						<ToggleGroupItem
+							value="vertical"
+							aria-label="上下に並べて表示"
+							title="上下レイアウト"
+						>
+							<Rows2 className="h-4 w-4" />
+						</ToggleGroupItem>
+					</ToggleGroup>
+
 					<Button
 						variant="outline"
 						size="sm"
@@ -412,7 +452,13 @@ export default function SqlFormatter() {
 				</Button>
 			</div>
 
-			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+			<div
+				id="sql-formatter-panels"
+				className={cn(
+					'grid grid-cols-1 gap-6 items-start',
+					layout === 'horizontal' && 'lg:grid-cols-2',
+				)}
+			>
 				{/* Input */}
 				<div>
 					<div className="flex items-center justify-between mb-2">
@@ -487,7 +533,7 @@ export default function SqlFormatter() {
 						</div>
 					</div>
 					{error ? (
-						<div className="rounded-xl border-2 border-red-500 shadow-sm h-[400px] overflow-auto bg-card">
+						<div className="rounded-xl border-2 border-red-500 shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card">
 							<div className="p-4 text-red-500 font-medium font-mono-tool text-sm whitespace-pre-wrap flex items-start gap-2 max-w-full">
 								<Code2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
 								<div className="break-all">{error}</div>
@@ -497,12 +543,14 @@ export default function SqlFormatter() {
 						<CodeBlock
 							content={output}
 							className="h-[400px] shimmer"
-							minHeight="400px"
+							minHeight="240px"
+							maxHeight="80dvh"
+							resize="vertical"
 						>
 							{highlightedNodes}
 						</CodeBlock>
 					) : (
-						<div className="rounded-xl border shadow-sm h-[400px] overflow-auto bg-card flex items-center justify-center text-muted-foreground p-6 text-center">
+						<div className="rounded-xl border shadow-sm h-[400px] min-h-[240px] max-h-[80dvh] resize-none md:resize-y overflow-auto bg-card flex items-center justify-center text-muted-foreground p-6 text-center">
 							<div>
 								<Code2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
 								<p className="text-sm">
