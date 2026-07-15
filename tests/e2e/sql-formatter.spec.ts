@@ -184,3 +184,169 @@ test.describe('SQL Formatter Tool', () => {
 		await freshContext.close();
 	});
 });
+
+test.describe('SQL Formatter Tool - レイアウト切替と出力欄リサイズ', () => {
+	test.beforeEach(async ({ createToolPage }) => {
+		const toolPage = createToolPage('sql-formatter');
+		await toolPage.goto();
+	});
+
+	test('初期状態は左右レイアウトで、左右トグルが選択されている', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		const panels = page.locator('#sql-formatter-panels');
+		await expect(panels).toHaveClass(/lg:grid-cols-2/);
+		await expect(
+			page.getByRole('radio', { name: '左右に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'true');
+		await expect(
+			page.getByRole('radio', { name: '上下に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'false');
+	});
+
+	test('上下レイアウトに切り替えると入力・出力が全幅で縦に並ぶ', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		await page.getByRole('radio', { name: '上下に並べて表示' }).click();
+		await page.locator('textarea').fill('select id from users');
+		await expect(page.locator('.shimmer code')).toBeVisible();
+
+		const panels = page.locator('#sql-formatter-panels');
+		await expect(panels).not.toHaveClass(/lg:grid-cols-2/);
+		await expect(
+			page.getByRole('radio', { name: '上下に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'true');
+
+		const panelColumns = page.locator('#sql-formatter-panels > div');
+		const inputColumnBox = await panelColumns.nth(0).boundingBox();
+		const outputColumnBox = await panelColumns.nth(1).boundingBox();
+		expect(inputColumnBox).not.toBeNull();
+		expect(outputColumnBox).not.toBeNull();
+		// biome-ignore lint/style/noNonNullAssertion: 直前でnullチェック済み
+		const widthDiff = Math.abs(inputColumnBox!.width - outputColumnBox!.width);
+		expect(widthDiff).toBeLessThan(2);
+
+		// 左右レイアウトへ戻せる
+		await page.getByRole('radio', { name: '左右に並べて表示' }).click();
+		await expect(panels).toHaveClass(/lg:grid-cols-2/);
+	});
+
+	test('標準表示⇔フルサイズ表示を切り替えてもレイアウト選択が維持される', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		await page.getByRole('radio', { name: '上下に並べて表示' }).click();
+		await page.getByRole('button', { name: 'フルサイズ' }).click();
+
+		const panels = page.locator('#sql-formatter-panels');
+		await expect(panels).not.toHaveClass(/lg:grid-cols-2/);
+		await expect(
+			page.getByRole('radio', { name: '上下に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'true');
+
+		await page.getByRole('button', { name: '標準幅' }).click();
+		await expect(panels).not.toHaveClass(/lg:grid-cols-2/);
+		await expect(
+			page.getByRole('radio', { name: '上下に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'true');
+	});
+
+	test('狭い画面ではレイアウト切替を表示せず、常に縦積みでページの横スクロールが発生しない', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+
+		await expect(
+			page.getByRole('radio', { name: '左右に並べて表示' }),
+		).toBeHidden();
+
+		await page
+			.locator('textarea')
+			.fill(
+				'select a_very_long_column_name_that_could_overflow, another_long_identifier_name from a_table_with_a_long_name',
+			);
+		await expect(page.locator('.shimmer code')).toBeVisible();
+
+		// 数px程度の誤差はスクロールバー計算のブラウザ差異として許容する
+		const overflow = await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth -
+				document.documentElement.clientWidth,
+		);
+		expect(overflow).toBeLessThanOrEqual(5);
+	});
+
+	test('不正なレイアウト設定値を共有URLから読み込んでも左右レイアウトへフォールバックする', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		const invalidSettingsUrl = await page.evaluate(() => {
+			const encoded = btoa(
+				unescape(encodeURIComponent(JSON.stringify({ layout: 'diagonal' }))),
+			);
+			const url = new URL(window.location.href);
+			url.searchParams.set('settings', encoded);
+			return url.toString();
+		});
+
+		await page.goto(invalidSettingsUrl);
+
+		const panels = page.locator('#sql-formatter-panels');
+		await expect(panels).toHaveClass(/lg:grid-cols-2/);
+		await expect(
+			page.getByRole('radio', { name: '左右に並べて表示' }),
+		).toHaveAttribute('aria-checked', 'true');
+	});
+
+	test('出力欄はデスクトップで縦方向にリサイズでき、最小値・最大値の範囲を持つ', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		await page.locator('textarea').fill('select id from users');
+		await expect(page.locator('.shimmer code')).toBeVisible();
+
+		const outputBox = page.locator('.shimmer');
+		const style = await outputBox.evaluate((el) => {
+			const computed = getComputedStyle(el);
+			return {
+				resize: computed.resize,
+				minHeight: computed.minHeight,
+				maxHeight: computed.maxHeight,
+			};
+		});
+
+		expect(style.resize).toBe('vertical');
+		expect(style.minHeight).toBe('240px');
+		// 80dvh はビューポート高さ 900px の80% = 720px
+		expect(style.maxHeight).toBe('720px');
+
+		await expect(
+			page.locator('[data-slot="codeblock-resize-handle"]'),
+		).toBeVisible();
+	});
+
+	test('出力欄はモバイル幅ではリサイズもグリップも無効になる', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+
+		await page.locator('textarea').fill('select id from users');
+		await expect(page.locator('.shimmer code')).toBeVisible();
+
+		const resize = await page
+			.locator('.shimmer')
+			.evaluate((el) => getComputedStyle(el).resize);
+		expect(resize).toBe('none');
+
+		await expect(
+			page.locator('[data-slot="codeblock-resize-handle"]'),
+		).toBeHidden();
+	});
+});
