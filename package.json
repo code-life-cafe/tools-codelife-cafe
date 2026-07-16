@@ -49,7 +49,7 @@
 		"encoding-japanese": "^2.2.0",
 		"js-yaml": "^5.2.1",
 		"libheif-js": "1.19.8",
-		"lucide-react": "^1.11.0",
+		"lucide-react": "^1.24.0",
 		"marked": "18.0.5",
 		"onnxruntime-web": "1.27.0",
 		"papaparse": "^5.5.4",
