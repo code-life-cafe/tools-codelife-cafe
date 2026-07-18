@@ -69,14 +69,14 @@
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.8",
-		"@biomejs/biome": "2.5.3",
+		"@biomejs/biome": "2.5.4",
 		"@playwright/test": "^1.61.1",
 		"@types/d3-cloud": "1.2.9",
 		"@types/d3-scale": "4.0.9",
 		"@types/d3-scale-chromatic": "3.1.0",
 		"@types/encoding-japanese": "^2.2.1",
 		"@types/papaparse": "^5.5.2",
-		"satori": "^0.26.0",
+		"satori": "^0.28.0",
 		"schema-dts": "^2.0.0",
 		"sharp": "^0.35.3"
 	},
