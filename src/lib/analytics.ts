@@ -122,6 +122,9 @@ export function track<K extends EventName>(
 			props,
 			timestamp: Date.now(),
 			sessionId: getSessionId(),
+			// traffic_type判定用のヒント。個人識別には使わない（フィンガープリンティング禁止）。
+			webdriver:
+				typeof navigator !== 'undefined' ? navigator.webdriver === true : false,
 		};
 
 		const blob = new Blob([JSON.stringify(payload)], {

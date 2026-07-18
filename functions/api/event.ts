@@ -8,12 +8,16 @@ interface Env {
 	};
 }
 
+import { classifyTrafficType } from '../lib/traffic-type.ts';
+
 interface EventPayload {
 	event: string;
 	props: Record<string, unknown>;
 	timestamp?: number;
 	// タブ生存中のみ有効な匿名セッションID（sessionStorage 由来・個人追跡なし）
 	sessionId?: string;
+	// クライアントの navigator.webdriver ヒント（traffic_type 判定にのみ使用、個人識別には使わない）
+	webdriver?: boolean;
 }
 
 // 匿名セッションIDの許容最大長（crypto.randomUUID は 36 文字。異常値・肥大化を防ぐ上限）
@@ -122,6 +126,12 @@ export const onRequestPost = async (context: {
 			extra2 = props.hasJapanese ? 'ja' : 'other';
 		}
 
+		// traffic_type判定（human / ai_agent / crawler / unknown）。遮断・レート制限は行わず計測分類のみに使用する。
+		const trafficType = classifyTrafficType(
+			context.request.headers.get('user-agent'),
+			body.webdriver === true,
+		);
+
 		// Analytics Engine への書き込み
 		if (context.env?.EVENTS?.writeDataPoint) {
 			const dataPoint: {
@@ -131,7 +141,8 @@ export const onRequestPost = async (context: {
 			} = {
 				// Analytics Engine のインデックスは 1 データポイントにつき 1 つのみ許容されるため、
 				// セッションIDはインデックスではなく blob5 に格納する。
-				blobs: [eventName, toolSlug, extra1, extra2, sessionId],
+				// blob6 は既存blobの意味・順序を変えず末尾追加した traffic_type（後方互換維持）。
+				blobs: [eventName, toolSlug, extra1, extra2, sessionId, trafficType],
 				indexes: [eventName],
 			};
 			if (double1 !== undefined) {
