@@ -174,7 +174,7 @@ test.describe('Layout & Navigation', () => {
 		).toHaveAttribute('href', '/privacy');
 		await expect(header.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
 			'href',
-			'https://github.com/maru0014/tools-codelife-cafe',
+			'https://github.com/code-life-cafe/tools-codelife-cafe',
 		);
 
 		const footer = page.locator('footer');
@@ -183,7 +183,7 @@ test.describe('Layout & Navigation', () => {
 		).toHaveAttribute('href', '/privacy');
 		await expect(footer.getByRole('link', { name: /GitHub/i })).toHaveAttribute(
 			'href',
-			'https://github.com/maru0014/tools-codelife-cafe',
+			'https://github.com/code-life-cafe/tools-codelife-cafe',
 		);
 	});
 

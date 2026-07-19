@@ -47,7 +47,7 @@ APIレスポンスのJSONをCSVに、あるいはCSVをJSONに相互変換。ネ
 
 ## Q. 本当にデータを送っていないのか、どう確認できるのか
 
-CODE:LIFE Tools は**オープンソース**です。すべてのコードを [GitHub（maru0014/tools-codelife-cafe）](https://github.com/maru0014/tools-codelife-cafe) で公開しており、処理内容は誰でも確認できます。ブラウザの開発者ツールでネットワークタブを開いたまま操作すれば、入力データが送られていない挙動を確認できます。コード公開とあわせて、検証の材料にしてください。
+CODE:LIFE Tools は**オープンソース**です。すべてのコードを [GitHub（code-life-cafe/tools-codelife-cafe）](https://github.com/code-life-cafe/tools-codelife-cafe) で公開しており、処理内容は誰でも確認できます。ブラウザの開発者ツールでネットワークタブを開いたまま操作すれば、入力データが送られていない挙動を確認できます。コード公開とあわせて、検証の材料にしてください。
 
 なお、サイトの改善のためにCookieを使わない匿名・集計ベースの利用統計は取得していますが、入力データの中身や個人を特定する情報は含まれません。詳細は[プライバシーポリシー](https://tools.codelife.cafe/privacy)にまとめています。
 
