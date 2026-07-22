@@ -7,5 +7,14 @@
 			"binding": "EVENTS",
 			"dataset": "tools_codelife_cafe_events"
 		}
+	],
+	// /transcribe の Whisper ONNX モデルを同一オリジン（/models/transcribe/**）で配信するための
+	// R2 バインディング。オブジェクトキーは `transcribe/<model>/...`（既存の /bg-remove 用と分離）。
+	// 配置手順: bash scripts/upload-transcribe-models-to-r2.sh codelife-models
+	"r2_buckets": [
+		{
+			"binding": "TRANSCRIBE_MODELS",
+			"bucket_name": "codelife-models"
+		}
 	]
 }
