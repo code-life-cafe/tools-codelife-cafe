@@ -43,3 +43,8 @@ docs/superpowers/
 
 # 郵便番号データ生成スクリプトの入力CSVキャッシュ（生成物 public/data/zipcode/ のみコミット）
 scripts/.cache/
+
+# /transcribe のモデル実体・ONNX Runtime WASM（数百MB。マニフェストと取得スクリプトのみコミット）
+# 取得: node scripts/fetch-transcribe-models.mjs / node scripts/copy-onnx-wasm.mjs
+public/models/transcribe/
+public/vendor/onnx-wasm/
