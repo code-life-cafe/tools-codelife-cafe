@@ -8,10 +8,12 @@ const DIST = './dist';
 
 // dist/ 直下のディレクトリ（各ルートページ）を収集
 // `data` は静的データ配信用（/data/zipcode/*.json 等）、`og` は OGP 画像
-// （generate-og-images.mjs が生成）、`models` は AI 超解像モデル（/upscale が実行時に取得、
-// ~5MB）、ドットディレクトリ（/.well-known/ 等のメタデータ配信）はいずれも
-// ページではないため除外。これらはプリキャッシュせず、Service Worker の
-// ランタイム cache-first で扱う（モデルはブラウザ Cache に乗るが precache には含めない）。
+// （generate-og-images.mjs が生成）、`models` は AI モデル（/upscale の超解像 ~5MB と
+// /transcribe の Whisper ONNX。後者は実行時に取得）、`vendor` は /transcribe が使う
+// ONNX Runtime Web の WASM 一式（~35MB）、ドットディレクトリ（/.well-known/ 等の
+// メタデータ配信）はいずれもページではないため除外。これらはプリキャッシュせず、
+// Service Worker のランタイム cache-first で扱う
+// （モデルはブラウザ Cache に乗るが precache には含めない）。
 const entries = await readdir(DIST, { withFileTypes: true });
 const pageURLs = [
 	'/',
@@ -23,7 +25,8 @@ const pageURLs = [
 				!d.name.startsWith('.') &&
 				d.name !== 'data' &&
 				d.name !== 'og' &&
-				d.name !== 'models',
+				d.name !== 'models' &&
+				d.name !== 'vendor',
 		)
 		.map((d) => `/${d.name}/`),
 ];

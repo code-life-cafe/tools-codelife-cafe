@@ -95,6 +95,20 @@ export function getSearchQueryMetadata(
 }
 
 /**
+ * ページ単位の計測キルスイッチ。
+ * `/transcribe` のように「同一オリジンであっても一切の送信を行わない」ことを
+ * 不変条件とするページで、BaseLayout が head 内で true を立てる。
+ * ヘッダー検索など、ツール本体以外から発火しうるイベントもここで止める。
+ */
+function isAnalyticsDisabled(): boolean {
+	return (
+		typeof window !== 'undefined' &&
+		(window as { __CLC_ANALYTICS_DISABLED__?: boolean })
+			.__CLC_ANALYTICS_DISABLED__ === true
+	);
+}
+
+/**
  * 完全匿名のカスタムイベントを送信する
  */
 export function track<K extends EventName>(
@@ -102,6 +116,7 @@ export function track<K extends EventName>(
 	props: AnalyticsEvents[K],
 ): void {
 	if (typeof window === 'undefined') return;
+	if (isAnalyticsDisabled()) return;
 
 	try {
 		// tool_engage の重複発火防止制御（セッション/タブ単位）

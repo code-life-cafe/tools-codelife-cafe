@@ -544,6 +544,39 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'transcribe',
+		title: '文字起こし（ローカル）',
+		description:
+			'会議録音や動画をブラウザ内AIで文字起こし。音声はこの端末から出ません。',
+		href: '/transcribe',
+		icon: 'AudioLines',
+		category: 'AI/画像',
+		categoryColor: 'border-l-chart-5',
+		span: 2,
+		keywords: [
+			'文字起こし',
+			'書き起こし',
+			'音声認識',
+			'議事録',
+			'字幕',
+			'SRT',
+			'VTT',
+			'Whisper',
+			'mp3',
+			'm4a',
+			'アップロード不要',
+		],
+		related: ['bg-remove', 'upscale', 'char-count'],
+		llmsFull: {
+			useCase:
+				'WebWorker上のAIモデル（Whisper ONNX）でブラウザ内文字起こし。音声・テキストを外部送信しない',
+			inputs: 'audioFile（mp3 / wav / m4a / mp4、15分以内）',
+			outputs: 'タイムスタンプ付きテキスト（TXT / SRT / VTT）',
+			options:
+				'モデルサイズ（tiny / base / small）、言語（日本語固定 / 自動判定）',
+		},
+	},
+	{
 		id: 'image-mosaic',
 		title: '画像モザイク・ぼかし',
 		description:

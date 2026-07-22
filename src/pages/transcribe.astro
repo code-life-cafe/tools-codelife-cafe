@@ -1,0 +1,18 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import TranscribeApp from '../components/transcribe/TranscribeApp';
+import { TRANSCRIBE_CSP } from '../lib/transcribe/csp';
+
+const toolEntry = await getEntry('tools', 'transcribe');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: transcribe');
+}
+---
+
+<ToolLayout tool={toolEntry} disableAnalytics>
+  <Fragment slot="head">
+    <meta http-equiv="Content-Security-Policy" content={TRANSCRIBE_CSP} />
+  </Fragment>
+  <TranscribeApp client:load />
+</ToolLayout>

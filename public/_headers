@@ -6,6 +6,23 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Embedder-Policy: credentialless
 
+# /transcribe（ローカル文字起こし）は「音声・テキストを一切外部へ出さない」ことが不変条件のため、
+# サイト共通ポリシーより厳しい CSP を重ねる（connect-src を self に限定し、jsDelivr / Hugging Face /
+# 計測エンドポイントへの接続を塞ぐ）。ページ側でも同等の meta を出力しており、
+# astro preview / E2E ではそちらが実効ポリシーになる（src/lib/transcribe/csp.ts が正本）。
+/transcribe
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'
+
+/transcribe/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'
+
+# モデル配信は長期キャッシュ可能（マニフェストで内容が固定されており、revision 変更時はパスも変わる）
+/models/transcribe/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/vendor/onnx-wasm/*
+  Cache-Control: public, max-age=31536000, immutable
+
 # AIエージェント向けディスカバリー（RFC 8288 Link ヘッダー）。
 # 機械可読リソース（llms.txt / Agent Skills index）の場所をトップページで通知する。
 /

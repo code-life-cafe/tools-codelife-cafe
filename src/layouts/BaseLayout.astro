@@ -10,9 +10,14 @@ interface Props {
   path: string;
   /** og:image のパス（省略時はサイト共通画像） */
   ogImage?: string;
+  /**
+   * このページでは計測を一切行わない（Cloudflare Web Analytics ビーコンも出力しない）。
+   * `/transcribe` のように「同一オリジンであっても送信ゼロ」を不変条件とするページで指定する。
+   */
+  disableAnalytics?: boolean;
 }
 
-const { title, description, path, ogImage = '/og-image.png' } = Astro.props;
+const { title, description, path, ogImage = '/og-image.png', disableAnalytics = false } = Astro.props;
 const siteName = "CODE:LIFE Tools";
 const canonicalUrl = toCanonicalUrl(path);
 const fullTitle = `${title} | ${siteName}`;
@@ -47,6 +52,13 @@ const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
   <link rel="manifest" href="/site.webmanifest" />
   <meta name="theme-color" content="#0C0A09" media="(prefers-color-scheme: dark)" />
   <meta name="theme-color" content="#FAFAF9" media="(prefers-color-scheme: light)" />
+  {disableAnalytics && (
+    <script is:inline>
+      // 計測キルスイッチ。island のハイドレーション前に立てることで、
+      // ヘッダー検索など本体以外から発火しうるイベントも含めて送信を止める。
+      window.__CLC_ANALYTICS_DISABLED__ = true;
+    </script>
+  )}
   <script is:inline>
     const setDarkMode = () => {
       const stored = localStorage.getItem('theme');
@@ -91,7 +103,7 @@ const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
       });
     }
   </script>
-  {cfBeaconToken && (
+  {cfBeaconToken && !disableAnalytics && (
     <script
       is:inline
       defer

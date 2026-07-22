@@ -1,5 +1,6 @@
 import {
 	ArrowLeftRight,
+	AudioLines,
 	Binary,
 	Bookmark,
 	Bot,
@@ -56,6 +57,7 @@ import {
  */
 export const toolIconMap = {
 	ArrowLeftRight,
+	AudioLines,
 	Binary,
 	Bookmark,
 	Bot,
