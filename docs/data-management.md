@@ -224,16 +224,40 @@ node scripts/upload-transcribe-models-to-r2.mjs codelife-models --dry-run
 node scripts/upload-transcribe-models-to-r2.mjs codelife-models
 ```
 
-- オブジェクトキーは `transcribe/<model>/<path>`（既存の `/bg-remove` 用オブジェクトと分離）。
+- オブジェクトキーは `transcribe/<model>/<revision>/<path>`（既存の `/bg-remove` 用オブジェクトと分離）。
 - ブラウザへの配信は `functions/models/transcribe/[[path]].ts`（R2 バインディング `TRANSCRIBE_MODELS`）が担当します。
 - 必要権限: Cloudflare アカウントの **Workers R2 Storage: Edit**（`wrangler login` 済みであること）。
 - アップロード前にマニフェストの SHA-256 を再検証します。同じキーへの上書きなので、途中で中断しても再実行すれば続きから揃います。
+- **モデルを更新するときは新しい revision のキーへ置き、旧キーは実配信確認後に削除します。**
+  同じキーの内容を差し替えると、`immutable` で配った旧成果物が最大1年キャッシュに残ります。
 
 > **WSL から実行する場合の注意**: Windows 側にグローバルインストールした wrangler を WSL から呼ぶと、
 > `workerd` のネイティブバイナリがプラットフォーム不一致で起動できません
 > （`@cloudflare/workerd-windows-64` is present but this platform needs ...-linux-64）。
 > Windows 側（PowerShell / Git Bash）で実行するか、WSL 側に Linux 版を入れて
 > `WRANGLER_BIN=./node_modules/.bin/wrangler` を指定してください。
+
+デプロイ後は、実配信を検証してからリリースします。
+
+```bash
+npm run transcribe:verify                       # 本番に対して実行
+npm run transcribe:verify -- --base <URL>       # 任意の環境
+npm run transcribe:verify -- --full             # 全ファイルの SHA-256 まで照合
+```
+
+検証内容:
+
+1. 全モデルファイルと ONNX Runtime WASM を HEAD し、`200` / `Content-Length` / `Content-Type` /
+   `Cache-Control`（`immutable`）を確認する
+2. スモークテストで実際に使う tiny の WebGPU / WASM 成果物と WASM ランタイムは、
+   配信レスポンスを取得して **SHA-256 をマニフェストと照合**する
+3. `--full` で全ファイルの SHA-256 を照合する（転送量に注意）
+
+`Content-Length` の一致だけでは、同じサイズの破損ファイルや誤った内容を検出できません。
+`immutable` で1年配るため、誤配信は長期間残ります。だから最低限 tiny は中身まで確認します。
+
+> 今後の改善案: R2 オブジェクトへマニフェストの SHA-256 をカスタムメタデータとして保存し、
+> HEAD だけで内容まで照合できるようにする（転送量ゼロで完全性を確認できる）。
 
 ### 3.6 関連ファイル
 - `src/lib/transcribe/model-manifest.ts`: 配信対象の正本（自動生成）。

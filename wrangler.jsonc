@@ -9,7 +9,8 @@
 		}
 	],
 	// /transcribe の Whisper ONNX モデルを同一オリジン（/models/transcribe/**）で配信するための
-	// R2 バインディング。オブジェクトキーは `transcribe/<model>/...`（既存の /bg-remove 用と分離）。
+	// R2 バインディング。オブジェクトキーは `transcribe/<model>/<revision>/<path>`
+	// （既存の /bg-remove 用と分離。revision を含めるのは immutable で配るため）。
 	// 配置手順: node scripts/upload-transcribe-models-to-r2.mjs codelife-models
 	"r2_buckets": [
 		{

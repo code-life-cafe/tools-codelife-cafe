@@ -17,6 +17,7 @@
 		"transcribe:manifest": "node scripts/generate-transcribe-manifest.mjs",
 		"transcribe:models": "node scripts/fetch-transcribe-models.mjs",
 		"transcribe:wasm": "node scripts/copy-onnx-wasm.mjs",
+		"transcribe:verify": "node scripts/verify-transcribe-delivery.mjs",
 		"lint": "biome check src/ tests/",
 		"lint:fix": "biome check --write src/ tests/",
 		"astro": "astro",

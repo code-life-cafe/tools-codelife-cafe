@@ -45,7 +45,7 @@ type Context = {
 /** R2 バケット内のキープレフィックス（既存の /bg-remove 用オブジェクトと混在させない） */
 const R2_PREFIX = 'transcribe/';
 
-/** マニフェスト由来の許可リスト（`whisper-tiny/config.json` 形式） */
+/** マニフェスト由来の許可リスト（`whisper-tiny/<revision>/config.json` 形式） */
 const ALLOWED_KEYS = new Set(
 	listAllowedModelPaths().map((path) => path.slice(MODEL_BASE_PATH.length)),
 );
