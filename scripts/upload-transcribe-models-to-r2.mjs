@@ -16,9 +16,13 @@
 //   node scripts/upload-transcribe-models-to-r2.mjs codelife-models --model tiny
 //   WRANGLER_BIN=./node_modules/.bin/wrangler node scripts/upload-transcribe-models-to-r2.mjs codelife-models
 //
-// 配置キーは `transcribe/<model>/<path>`。ブラウザからは Pages Function
+// 配置キーは `transcribe/<model>/<revision>/<path>`。ブラウザからは Pages Function
 // （functions/models/transcribe/[[path]].ts）経由で同一オリジン
-// /models/transcribe/<model>/<path> として配信される。
+// /models/transcribe/<model>/<revision>/<path> として配信される。
+//
+// revision をキーに含めるのは、`Cache-Control: immutable` で配るため。
+// 同じキーの内容を差し替えると旧成果物が最大1年キャッシュに残るので、
+// モデルを更新するときは**新しい revision のキーへ置き、古いキーは実配信確認後に消す**。
 //
 // マニフェスト（src/lib/transcribe/model-manifest.ts）に列挙されたファイルだけを送る。
 // アップロード前に SHA-256 を再検証し、不一致なら中断する。
@@ -204,14 +208,18 @@ console.log(
 	`[upload] 完了: ${uploaded} オブジェクト / ${(totalBytes / 1048576).toFixed(0)}MB を r2://${bucket}/${R2_PREFIX}/ へ配置しました`,
 );
 console.log('');
+const sample = targets[0];
 console.log('検証:');
 console.log('  1. Pages をデプロイして Function と R2 バインディングを反映する');
 console.log(
-	'  2. curl -I https://tools.codelife.cafe/models/transcribe/whisper-tiny/config.json',
+	`  2. curl -I https://tools.codelife.cafe${MODEL_BASE_PATH}${sample.repositoryPath}config.json`,
 );
 console.log(
 	'     → 200 / Content-Type: application/json / Cache-Control: immutable',
 );
 console.log(
 	'  3. /transcribe を開き、DevTools Network でモデル取得が同一オリジンのみであることを確認する',
+);
+console.log(
+	'  4. 旧 revision のキーが残っていれば、実配信確認後に wrangler r2 object delete で削除する',
 );

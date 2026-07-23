@@ -7,6 +7,13 @@
 //
 // マニフェスト（src/lib/transcribe/model-manifest.ts）に列挙されたパスだけを配信する。
 // 未知のパス・暗黙のパス解決は 404 とし、Hugging Face 等へのフォールバックは行わない。
+// パスには revision が含まれる（`<name>/<revision>/...`）ため、内容が変わると URL も変わる。
+//
+// Range には対応しない。transformers.js は `env.allowRemoteModels = false` かつ
+// 相対 `localModelPath` の構成では Range 付きリクエストを出さない
+// （`fetch_file_head` の `Range: bytes=0-0` は絶対 URL のときだけ実行される）。
+// 中途半端な部分応答（206 / Content-Range / 416 を伴わない実装）を残さないため、
+// リクエストの Range ヘッダーは無視して常に全体を 200 で返す。
 
 import {
 	listAllowedModelPaths,
@@ -21,10 +28,7 @@ type R2Object = {
 };
 
 type R2Bucket = {
-	get(
-		key: string,
-		options?: { range?: unknown; onlyIf?: unknown },
-	): Promise<R2Object | null>;
+	get(key: string): Promise<R2Object | null>;
 	head(key: string): Promise<R2Object | null>;
 };
 
@@ -93,9 +97,7 @@ export const onRequest = async (context: Context): Promise<Response> => {
 	const object =
 		request.method === 'HEAD'
 			? await bucket.head(objectKey)
-			: await bucket.get(objectKey, {
-					range: request.headers.get('range') ?? undefined,
-				});
+			: await bucket.get(objectKey);
 
 	if (!object) return notFound();
 
@@ -103,9 +105,11 @@ export const onRequest = async (context: Context): Promise<Response> => {
 	object.writeHttpMetadata(headers);
 	headers.set('Content-Type', contentTypeFor(key));
 	headers.set('ETag', object.httpEtag);
-	// マニフェストで内容が固定されており、revision 変更時はパスも変わるため長期キャッシュ可能
+	// URL に revision が含まれ、同じ URL の内容は差し替わらないため長期キャッシュ可能
 	headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 	headers.set('X-Content-Type-Options', 'nosniff');
+	// 部分取得には対応しない（不完全な Range 応答を返さないことを明示する）
+	headers.set('Accept-Ranges', 'none');
 
 	if (request.method === 'HEAD') {
 		headers.set('Content-Length', String(object.size));

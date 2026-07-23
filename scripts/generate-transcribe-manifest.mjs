@@ -53,23 +53,44 @@ const HF = 'https://huggingface.co';
 const MODELS = [
 	{
 		id: 'tiny',
-		modelId: 'whisper-tiny',
+		name: 'whisper-tiny',
 		sourceRepository: 'onnx-community/whisper-tiny',
 		revision: 'ff4177021cc41f7db950912b73ea4fdf7d01d8e7',
 	},
 	{
 		id: 'base',
-		modelId: 'whisper-base',
+		name: 'whisper-base',
 		sourceRepository: 'onnx-community/whisper-base',
 		revision: '1846881b6b3a3024392c1eea3ad983695bc23925',
 	},
 	{
 		id: 'small',
-		modelId: 'whisper-small',
+		name: 'whisper-small',
 		sourceRepository: 'onnx-community/whisper-small',
 		revision: '36050c46d777d46dc4b5f43f6d90574fc38f8732',
 	},
 ];
+
+// 配信 URL / R2 キーには revision を含める。
+// 同じ URL の内容を差し替えると、`Cache-Control: immutable`（1年）で配った旧成果物が
+// ブラウザ・CDN・Service Worker に残り続けるため、revision を変えたら URL も変える。
+//
+// transformers.js の pipeline へ渡す識別子もこの revision 付きパスにする
+// （`isValidHfModelId` の REPO_ID_REGEX はスラッシュ1個までを許可するので `<name>/<revision>` は通る）。
+function modelIdFor(model) {
+	const modelId = `${model.name}/${model.revision}`;
+	// transformers.js の isValidHfModelId 相当のチェック（ここで落としておく）
+	if (
+		!/^(\b[\w\-.]+\b\/)?\b[\w\-.]{1,96}\b$/.test(modelId) ||
+		modelId.includes('..') ||
+		modelId.includes('--')
+	) {
+		throw new Error(
+			`transformers.js がローカルパスとして解決できない modelId です: ${modelId}`,
+		);
+	}
+	return modelId;
+}
 
 // 配信するファイル（マニフェスト外のファイルは配信も取得もしない）
 const CONFIG_FILES = [
@@ -158,12 +179,14 @@ async function buildModel(model) {
 	}
 
 	files.sort((a, b) => a.path.localeCompare(b.path));
+	const modelId = modelIdFor(model);
 	return {
 		id: model.id,
-		modelId: model.modelId,
+		name: model.name,
+		modelId,
 		sourceRepository: model.sourceRepository,
 		revision: model.revision,
-		repositoryPath: `${model.modelId}/`,
+		repositoryPath: `${modelId}/`,
 		dtype: DTYPE,
 		license: licenseFor(model),
 		files,
@@ -234,6 +257,10 @@ const header = `// model-manifest.ts — /transcribe のモデル成果物マニ
 //
 // ここに列挙されたファイルだけを R2 / 同一オリジン \`/models/transcribe/\` から配信する。
 // マニフェスト外のパス解決・Hugging Face へのフォールバックは禁止。
+//
+// 配信 URL と R2 キーには **revision を含める**（\`<name>/<revision>/...\`）。
+// 内容が変わったら URL も変わるので、\`Cache-Control: immutable\` を安全に付けられる。
+// 同じ URL の内容を差し替えると旧成果物が最大1年キャッシュに残るため、絶対にしない。
 `;
 
 const body = `${header}
@@ -259,13 +286,18 @@ export type ArtifactFile = {
 
 export type ModelArtifact = {
 	id: ModelId;
-	/** transformers.js の pipeline へ渡すモデルID（= 配信ディレクトリ名） */
+	/** 表示・R2 の整理用の名前（revision を含まない） */
+	name: string;
+	/**
+	 * transformers.js の pipeline へ渡すモデルID。
+	 * \`<name>/<revision>\` 形式で、そのまま配信ディレクトリになる。
+	 */
 	modelId: string;
 	/** 変換元の正確なモデルID */
 	sourceRepository: string;
 	/** タグではなくコミットハッシュ */
 	revision: string;
-	/** /models/transcribe/ 配下の相対パス */
+	/** /models/transcribe/ 配下の相対パス（\`<name>/<revision>/\`） */
 	repositoryPath: string;
 	dtype: { webgpu: DtypeName; wasm: DtypeName };
 	license: { spdx: string; sourceUrl: string; noticePath?: string };
@@ -282,12 +314,17 @@ export type RuntimeArtifact = {
 /** 同一オリジンのモデル配信ルート（Cloudflare 側で R2 へプロキシする） */
 export const MODEL_BASE_PATH = '/models/transcribe/';
 
-/** ONNX Runtime Web の WASM 配信ルート（CDN 既定へのフォールバックは禁止） */
-export const ONNX_WASM_BASE_PATH = '/vendor/onnx-wasm/';
+export const RUNTIME_ARTIFACT: RuntimeArtifact = ${ts(runtime)};
+
+/**
+ * ONNX Runtime Web の WASM 配信ルート（CDN 既定へのフォールバックは禁止）。
+ * onnxruntime-web のバージョンをパスに含めるため、\`immutable\` を付けても
+ * ライブラリ更新時に古い WASM が残らない。
+ */
+export const ONNX_WASM_BASE_PATH =
+	\`/vendor/onnx-wasm/\${RUNTIME_ARTIFACT.onnxRuntimeVersion}/\`;
 
 export const MODEL_ARTIFACTS: readonly ModelArtifact[] = ${ts(models)};
-
-export const RUNTIME_ARTIFACT: RuntimeArtifact = ${ts(runtime)};
 
 export const MODEL_IDS: readonly ModelId[] = MODEL_ARTIFACTS.map((m) => m.id);
 

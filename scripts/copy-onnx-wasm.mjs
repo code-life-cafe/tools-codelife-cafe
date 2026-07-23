@@ -19,11 +19,16 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { RUNTIME_ARTIFACT } from '../src/lib/transcribe/model-manifest.ts';
+import {
+	ONNX_WASM_BASE_PATH,
+	RUNTIME_ARTIFACT,
+} from '../src/lib/transcribe/model-manifest.ts';
 import { resolveRuntimePaths } from './lib/onnx-runtime-paths.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DEST = join(ROOT, 'public', 'vendor', 'onnx-wasm');
+// 配信パスにバージョンが入るため、public 配下も同じ構造で置く
+// （固定 URL の内容を差し替えないので `immutable` を安全に付けられる）
+const DEST = join(ROOT, 'public', ...ONNX_WASM_BASE_PATH.split('/').filter(Boolean));
 const checkOnly = process.argv.includes('--check');
 
 const { transformersVersion, onnxRuntimeVersion, ortDist } =

@@ -5,6 +5,10 @@
 //
 // ここに列挙されたファイルだけを R2 / 同一オリジン `/models/transcribe/` から配信する。
 // マニフェスト外のパス解決・Hugging Face へのフォールバックは禁止。
+//
+// 配信 URL と R2 キーには **revision を含める**（`<name>/<revision>/...`）。
+// 内容が変わったら URL も変わるので、`Cache-Control: immutable` を安全に付けられる。
+// 同じ URL の内容を差し替えると旧成果物が最大1年キャッシュに残るため、絶対にしない。
 
 export type ModelId = 'tiny' | 'base' | 'small';
 
@@ -28,13 +32,18 @@ export type ArtifactFile = {
 
 export type ModelArtifact = {
 	id: ModelId;
-	/** transformers.js の pipeline へ渡すモデルID（= 配信ディレクトリ名） */
+	/** 表示・R2 の整理用の名前（revision を含まない） */
+	name: string;
+	/**
+	 * transformers.js の pipeline へ渡すモデルID。
+	 * `<name>/<revision>` 形式で、そのまま配信ディレクトリになる。
+	 */
 	modelId: string;
 	/** 変換元の正確なモデルID */
 	sourceRepository: string;
 	/** タグではなくコミットハッシュ */
 	revision: string;
-	/** /models/transcribe/ 配下の相対パス */
+	/** /models/transcribe/ 配下の相対パス（`<name>/<revision>/`） */
 	repositoryPath: string;
 	dtype: { webgpu: DtypeName; wasm: DtypeName };
 	license: { spdx: string; sourceUrl: string; noticePath?: string };
@@ -51,16 +60,52 @@ export type RuntimeArtifact = {
 /** 同一オリジンのモデル配信ルート（Cloudflare 側で R2 へプロキシする） */
 export const MODEL_BASE_PATH = '/models/transcribe/';
 
-/** ONNX Runtime Web の WASM 配信ルート（CDN 既定へのフォールバックは禁止） */
-export const ONNX_WASM_BASE_PATH = '/vendor/onnx-wasm/';
+export const RUNTIME_ARTIFACT: RuntimeArtifact = {
+	transformersVersion: '4.2.0',
+	onnxRuntimeVersion: '1.26.0-dev.20260416-b7804b056c',
+	files: [
+		{
+			path: 'ort-wasm-simd-threaded.asyncify.mjs',
+			bytes: 47389,
+			sha256:
+				'5959c6733039619c9af710d8e1bae8d6e84402787990637be987c2b1bd6c5fa9',
+		},
+		{
+			path: 'ort-wasm-simd-threaded.asyncify.wasm',
+			bytes: 23567050,
+			sha256:
+				'e0c0c6d3e73d43b8a249972f8358f845b08cc16fec3c80efafdf8bed40366786',
+		},
+		{
+			path: 'ort-wasm-simd-threaded.mjs',
+			bytes: 24180,
+			sha256:
+				'5f2cd914554830762579c372d0211614c1e3f40ab3f6c0cfcf0900343229071d',
+		},
+		{
+			path: 'ort-wasm-simd-threaded.wasm',
+			bytes: 12942611,
+			sha256:
+				'f4f290847a4df02d0b93cdbf39b4b0e71acefbe80573e7e6b9342a7abd7b290a',
+		},
+	],
+};
+
+/**
+ * ONNX Runtime Web の WASM 配信ルート（CDN 既定へのフォールバックは禁止）。
+ * onnxruntime-web のバージョンをパスに含めるため、`immutable` を付けても
+ * ライブラリ更新時に古い WASM が残らない。
+ */
+export const ONNX_WASM_BASE_PATH = `/vendor/onnx-wasm/${RUNTIME_ARTIFACT.onnxRuntimeVersion}/`;
 
 export const MODEL_ARTIFACTS: readonly ModelArtifact[] = [
 	{
 		id: 'tiny',
-		modelId: 'whisper-tiny',
+		name: 'whisper-tiny',
+		modelId: 'whisper-tiny/ff4177021cc41f7db950912b73ea4fdf7d01d8e7',
 		sourceRepository: 'onnx-community/whisper-tiny',
 		revision: 'ff4177021cc41f7db950912b73ea4fdf7d01d8e7',
-		repositoryPath: 'whisper-tiny/',
+		repositoryPath: 'whisper-tiny/ff4177021cc41f7db950912b73ea4fdf7d01d8e7/',
 		dtype: {
 			wasm: 'bnb4',
 			webgpu: 'q8',
@@ -130,10 +175,11 @@ export const MODEL_ARTIFACTS: readonly ModelArtifact[] = [
 	},
 	{
 		id: 'base',
-		modelId: 'whisper-base',
+		name: 'whisper-base',
+		modelId: 'whisper-base/1846881b6b3a3024392c1eea3ad983695bc23925',
 		sourceRepository: 'onnx-community/whisper-base',
 		revision: '1846881b6b3a3024392c1eea3ad983695bc23925',
-		repositoryPath: 'whisper-base/',
+		repositoryPath: 'whisper-base/1846881b6b3a3024392c1eea3ad983695bc23925/',
 		dtype: {
 			wasm: 'bnb4',
 			webgpu: 'q8',
@@ -203,10 +249,11 @@ export const MODEL_ARTIFACTS: readonly ModelArtifact[] = [
 	},
 	{
 		id: 'small',
-		modelId: 'whisper-small',
+		name: 'whisper-small',
+		modelId: 'whisper-small/36050c46d777d46dc4b5f43f6d90574fc38f8732',
 		sourceRepository: 'onnx-community/whisper-small',
 		revision: '36050c46d777d46dc4b5f43f6d90574fc38f8732',
-		repositoryPath: 'whisper-small/',
+		repositoryPath: 'whisper-small/36050c46d777d46dc4b5f43f6d90574fc38f8732/',
 		dtype: {
 			wasm: 'bnb4',
 			webgpu: 'q8',
@@ -275,37 +322,6 @@ export const MODEL_ARTIFACTS: readonly ModelArtifact[] = [
 		totalBytes: 538793996,
 	},
 ];
-
-export const RUNTIME_ARTIFACT: RuntimeArtifact = {
-	transformersVersion: '4.2.0',
-	onnxRuntimeVersion: '1.26.0-dev.20260416-b7804b056c',
-	files: [
-		{
-			path: 'ort-wasm-simd-threaded.asyncify.mjs',
-			bytes: 47389,
-			sha256:
-				'5959c6733039619c9af710d8e1bae8d6e84402787990637be987c2b1bd6c5fa9',
-		},
-		{
-			path: 'ort-wasm-simd-threaded.asyncify.wasm',
-			bytes: 23567050,
-			sha256:
-				'e0c0c6d3e73d43b8a249972f8358f845b08cc16fec3c80efafdf8bed40366786',
-		},
-		{
-			path: 'ort-wasm-simd-threaded.mjs',
-			bytes: 24180,
-			sha256:
-				'5f2cd914554830762579c372d0211614c1e3f40ab3f6c0cfcf0900343229071d',
-		},
-		{
-			path: 'ort-wasm-simd-threaded.wasm',
-			bytes: 12942611,
-			sha256:
-				'f4f290847a4df02d0b93cdbf39b4b0e71acefbe80573e7e6b9342a7abd7b290a',
-		},
-	],
-};
 
 export const MODEL_IDS: readonly ModelId[] = MODEL_ARTIFACTS.map((m) => m.id);
 
