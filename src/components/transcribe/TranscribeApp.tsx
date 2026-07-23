@@ -77,6 +77,10 @@ export default function TranscribeApp() {
 	const durationRef = useRef<number | null>(null);
 	const metadataGenerationRef = useRef(0);
 	const cacheRetriedRef = useRef(false);
+	// handleCancel/handleClear/handleModelChange と非forcedなhandleRunの呼び出しで
+	// インクリメントする。retryWithCacheEviction の非同期処理（キャッシュ削除）完了時に
+	// この値が変わっていれば、その間にキャンセル等が起きたということなので再取得を中止する。
+	const runGenerationRef = useRef(0);
 	const runRef = useRef<(options?: { forceNetworkSource?: boolean }) => void>(
 		() => undefined,
 	);
@@ -190,6 +194,27 @@ export default function TranscribeApp() {
 		client.post({ type: 'transcribe', audio, language }, [audio.buffer]);
 	}, [deviceMemoryGb, device, fail, language, modelId]);
 
+	/**
+	 * 対象モデルのキャッシュを削除し、source: network を強制して1回だけ再取得する。
+	 * - 手動実行: エラー画面の「キャッシュを削除して再取得」ボタンから（network起点の失敗向け）
+	 * - 自動実行: handleMessage の error ケースから（cache起点の失敗時。正本の自動再取得要件）
+	 * cacheRetriedRef で二重発火を防ぎ、runGenerationRef でキャンセル等の後の再開を防ぐ。
+	 */
+	const retryWithCacheEviction = useCallback(() => {
+		if (!device || cacheRetriedRef.current) return;
+		cacheRetriedRef.current = true;
+		const generation = runGenerationRef.current;
+		clientRef.current?.terminate();
+		clientRef.current = null;
+		void (async () => {
+			await evictModelCache(modelId, device);
+			setCachedModelIds((prev) => prev.filter((id) => id !== modelId));
+			// キャッシュ削除の待機中にキャンセル・クリア・モデル変更があれば再開しない
+			if (runGenerationRef.current !== generation) return;
+			runRef.current({ forceNetworkSource: true });
+		})();
+	}, [device, modelId]);
+
 	const handleMessage = useCallback(
 		(message: WorkerResponse) => {
 			switch (message.type) {
@@ -237,6 +262,17 @@ export default function TranscribeApp() {
 					});
 					break;
 				case 'error':
+					// source: cache でのロード失敗のみ、自動でキャッシュ削除→network再取得を1回試みる。
+					// 通常の network 起点の失敗は自動リトライしない（手動ボタンのみが復旧手段）。
+					if (
+						message.code === 'model-load-failed' &&
+						state.phase === 'loading-model' &&
+						state.source === 'cache' &&
+						!cacheRetriedRef.current
+					) {
+						retryWithCacheEviction();
+						return;
+					}
 					setState({
 						phase: 'error',
 						code: message.code,
@@ -245,7 +281,7 @@ export default function TranscribeApp() {
 					break;
 			}
 		},
-		[decodeAndTranscribe],
+		[decodeAndTranscribe, state, retryWithCacheEviction],
 	);
 
 	const handleFailure = useCallback(() => {
@@ -296,9 +332,11 @@ export default function TranscribeApp() {
 	}, []);
 
 	// --- duration 解析（ファイル選択の描画後に開始する） ---
-	// useEffect は passive effect としてブラウザのペイント後に実行されるため、
-	// setFile() によるファイル名表示が確定してからここが走る
-	// （requestAnimationFrame 等のハックなしに順序を保証できる）。
+	// setMetadataStatus('checking') は即座に反映し、開始ボタンの無効化はここから効く。
+	// 重い解析（readDurationSec）は二重 requestAnimationFrame の後まで遅らせる:
+	// 1回目の rAF コールバックは次のペイント"直前"に発火するため、その中で2回目の rAF を
+	// 予約することで「ファイル名を含む今回の描画が実際にペイントされた後」を明示的に保証する
+	// （useEffectがペイント後に実行される、という前提だけには依存しない）。
 	useEffect(() => {
 		if (!file) {
 			setMetadataStatus('idle');
@@ -308,33 +346,46 @@ export default function TranscribeApp() {
 		const controller = new AbortController();
 		setMetadataStatus('checking');
 
-		void readDurationSec(file, controller.signal).then((seconds) => {
-			// 世代ガード + signal の二重防御。abort後に resolve された stale な結果を破棄する
-			if (metadataGenerationRef.current !== generation) return;
-			if (controller.signal.aborted) return;
+		let rafId1 = 0;
+		let rafId2 = 0;
+		rafId1 = requestAnimationFrame(() => {
+			rafId2 = requestAnimationFrame(() => {
+				void readDurationSec(file, controller.signal).then((seconds) => {
+					// 世代ガード + signal の二重防御。abort後に resolve された stale な結果を破棄する
+					if (metadataGenerationRef.current !== generation) return;
+					if (controller.signal.aborted) return;
 
-			if (!Number.isFinite(seconds)) {
-				// 取得不能。デコード後の AudioBuffer 長で再判定する
-				setDurationSec(null);
-				durationRef.current = null;
-				setMetadataStatus('unavailable');
-				return;
-			}
-			const check = assessDuration(seconds);
-			setDurationSec(seconds);
-			durationRef.current = seconds;
-			if (!check.ok) {
-				setState({ phase: 'error', code: check.code, message: check.message });
-			}
-			setMetadataStatus('available');
+					if (!Number.isFinite(seconds)) {
+						// 取得不能。デコード後の AudioBuffer 長で再判定する
+						setDurationSec(null);
+						durationRef.current = null;
+						setMetadataStatus('unavailable');
+						return;
+					}
+					const check = assessDuration(seconds);
+					setDurationSec(seconds);
+					durationRef.current = seconds;
+					if (!check.ok) {
+						setState({
+							phase: 'error',
+							code: check.code,
+							message: check.message,
+						});
+					}
+					setMetadataStatus('available');
+				});
+			});
 		});
 
 		return () => {
 			controller.abort();
+			cancelAnimationFrame(rafId1);
+			cancelAnimationFrame(rafId2);
 		};
 	}, [file]);
 
 	const handleClear = useCallback(() => {
+		runGenerationRef.current++;
 		clientRef.current?.terminate();
 		clientRef.current = null;
 		setFile(null);
@@ -350,6 +401,11 @@ export default function TranscribeApp() {
 	const handleRun = useCallback(
 		(options?: { forceNetworkSource?: boolean }) => {
 			if (!fileRef.current || !device) return;
+			runGenerationRef.current++;
+			// forced（内部リトライ）以外の新規実行では、前回の再試行済みフラグを持ち越さない
+			if (!options?.forceNetworkSource) {
+				cacheRetriedRef.current = false;
+			}
 			setSegments([]);
 			setWarning(null);
 
@@ -396,6 +452,7 @@ export default function TranscribeApp() {
 
 	const handleCancel = useCallback(() => {
 		// キャンセルはエラー扱いしない。Worker を破棄して idle に戻す
+		runGenerationRef.current++;
 		clientRef.current?.terminate();
 		clientRef.current = null;
 		setState({ phase: 'idle' });
@@ -403,21 +460,12 @@ export default function TranscribeApp() {
 
 	const handleModelChange = useCallback((next: ModelId) => {
 		// モデル切替時は旧 Worker を破棄する（別モデルのセッションを残さない）
+		runGenerationRef.current++;
 		clientRef.current?.terminate();
 		clientRef.current = null;
 		setModelId(next);
 		setState({ phase: 'idle' });
 	}, []);
-
-	const handleRetryWithCacheEviction = useCallback(async () => {
-		if (!device || cacheRetriedRef.current) return;
-		cacheRetriedRef.current = true;
-		clientRef.current?.terminate();
-		clientRef.current = null;
-		await evictModelCache(modelId, device);
-		setCachedModelIds((prev) => prev.filter((id) => id !== modelId));
-		runRef.current({ forceNetworkSource: true });
-	}, [device, modelId]);
 
 	const handleSegmentChange = useCallback((id: number, text: string) => {
 		setSegments((prev) =>
@@ -545,7 +593,7 @@ export default function TranscribeApp() {
 									<Button
 										size="sm"
 										variant="ghost"
-										onClick={() => void handleRetryWithCacheEviction()}
+										onClick={() => retryWithCacheEviction()}
 									>
 										キャッシュを削除して再取得
 									</Button>
