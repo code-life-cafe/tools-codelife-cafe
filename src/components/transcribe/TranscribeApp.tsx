@@ -22,7 +22,11 @@ import {
 	assessMemory,
 	estimatePeakMemoryBytes,
 } from '@/lib/transcribe/audio-core';
-import { evictModelCache, isModelCached } from '@/lib/transcribe/cache';
+import {
+	evictModelCache,
+	isModelCached,
+	resolveModelLoadSource,
+} from '@/lib/transcribe/cache';
 import { TranscribeClient } from '@/lib/transcribe/client';
 import {
 	getDeviceMemoryGb,
@@ -59,6 +63,9 @@ export default function TranscribeApp() {
 
 	const [file, setFile] = useState<File | null>(null);
 	const [durationSec, setDurationSec] = useState<number | null>(null);
+	const [metadataStatus, setMetadataStatus] = useState<
+		'idle' | 'checking' | 'available' | 'unavailable'
+	>('idle');
 	const [warning, setWarning] = useState<string | null>(null);
 	const [inputError, setInputError] = useState<string | null>(null);
 
@@ -68,8 +75,11 @@ export default function TranscribeApp() {
 	const clientRef = useRef<TranscribeClient | null>(null);
 	const fileRef = useRef<File | null>(null);
 	const durationRef = useRef<number | null>(null);
+	const metadataGenerationRef = useRef(0);
 	const cacheRetriedRef = useRef(false);
-	const runRef = useRef<() => void>(() => undefined);
+	const runRef = useRef<(options?: { forceNetworkSource?: boolean }) => void>(
+		() => undefined,
+	);
 
 	// --- 環境判定 ---
 	useEffect(() => {
@@ -186,7 +196,7 @@ export default function TranscribeApp() {
 				case 'progress':
 					if (message.kind === 'model') {
 						setState((prev) =>
-							prev.phase === 'loading-model'
+							prev.phase === 'loading-model' && prev.source === 'network'
 								? { ...prev, progress: message.pct }
 								: prev,
 						);
@@ -264,7 +274,9 @@ export default function TranscribeApp() {
 		return clientRef.current;
 	}, []);
 
-	const handleFileSelect = useCallback(async (selected: File) => {
+	// ファイル選択のフィードバック（ファイル名描画）を優先し、duration解析は
+	// 下の useEffect（file を key にする）へ分離する。ここは同期処理のみ。
+	const handleFileSelect = useCallback((selected: File) => {
 		setInputError(null);
 		setWarning(null);
 		setSegments([]);
@@ -279,25 +291,48 @@ export default function TranscribeApp() {
 
 		setFile(selected);
 		fileRef.current = selected;
+		setDurationSec(null);
+		durationRef.current = null;
+	}, []);
 
-		// デコード前に <audio> の loadedmetadata で長さを判定する
-		const seconds = await readDurationSec(selected);
-		if (!Number.isFinite(seconds)) {
-			// 取得不能。デコード後の AudioBuffer 長で再判定する
-			setDurationSec(null);
-			durationRef.current = null;
+	// --- duration 解析（ファイル選択の描画後に開始する） ---
+	// useEffect は passive effect としてブラウザのペイント後に実行されるため、
+	// setFile() によるファイル名表示が確定してからここが走る
+	// （requestAnimationFrame 等のハックなしに順序を保証できる）。
+	useEffect(() => {
+		if (!file) {
+			setMetadataStatus('idle');
 			return;
 		}
-		const check = assessDuration(seconds);
-		if (!check.ok) {
+		const generation = ++metadataGenerationRef.current;
+		const controller = new AbortController();
+		setMetadataStatus('checking');
+
+		void readDurationSec(file, controller.signal).then((seconds) => {
+			// 世代ガード + signal の二重防御。abort後に resolve された stale な結果を破棄する
+			if (metadataGenerationRef.current !== generation) return;
+			if (controller.signal.aborted) return;
+
+			if (!Number.isFinite(seconds)) {
+				// 取得不能。デコード後の AudioBuffer 長で再判定する
+				setDurationSec(null);
+				durationRef.current = null;
+				setMetadataStatus('unavailable');
+				return;
+			}
+			const check = assessDuration(seconds);
 			setDurationSec(seconds);
 			durationRef.current = seconds;
-			setState({ phase: 'error', code: check.code, message: check.message });
-			return;
-		}
-		setDurationSec(seconds);
-		durationRef.current = seconds;
-	}, []);
+			if (!check.ok) {
+				setState({ phase: 'error', code: check.code, message: check.message });
+			}
+			setMetadataStatus('available');
+		});
+
+		return () => {
+			controller.abort();
+		};
+	}, [file]);
 
 	const handleClear = useCallback(() => {
 		clientRef.current?.terminate();
@@ -312,39 +347,48 @@ export default function TranscribeApp() {
 		setState({ phase: 'idle' });
 	}, []);
 
-	const handleRun = useCallback(() => {
-		if (!fileRef.current || !device) return;
-		setSegments([]);
-		setWarning(null);
+	const handleRun = useCallback(
+		(options?: { forceNetworkSource?: boolean }) => {
+			if (!fileRef.current || !device) return;
+			setSegments([]);
+			setWarning(null);
 
-		// duration が事前に分かる場合は、デコード前にメモリ安全性も判定する
-		const seconds = durationRef.current;
-		if (seconds !== null) {
-			const memory = assessMemory({
-				estimatedBytes: estimatePeakMemoryBytes({
-					durationSec: seconds,
-					sampleRate: ASSUMED_SAMPLE_RATE,
-					channels: ASSUMED_CHANNELS,
-					modelPeakBytes: modelPeakBytes(modelId, device),
-				}),
-				deviceMemoryGb,
-				modelId,
-				device,
-			});
-			if (memory.level === 'stop') {
-				setState({
-					phase: 'error',
-					code: memory.code,
-					message: memory.message,
+			// duration が事前に分かる場合は、デコード前にメモリ安全性も判定する
+			const seconds = durationRef.current;
+			if (seconds !== null) {
+				const memory = assessMemory({
+					estimatedBytes: estimatePeakMemoryBytes({
+						durationSec: seconds,
+						sampleRate: ASSUMED_SAMPLE_RATE,
+						channels: ASSUMED_CHANNELS,
+						modelPeakBytes: modelPeakBytes(modelId, device),
+					}),
+					deviceMemoryGb,
+					modelId,
+					device,
 				});
-				return;
+				if (memory.level === 'stop') {
+					setState({
+						phase: 'error',
+						code: memory.code,
+						message: memory.message,
+					});
+					return;
+				}
+				if (memory.level === 'warn') setWarning(memory.message);
 			}
-			if (memory.level === 'warn') setWarning(memory.message);
-		}
 
-		setState({ phase: 'loading-model', modelId, progress: 0 });
-		ensureClient().post({ type: 'load', modelId, device });
-	}, [device, deviceMemoryGb, ensureClient, modelId]);
+			const source = resolveModelLoadSource(modelId, cachedModelIds, options);
+			setState({
+				phase: 'loading-model',
+				modelId,
+				source,
+				progress: source === 'network' ? 0 : null,
+			});
+			ensureClient().post({ type: 'load', modelId, device });
+		},
+		[device, deviceMemoryGb, ensureClient, modelId, cachedModelIds],
+	);
 
 	useEffect(() => {
 		runRef.current = handleRun;
@@ -372,7 +416,7 @@ export default function TranscribeApp() {
 		clientRef.current = null;
 		await evictModelCache(modelId, device);
 		setCachedModelIds((prev) => prev.filter((id) => id !== modelId));
-		runRef.current();
+		runRef.current({ forceNetworkSource: true });
 	}, [device, modelId]);
 
 	const handleSegmentChange = useCallback((id: number, text: string) => {
@@ -420,7 +464,7 @@ export default function TranscribeApp() {
 
 			<DropZone
 				fileName={file?.name ?? null}
-				onFileSelect={(selected) => void handleFileSelect(selected)}
+				onFileSelect={handleFileSelect}
 				onValidationError={setInputError}
 				onClear={handleClear}
 				disabled={busy}
@@ -444,8 +488,8 @@ export default function TranscribeApp() {
 
 			<div className="flex flex-wrap items-center gap-2">
 				<Button
-					onClick={handleRun}
-					disabled={!file || busy || !device}
+					onClick={() => handleRun()}
+					disabled={!file || busy || !device || metadataStatus === 'checking'}
 					data-testid="transcribe-run"
 				>
 					{busy ? (
@@ -465,7 +509,15 @@ export default function TranscribeApp() {
 						キャンセル
 					</Button>
 				)}
-				{durationSec !== null && (
+				{metadataStatus === 'checking' && (
+					<span
+						className="text-sm text-muted-foreground"
+						data-testid="transcribe-metadata-checking"
+					>
+						音声の長さを確認しています…
+					</span>
+				)}
+				{metadataStatus !== 'checking' && durationSec !== null && (
 					<span className="text-sm text-muted-foreground">
 						長さ {Math.floor(durationSec / 60)}分
 						{String(Math.round(durationSec % 60)).padStart(2, '0')}秒
@@ -484,7 +536,7 @@ export default function TranscribeApp() {
 						<span>{ERROR_GUIDANCE[state.code].hint}</span>
 						<span className="text-xs opacity-80">詳細: {state.message}</span>
 						<span className="flex flex-wrap gap-2 pt-1">
-							<Button size="sm" variant="outline" onClick={handleRun}>
+							<Button size="sm" variant="outline" onClick={() => handleRun()}>
 								<RotateCcw className="h-4 w-4" aria-hidden="true" />
 								再試行
 							</Button>
