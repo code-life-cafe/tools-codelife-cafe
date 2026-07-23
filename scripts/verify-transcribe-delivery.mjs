@@ -97,7 +97,13 @@ for (const target of targets) {
 	const problems = [];
 	let head;
 	try {
-		head = await fetch(target.url, { method: 'HEAD', redirect: 'manual' });
+		head = await fetch(target.url, {
+			method: 'HEAD',
+			redirect: 'manual',
+			// 圧縮されると Content-Length が実体サイズと合わなくなる（Cloudflare は
+			// HEAD で 0 や欠落を返すことがある）。素のサイズを見るため identity を要求する。
+			headers: { 'Accept-Encoding': 'identity' },
+		});
 	} catch (error) {
 		failures.push(`${target.label}: HEAD 失敗 ${String(error)}`);
 		console.log(`  NG   ${target.label}`);
@@ -106,11 +112,18 @@ for (const target of targets) {
 
 	if (head.status !== 200) problems.push(`status=${head.status}`);
 
-	const length = Number(head.headers.get('content-length'));
-	if (!Number.isFinite(length)) {
-		problems.push('Content-Length なし');
-	} else if (length !== target.bytes) {
-		problems.push(`Content-Length=${length} 期待=${target.bytes}`);
+	const rawLength = head.headers.get('content-length');
+	let lengthVerified = false;
+	if (rawLength === null || rawLength === '' || rawLength === '0') {
+		// Pages の静的配信は圧縮・チャンク転送で Content-Length を返さないことがある。
+		// その場合は SHA-256 照合（実体を GET する）でサイズも確認する。
+		if (!target.sha) {
+			problems.push('Content-Length なし（SHA-256 照合の対象外）');
+		}
+	} else if (Number(rawLength) !== target.bytes) {
+		problems.push(`Content-Length=${rawLength} 期待=${target.bytes}`);
+	} else {
+		lengthVerified = true;
 	}
 
 	const contentType = head.headers.get('content-type') ?? '';
@@ -146,7 +159,12 @@ for (const target of targets) {
 		failures.push(`${target.label}: ${problems.join(' / ')}`);
 		console.log(`  NG   ${target.label} — ${problems.join(' / ')}`);
 	} else {
-		console.log(`  OK   ${target.label}${target.sha ? ' (sha256)' : ''}`);
+		const how = target.sha
+			? 'sha256'
+			: lengthVerified
+				? 'content-length'
+				: 'headers';
+		console.log(`  OK   ${target.label} (${how})`);
 	}
 }
 
