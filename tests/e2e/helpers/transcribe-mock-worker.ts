@@ -10,6 +10,7 @@ import type { Page } from '@playwright/test';
 export const MOCK_WORKER = `
 window.__TRANSCRIBE_MOCK_MODE__ = window.__TRANSCRIBE_MOCK_MODE__ || 'ok';
 window.__TRANSCRIBE_MOCK_TERMINATED__ = 0;
+window.__TRANSCRIBE_MOCK_LOAD_ATTEMPTS__ = 0;
 window.__TRANSCRIBE_WORKER_FACTORY__ = () => {
 	const listeners = { message: [], error: [] };
 	let alive = true;
@@ -32,6 +33,16 @@ window.__TRANSCRIBE_WORKER_FACTORY__ = () => {
 				if (mode === 'stall') return;
 				if (mode === 'load-error') {
 					later(30, () => emit({ type: 'error', code: 'model-load-failed', message: 'mock load failure' }));
+					return;
+				}
+				if (mode === 'load-error-once') {
+					// 1回目だけ失敗させ、2回目以降は応答しない（stall）。
+					// evictModelCache 後の再取得が確実に "loading-model" のまま観測できるよう、
+					// タイマー競合を避けてテストを決定的にするためのモード。
+					window.__TRANSCRIBE_MOCK_LOAD_ATTEMPTS__++;
+					if (window.__TRANSCRIBE_MOCK_LOAD_ATTEMPTS__ === 1) {
+						later(30, () => emit({ type: 'error', code: 'model-load-failed', message: 'mock load failure' }));
+					}
 					return;
 				}
 				later(20, () => emit({ type: 'progress', kind: 'model', pct: 40 }));
@@ -95,7 +106,59 @@ Object.defineProperty(HTMLMediaElement.prototype, 'duration', {
 });
 `;
 
-export type MockMode = 'ok' | 'stall' | 'load-error' | 'infer-error';
+/**
+ * `<audio>.src` への実際の代入を ms 遅らせ、loadedmetadata の発火を遅延させる。
+ * ファイル選択直後の「ファイル名が先に表示される」「確認中は開始ボタンが無効」を
+ * 観測するためのテスト用ヘルパー。`readDurationSec` の cleanup（removeAttribute/load）は
+ * このsetterを経由しないため、abortやキャンセル経路には影響しない。
+ */
+export function delayAudioSrc(ms: number): string {
+	return `
+(() => {
+	const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+	Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+		configurable: true,
+		get() { return desc.get.call(this); },
+		set(value) {
+			setTimeout(() => desc.set.call(this, value), ${ms});
+		},
+	});
+})();
+`;
+}
+
+/**
+ * `delayAudioSrc` の「1回目の代入だけ」を遅らせる版。
+ * 2ファイル目以降は即座に反映されるため、
+ * 「1ファイル目の解析中に2ファイル目を選び直す」競合を安定して再現できる。
+ */
+export function delayFirstAudioSrc(ms: number): string {
+	return `
+(() => {
+	const desc = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+	let used = false;
+	Object.defineProperty(HTMLMediaElement.prototype, 'src', {
+		configurable: true,
+		get() { return desc.get.call(this); },
+		set(value) {
+			if (!used) {
+				used = true;
+				setTimeout(() => desc.set.call(this, value), ${ms});
+			} else {
+				desc.set.call(this, value);
+			}
+		},
+	});
+})();
+`;
+}
+
+export type MockMode =
+	| 'ok'
+	| 'stall'
+	| 'load-error'
+	| 'load-error-once'
+	| 'infer-error';
 
 export async function installMock(
 	page: Page,

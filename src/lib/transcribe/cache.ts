@@ -79,6 +79,23 @@ export async function isModelCached(
 }
 
 /**
+ * `loading-model` 開始時の取得元（`source`）を決定する。
+ *
+ * `forceNetworkSource` が true の場合は `cachedModelIds` を一切見ない。
+ * `evictModelCache` 直後の `setCachedModelIds` は非同期更新のため、
+ * 直後にこの関数を呼ぶとまだ削除前の古い `cachedModelIds` を参照してしまう
+ * レースがある。キャッシュ削除→再取得の経路ではこのフラグで明示的に迂回する。
+ */
+export function resolveModelLoadSource(
+	modelId: ModelId,
+	cachedModelIds: readonly ModelId[],
+	options?: { forceNetworkSource?: boolean },
+): 'network' | 'cache' {
+	if (options?.forceNetworkSource) return 'network';
+	return cachedModelIds.includes(modelId) ? 'cache' : 'network';
+}
+
+/**
  * 対象モデル・対象デバイスのキャッシュエントリだけを削除する。削除できた件数を返す。
  * 破損キャッシュからの復旧に使う（再取得は1回限り。無限再試行は禁止）。
  */

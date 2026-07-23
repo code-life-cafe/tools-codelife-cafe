@@ -11,6 +11,7 @@ import {
 	evictModelCache,
 	isModelCached,
 	listModelFileUrls,
+	resolveModelLoadSource,
 } from '../../src/lib/transcribe/cache.ts';
 import { MODEL_ARTIFACTS } from '../../src/lib/transcribe/model-manifest.ts';
 
@@ -153,4 +154,34 @@ test('evictModelCache: Cache API が使えない場合は 0 件', async () => {
 
 test('evictModelCache: 例外時もそれまでの削除件数を返して落ちない', async () => {
 	assert.equal(await evictModelCache('tiny', 'wasm', throwingCaches), 0);
+});
+
+// ---------------------------------------------------------------------------
+// resolveModelLoadSource
+// ---------------------------------------------------------------------------
+
+test('resolveModelLoadSource: キャッシュ済みモデルは cache', () => {
+	assert.equal(resolveModelLoadSource('tiny', ['tiny', 'base']), 'cache');
+});
+
+test('resolveModelLoadSource: 未キャッシュのモデルは network', () => {
+	assert.equal(resolveModelLoadSource('small', ['tiny', 'base']), 'network');
+});
+
+test('resolveModelLoadSource: forceNetworkSource が true なら常に network', () => {
+	assert.equal(
+		resolveModelLoadSource('tiny', ['tiny'], { forceNetworkSource: true }),
+		'network',
+	);
+});
+
+test('resolveModelLoadSource: forceNetworkSource 省略時は既存のキャッシュ判定と同じ結果', () => {
+	assert.equal(
+		resolveModelLoadSource('tiny', ['tiny'], {}),
+		resolveModelLoadSource('tiny', ['tiny']),
+	);
+	assert.equal(
+		resolveModelLoadSource('small', ['tiny'], {}),
+		resolveModelLoadSource('small', ['tiny']),
+	);
 });

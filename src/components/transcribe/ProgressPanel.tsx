@@ -30,8 +30,16 @@ export function ProgressPanel({ state }: ProgressPanelProps) {
 
 	if (state.phase === 'loading-model') {
 		index = 0;
-		percent = state.progress;
-		detail = `モデルをダウンロードしています（${Math.round(state.progress)}%）`;
+		if (state.source === 'cache') {
+			percent = null;
+			detail = 'キャッシュ済みモデルを準備しています…';
+		} else {
+			percent = state.progress;
+			detail =
+				state.progress !== null
+					? `モデルをダウンロードしています（${Math.round(state.progress)}%）`
+					: 'モデルをダウンロードしています…';
+		}
 	} else if (state.phase === 'decoding') {
 		index = 1;
 		detail = '音声をデコードしています…';

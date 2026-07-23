@@ -55,10 +55,17 @@ export function validateAudioFile(file: {
  * デコード前に音声の長さ（秒）を取得する。
  * 取得できない・ストリーミング扱いで Infinity になる場合は NaN を返し、
  * 呼び出し側はデコード後の AudioBuffer 長で再判定する。
+ *
+ * `signal` を渡すと、呼び出し側がファイル変更・クリア・アンマウント時に
+ * 即座にキャンセルできる（成功・エラー・タイムアウト・abort の全経路で
+ * タイマー・イベントリスナー・Object URL・audio.src を解放する）。
  */
-export function readDurationSec(file: Blob): Promise<number> {
+export function readDurationSec(
+	file: Blob,
+	signal?: AbortSignal,
+): Promise<number> {
 	return new Promise((resolve) => {
-		if (typeof document === 'undefined') {
+		if (typeof document === 'undefined' || signal?.aborted) {
 			resolve(Number.NaN);
 			return;
 		}
@@ -67,10 +74,16 @@ export function readDurationSec(file: Blob): Promise<number> {
 		audio.preload = 'metadata';
 
 		let settled = false;
+		const onLoaded = () => finish(audio.duration);
+		const onError = () => finish(Number.NaN);
+		const onAbort = () => finish(Number.NaN);
 		const finish = (value: number) => {
 			if (settled) return;
 			settled = true;
 			clearTimeout(timer);
+			audio.removeEventListener('loadedmetadata', onLoaded);
+			audio.removeEventListener('error', onError);
+			signal?.removeEventListener('abort', onAbort);
 			audio.removeAttribute('src');
 			audio.load();
 			URL.revokeObjectURL(url);
@@ -78,10 +91,9 @@ export function readDurationSec(file: Blob): Promise<number> {
 		};
 
 		const timer = setTimeout(() => finish(Number.NaN), METADATA_TIMEOUT_MS);
-		audio.addEventListener('loadedmetadata', () => finish(audio.duration), {
-			once: true,
-		});
-		audio.addEventListener('error', () => finish(Number.NaN), { once: true });
+		audio.addEventListener('loadedmetadata', onLoaded, { once: true });
+		audio.addEventListener('error', onError, { once: true });
+		signal?.addEventListener('abort', onAbort, { once: true });
 		audio.src = url;
 	});
 }

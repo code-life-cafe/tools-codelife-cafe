@@ -76,7 +76,14 @@ export type WorkerResponse =
 
 export type TranscribeState =
 	| { phase: 'idle' }
-	| { phase: 'loading-model'; modelId: ModelId; progress: number }
+	| {
+			phase: 'loading-model';
+			modelId: ModelId;
+			/** キャッシュ済みモデルは 'cache'。表示の出し分けにのみ使う（Worker プロトコルは不変） */
+			source: 'network' | 'cache';
+			/** cache の間は null（非決定表示）。network は実測 % を保持する */
+			progress: number | null;
+	  }
 	| { phase: 'decoding' }
 	| {
 			phase: 'transcribing';
