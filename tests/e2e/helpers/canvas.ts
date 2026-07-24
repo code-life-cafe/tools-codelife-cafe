@@ -149,3 +149,139 @@ export async function dragOnCanvas(
 	await page.mouse.move(p2.x, p2.y, { steps: 5 });
 	await page.mouse.up();
 }
+
+export type ZoomGeometry = {
+	/** 現在の実効倍率（1 = 100%） */
+	scale: number;
+	scrollLeft: number;
+	scrollTop: number;
+	/** 中央配置オフセット（px） */
+	offsetX: number;
+	offsetY: number;
+	/** スクロールコンテナのビューポート座標（ページ絶対座標→コンテナ内座標の変換に使う） */
+	containerLeft: number;
+	containerTop: number;
+	containerWidth: number;
+	containerHeight: number;
+	canvasWidth: number;
+	canvasHeight: number;
+};
+
+/**
+ * ZoomableCanvasViewport のDOM構造からズーム幾何情報を読み取る。
+ * 構造: canvas → (relative h-full w-full ラッパー) → (原寸ボックス, インライン
+ * style で width/height/margin を持つ) → (overflow-auto スクロールコンテナ)。
+ * `useZoomPan` の内部実装を呼ばず、実際のDOM値のみから幾何を再構成する。
+ */
+export async function getZoomGeometry(
+	page: Page,
+	testId: string,
+): Promise<ZoomGeometry> {
+	const geometry = await page.evaluate((testId) => {
+		const canvas = document.querySelector(
+			`[data-testid="${testId}"]`,
+		) as HTMLCanvasElement | null;
+		const wrapper = canvas?.parentElement ?? null;
+		const contentBox = (wrapper?.parentElement ?? null) as HTMLElement | null;
+		const scrollContainer = (contentBox?.parentElement ??
+			null) as HTMLElement | null;
+		if (!canvas || !wrapper || !contentBox || !scrollContainer) return null;
+		const containerRect = scrollContainer.getBoundingClientRect();
+		return {
+			scale: contentBox.getBoundingClientRect().width / canvas.width,
+			scrollLeft: scrollContainer.scrollLeft,
+			scrollTop: scrollContainer.scrollTop,
+			offsetX: contentBox.offsetLeft,
+			offsetY: contentBox.offsetTop,
+			containerLeft: containerRect.left,
+			containerTop: containerRect.top,
+			containerWidth: scrollContainer.clientWidth,
+			containerHeight: scrollContainer.clientHeight,
+			canvasWidth: canvas.width,
+			canvasHeight: canvas.height,
+		};
+	}, testId);
+	if (!geometry) {
+		throw new Error(`ズームジオメトリを取得できません: ${testId}`);
+	}
+	return geometry;
+}
+
+/**
+ * ページ絶対座標（clientX/clientY、Playwrightのマウス座標系）が指す画像内座標を、
+ * ズーム幾何情報から算出する。「カーソル直下の画像座標」を実装非依存に定義するための
+ * 純粋な幾何計算であり、アプリ側の補正ロジックは呼び出さない。
+ */
+export function imagePointFromClientPoint(
+	geometry: ZoomGeometry,
+	clientX: number,
+	clientY: number,
+): { x: number; y: number } {
+	const pointerX = clientX - geometry.containerLeft;
+	const pointerY = clientY - geometry.containerTop;
+	return {
+		x: (pointerX + geometry.scrollLeft - geometry.offsetX) / geometry.scale,
+		y: (pointerY + geometry.scrollTop - geometry.offsetY) / geometry.scale,
+	};
+}
+
+/**
+ * スクロールコンテナ自体の可視範囲（ページ絶対座標）を返す。
+ * canvas 自身の boundingBox はコンテナの overflow で隠れている部分も含む
+ * フルサイズを返してしまう（ズームでコンテンツがコンテナより大きくなった場合、
+ * 画面外の座標を含みうる）ため、マウス操作の目標座標には必ずこちらを使う。
+ */
+export async function getContainerBox(
+	page: Page,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+	const container = page.getByTestId('zoom-scroll-container');
+	// ページレイアウトによってはビューポート下端より下に位置することがあるため、
+	// 座標計算の前に確実にビューポート内へスクロールしておく
+	await container.scrollIntoViewIfNeeded();
+	const box = await container.boundingBox();
+	if (!box) throw new Error('zoom-scroll-container が表示されていません');
+	return box;
+}
+
+/** 指定のページ絶対座標にカーソルを置き、修飾キー付きホイールでズームする */
+export async function zoomAtClientPoint(
+	page: Page,
+	clientX: number,
+	clientY: number,
+	deltaY: number,
+	modifier: 'Control' | 'Meta' = 'Control',
+): Promise<void> {
+	await page.mouse.move(clientX, clientY);
+	await page.keyboard.down(modifier);
+	await page.mouse.wheel(0, deltaY);
+	await page.keyboard.up(modifier);
+}
+
+/**
+ * 指定サイズの単色パターンPNGをブラウザのcanvasで生成しBufferとして返す。
+ * 縦長・横長・巨大画像でのフィット倍率／中央配置オフセット挙動を検証するために使う
+ * （新規npm依存を追加せず、Canvas APIのみでフィクスチャを都度生成する）。
+ */
+export async function generateSyntheticImage(
+	page: Page,
+	width: number,
+	height: number,
+): Promise<Buffer> {
+	const dataUrl = await page.evaluate(
+		({ width, height }) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = width;
+			canvas.height = height;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) throw new Error('2D context取得に失敗しました');
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect(0, 0, width, height);
+			ctx.fillStyle = '#dc2828';
+			ctx.fillRect(0, 0, Math.min(40, width), Math.min(40, height));
+			return canvas.toDataURL('image/png');
+		},
+		{ width, height },
+	);
+	const base64 = dataUrl.split(',')[1] ?? '';
+	return Buffer.from(base64, 'base64');
+}
