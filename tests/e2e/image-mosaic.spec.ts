@@ -257,8 +257,10 @@ test.describe('画像モザイク・ぼかし', () => {
 		await page.setViewportSize({ width: 375, height: 667 });
 		const canvas = page.getByTestId('editor-canvas');
 		await expect(canvas).toBeVisible();
-		const boxMobile = await canvas.boundingBox();
-		expect(boxMobile?.width).toBeLessThanOrEqual(375);
+		// ズームビューポートのフィット再計算は ResizeObserver 経由の非同期のため poll で待つ
+		await expect
+			.poll(async () => (await canvas.boundingBox())?.width)
+			.toBeLessThanOrEqual(375);
 		await expect(page.getByRole('tab', { name: 'モザイク' })).toBeVisible();
 
 		await page.setViewportSize({ width: 1440, height: 900 });
@@ -266,6 +268,113 @@ test.describe('画像モザイク・ぼかし', () => {
 		await expect(
 			page.getByRole('button', { name: 'ダウンロード' }),
 		).toBeVisible();
+	});
+});
+
+test.describe('ズーム＆パン・フルサイズ表示', () => {
+	test.beforeEach(async ({ page, createToolPage }) => {
+		const toolPage = createToolPage('image-mosaic');
+		await toolPage.goto();
+		await expect(
+			page.getByText('画像をドラッグ＆ドロップ、またはクリックして選択'),
+		).toBeVisible({ timeout: 10000 });
+	});
+
+	test('アップロード直後はフィット表示で、ズームコントロールが揃っている', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		await expect(page.getByText(/^フィット（\d+%）$/)).toBeVisible();
+		await expect(page.getByRole('button', { name: 'フィット' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '100%' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '縮小' })).toBeVisible();
+		await expect(page.getByRole('button', { name: '拡大' })).toBeVisible();
+	});
+
+	test('100%ボタンで等倍表示になり、canvas内部解像度は変わらない', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		const canvas = page.getByTestId('editor-canvas');
+		await page.getByRole('button', { name: '100%' }).click();
+		await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
+		const size = await canvas.evaluate((el) => [
+			(el as HTMLCanvasElement).width,
+			(el as HTMLCanvasElement).height,
+		]);
+		expect(size).toEqual([400, 300]);
+	});
+
+	test('＋ボタンで拡大した後もドラッグ選択が正しい画像座標に適用される', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		const canvas = page.getByTestId('editor-canvas');
+		const percentLabel = page.getByTestId('zoom-percent-label');
+		const before = await percentLabel.textContent();
+		// 表示領域内に収まる範囲でズームする（拡大しすぎるとスクロールで対象領域が
+		// 見切れるため、可視範囲を保ったまま座標変換の正しさを検証する）
+		await page.getByRole('button', { name: '拡大' }).click();
+		await expect(percentLabel).not.toHaveText(before ?? '');
+
+		// 拡大後も画像座標ベースのドラッグ選択が正しく機能する（境界をまたぐ領域）
+		await dragOnCanvas(page, canvas, { x: 80, y: 60 }, { x: 180, y: 140 });
+		await expect
+			.poll(() => getCanvasPixel(page, 'editor-canvas', 96, 100))
+			.not.toEqual(WHITE);
+		expect(await getCanvasPixel(page, 'editor-canvas', 96, 100)).not.toEqual(
+			RED,
+		);
+		// 領域外は不変（ズームしてもエクスポート対象のピクセルは影響を受けない）
+		expect(await getCanvasPixel(page, 'editor-canvas', 300, 200)).toEqual(
+			WHITE,
+		);
+	});
+
+	test('Ctrl+ホイールでカーソル位置基準にズームできる', async ({ page }) => {
+		await uploadSample(page);
+		const canvas = page.getByTestId('editor-canvas');
+		await canvas.scrollIntoViewIfNeeded();
+		const box = await canvas.boundingBox();
+		if (!box) throw new Error('canvas が表示されていません');
+
+		const percentLabel = page.getByTestId('zoom-percent-label');
+		const before = await percentLabel.textContent();
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.keyboard.down('Control');
+		await page.mouse.wheel(0, -200);
+		await page.keyboard.up('Control');
+
+		await expect.poll(() => percentLabel.textContent()).not.toBe(before);
+	});
+
+	test('フルサイズ切替でページ幅上限が解除され、ズーム状態は維持される', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		await page.getByRole('button', { name: '100%' }).click();
+		await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
+
+		const container = page.locator('#tool-layout-container');
+		await expect(container).toHaveClass(/max-w-\[800px\]/);
+
+		await page.getByRole('button', { name: 'フルサイズ' }).click();
+		await expect(container).toHaveClass(/max-w-full/);
+		// フルサイズ切替でズーム倍率は再初期化されない
+		await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
+
+		await page.getByRole('button', { name: '標準幅' }).click();
+		await expect(container).toHaveClass(/max-w-\[800px\]/);
+	});
+
+	test('別の画像を選び直すとフィット表示に戻る', async ({ page }) => {
+		await uploadSample(page);
+		await page.getByRole('button', { name: '100%' }).click();
+		await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
+
+		await page.getByRole('button', { name: '別の画像を選ぶ' }).click();
+		await uploadSample(page);
+		await expect(page.getByText(/^フィット（\d+%）$/)).toBeVisible();
 	});
 });
 
