@@ -1,22 +1,109 @@
-import { AlertTriangle, Info, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Info, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
-import { countChars, getTwitterProgress } from '@/lib/tools/char-count';
+import {
+	countChars,
+	getServiceCounts,
+	type LimitStatus,
+	type ServiceCountResult,
+} from '@/lib/tools/char-count';
 
 function formatNumber(n: number): string {
 	return n.toLocaleString('ja-JP');
 }
 
+const STATUS_BAR_CLASS: Record<LimitStatus, string> = {
+	normal: 'bg-primary',
+	warning: 'bg-amber-500',
+	over: 'bg-destructive',
+};
+
+const STATUS_TEXT_CLASS: Record<LimitStatus, string> = {
+	normal: 'text-muted-foreground',
+	warning: 'text-amber-600 dark:text-amber-400',
+	over: 'text-destructive font-bold',
+};
+
+const STATUS_LABEL: Record<LimitStatus, string> = {
+	normal: '通常',
+	warning: '警告',
+	over: '超過',
+};
+
+function ServiceProgressCard({ service }: { service: ServiceCountResult }) {
+	const valueNow = Math.min(service.count, service.limit);
+	const valueText = `${formatNumber(service.count)}文字 / 上限${formatNumber(service.limit)}文字（${service.message}）`;
+
+	return (
+		<Card className="rounded-xl">
+			<CardContent className="p-4">
+				<div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+					<div className="flex items-center gap-1.5 text-sm font-medium">
+						{service.label}
+						{service.note && (
+							<span className="group relative flex items-center justify-center cursor-help">
+								<Info
+									className="h-4 w-4 text-muted-foreground"
+									aria-hidden="true"
+								/>
+								<span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden w-56 rounded bg-popover text-popover-foreground text-xs p-2 shadow-md group-hover:block group-focus-within:block z-50">
+									{service.note}
+								</span>
+							</span>
+						)}
+					</div>
+					<p
+						className={`text-sm font-mono tabular-nums whitespace-nowrap ${STATUS_TEXT_CLASS[service.status]}`}
+					>
+						<span className="sr-only">{STATUS_LABEL[service.status]}: </span>
+						{service.message}
+					</p>
+				</div>
+				<div
+					className="h-2 rounded-full bg-muted overflow-hidden"
+					role="progressbar"
+					aria-valuemin={0}
+					aria-valuemax={service.limit}
+					aria-valuenow={valueNow}
+					aria-valuetext={valueText}
+					aria-label={service.label}
+				>
+					<div
+						className={`h-full rounded-full transition-all duration-300 ${STATUS_BAR_CLASS[service.status]}`}
+						style={{ width: `${service.progress}%` }}
+					/>
+				</div>
+				<p className="mt-1 text-xs text-muted-foreground tabular-nums">
+					{formatNumber(service.count)} / {formatNumber(service.limit)} 文字
+					{service.premiumLimit && (
+						<span className="ml-1">
+							（有料プランは{formatNumber(service.premiumLimit)}文字まで）
+						</span>
+					)}
+				</p>
+			</CardContent>
+		</Card>
+	);
+}
+
 export default function CharCount() {
 	const { trackRun } = useToolAnalytics('char-count');
 	const [text, setText] = useState('');
+	const [secondarySnsOpen, setSecondarySnsOpen] = useState(false);
 
 	const result = useMemo(() => countChars(text), [text]);
+	const services = useMemo(() => getServiceCounts(text), [text]);
 
 	// テキストが実際に入力された（非空）時点でカウント実行を計測
 	useEffect(() => {
@@ -24,10 +111,14 @@ export default function CharCount() {
 			trackRun();
 		}
 	}, [text, trackRun]);
-	const twitter = useMemo(
-		() => getTwitterProgress(result.charsWithSpaces),
-		[result.charsWithSpaces],
+
+	const snsPrimary = services.filter(
+		(s) => s.category === 'sns' && s.group === 'primary',
 	);
+	const snsSecondary = services.filter(
+		(s) => s.category === 'sns' && s.group === 'secondary',
+	);
+	const seoServices = services.filter((s) => s.category === 'seo');
 
 	const stats = [
 		{
@@ -117,41 +208,51 @@ export default function CharCount() {
 				))}
 			</div>
 
-			{/* Twitter Character Limit Bar */}
-			<Card className="rounded-xl">
-				<CardContent className="p-4">
-					<div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-						<div className="flex items-center gap-1.5 text-sm font-medium">
-							X（旧Twitter）文字数制限
-							<span className="group relative flex items-center justify-center cursor-help">
-								<Info className="h-4 w-4 text-muted-foreground" />
-								<div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden w-64 rounded bg-popover text-popover-foreground text-xs p-2 shadow-md group-hover:block z-50">
-									※全角・半角区別なく単純に1文字として計算しています。（公式の短縮URL計算等には対応していません）
-								</div>
-							</span>
-						</div>
-						<p
-							className={`text-sm font-mono tabular-nums whitespace-nowrap ${twitter.isOver ? 'text-destructive font-bold' : 'text-muted-foreground'}`}
+			{/* SNS / SEO 文字数制限 */}
+			<Tabs defaultValue="sns" className="w-full">
+				<TabsList>
+					<TabsTrigger value="sns">SNS</TabsTrigger>
+					<TabsTrigger value="seo">SEO</TabsTrigger>
+				</TabsList>
+				<TabsContent value="sns" className="space-y-3 mt-3">
+					{snsPrimary.map((service) => (
+						<ServiceProgressCard key={service.id} service={service} />
+					))}
+					{snsSecondary.length > 0 && (
+						<Collapsible
+							open={secondarySnsOpen}
+							onOpenChange={setSecondarySnsOpen}
 						>
-							{twitter.remaining >= 0
-								? `残り ${formatNumber(twitter.remaining)} 文字`
-								: `${formatNumber(Math.abs(twitter.remaining))} 文字オーバー`}
-						</p>
-					</div>
-					<div className="h-2 rounded-full bg-muted overflow-hidden">
-						<div
-							className={`h-full rounded-full transition-all duration-300 ${
-								twitter.isOver
-									? 'bg-destructive'
-									: twitter.percentage > 80
-										? 'bg-yellow-500'
-										: 'bg-primary'
-							}`}
-							style={{ width: `${Math.min(twitter.percentage, 100)}%` }}
-						/>
-					</div>
-				</CardContent>
-			</Card>
+							<CollapsibleTrigger asChild>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="w-full justify-between text-muted-foreground"
+								>
+									<span>
+										その他のSNS（
+										{snsSecondary.map((s) => s.label).join('・')}）
+									</span>
+									<ChevronDown
+										className={`h-4 w-4 transition-transform ${secondarySnsOpen ? 'rotate-180' : ''}`}
+										aria-hidden="true"
+									/>
+								</Button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="space-y-3 pt-3">
+								{snsSecondary.map((service) => (
+									<ServiceProgressCard key={service.id} service={service} />
+								))}
+							</CollapsibleContent>
+						</Collapsible>
+					)}
+				</TabsContent>
+				<TabsContent value="seo" className="space-y-3 mt-3">
+					{seoServices.map((service) => (
+						<ServiceProgressCard key={service.id} service={service} />
+					))}
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }
