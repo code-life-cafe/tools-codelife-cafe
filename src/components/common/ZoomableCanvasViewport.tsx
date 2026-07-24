@@ -52,7 +52,6 @@ export function ZoomableCanvasViewport({
 		zoomOut,
 		zoomTo100,
 		zoomToFit,
-		handleWheel,
 		isZoomOutDisabled,
 		isZoomInDisabled,
 	} = useZoomPan({ contentWidth, contentHeight, resetKey });
@@ -138,7 +137,7 @@ export function ZoomableCanvasViewport({
 
 			<div
 				ref={containerRef}
-				onWheel={handleWheel}
+				data-testid="zoom-scroll-container"
 				className={cn(
 					'relative w-full overflow-auto rounded-lg border border-border bg-muted/10',
 					fullSize ? VIEWPORT_HEIGHT.full : VIEWPORT_HEIGHT.normal,

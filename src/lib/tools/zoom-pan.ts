@@ -155,3 +155,17 @@ export function computeZoomScrollPosition(params: ZoomScrollParams): number {
 export function formatZoomPercent(scale: number): string {
 	return `${Math.round(scale * 100)}%`;
 }
+
+/**
+ * −ボタン押下が実質的に無効（倍率が変化しない）かどうか。
+ * ちょうど25%のときは `nextZoomOutStep` が同じ値を返すため、単純な
+ * `scale <= MIN_ZOOM` 比較ではなく、次の値との実質的な同一性で判定する。
+ */
+export function isZoomOutNoop(scale: number): boolean {
+	return Math.abs(nextZoomOutStep(scale) - scale) < 1e-9;
+}
+
+/** ＋ボタン押下が実質的に無効（倍率が変化しない）かどうか。400%上限で成立する。 */
+export function isZoomInNoop(scale: number): boolean {
+	return Math.abs(nextZoomInStep(scale) - scale) < 1e-9;
+}

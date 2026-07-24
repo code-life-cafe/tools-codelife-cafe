@@ -2,7 +2,6 @@
 // 純粋な倍率計算は src/lib/tools/zoom-pan.ts に委譲し、ここでは
 // DOM参照（ResizeObserver・スクロール位置）と状態遷移のみを扱う。
 
-import type React from 'react';
 import {
 	useCallback,
 	useEffect,
@@ -15,8 +14,8 @@ import {
 	computeFitScale,
 	computeWheelZoom,
 	computeZoomScrollPosition,
-	MAX_ZOOM,
-	MIN_ZOOM,
+	isZoomInNoop,
+	isZoomOutNoop,
 	nextZoomInStep,
 	nextZoomOutStep,
 } from '@/lib/tools/zoom-pan';
@@ -82,6 +81,14 @@ export function useZoomPan(params: {
 	const scale = mode === 'fit' ? fitScale : mode;
 	const isFit = mode === 'fit';
 
+	// ホイールイベントは短時間に連続発火しうる。クロージャに閉じ込めた scale を
+	// 参照すると、React の再レンダー（＝リスナー再登録）が追いつかない間に
+	// 古い scale のまま計算し続けてしまい、25%クランプ後も倍率が下がり続ける
+	// といった不整合が生じる。ref には毎レンダー最新値を同期し、常に最新の
+	// scale を読めるようにする。
+	const scaleRef = useRef(scale);
+	scaleRef.current = scale;
+
 	const displayWidth = contentWidth * scale;
 	const displayHeight = contentHeight * scale;
 	const offsetX = computeContentOffset(containerSize.width, displayWidth);
@@ -132,20 +139,18 @@ export function useZoomPan(params: {
 		offsetY,
 	]);
 
-	const anchorAt = useCallback(
-		(pointerX: number, pointerY: number) => {
-			const el = containerRef.current;
-			if (!el) return;
-			pendingAnchorRef.current = {
-				pointerX,
-				pointerY,
-				scrollLeft: el.scrollLeft,
-				scrollTop: el.scrollTop,
-				oldScale: scale,
-			};
-		},
-		[scale],
-	);
+	// scaleRef を参照するため scale/mode に依存しない安定した関数にする
+	const anchorAt = useCallback((pointerX: number, pointerY: number) => {
+		const el = containerRef.current;
+		if (!el) return;
+		pendingAnchorRef.current = {
+			pointerX,
+			pointerY,
+			scrollLeft: el.scrollLeft,
+			scrollTop: el.scrollTop,
+			oldScale: scaleRef.current,
+		};
+	}, []);
 
 	const centerAnchor = useCallback(() => {
 		const el = containerRef.current;
@@ -155,13 +160,13 @@ export function useZoomPan(params: {
 
 	const zoomIn = useCallback(() => {
 		centerAnchor();
-		setMode(nextZoomInStep(scale));
-	}, [scale, centerAnchor]);
+		setMode(nextZoomInStep(scaleRef.current));
+	}, [centerAnchor]);
 
 	const zoomOut = useCallback(() => {
 		centerAnchor();
-		setMode(nextZoomOutStep(scale));
-	}, [scale, centerAnchor]);
+		setMode(nextZoomOutStep(scaleRef.current));
+	}, [centerAnchor]);
 
 	const zoomTo100 = useCallback(() => {
 		centerAnchor();
@@ -172,18 +177,25 @@ export function useZoomPan(params: {
 		setMode('fit');
 	}, []);
 
-	const handleWheel = useCallback(
-		(e: React.WheelEvent<HTMLDivElement>) => {
+	// 修飾キー付きホイールでズームする。React の合成 onWheel は passive
+	// リスナーとして登録されるため e.preventDefault() が効かず、ブラウザの
+	// 既定スクロール（あるいはページ全体のピンチズーム）が同時に発生してしまう。
+	// そのためネイティブの非passiveリスナーを直接addEventListenerする。
+	// scaleRef を参照することで、連続したホイールイベントが再レンダーより
+	// 速く発火しても常に最新の scale を基準に計算する（登録は初回のみでよい）。
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el) return;
+		const listener = (e: WheelEvent) => {
 			if (!(e.ctrlKey || e.metaKey)) return;
 			e.preventDefault();
-			const el = containerRef.current;
-			if (!el) return;
 			const rect = el.getBoundingClientRect();
 			anchorAt(e.clientX - rect.left, e.clientY - rect.top);
-			setMode(computeWheelZoom(scale, e.deltaY, e.deltaMode));
-		},
-		[scale, anchorAt],
-	);
+			setMode(computeWheelZoom(scaleRef.current, e.deltaY, e.deltaMode));
+		};
+		el.addEventListener('wheel', listener, { passive: false });
+		return () => el.removeEventListener('wheel', listener);
+	}, [anchorAt]);
 
 	return {
 		containerRef,
@@ -199,8 +211,7 @@ export function useZoomPan(params: {
 		zoomOut,
 		zoomTo100,
 		zoomToFit,
-		handleWheel,
-		isZoomOutDisabled: scale < MIN_ZOOM,
-		isZoomInDisabled: scale >= MAX_ZOOM,
+		isZoomOutDisabled: isZoomOutNoop(scale),
+		isZoomInDisabled: isZoomInNoop(scale),
 	};
 }

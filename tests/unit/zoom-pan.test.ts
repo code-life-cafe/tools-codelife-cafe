@@ -10,6 +10,8 @@ import {
 	computeWheelZoom,
 	computeZoomScrollPosition,
 	formatZoomPercent,
+	isZoomInNoop,
+	isZoomOutNoop,
 	MAX_ZOOM,
 	MIN_ZOOM,
 	nextZoomInStep,
@@ -190,4 +192,39 @@ test('formatZoomPercent: 倍率を%表示に変換する', () => {
 	assert.equal(formatZoomPercent(1), '100%');
 	assert.equal(formatZoomPercent(0.18), '18%');
 	assert.equal(formatZoomPercent(2), '200%');
+});
+
+test('isZoomOutNoop: ちょうど25%では無効（押しても倍率が変わらない）', () => {
+	assert.equal(isZoomOutNoop(MIN_ZOOM), true);
+});
+
+test('isZoomOutNoop: 25%を超える数値倍率では有効', () => {
+	assert.equal(isZoomOutNoop(0.26), false);
+	assert.equal(isZoomOutNoop(1), false);
+	assert.equal(isZoomOutNoop(MAX_ZOOM), false);
+});
+
+test('isZoomOutNoop: フィット実効倍率が25%未満では無効（現在値を維持する無効操作）', () => {
+	assert.equal(isZoomOutNoop(0.18), true);
+	assert.equal(isZoomOutNoop(0.05), true);
+});
+
+test('isZoomOutNoop: 浮動小数点誤差を含む25%相当でも無効と判定する', () => {
+	// 0.1 + 0.15 は浮動小数点演算で 0.25 と厳密には一致しない典型例
+	assert.equal(isZoomOutNoop(0.1 + 0.15), true);
+});
+
+test('50%からの縮小は25%になる（isZoomOutNoopはfalse）', () => {
+	assert.equal(isZoomOutNoop(0.5), false);
+	assert.equal(nextZoomOutStep(0.5), MIN_ZOOM);
+});
+
+test('isZoomInNoop: 400%上限では無効', () => {
+	assert.equal(isZoomInNoop(MAX_ZOOM), true);
+});
+
+test('isZoomInNoop: 400%未満では有効', () => {
+	assert.equal(isZoomInNoop(2), false);
+	assert.equal(isZoomInNoop(MIN_ZOOM), false);
+	assert.equal(isZoomInNoop(0.05), false);
 });
