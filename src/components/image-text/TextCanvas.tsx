@@ -3,6 +3,7 @@
 // 選択レイヤーの破線バウンディングボックスは DOM オーバーレイで表示する
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ZoomableCanvasViewport } from '@/components/common/ZoomableCanvasViewport';
 import { clientToImage } from '@/lib/tools/image-common';
 import {
 	BG_PADDING,
@@ -17,6 +18,8 @@ type TextCanvasProps = {
 	selectedId: string | null;
 	onSelect: (id: string | null) => void;
 	onMoveLayer: (id: string, x: number, y: number) => void;
+	/** フルサイズ表示（ページ幅上限解除）中か */
+	fullSize?: boolean;
 };
 
 type DragState = {
@@ -56,6 +59,7 @@ export function TextCanvas({
 	selectedId,
 	onSelect,
 	onMoveLayer,
+	fullSize,
 }: TextCanvasProps) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const dragRef = useRef<DragState | null>(null);
@@ -172,34 +176,48 @@ export function TextCanvas({
 	const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
 	return (
-		<div className="relative inline-block max-w-full">
-			<canvas
-				ref={canvasRef}
-				data-testid="text-canvas"
-				className={`block h-auto max-h-[60vh] w-auto max-w-full touch-none rounded-lg border border-border ${
-					isDragging ? 'cursor-grabbing' : 'cursor-pointer'
-				}`}
-				onPointerDown={handlePointerDown}
-				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerUp}
-				onPointerCancel={handlePointerCancel}
-			/>
-			{/* 選択レイヤーの破線バウンディングボックス（DOMオーバーレイ） */}
-			{selectedLayer &&
-				(() => {
-					const b = layerBounds(selectedLayer);
-					return (
-						<div
-							className="pointer-events-none absolute border-2 border-dashed border-primary"
-							style={{
-								left: `${(b.x / imageSize.width) * 100}%`,
-								top: `${(b.y / imageSize.height) * 100}%`,
-								width: `${(b.width / imageSize.width) * 100}%`,
-								height: `${(b.height / imageSize.height) * 100}%`,
-							}}
+		<ZoomableCanvasViewport
+			contentWidth={imageSize.width}
+			contentHeight={imageSize.height}
+			resetKey={source}
+			fullSize={fullSize}
+		>
+			{({ mobileMode }) => {
+				const isPanMode = mobileMode === 'pan';
+				return (
+					<div className="relative h-full w-full">
+						<canvas
+							ref={canvasRef}
+							data-testid="text-canvas"
+							className={`block h-full w-full rounded-lg border border-border ${
+								isPanMode
+									? 'cursor-grab'
+									: `touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`
+							}`}
+							onPointerDown={isPanMode ? undefined : handlePointerDown}
+							onPointerMove={isPanMode ? undefined : handlePointerMove}
+							onPointerUp={isPanMode ? undefined : handlePointerUp}
+							onPointerCancel={isPanMode ? undefined : handlePointerCancel}
 						/>
-					);
-				})()}
-		</div>
+						{/* 選択レイヤーの破線バウンディングボックス（DOMオーバーレイ） */}
+						{selectedLayer &&
+							(() => {
+								const b = layerBounds(selectedLayer);
+								return (
+									<div
+										className="pointer-events-none absolute border-2 border-dashed border-primary"
+										style={{
+											left: `${(b.x / imageSize.width) * 100}%`,
+											top: `${(b.y / imageSize.height) * 100}%`,
+											width: `${(b.width / imageSize.width) * 100}%`,
+											height: `${(b.height / imageSize.height) * 100}%`,
+										}}
+									/>
+								);
+							})()}
+					</div>
+				);
+			}}
+		</ZoomableCanvasViewport>
 	);
 }

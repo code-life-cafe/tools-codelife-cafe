@@ -1,12 +1,13 @@
 // ImageTextPage — 画像テキスト挿入ツールのオーケストレータ
 // 状態: 読み込みフェーズ / テキストレイヤー / 選択レイヤー
 
-import { ImagePlus, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { ImagePlus, Maximize2, Minimize2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { ExportBar } from '@/components/common/ExportBar';
 import { ImageDropzone } from '@/components/common/ImageDropzone';
 import { Button } from '@/components/ui/button';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
+import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	createId,
 	DOWNSCALE_EDGE,
@@ -41,6 +42,10 @@ function sourceSize(source: HTMLImageElement | HTMLCanvasElement) {
 
 export default function ImageTextPage() {
 	const { trackRun } = useToolAnalytics('image-text');
+	const [settings, updateSettings] = useToolSettings('image-text', {
+		isExpanded: false,
+	});
+	const { isExpanded } = settings;
 	const [phase, setPhase] = useState<Phase>({ kind: 'empty' });
 	const [error, setError] = useState<string | null>(null);
 	const [layers, setLayers] = useState<TextLayer[]>([]);
@@ -144,6 +149,36 @@ export default function ImageTextPage() {
 		setSelectedId(null);
 	}, []);
 
+	const applyLayoutWidth = useCallback((expanded: boolean) => {
+		const container = document.getElementById('tool-layout-container');
+		if (!container) return;
+		if (expanded) {
+			container.classList.remove('max-w-[800px]', 'xl:max-w-5xl');
+			container.classList.add('max-w-full');
+		} else {
+			container.classList.remove('max-w-full');
+			container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+		}
+	}, []);
+
+	const toggleExpand = () => {
+		updateSettings({ isExpanded: !isExpanded });
+	};
+
+	useEffect(() => {
+		applyLayoutWidth(isExpanded);
+	}, [isExpanded, applyLayoutWidth]);
+
+	useEffect(() => {
+		return () => {
+			const container = document.getElementById('tool-layout-container');
+			if (container) {
+				container.classList.remove('max-w-full');
+				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+			}
+		};
+	}, []);
+
 	const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
 	return (
@@ -196,13 +231,14 @@ export default function ImageTextPage() {
 						「テキストを追加」でテキストを配置し、キャンバス上のドラッグで位置を調整できます。
 					</p>
 					<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-						<div className="text-center">
+						<div className="min-w-0">
 							<TextCanvas
 								source={phase.source}
 								layers={layers}
 								selectedId={selectedId}
 								onSelect={setSelectedId}
 								onMoveLayer={handleMovePosition}
+								fullSize={isExpanded}
 							/>
 						</div>
 						<div className="space-y-4">
@@ -227,6 +263,19 @@ export default function ImageTextPage() {
 						<Button variant="outline" size="sm" onClick={handleClear}>
 							<ImagePlus className="h-4 w-4" />
 							別の画像を選ぶ
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={toggleExpand}
+							title={isExpanded ? '標準サイズに戻す' : '画面幅を広げる'}
+						>
+							{isExpanded ? (
+								<Minimize2 className="h-4 w-4" />
+							) : (
+								<Maximize2 className="h-4 w-4" />
+							)}
+							{isExpanded ? '標準幅' : 'フルサイズ'}
 						</Button>
 					</div>
 					<ExportBar
