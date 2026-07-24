@@ -44,6 +44,7 @@ const STATUS_LABEL: Record<LimitStatus, string> = {
 function ServiceProgressCard({ service }: { service: ServiceCountResult }) {
 	const valueNow = Math.min(service.count, service.limit);
 	const valueText = `${formatNumber(service.count)}文字 / 上限${formatNumber(service.limit)}文字（${service.message}）`;
+	const noteId = `char-count-note-${service.id}`;
 
 	return (
 		<Card className="rounded-xl">
@@ -52,12 +53,23 @@ function ServiceProgressCard({ service }: { service: ServiceCountResult }) {
 					<div className="flex items-center gap-1.5 text-sm font-medium">
 						{service.label}
 						{service.note && (
-							<span className="group relative flex items-center justify-center cursor-help">
-								<Info
-									className="h-4 w-4 text-muted-foreground"
-									aria-hidden="true"
-								/>
-								<span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden w-56 rounded bg-popover text-popover-foreground text-xs p-2 shadow-md group-hover:block group-focus-within:block z-50">
+							<span className="group relative flex items-center justify-center">
+								<button
+									type="button"
+									aria-describedby={noteId}
+									aria-label={`${service.label}の補足情報`}
+									className="flex items-center justify-center rounded-full cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								>
+									<Info
+										className="h-4 w-4 text-muted-foreground"
+										aria-hidden="true"
+									/>
+								</button>
+								<span
+									id={noteId}
+									role="tooltip"
+									className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden w-56 rounded bg-popover text-popover-foreground text-xs p-2 shadow-md group-hover:block group-focus-within:block z-50"
+								>
 									{service.note}
 								</span>
 							</span>

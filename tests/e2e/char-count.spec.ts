@@ -112,4 +112,51 @@ test.describe('Character Counter', () => {
 		await expect(xBar).toHaveAttribute('aria-valuenow', '280');
 		await expect(page.getByText('1文字オーバー')).toBeVisible();
 	});
+
+	test('reveals the X URL note via keyboard focus and exposes it through aria-describedby', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('char-count');
+		await toolPage.goto();
+
+		const infoButton = page.getByRole('button', { name: 'Xの補足情報' });
+		const noteId = await infoButton.getAttribute('aria-describedby');
+		expect(noteId).toBeTruthy();
+
+		const note = page.locator(`#${noteId}`);
+		await expect(note).toHaveText('URLは1件23字として換算');
+
+		// フォーカス前は非表示、フォーカス後（キーボード操作相当）に表示される
+		await expect(note).toBeHidden();
+		await infoButton.focus();
+		await expect(note).toBeVisible();
+
+		// フォーカスを外すと再び非表示に戻る
+		await page.keyboard.press('Tab');
+		await expect(note).toBeHidden();
+	});
+
+	test('still reveals the SEO note via mouse hover', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('char-count');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: 'SEO' }).click();
+
+		const infoButton = page.getByRole('button', {
+			name: 'meta descriptionの補足情報',
+		});
+		const noteId = await infoButton.getAttribute('aria-describedby');
+		const note = page.locator(`#${noteId}`);
+
+		await expect(note).toBeHidden();
+		await infoButton.hover();
+		await expect(note).toBeVisible();
+		await expect(note).toHaveText(
+			'検索結果表示の目安であり、仕様上の厳密な上限ではない',
+		);
+	});
 });
