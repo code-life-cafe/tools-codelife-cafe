@@ -57,7 +57,9 @@ test.describe('Character Counter', () => {
 		await expect(threadsBar).toBeVisible();
 
 		// Instagram・LinkedInは「その他のSNS」の折りたたみ内にあり、初期状態では非表示
-		await expect(page.getByRole('progressbar', { name: 'Instagram' })).toBeHidden();
+		await expect(
+			page.getByRole('progressbar', { name: 'Instagram' }),
+		).toBeHidden();
 
 		const textbox = page.getByRole('textbox').first();
 		await textbox.fill('あ'.repeat(10));
@@ -88,7 +90,9 @@ test.describe('Character Counter', () => {
 		await toolPage.goto();
 
 		await page.getByRole('tab', { name: 'SEO' }).click();
-		await expect(page.getByRole('progressbar', { name: 'title' })).toBeVisible();
+		await expect(
+			page.getByRole('progressbar', { name: 'title' }),
+		).toBeVisible();
 		await expect(
 			page.getByRole('progressbar', { name: 'meta description' }),
 		).toBeVisible();
