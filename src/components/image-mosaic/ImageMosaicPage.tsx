@@ -1,13 +1,14 @@
 // ImageMosaicPage — 画像モザイク・ぼかしツールのオーケストレータ
 // 状態: 読み込みフェーズ / マスク領域（undo/redo履歴付き） / 選択 / モード / 強度
 
-import { ImagePlus, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { ImagePlus, Maximize2, Minimize2, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { ExportBar } from '@/components/common/ExportBar';
 import { ImageDropzone } from '@/components/common/ImageDropzone';
 import { useHistoryState } from '@/components/common/useHistoryState';
 import { Button } from '@/components/ui/button';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
+import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	createId,
 	DOWNSCALE_EDGE,
@@ -42,6 +43,10 @@ type Phase =
 
 export default function ImageMosaicPage() {
 	const { trackRun } = useToolAnalytics('image-mosaic');
+	const [settings, updateSettings] = useToolSettings('image-mosaic', {
+		isExpanded: false,
+	});
+	const { isExpanded } = settings;
 	const [phase, setPhase] = useState<Phase>({ kind: 'empty' });
 	const [error, setError] = useState<string | null>(null);
 	const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -347,6 +352,36 @@ export default function ImageMosaicPage() {
 		setStampImageName(null);
 	}, [regions]);
 
+	const applyLayoutWidth = useCallback((expanded: boolean) => {
+		const container = document.getElementById('tool-layout-container');
+		if (!container) return;
+		if (expanded) {
+			container.classList.remove('max-w-[800px]', 'xl:max-w-5xl');
+			container.classList.add('max-w-full');
+		} else {
+			container.classList.remove('max-w-full');
+			container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+		}
+	}, []);
+
+	const toggleExpand = () => {
+		updateSettings({ isExpanded: !isExpanded });
+	};
+
+	useEffect(() => {
+		applyLayoutWidth(isExpanded);
+	}, [isExpanded, applyLayoutWidth]);
+
+	useEffect(() => {
+		return () => {
+			const container = document.getElementById('tool-layout-container');
+			if (container) {
+				container.classList.remove('max-w-full');
+				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+			}
+		};
+	}, []);
+
 	return (
 		<div className="space-y-4">
 			{error && (
@@ -414,7 +449,7 @@ export default function ImageMosaicPage() {
 					<p className="text-xs text-muted-foreground">
 						キャンバス上をドラッグして、モザイク・ぼかし範囲またはスタンプ配置範囲を選択してください。モザイク・ぼかしは四角形/円形を切り替えられます。領域をクリックすると選択でき、Deleteキーまたは✕ボタンで削除できます。
 					</p>
-					<div className="text-center">
+					<div>
 						<CanvasEditor
 							source={phase.source}
 							regions={regions.state}
@@ -424,12 +459,26 @@ export default function ImageMosaicPage() {
 							onDeleteRegion={handleDeleteRegion}
 							drawingMode={activeMode}
 							drawingShape={activeShape}
+							fullSize={isExpanded}
 						/>
 					</div>
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<Button variant="outline" size="sm" onClick={handleClear}>
 							<ImagePlus className="h-4 w-4" />
 							別の画像を選ぶ
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={toggleExpand}
+							title={isExpanded ? '標準サイズに戻す' : '画面幅を広げる'}
+						>
+							{isExpanded ? (
+								<Minimize2 className="h-4 w-4" />
+							) : (
+								<Maximize2 className="h-4 w-4" />
+							)}
+							{isExpanded ? '標準幅' : 'フルサイズ'}
 						</Button>
 					</div>
 					<ExportBar

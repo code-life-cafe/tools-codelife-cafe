@@ -5,6 +5,7 @@
 
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ZoomableCanvasViewport } from '@/components/common/ZoomableCanvasViewport';
 import { clientToImage } from '@/lib/tools/image-common';
 import {
 	isMaskEffectMode,
@@ -31,6 +32,8 @@ type CanvasEditorProps = {
 	onDeleteRegion: (id: string) => void;
 	drawingMode: MaskMode;
 	drawingShape: MaskShape;
+	/** フルサイズ表示（ページ幅上限解除）中か */
+	fullSize?: boolean;
 };
 
 type DragState = {
@@ -90,6 +93,7 @@ export function CanvasEditor({
 	onDeleteRegion,
 	drawingMode,
 	drawingShape,
+	fullSize,
 }: CanvasEditorProps) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const dragRef = useRef<DragState | null>(null);
@@ -249,60 +253,74 @@ export function CanvasEditor({
 	});
 
 	return (
-		<div className="relative inline-block max-w-full">
-			<canvas
-				ref={canvasRef}
-				data-testid="editor-canvas"
-				className="block h-auto max-h-[60vh] w-auto max-w-full cursor-crosshair touch-none rounded-lg border border-border"
-				onPointerDown={handlePointerDown}
-				onPointerMove={handlePointerMove}
-				onPointerUp={handlePointerUp}
-				onPointerCancel={handlePointerCancel}
-				onPointerLeave={() => setHoveredId(null)}
-			/>
-			{/* 既存領域のアウトライン（DOMオーバーレイ） */}
-			{regions.map((region) => {
-				const isSelected = region.id === selectedId;
-				const isHovered = region.id === hoveredId;
+		<ZoomableCanvasViewport
+			contentWidth={imageSize.width}
+			contentHeight={imageSize.height}
+			resetKey={source}
+			fullSize={fullSize}
+		>
+			{({ mobileMode }) => {
+				const isPanMode = mobileMode === 'pan';
 				return (
-					<div
-						key={region.id}
-						className={`pointer-events-none absolute border border-dashed transition-colors ${isMaskEffectRegion(region) && region.shape === 'ellipse' ? 'rounded-full' : ''} ${
-							isSelected
-								? 'border-primary border-2 bg-primary/10'
-								: isHovered
-									? 'border-primary/70'
-									: 'border-transparent'
-						}`}
-						style={pctStyle(region.rect)}
-					>
-						{isSelected && (
-							<button
-								type="button"
-								aria-label="領域を削除"
-								className="pointer-events-auto absolute -top-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-white shadow-sm hover:opacity-80"
-								onClick={(e) => {
-									e.stopPropagation();
-									onDeleteRegion(region.id);
-								}}
-							>
-								<X className="h-4 w-4" />
-							</button>
+					<div className="relative h-full w-full">
+						<canvas
+							ref={canvasRef}
+							data-testid="editor-canvas"
+							className={`block h-full w-full rounded-lg border border-border ${
+								isPanMode ? 'cursor-grab' : 'cursor-crosshair touch-none'
+							}`}
+							onPointerDown={isPanMode ? undefined : handlePointerDown}
+							onPointerMove={isPanMode ? undefined : handlePointerMove}
+							onPointerUp={isPanMode ? undefined : handlePointerUp}
+							onPointerCancel={isPanMode ? undefined : handlePointerCancel}
+							onPointerLeave={() => setHoveredId(null)}
+						/>
+						{/* 既存領域のアウトライン（DOMオーバーレイ） */}
+						{regions.map((region) => {
+							const isSelected = region.id === selectedId;
+							const isHovered = region.id === hoveredId;
+							return (
+								<div
+									key={region.id}
+									className={`pointer-events-none absolute border border-dashed transition-colors ${isMaskEffectRegion(region) && region.shape === 'ellipse' ? 'rounded-full' : ''} ${
+										isSelected
+											? 'border-primary border-2 bg-primary/10'
+											: isHovered
+												? 'border-primary/70'
+												: 'border-transparent'
+									}`}
+									style={pctStyle(region.rect)}
+								>
+									{isSelected && (
+										<button
+											type="button"
+											aria-label="領域を削除"
+											className="pointer-events-auto absolute -top-3 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-white shadow-sm hover:opacity-80"
+											onClick={(e) => {
+												e.stopPropagation();
+												onDeleteRegion(region.id);
+											}}
+										>
+											<X className="h-4 w-4" />
+										</button>
+									)}
+								</div>
+							);
+						})}
+						{/* ドラッグ中の選択矩形 */}
+						{dragRect && (
+							<div
+								className={`pointer-events-none absolute border-2 border-dashed border-primary bg-primary/10 ${
+									isMaskEffectMode(drawingMode) && drawingShape === 'ellipse'
+										? 'rounded-full'
+										: ''
+								}`}
+								style={pctStyle(dragRect)}
+							/>
 						)}
 					</div>
 				);
-			})}
-			{/* ドラッグ中の選択矩形 */}
-			{dragRect && (
-				<div
-					className={`pointer-events-none absolute border-2 border-dashed border-primary bg-primary/10 ${
-						isMaskEffectMode(drawingMode) && drawingShape === 'ellipse'
-							? 'rounded-full'
-							: ''
-					}`}
-					style={pctStyle(dragRect)}
-				/>
-			)}
-		</div>
+			}}
+		</ZoomableCanvasViewport>
 	);
 }
