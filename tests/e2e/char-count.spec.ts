@@ -140,7 +140,14 @@ test.describe('Character Counter', () => {
 	test('still reveals the SEO note via mouse hover', async ({
 		page,
 		createToolPage,
-	}) => {
+	}, testInfo) => {
+		// タッチエミュレーション（hasTouch）が有効なプロジェクトではCSSの:hoverが
+		// 発火しないため、マウス操作を前提とする本テストはスキップする。
+		test.skip(
+			testInfo.project.name === 'mobile-chrome',
+			'mobile-chromeはタッチエミュレーションのためマウスホバーの検証対象外',
+		);
+
 		const toolPage = createToolPage('char-count');
 		await toolPage.goto();
 
