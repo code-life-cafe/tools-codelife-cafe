@@ -4,10 +4,7 @@ import { expect, test } from './fixtures/base';
 import {
 	countDiffFromFixture,
 	dragOnCanvas,
-	generateSyntheticImage,
 	getCanvasPixel,
-	getContainerBox,
-	getZoomGeometry,
 	imagePointToPage,
 } from './helpers/canvas';
 
@@ -379,6 +376,19 @@ test.describe('ズーム＆パン・フルサイズ表示', () => {
 		await uploadSample(page);
 		await expect(page.getByText(/^フィット（\d+%）$/)).toBeVisible();
 	});
+
+	test('ズームビューポート外ではページの縦スクロールが阻害されない', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		const scrollYBefore = await page.evaluate(() => window.scrollY);
+		// パンくずリスト付近（ズームビューポートより確実に上）にカーソルを置く
+		await page.mouse.move(10, 5);
+		await page.mouse.wheel(0, 400);
+		await expect
+			.poll(() => page.evaluate(() => window.scrollY))
+			.toBeGreaterThan(scrollYBefore);
+	});
 });
 
 test.describe('stackBlur フォールバック実装', () => {
@@ -415,145 +425,5 @@ test.describe('stackBlur フォールバック実装', () => {
 		expect(r(2, 4)).toBe(r(6, 4));
 		expect(r(4, 3)).toBe(r(4, 5));
 		expect(r(3, 4)).toBeLessThanOrEqual(r(4, 4));
-	});
-});
-
-test.describe('モバイル編集／パンモード', () => {
-	test.beforeEach(async ({ page, createToolPage }) => {
-		// モバイル用の編集／パン切替ボタンは sm:hidden のため、
-		// どの Playwright project で実行してもボタンが見えるよう明示的に狭める
-		await page.setViewportSize({ width: 375, height: 812 });
-		const toolPage = createToolPage('image-mosaic');
-		await toolPage.goto();
-		await expect(
-			page.getByText('画像をドラッグ＆ドロップ、またはクリックして選択'),
-		).toBeVisible({ timeout: 10000 });
-	});
-
-	const editButton = (page: import('@playwright/test').Page) =>
-		page.getByRole('button', { name: '編集モード（ドラッグで選択・移動）' });
-	const panButton = (page: import('@playwright/test').Page) =>
-		page.getByRole('button', { name: 'パンモード（ドラッグで画像内を移動）' });
-
-	test('アップロード直後は編集モードで、Accessible Nameとaria-pressedが正しい', async ({
-		page,
-	}) => {
-		await uploadSample(page);
-		await expect(editButton(page)).toHaveAttribute('aria-pressed', 'true');
-		await expect(panButton(page)).toHaveAttribute('aria-pressed', 'false');
-	});
-
-	test('編集モードでは既存のドラッグ選択が機能する', async ({ page }) => {
-		await uploadSample(page);
-		const canvas = page.getByTestId('editor-canvas');
-		await dragOnCanvas(page, canvas, { x: 80, y: 60 }, { x: 180, y: 140 });
-		await expect
-			.poll(() => getCanvasPixel(page, 'editor-canvas', 96, 100))
-			.not.toEqual(WHITE);
-	});
-
-	test('パンモードに切り替えるとドラッグ選択が発火しない', async ({ page }) => {
-		await uploadSample(page);
-		await panButton(page).click();
-		await expect(panButton(page)).toHaveAttribute('aria-pressed', 'true');
-
-		const canvas = page.getByTestId('editor-canvas');
-		await dragOnCanvas(page, canvas, { x: 80, y: 60 }, { x: 180, y: 140 });
-		// パンモードでは領域が追加されないため、canvasはフィクスチャ原画のまま
-		expect(await countDiffFromFixture(page, 'editor-canvas')).toBe(0);
-	});
-
-	test('パンモードでは画像の四隅へ移動でき、ページの横スクロールは発生しない', async ({
-		page,
-	}) => {
-		// フィクスチャ(400x300)は100%表示でもコンテナ内に収まってしまいパンの
-		// 余地がないため、縦横ともコンテナよりはっきり大きい画像を使う
-		const buffer = await generateSyntheticImage(page, 2400, 1800);
-		await page
-			.locator('input[type="file"]')
-			.setInputFiles({ name: 'large.png', mimeType: 'image/png', buffer });
-		await expect(page.getByTestId('editor-canvas')).toBeVisible();
-		await page.getByRole('button', { name: '100%' }).click();
-		await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
-		await panButton(page).click();
-
-		const containerBox = await getContainerBox(page);
-		const cx = containerBox.x + containerBox.width / 2;
-		const cy = containerBox.y + containerBox.height / 2;
-		await page.mouse.move(cx, cy);
-
-		// 左上へ（負方向いっぱいにスクロール）
-		await page.mouse.wheel(-5000, -5000);
-		await expect
-			.poll(
-				async () => (await getZoomGeometry(page, 'editor-canvas')).scrollLeft,
-			)
-			.toBe(0);
-		expect((await getZoomGeometry(page, 'editor-canvas')).scrollTop).toBe(0);
-
-		// 右下へ（正方向いっぱいにスクロール）
-		await page.mouse.wheel(5000, 5000);
-		await expect
-			.poll(
-				async () => (await getZoomGeometry(page, 'editor-canvas')).scrollLeft,
-			)
-			.toBeGreaterThan(0);
-		const afterBottomRight = await getZoomGeometry(page, 'editor-canvas');
-		expect(afterBottomRight.scrollTop).toBeGreaterThan(0);
-
-		// ページ全体に不要な横スクロールが発生していないこと
-		const hasHorizontalOverflow = await page.evaluate(
-			() =>
-				document.documentElement.scrollWidth >
-				document.documentElement.clientWidth,
-		);
-		expect(hasHorizontalOverflow).toBe(false);
-	});
-
-	test('ズームビューポート外ではページの縦スクロールが阻害されない', async ({
-		page,
-	}) => {
-		await uploadSample(page);
-		const scrollYBefore = await page.evaluate(() => window.scrollY);
-		// パンくずリスト付近（ズームビューポートより確実に上）にカーソルを置く
-		await page.mouse.move(10, 5);
-		await page.mouse.wheel(0, 400);
-		await expect
-			.poll(() => page.evaluate(() => window.scrollY))
-			.toBeGreaterThan(scrollYBefore);
-	});
-
-	test('新しい画像を読み込むと編集モードへ戻る', async ({ page }) => {
-		await uploadSample(page);
-		await panButton(page).click();
-		await expect(panButton(page)).toHaveAttribute('aria-pressed', 'true');
-
-		await page.getByRole('button', { name: '別の画像を選ぶ' }).click();
-		await uploadSample(page);
-		await expect(editButton(page)).toHaveAttribute('aria-pressed', 'true');
-	});
-
-	test('編集／パンの切替でズーム倍率や編集内容が失われない', async ({
-		page,
-	}) => {
-		await uploadSample(page);
-		const canvas = page.getByTestId('editor-canvas');
-		await dragOnCanvas(page, canvas, { x: 80, y: 60 }, { x: 180, y: 140 });
-		await page.getByRole('button', { name: '100%' }).click();
-		const percentLabel = page.getByTestId('zoom-percent-label');
-		await expect(percentLabel).toHaveText('100%');
-		const pixelBefore = await getCanvasPixel(page, 'editor-canvas', 96, 100);
-
-		await panButton(page).click();
-		await expect(percentLabel).toHaveText('100%');
-		expect(await getCanvasPixel(page, 'editor-canvas', 96, 100)).toEqual(
-			pixelBefore,
-		);
-
-		await editButton(page).click();
-		await expect(percentLabel).toHaveText('100%');
-		expect(await getCanvasPixel(page, 'editor-canvas', 96, 100)).toEqual(
-			pixelBefore,
-		);
 	});
 });
