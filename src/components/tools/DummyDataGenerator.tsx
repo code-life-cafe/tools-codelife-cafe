@@ -54,7 +54,7 @@ const ALL_FIELDS: FieldItem[] = [
 ];
 
 export default function DummyDataGenerator() {
-	const { trackRun } = useToolAnalytics('dummy-data');
+	const { trackRunDebounced } = useToolAnalytics('dummy-data');
 	const [fields, setFields] = useState<FieldItem[]>(ALL_FIELDS);
 	const [selectedFields, setSelectedFields] = useState<Set<FieldType>>(
 		new Set(['name', 'kana', 'email', 'phone']),
@@ -86,14 +86,21 @@ export default function DummyDataGenerator() {
 		const timer = setTimeout(() => {
 			try {
 				setOutputData(generateDummyData(activeFields, count, format));
-				trackRun();
+				trackRunDebounced();
 			} catch (_e) {
 				setOutputData('');
 			}
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, format, refreshKey, validationError, trackRun]);
+	}, [
+		activeFields,
+		count,
+		format,
+		refreshKey,
+		validationError,
+		trackRunDebounced,
+	]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];

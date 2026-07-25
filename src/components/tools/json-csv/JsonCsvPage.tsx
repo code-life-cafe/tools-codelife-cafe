@@ -49,7 +49,7 @@ const SAMPLE_CSV = [
 ].join('\r\n');
 
 export function JsonCsvPage() {
-	const { trackRun } = useToolAnalytics('json-csv');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('json-csv');
 	const [direction, setDirection] = useState<Direction>('json-to-csv');
 	const [input, setInput] = useState('');
 	const [result, setResult] = useState<ConvertResult | null>(null);
@@ -79,8 +79,8 @@ export function JsonCsvPage() {
 				? jsonToCsv(input, jsonOpts)
 				: csvToJson(input, csvOpts),
 		);
-		trackRun();
-	}, [input, direction, jsonOpts, csvOpts, trackRun]);
+		trackRunDebounced();
+	}, [input, direction, jsonOpts, csvOpts, trackRunDebounced]);
 
 	// 自動変換（300ms debounce）。1MB以上は手動実行に切り替え
 	useEffect(() => {

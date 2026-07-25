@@ -71,7 +71,7 @@ function OutputRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function UnixTime() {
-	const { trackRun } = useToolAnalytics('unix-time');
+	const { trackRunDebounced } = useToolAnalytics('unix-time');
 	const [settings, updateSettings] = useToolSettings<Settings>('unix-time', {
 		timeZone: 'Asia/Tokyo',
 	});
@@ -135,9 +135,9 @@ export default function UnixTime() {
 
 	useEffect(() => {
 		if (outputs || batchRows.length > 0) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [outputs, batchRows, trackRun]);
+	}, [outputs, batchRows, trackRunDebounced]);
 
 	const handleNowClick = () => {
 		const nanos = nowInstantNanos();

@@ -110,7 +110,7 @@ function ServiceProgressCard({ service }: { service: ServiceCountResult }) {
 }
 
 export default function CharCount() {
-	const { trackRun } = useToolAnalytics('char-count');
+	const { trackRunDebounced } = useToolAnalytics('char-count');
 	const [text, setText] = useState('');
 	const [secondarySnsOpen, setSecondarySnsOpen] = useState(false);
 
@@ -120,9 +120,9 @@ export default function CharCount() {
 	// テキストが実際に入力された（非空）時点でカウント実行を計測
 	useEffect(() => {
 		if (text) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [text, trackRun]);
+	}, [text, trackRunDebounced]);
 
 	const snsPrimary = services.filter(
 		(s) => s.category === 'sns' && s.group === 'primary',

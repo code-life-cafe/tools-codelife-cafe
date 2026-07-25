@@ -23,7 +23,7 @@ import {
 } from '@/lib/tools/base64';
 
 export default function Base64Converter() {
-	const { trackRun } = useToolAnalytics('base64');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('base64');
 	const [tab, setTab] = useState('text');
 
 	// Text Tab State
@@ -60,9 +60,9 @@ export default function Base64Converter() {
 	// エンコード/デコードが成功して変換結果が得られた時点で実行を計測（空入力・エラー時は発火しない）
 	useEffect(() => {
 		if (textResult.output && !textResult.error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [textResult, trackRun]);
+	}, [textResult, trackRunDebounced]);
 
 	// Handlers for File Drop
 	const handleDrop = useCallback(

@@ -54,7 +54,7 @@ function greet(name) {
 `;
 
 export function MarkdownPreviewPage() {
-	const { trackRun } = useToolAnalytics('markdown');
+	const { trackRunDebounced } = useToolAnalytics('markdown');
 	const [input, setInput] = useState('');
 	const [html, setHtml] = useState('');
 	const [error, setError] = useState<string | null>(null);
@@ -74,7 +74,7 @@ export function MarkdownPreviewPage() {
 					setHtml(result);
 					setError(null);
 					// 変換結果が出た時のみ計測する
-					if (result) trackRun();
+					if (result) trackRunDebounced();
 				})
 				.catch((err: unknown) => {
 					if (cancelled) return;
@@ -86,7 +86,7 @@ export function MarkdownPreviewPage() {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [input, trackRun]);
+	}, [input, trackRunDebounced]);
 
 	const handleClear = useCallback(() => {
 		setInput('');

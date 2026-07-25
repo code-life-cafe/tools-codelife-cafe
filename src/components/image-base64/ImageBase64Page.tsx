@@ -43,7 +43,7 @@ function truncate(s: string): string {
 }
 
 export function ImageBase64Page() {
-	const { trackRun } = useToolAnalytics('image-base64');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('image-base64');
 	const [mode, setMode] = useState<Mode>('encode');
 
 	const [file, setFile] = useState<File | null>(null);
@@ -144,7 +144,7 @@ export function ImageBase64Page() {
 				setDecodedBlob(blob);
 				setDecodeError(null);
 				// Base64→画像 デコード成功の分析計測
-				trackRun();
+				trackRunDebounced();
 			} catch (err) {
 				if (decodedUrlRef.current) {
 					URL.revokeObjectURL(decodedUrlRef.current);
@@ -161,7 +161,7 @@ export function ImageBase64Page() {
 		}, 300);
 
 		return () => clearTimeout(timer);
-	}, [mode, decodeInput, trackRun]);
+	}, [mode, decodeInput, trackRunDebounced]);
 
 	useEffect(() => {
 		return () => {

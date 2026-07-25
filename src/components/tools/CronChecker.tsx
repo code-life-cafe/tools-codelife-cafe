@@ -79,7 +79,7 @@ function severityBadgeVariant(
 }
 
 export default function CronChecker() {
-	const { trackRun } = useToolAnalytics('cron-checker');
+	const { trackRunDebounced } = useToolAnalytics('cron-checker');
 	const [settings, updateSettings] = useToolSettings<Settings>('cron-checker', {
 		extraTimeZone: 'UTC',
 	});
@@ -151,10 +151,9 @@ export default function CronChecker() {
 	const scheduleRaw = schedule?.raw;
 	useEffect(() => {
 		if (!scheduleRaw) return;
-		// キーストロークごとの計上を避けるため、入力が落ち着いてから計測する
-		const timer = setTimeout(() => trackRun(), 500);
-		return () => clearTimeout(timer);
-	}, [scheduleRaw, trackRun]);
+		// キーストロークごとの計上を避けるため、入力が落ち着いてから計測する（フック側で500msデバウンス）
+		trackRunDebounced();
+	}, [scheduleRaw, trackRunDebounced]);
 
 	const crontabCopy = schedule ? toCrontabLine(schedule) : null;
 	const githubCopy = schedule ? toGithubActionsSchedule(schedule) : null;

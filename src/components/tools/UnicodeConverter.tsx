@@ -9,7 +9,7 @@ import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { textToUnicode, unicodeToText } from '@/lib/tools/unicode-converter';
 
 export default function UnicodeConverter() {
-	const { trackRun } = useToolAnalytics('unicode-converter');
+	const { trackRunDebounced } = useToolAnalytics('unicode-converter');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('encode');
 
@@ -31,9 +31,9 @@ export default function UnicodeConverter() {
 
 	useEffect(() => {
 		if (input.trim() && result.output && !result.error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [input, result, trackRun]);
+	}, [input, result, trackRunDebounced]);
 
 	return (
 		<div className="space-y-6">

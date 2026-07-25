@@ -100,7 +100,7 @@ function formatErrorLine(result: ConvertResult | null): string | null {
 }
 
 export default function YamlJsonToml() {
-	const { trackRun } = useToolAnalytics('yaml-json-toml');
+	const { trackRunDebounced } = useToolAnalytics('yaml-json-toml');
 	const [from, setFrom] = useState<Format>('yaml');
 	const [to, setTo] = useState<Format>('json');
 	const [input, setInput] = useState('');
@@ -116,8 +116,8 @@ export default function YamlJsonToml() {
 		}
 		const converted = convertFormats(from, to, input, { indent, sortKeys });
 		setResult(converted);
-		if (converted.ok) trackRun();
-	}, [input, from, to, indent, sortKeys, trackRun]);
+		if (converted.ok) trackRunDebounced();
+	}, [input, from, to, indent, sortKeys, trackRunDebounced]);
 
 	// 自動変換（250msデバウンス）
 	useEffect(() => {

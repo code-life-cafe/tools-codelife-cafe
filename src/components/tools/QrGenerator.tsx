@@ -52,7 +52,7 @@ function getContrastRatio(hex1: string, hex2: string) {
 }
 
 export default function QrGenerator() {
-	const { trackRun } = useToolAnalytics('qr-generator');
+	const { trackRunDebounced } = useToolAnalytics('qr-generator');
 	const [text, setText] = useState('');
 	const [options, setOptions] = useState<QROptions>(defaultOptions);
 	const [qrDataUrl, setQrDataUrl] = useState('');
@@ -80,14 +80,14 @@ export default function QrGenerator() {
 				]);
 				setQrDataUrl(dataUrl);
 				setQrSvg(svg);
-				trackRun();
+				trackRunDebounced();
 			} catch {
 				// ignore
 			}
 		}, 150);
 
 		return () => clearTimeout(timer);
-	}, [text, options, trackRun]);
+	}, [text, options, trackRunDebounced]);
 
 	const handleDownloadPng = useCallback(() => {
 		if (qrDataUrl) downloadDataUrl(qrDataUrl, 'qrcode.png');
