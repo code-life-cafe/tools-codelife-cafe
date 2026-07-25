@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
+import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	buildMergedFilename,
@@ -29,6 +30,7 @@ const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 type LoadedItem = MergeImageItem & { bitmap: ImageBitmap };
 
 export function ImageMergePage() {
+	const { trackRun } = useToolAnalytics('image-merge');
 	const [items, setItems] = useState<LoadedItem[]>([]);
 	const [options, setOptions] = useState<MergeOptions>(DEFAULT_MERGE_OPTIONS);
 	const [outputSize, setOutputSize] = useState<{
@@ -40,6 +42,7 @@ export function ImageMergePage() {
 	// 結果（結合画像）はダウンロード後にUIで参照しないため、React状態に保持しない
 	const { processing, error, setError, run } = useSingleResultProcessing<void>({
 		fallbackErrorMessage: '画像の書き出しに失敗しました。',
+		onRunComplete: trackRun,
 	});
 	const busy = loadingFiles || processing;
 
