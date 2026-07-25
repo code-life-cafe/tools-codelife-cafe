@@ -15,6 +15,7 @@ import {
 	getContainerBox,
 	getZoomGeometry,
 	imagePointFromClientPoint,
+	imagePointToPage,
 	pinch,
 	type ZoomGeometry,
 	zoomAtClientPoint,
@@ -540,10 +541,29 @@ for (const tool of TOOLS) {
 
 		test('1本指描画中に2本目を置いても領域が追加されない', async ({ page }) => {
 			await uploadFixture(page, tool.canvasTestId);
+			// image-text はキャンバス上の何もない場所へのドラッグでは描画が起きない
+			// （既存テキストレイヤーのヒットテストに当たった場合のみ移動する）ため、
+			// 干渉を検証できるようレイヤーを1つ用意しておく。
+			if (tool.id === 'image-text') {
+				await page.getByRole('button', { name: 'テキストを追加' }).click();
+			}
 			const client = await page.context().newCDPSession(page);
+			const canvas = page.getByTestId(tool.canvasTestId);
 			const canvasBox = await getCanvasBox(page, tool.canvasTestId);
-			const p1 = { x: canvasBox.x + 40, y: canvasBox.y + 40 };
-			const p2 = { x: canvasBox.x + 140, y: canvasBox.y + 100 };
+
+			// image-text は追加直後のテキストレイヤー上（画像中央付近）を起点にする
+			const p1 =
+				tool.id === 'image-text'
+					? await imagePointToPage(canvas, 145, 135)
+					: { x: canvasBox.x + 40, y: canvasBox.y + 40 };
+			const p2 = {
+				x: canvasBox.x + canvasBox.width - 30,
+				y: canvasBox.y + canvasBox.height - 30,
+			};
+			const before =
+				tool.id === 'image-text'
+					? await getSelectedTextLayerBounds(page, tool.canvasTestId)
+					: null;
 
 			await dispatchTouchEvent(client, 'touchStart', [{ ...p1, id: 0 }]);
 			await dispatchTouchEvent(client, 'touchMove', [
@@ -556,17 +576,34 @@ for (const tool of TOOLS) {
 			await dispatchTouchEvent(client, 'touchEnd', []);
 			await client.detach();
 
-			expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+			if (tool.id === 'image-text') {
+				// 2本目の指でピンチへ遷移した時点で、直前のドラッグによる移動は
+				// ロールバックされ、レイヤー位置は元のままであるべき
+				expect(
+					await getSelectedTextLayerBounds(page, tool.canvasTestId),
+				).toEqual(before);
+			} else {
+				expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+			}
 		});
 
 		test('ピンチ後に残った1本指で意図せず描画が始まらない', async ({
 			page,
 		}) => {
 			await uploadFixture(page, tool.canvasTestId);
+			if (tool.id === 'image-text') {
+				await page.getByRole('button', { name: 'テキストを追加' }).click();
+			}
 			const client = await page.context().newCDPSession(page);
-			const containerBox = await getContainerBox(page);
-			const cx = containerBox.x + containerBox.width / 2;
-			const cy = containerBox.y + containerBox.height / 2;
+			// レターボックス表示時にコンテナ中心が非canvas領域へ落ちてイベントが
+			// 届かなくなることがあるため、必ずcanvas自身のboundingBoxを使う
+			const canvasBox = await getCanvasBox(page, tool.canvasTestId);
+			const cx = canvasBox.x + canvasBox.width / 2;
+			const cy = canvasBox.y + canvasBox.height / 2;
+			const before =
+				tool.id === 'image-text'
+					? await getSelectedTextLayerBounds(page, tool.canvasTestId)
+					: null;
 
 			await dispatchTouchEvent(client, 'touchStart', [
 				{ x: cx - 50, y: cy, id: 0 },
@@ -585,7 +622,55 @@ for (const tool of TOOLS) {
 			await dispatchTouchEvent(client, 'touchEnd', []);
 			await client.detach();
 
-			expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+			if (tool.id === 'image-text') {
+				expect(
+					await getSelectedTextLayerBounds(page, tool.canvasTestId),
+				).toEqual(before);
+			} else {
+				expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+			}
+		});
+
+		test('1本指のタッチドラッグで範囲選択/レイヤー移動が機能する', async ({
+			page,
+		}) => {
+			await uploadFixture(page, tool.canvasTestId);
+			const client = await page.context().newCDPSession(page);
+			const canvas = page.getByTestId(tool.canvasTestId);
+
+			if (tool.id === 'image-mosaic') {
+				const canvasBox = await getCanvasBox(page, tool.canvasTestId);
+				const from = { x: canvasBox.x + 40, y: canvasBox.y + 40 };
+				const to = { x: canvasBox.x + 140, y: canvasBox.y + 100 };
+
+				await dispatchTouchEvent(client, 'touchStart', [{ ...from, id: 0 }]);
+				await dispatchTouchEvent(client, 'touchMove', [{ ...to, id: 0 }]);
+				await dispatchTouchEvent(client, 'touchEnd', []);
+				await client.detach();
+
+				await expect
+					.poll(() => countDiffFromFixture(page, tool.canvasTestId))
+					.toBeGreaterThan(0);
+			} else {
+				await page.getByRole('button', { name: 'テキストを追加' }).click();
+				await canvas.scrollIntoViewIfNeeded();
+				const before = await getSelectedTextLayerBounds(
+					page,
+					tool.canvasTestId,
+				);
+				// 追加直後のテキストレイヤー上（画像中央付近）から離れた位置へ動かす
+				const from = await imagePointToPage(canvas, 145, 135);
+				const to = await imagePointToPage(canvas, 250, 220);
+
+				await dispatchTouchEvent(client, 'touchStart', [{ ...from, id: 0 }]);
+				await dispatchTouchEvent(client, 'touchMove', [{ ...to, id: 0 }]);
+				await dispatchTouchEvent(client, 'touchEnd', []);
+				await client.detach();
+
+				await expect
+					.poll(() => getSelectedTextLayerBounds(page, tool.canvasTestId))
+					.not.toEqual(before);
+			}
 		});
 
 		test('片指離脱・3本目追加・指の入れ替わりの後も操作不能にならない', async ({
