@@ -13,19 +13,25 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 
 ## 収集イベント一覧 (Cloudflare Analytics Engine)
 
-改善効果を判定するため、以下の 5 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。
+改善効果を判定するため、以下の 6 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。
 
 | イベント名 | 発火条件 | 収集プロパティ (Allowlist) | 目的 |
 |---|---|---|---|
-| `tool_run` | ツール実行・変換処理が走った時 | `{ tool: string }` (ツールslug) | ツールの利用頻度の計測 |
+| `tool_run` | ツール実行・変換処理が走った時（発火タイミングの定義は下記） | `{ tool: string }` (ツールslug) | ツールの利用頻度の計測 |
 | `tool_engage` | 個別ツールで初めて入力・操作があった時（タブ単位で1回） | `{ tool: string }` (ツールslug) | ツールごとの実活用セッション数の計測 |
 | `search_empty` | トップ検索でヒットが0件だった時 | `{ lengthBucket: string, hasJapanese: boolean, tokenCount: number, q_redacted?: boolean }` | 未対応ツール需要の把握（生検索語は非送信） |
 | `related_click` | 関連ツール回遊カードのクリック時 | `{ from: string, to: string, setId?: string, position: number }` (ツールslug, セットID, リスト内位置) | ツール間回遊の導線効果の検証 |
-| `shared_url_open` | 共有URL経由で初期状態が復元された時 | `{ tool: string }` (ツールslug) | 共有機能の利用状況の検証 |
+| `shared_url_open` | 共有URL（`?settings=`）経由でツールページが開かれた時 | `{ tool: string }` (ツールslug) | 共有機能の利用状況の検証 |
+| `settings_restore` | ツール設定を URL または localStorage から復元した時 | `{ tool: string, source: 'localStorage' \| 'url' }` | 設定保持・共有導線の利用状況の検証 |
 
 ### 特記事項・マスクルール
+- **`tool_run` の発火タイミング（2種類）**: 呼び出し元の性質に応じて2つの発火方法を使い分ける（`src/lib/hooks/useToolAnalytics.ts`）。
+  - **即時発火 `trackRun()`**: ボタン押下・ファイル投入・ダウンロード実行など、ユーザーの明確な1アクションにつき1回実行される呼び出し元で使う。呼び出しごとに即座に1回発火する。
+  - **デバウンス発火 `trackRunDebounced()`**: テキスト入力などライブな値を `useEffect` の依存配列に含み、入力・再計算のたびに実行される呼び出し元で使う。`DEBOUNCE_MS`（500ms）以内の連続呼び出しを1回にまとめ、「入力が止まってから1回」だけ発火する。デバウンスのタイマーはフック内で一元管理し（`scheduleDebounced` / `cancelDebounced`）、各コンポーネント側で個別に `setTimeout` を書かない。アンマウント時は保留中のタイマーを解除する。
+  - どちらも内部的には共通の `trackRun` 実装を呼ぶため、`tool_engage` の保険発火（未発火時に確定させる処理）も同様に働く。
 - **`tool_engage` の発火タイミングと「初回」の定義**: マウント時（＝擬似ページビュー）には発火させない。ツールページ上で最初に発生したユーザー操作（`pointerdown` / `keydown`）を捕捉した時点、または最初の `trackRun()` 実行時のいずれか早い方で 1 回だけ発火する（`src/lib/hooks/useToolAnalytics.ts`）。実行は明確なエンゲージメントであるため、`trackRun()` は保険として `tool_engage` 未発火時に engage を確定させる。重複発火は React の `useRef` フラグと、`src/lib/analytics.ts` のモジュールスコープ `Set`（タブ単位・永続化なし）の二段で防止する。
 - **`search_empty` のマスクルール**: 検索語の生テキストは送信せず、集計用メタ情報（文字数バケット・日本語の有無・トークン数）のみを送信する。メールアドレスやURL、電話番号などの個人情報らしき文字列が含まれる場合は `q_redacted: true` フラグのみを付与する。
+- **`settings_restore` の実装箇所**: `useToolAnalytics.ts` は `trackSettingsRestore()` を公開しているが、実際の発火は `src/lib/hooks/useToolSettings.ts` が設定復元時に `track()` を直接呼び出す形で行っている（URL 復元・localStorage 復元のそれぞれで1回ずつ）。`?settings=` 付き URL を開いた場合、そのツールが `useToolSettings` を使っていれば `shared_url_open`（「共有URLで開かれた」）と `settings_restore`（`source: 'url'`、「設定が実際に復元された」）の両方が発火し得る。意味が異なる別イベントとして意図的に併存させている。
 - **slug の導出**: `tool`, `from`, `to` に渡す slug は、`src/lib/tools/catalog.ts` の定義を正本として利用し、文字列の手書きによる表記揺れを防止する。
 
 ### 匿名セッションID（プライバシー方針との整合性）
