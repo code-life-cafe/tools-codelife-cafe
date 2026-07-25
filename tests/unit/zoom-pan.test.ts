@@ -9,6 +9,7 @@ import {
 	computeFitScale,
 	computeWheelZoom,
 	computeZoomScrollPosition,
+	decideScaleApply,
 	formatZoomPercent,
 	isZoomInNoop,
 	isZoomOutNoop,
@@ -227,4 +228,20 @@ test('isZoomInNoop: 400%未満では有効', () => {
 	assert.equal(isZoomInNoop(2), false);
 	assert.equal(isZoomInNoop(MIN_ZOOM), false);
 	assert.equal(isZoomInNoop(0.05), false);
+});
+
+test('decideScaleApply: 十分離れた値は changed:true', () => {
+	assert.equal(decideScaleApply(1, 2).changed, true);
+});
+
+test('decideScaleApply: 同値は changed:false', () => {
+	assert.equal(decideScaleApply(1, 1).changed, false);
+});
+
+test('decideScaleApply: 浮動小数点誤差程度の差は changed:false とみなす', () => {
+	assert.equal(decideScaleApply(0.25, 0.25 + 1e-10).changed, false);
+});
+
+test('decideScaleApply: 1e-9をわずかに超える差は changed:true', () => {
+	assert.equal(decideScaleApply(1, 1 + 2e-9).changed, true);
 });

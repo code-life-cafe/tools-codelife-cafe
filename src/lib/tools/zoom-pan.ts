@@ -169,3 +169,15 @@ export function isZoomOutNoop(scale: number): boolean {
 export function isZoomInNoop(scale: number): boolean {
 	return Math.abs(nextZoomInStep(scale) - scale) < 1e-9;
 }
+
+/**
+ * 倍率変更が実質的な変化かどうかを判定する（C1修正のコア）。
+ * useZoomPan の applyScale / applyPinchTransform から呼ばれる、
+ * 同値なら pendingAnchorRef を破棄すべき、という判断を返す。
+ */
+export function decideScaleApply(
+	currentScale: number,
+	nextScale: number,
+): { changed: boolean } {
+	return { changed: Math.abs(nextScale - currentScale) >= 1e-9 };
+}

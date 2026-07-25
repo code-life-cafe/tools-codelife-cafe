@@ -408,5 +408,40 @@ for (const tool of TOOLS) {
 			await expect(percentLabel).toHaveText('400%');
 			await expect(zoomInButton).toBeDisabled();
 		});
+
+		test('400%上限に張り付いた後、1段階だけズームアウトしてもカーソル位置がずれない', async ({
+			page,
+		}) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+			const { clientX, clientY } = await getClientPointAndGeometry(
+				page,
+				tool.canvasTestId,
+				0.5,
+				0.5,
+			);
+			// 400%上限に張り付くまで拡大し続ける（同値setMode呼び出しを複数回発生させる）
+			for (let i = 0; i < 10; i++) {
+				await zoomAtClientPoint(page, clientX, clientY, -1_000_000, 'Control');
+			}
+			await expect(page.getByTestId('zoom-percent-label')).toHaveText('400%');
+			const before = await getZoomGeometry(page, tool.canvasTestId);
+			const beforePoint = imagePointFromClientPoint(before, clientX, clientY);
+
+			await zoomAtClientPoint(page, clientX, clientY, 60, 'Control');
+			const after = await waitForScaleChange(
+				page,
+				tool.canvasTestId,
+				before.scale,
+			);
+			const afterPoint = imagePointFromClientPoint(after, clientX, clientY);
+
+			const tolerance = toleranceFor(after);
+			expect(Math.abs(beforePoint.x - afterPoint.x)).toBeLessThanOrEqual(
+				tolerance,
+			);
+			expect(Math.abs(beforePoint.y - afterPoint.y)).toBeLessThanOrEqual(
+				tolerance,
+			);
+		});
 	});
 }

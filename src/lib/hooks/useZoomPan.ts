@@ -14,6 +14,7 @@ import {
 	computeFitScale,
 	computeWheelZoom,
 	computeZoomScrollPosition,
+	decideScaleApply,
 	isZoomInNoop,
 	isZoomOutNoop,
 	nextZoomInStep,
@@ -152,28 +153,43 @@ export function useZoomPan(params: {
 		};
 	}, []);
 
-	const centerAnchor = useCallback(() => {
+	const centerPoint = useCallback(() => {
 		const el = containerRef.current;
-		if (!el) return;
-		anchorAt(el.clientWidth / 2, el.clientHeight / 2);
-	}, [anchorAt]);
+		return el
+			? { x: el.clientWidth / 2, y: el.clientHeight / 2 }
+			: { x: 0, y: 0 };
+	}, []);
+
+	const applyScale = useCallback(
+		(next: number, px: number, py: number) => {
+			if (!decideScaleApply(scaleRef.current, next).changed) {
+				pendingAnchorRef.current = null;
+			} else {
+				anchorAt(px, py);
+			}
+			setMode(next);
+		},
+		[anchorAt],
+	);
 
 	const zoomIn = useCallback(() => {
-		centerAnchor();
-		setMode(nextZoomInStep(scaleRef.current));
-	}, [centerAnchor]);
+		const { x, y } = centerPoint();
+		applyScale(nextZoomInStep(scaleRef.current), x, y);
+	}, [applyScale, centerPoint]);
 
 	const zoomOut = useCallback(() => {
-		centerAnchor();
-		setMode(nextZoomOutStep(scaleRef.current));
-	}, [centerAnchor]);
+		const { x, y } = centerPoint();
+		applyScale(nextZoomOutStep(scaleRef.current), x, y);
+	}, [applyScale, centerPoint]);
 
 	const zoomTo100 = useCallback(() => {
-		centerAnchor();
-		setMode(1);
-	}, [centerAnchor]);
+		const { x, y } = centerPoint();
+		applyScale(1, x, y);
+	}, [applyScale, centerPoint]);
 
 	const zoomToFit = useCallback(() => {
+		// フィット遷移はアンカー無しの既存仕様を維持しつつ、遷移前に残留アンカーを明示的に破棄する
+		pendingAnchorRef.current = null;
 		setMode('fit');
 	}, []);
 
@@ -190,12 +206,15 @@ export function useZoomPan(params: {
 			if (!(e.ctrlKey || e.metaKey)) return;
 			e.preventDefault();
 			const rect = el.getBoundingClientRect();
-			anchorAt(e.clientX - rect.left, e.clientY - rect.top);
-			setMode(computeWheelZoom(scaleRef.current, e.deltaY, e.deltaMode));
+			applyScale(
+				computeWheelZoom(scaleRef.current, e.deltaY, e.deltaMode),
+				e.clientX - rect.left,
+				e.clientY - rect.top,
+			);
 		};
 		el.addEventListener('wheel', listener, { passive: false });
 		return () => el.removeEventListener('wheel', listener);
-	}, [anchorAt]);
+	}, [applyScale]);
 
 	return {
 		containerRef,
