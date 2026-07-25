@@ -28,7 +28,8 @@ import type { RegexResult } from '@/lib/tools/regex-tester';
 import { COMMON_PATTERNS, testRegex } from '@/lib/tools/regex-tester';
 
 export default function RegexTester() {
-	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('regex-tester');
+	const { trackRunDebounced, trackSharedUrlOpen } =
+		useToolAnalytics('regex-tester');
 
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
 		'regex-tester',
@@ -71,14 +72,14 @@ export default function RegexTester() {
 				if (!cancelled) {
 					setResult(r);
 					// テスト実行の分析計測
-					trackRun();
+					trackRunDebounced();
 				}
 			},
 		);
 		return () => {
 			cancelled = true;
 		};
-	}, [pattern, flags, text, showReplace, replacement, trackRun]);
+	}, [pattern, flags, text, showReplace, replacement, trackRunDebounced]);
 
 	// Handle synchronized scrolling for highlight overlay
 	const handleScroll = (e: UIEvent<HTMLTextAreaElement>) => {

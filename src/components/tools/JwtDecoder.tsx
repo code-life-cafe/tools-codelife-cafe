@@ -29,15 +29,15 @@ function ResultCard({ title, value }: { title: string; value: string }) {
 }
 
 export function JwtDecoder() {
-	const { trackRun } = useToolAnalytics('jwt-decoder');
+	const { trackRunDebounced } = useToolAnalytics('jwt-decoder');
 	const [input, setInput] = useState(SAMPLE_JWT);
 	const result = useMemo(() => decodeJwt(input), [input]);
 
 	useEffect(() => {
 		if (input.trim() && !result.error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [input, result.error, trackRun]);
+	}, [input, result.error, trackRunDebounced]);
 
 	return (
 		<div className="space-y-6">

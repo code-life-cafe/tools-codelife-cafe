@@ -79,7 +79,8 @@ const SQL_KEYWORDS = [
 ];
 
 export default function SqlFormatter() {
-	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('sql-formatter');
+	const { trackRun, trackRunDebounced, trackSharedUrlOpen } =
+		useToolAnalytics('sql-formatter');
 	const [input, setInput] = useState('');
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
 		'sql-formatter',
@@ -148,9 +149,9 @@ export default function SqlFormatter() {
 	// 手動ボタンとは別にこちらでも成功時の実行を計測する
 	useEffect(() => {
 		if (autoFormat && output && !error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [autoFormat, output, error, trackRun]);
+	}, [autoFormat, output, error, trackRunDebounced]);
 
 	useEffect(() => {
 		if (autoFormat) {

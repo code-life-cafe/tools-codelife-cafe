@@ -7,7 +7,7 @@ import { GeneratePanel } from './GeneratePanel';
 type Mode = 'generate' | 'analyze';
 
 export function IdGeneratorPage() {
-	const { trackRun } = useToolAnalytics('uuid');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('uuid');
 	const [mode, setMode] = useState<Mode>('generate');
 
 	return (
@@ -21,7 +21,7 @@ export function IdGeneratorPage() {
 					<GeneratePanel onGenerated={trackRun} />
 				</TabsContent>
 				<TabsContent value="analyze" className="mt-4">
-					<AnalyzePanel onAnalyzed={trackRun} />
+					<AnalyzePanel onAnalyzed={trackRunDebounced} />
 				</TabsContent>
 			</Tabs>
 		</div>

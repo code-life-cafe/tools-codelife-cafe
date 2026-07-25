@@ -29,7 +29,7 @@ const checkerboardStyle: React.CSSProperties = {
 const DEFAULT_INPUT = '#1E90FF';
 
 export function ColorConvertPage() {
-	const { trackRun } = useToolAnalytics('color');
+	const { trackRunDebounced } = useToolAnalytics('color');
 	const [input, setInput] = useState(DEFAULT_INPUT);
 
 	const parsed = useMemo(() => parseColor(input), [input]);
@@ -37,8 +37,8 @@ export function ColorConvertPage() {
 	// 有効なカラーコードを認識できた（変換結果が出た）時のみ計測する
 	useEffect(() => {
 		if (!input.trim() || !parsed) return;
-		trackRun();
-	}, [input, parsed, trackRun]);
+		trackRunDebounced();
+	}, [input, parsed, trackRunDebounced]);
 
 	const results = useMemo(() => {
 		if (!parsed) return null;

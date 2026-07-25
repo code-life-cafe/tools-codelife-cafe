@@ -98,7 +98,7 @@ function MonthDaySelects({
 }
 
 export default function WarekiConverter() {
-	const { trackRun } = useToolAnalytics('wareki-converter');
+	const { trackRunDebounced } = useToolAnalytics('wareki-converter');
 	const referenceDate = useMemo(() => new Date(), []);
 
 	const [direction, setDirection] = useState<Direction>('toWareki');
@@ -183,9 +183,9 @@ export default function WarekiConverter() {
 
 	useEffect(() => {
 		if (table && !error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [table, error, trackRun]);
+	}, [table, error, trackRunDebounced]);
 
 	return (
 		<div className="space-y-6">

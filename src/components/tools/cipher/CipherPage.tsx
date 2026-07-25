@@ -19,7 +19,7 @@ import { OutputPanel } from './OutputPanel';
 import { ShiftSlider } from './ShiftSlider';
 
 export function CipherPage() {
-	const { trackRun } = useToolAnalytics('cipher');
+	const { trackRunDebounced } = useToolAnalytics('cipher');
 	const [activeTab, setActiveTab] = useState<CipherAlgorithm>('caesar');
 	const [input, setInput] = useState('');
 
@@ -70,9 +70,9 @@ export function CipherPage() {
 
 	useEffect(() => {
 		if (input.trim() && output && output !== 'エラーが発生しました') {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [input, output, trackRun]);
+	}, [input, output, trackRunDebounced]);
 
 	return (
 		<div className="space-y-6">

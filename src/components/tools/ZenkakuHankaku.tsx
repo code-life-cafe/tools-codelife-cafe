@@ -14,7 +14,7 @@ import {
 } from '@/lib/tools/zenkaku-hankaku';
 
 export default function ZenkakuHankaku() {
-	const { trackRun } = useToolAnalytics('zenkaku-hankaku');
+	const { trackRunDebounced } = useToolAnalytics('zenkaku-hankaku');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<Direction>('toHankaku');
 	const [options, setOptions] = useState<ConversionOptions>({
@@ -29,9 +29,9 @@ export default function ZenkakuHankaku() {
 	// 非空の入力から変換結果が生成された時点で実行を計測（空入力・マウント時は発火しない）
 	useEffect(() => {
 		if (input) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [input, direction, options, trackRun]);
+	}, [input, direction, options, trackRunDebounced]);
 
 	const toggleOption = useCallback((key: keyof ConversionOptions) => {
 		setOptions((prev) => ({ ...prev, [key]: !prev[key] }));

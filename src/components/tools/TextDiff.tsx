@@ -20,7 +20,7 @@ import {
 } from '@/lib/tools/text-diff';
 
 export default function TextDiff() {
-	const { trackRun } = useToolAnalytics('text-diff');
+	const { trackRunDebounced } = useToolAnalytics('text-diff');
 	const [textA, setTextA] = useState('');
 	const [textB, setTextB] = useState('');
 	const [mode, setMode] = useState<DiffMode>('lines');
@@ -35,9 +35,9 @@ export default function TextDiff() {
 
 	useEffect(() => {
 		if (result) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [result, trackRun]);
+	}, [result, trackRunDebounced]);
 
 	const handleDrop = useCallback(
 		async (e: DragEvent<HTMLTextAreaElement>, target: 'A' | 'B') => {

@@ -20,7 +20,7 @@ import {
 const SAMPLE_DATA = `商品名\tカテゴリ\t売上\t粗利率\nコーヒー豆A\t食品\t128000\t32%\nマグカップ\t雑貨\t54000\t45%\nギフトセット\t食品\t212000\t38%`;
 
 export function AiSpreadsheetPrompt() {
-	const { trackRun } = useToolAnalytics('ai-spreadsheet-prompt');
+	const { trackRunDebounced } = useToolAnalytics('ai-spreadsheet-prompt');
 	const [input, setInput] = useState(SAMPLE_DATA);
 	const [format, setFormat] = useState<SpreadsheetInputFormat>('auto');
 	const [task, setTask] = useState<PromptTask>('analyze');
@@ -51,9 +51,9 @@ export function AiSpreadsheetPrompt() {
 			return;
 		}
 		if (input.trim() && result.prompt) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [input, result.prompt, trackRun]);
+	}, [input, result.prompt, trackRunDebounced]);
 
 	const copyPrompt = async () => {
 		if (!result.prompt) return;

@@ -14,7 +14,7 @@ import {
 } from '@/lib/tools/url-encoder';
 
 export default function UrlEncoder() {
-	const { trackRun } = useToolAnalytics('url-encoder');
+	const { trackRunDebounced } = useToolAnalytics('url-encoder');
 	const [mode, setMode] = useState<UrlEncodeMode>('component');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('decode');
 	const [textInput, setTextInput] = useState('');
@@ -39,9 +39,9 @@ export default function UrlEncoder() {
 
 	useEffect(() => {
 		if (textInput.trim() && textResult.output && !textResult.error) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [textInput, textResult, trackRun]);
+	}, [textInput, textResult, trackRunDebounced]);
 
 	// Swap input and output
 	const handleSwap = () => {

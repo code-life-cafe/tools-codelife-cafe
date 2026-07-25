@@ -150,7 +150,7 @@ function SingleSearch({ onRun }: { onRun: () => void }) {
 }
 
 export function ZipcodePage() {
-	const { trackRun } = useToolAnalytics('zipcode');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('zipcode');
 	return (
 		<Tabs defaultValue="single" className="space-y-4">
 			<TabsList className="grid w-full grid-cols-2">
@@ -158,7 +158,7 @@ export function ZipcodePage() {
 				<TabsTrigger value="bulk">一括変換</TabsTrigger>
 			</TabsList>
 			<TabsContent value="single">
-				<SingleSearch onRun={trackRun} />
+				<SingleSearch onRun={trackRunDebounced} />
 			</TabsContent>
 			<TabsContent value="bulk">
 				<BulkConvertPanel onRun={trackRun} />

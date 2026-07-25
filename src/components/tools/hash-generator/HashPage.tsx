@@ -37,7 +37,7 @@ const MB = 1024 * 1024;
 const FILE_TOO_LARGE_MESSAGE = `ファイルサイズが上限（${MAX_FILE_SIZE / MB}MB）を超えています。`;
 
 export function HashPage() {
-	const { trackRun } = useToolAnalytics('hash');
+	const { trackRun, trackRunDebounced } = useToolAnalytics('hash');
 	const [inputMode, setInputMode] = useState<InputMode>('text');
 	const [text, setText] = useState('');
 	const [file, setFile] = useState<File | null>(null);
@@ -75,7 +75,7 @@ export function HashPage() {
 				if (runIdRef.current === runId) {
 					setResults(computed);
 					setError(null);
-					trackRun();
+					trackRunDebounced();
 				}
 			} catch (err) {
 				if (runIdRef.current === runId) {
@@ -90,7 +90,7 @@ export function HashPage() {
 			}
 		}, 300);
 		return () => clearTimeout(timer);
-	}, [inputMode, text, algorithms, trackRun]);
+	}, [inputMode, text, algorithms, trackRunDebounced]);
 
 	// --- ファイル計算 ---
 	const runFileHash = useCallback(

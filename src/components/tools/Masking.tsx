@@ -31,7 +31,7 @@ const TARGET_TYPES: { id: MaskTarget; label: string }[] = [
 ];
 
 export default function Masking() {
-	const { trackRun } = useToolAnalytics('masking');
+	const { trackRunDebounced } = useToolAnalytics('masking');
 	const [text, setText] = useState('');
 	const [targets, setTargets] = useState<Set<MaskTarget>>(
 		new Set(['email', 'phone', 'zipcode', 'card', 'mynumber']),
@@ -60,9 +60,9 @@ export default function Masking() {
 
 	useEffect(() => {
 		if (text.trim() && maskedText) {
-			trackRun();
+			trackRunDebounced();
 		}
-	}, [text, maskedText, trackRun]);
+	}, [text, maskedText, trackRunDebounced]);
 
 	const toggleTarget = (id: MaskTarget) => {
 		setTargets((prev) => {
