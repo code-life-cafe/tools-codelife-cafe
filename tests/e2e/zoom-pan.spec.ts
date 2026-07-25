@@ -11,6 +11,7 @@ import {
 	getContainerBox,
 	getZoomGeometry,
 	imagePointFromClientPoint,
+	pinch,
 	type ZoomGeometry,
 	zoomAtClientPoint,
 } from './helpers/canvas';
@@ -442,6 +443,57 @@ for (const tool of TOOLS) {
 			expect(Math.abs(beforePoint.y - afterPoint.y)).toBeLessThanOrEqual(
 				tolerance,
 			);
+		});
+	});
+
+	test.describe(`${tool.id}: ピンチズーム・2本指パン`, () => {
+		test.beforeEach(async ({ page, createToolPage }, testInfo) => {
+			test.skip(
+				testInfo.project.name !== 'mobile-chrome',
+				'CDPタッチイベントはhasTouch:trueのmobile-chromeプロジェクトでのみ検証する',
+			);
+			const toolPage = createToolPage(tool.id);
+			await toolPage.goto();
+			await expect(
+				page.getByText('画像をドラッグ＆ドロップ、またはクリックして選択'),
+			).toBeVisible({ timeout: 10000 });
+		});
+
+		test('2本指ピンチで拡大でき、倍率表示が変化する', async ({ page }) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+			const percentLabel = page.getByTestId('zoom-percent-label');
+			const before = await percentLabel.textContent();
+			const containerBox = await getContainerBox(page);
+			const center = {
+				x: containerBox.x + containerBox.width / 2,
+				y: containerBox.y + containerBox.height / 2,
+			};
+
+			await pinch(page, { center, startDistance: 100, endDistance: 260 });
+
+			await expect.poll(() => percentLabel.textContent()).not.toBe(before);
+		});
+
+		test('2本指パンでスクロール位置が変化する', async ({ page }) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+			const before = await getZoomGeometry(page, tool.canvasTestId);
+			const containerBox = await getContainerBox(page);
+			const center = {
+				x: containerBox.x + containerBox.width / 2,
+				y: containerBox.y + containerBox.height / 2,
+			};
+
+			await pinch(page, {
+				center,
+				startDistance: 150,
+				endDistance: 150,
+				panDeltaX: -150,
+				panDeltaY: -100,
+			});
+
+			const after = await getZoomGeometry(page, tool.canvasTestId);
+			expect(after.scrollLeft).not.toEqual(before.scrollLeft);
+			expect(after.scrollTop).not.toEqual(before.scrollTop);
 		});
 	});
 }

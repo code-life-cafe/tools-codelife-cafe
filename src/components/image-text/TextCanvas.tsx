@@ -3,7 +3,12 @@
 // 選択レイヤーの破線バウンディングボックスは DOM オーバーレイで表示する
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ZoomableCanvasViewport } from '@/components/common/ZoomableCanvasViewport';
+import {
+	type ZoomableCanvasContext,
+	ZoomableCanvasViewport,
+} from '@/components/common/ZoomableCanvasViewport';
+import { useGestureController } from '@/lib/hooks/useGestureController';
+import type { TwoFingerMoveInfo } from '@/lib/tools/gesture-controller';
 import { clientToImage } from '@/lib/tools/image-common';
 import {
 	BG_PADDING,
@@ -11,6 +16,7 @@ import {
 	renderTextLayers,
 	type TextLayer,
 } from '@/lib/tools/image-text';
+import { computePinchZoom } from '@/lib/tools/zoom-pan';
 
 type TextCanvasProps = {
 	source: HTMLImageElement | HTMLCanvasElement;
@@ -89,7 +95,6 @@ export function TextCanvas({
 
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent<HTMLCanvasElement>) => {
-			if (e.button !== 0) return;
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 			const { x, y } = clientToImage(canvas, e.clientX, e.clientY);
@@ -99,7 +104,6 @@ export function TextCanvas({
 				return;
 			}
 			onSelect(hit.id);
-			canvas.setPointerCapture(e.pointerId);
 			dragRef.current = {
 				pointerId: e.pointerId,
 				layerId: hit.id,
@@ -141,7 +145,6 @@ export function TextCanvas({
 			const drag = dragRef.current;
 			if (!canvas || !drag || drag.pointerId !== e.pointerId) return;
 			dragRef.current = null;
-			canvas.releasePointerCapture(e.pointerId);
 			if (rafRef.current !== null) {
 				cancelAnimationFrame(rafRef.current);
 				rafRef.current = null;
@@ -173,6 +176,69 @@ export function TextCanvas({
 		[],
 	);
 
+	const zoomBridgeRef = useRef<ZoomableCanvasContext | null>(null);
+	const startScaleRef = useRef(1);
+	const pinchAccumRef = useRef({ panX: 0, panY: 0 });
+	const pinchLatestRef = useRef<{
+		nextScale: number;
+		focalX: number;
+		focalY: number;
+	} | null>(null);
+	const pinchRafRef = useRef<number | null>(null);
+
+	const handleSingleInterrupted = useCallback(() => {
+		dragRef.current = null;
+		if (rafRef.current !== null) {
+			cancelAnimationFrame(rafRef.current);
+			rafRef.current = null;
+		}
+		setIsDragging(false);
+	}, []);
+
+	const handleTwoFingerStart = useCallback(() => {
+		startScaleRef.current = zoomBridgeRef.current?.scale ?? 1;
+		pinchAccumRef.current = { panX: 0, panY: 0 };
+	}, []);
+
+	const handleTwoFingerMove = useCallback((info: TwoFingerMoveInfo) => {
+		const bridge = zoomBridgeRef.current;
+		if (!bridge) return;
+		const nextScale = computePinchZoom(
+			startScaleRef.current,
+			info.startDistance,
+			info.distance,
+		);
+		const focal = bridge.getContainerPoint(info.midpoint.x, info.midpoint.y);
+		pinchAccumRef.current.panX += info.midpoint.x - info.previousMidpoint.x;
+		pinchAccumRef.current.panY += info.midpoint.y - info.previousMidpoint.y;
+		pinchLatestRef.current = { nextScale, focalX: focal.x, focalY: focal.y };
+		if (pinchRafRef.current !== null) return;
+		pinchRafRef.current = requestAnimationFrame(() => {
+			pinchRafRef.current = null;
+			const latest = pinchLatestRef.current;
+			const { panX, panY } = pinchAccumRef.current;
+			pinchAccumRef.current = { panX: 0, panY: 0 };
+			if (!latest) return;
+			bridge.applyPinchTransform(
+				latest.nextScale,
+				latest.focalX,
+				latest.focalY,
+				panX,
+				panY,
+			);
+		});
+	}, []);
+
+	const gesture = useGestureController({
+		onSinglePointerDown: handlePointerDown,
+		onSinglePointerMove: handlePointerMove,
+		onSinglePointerUp: handlePointerUp,
+		onSinglePointerCancel: handlePointerCancel,
+		onSinglePointerInterrupted: handleSingleInterrupted,
+		onTwoFingerStart: handleTwoFingerStart,
+		onTwoFingerMove: handleTwoFingerMove,
+	});
+
 	const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
 	return (
@@ -182,22 +248,19 @@ export function TextCanvas({
 			resetKey={source}
 			fullSize={fullSize}
 		>
-			{({ mobileMode }) => {
-				const isPanMode = mobileMode === 'pan';
+			{(ctx) => {
+				zoomBridgeRef.current = ctx;
 				return (
 					<div className="relative h-full w-full">
 						<canvas
 							ref={canvasRef}
 							data-testid="text-canvas"
-							className={`block h-full w-full rounded-lg border border-border ${
-								isPanMode
-									? 'cursor-grab'
-									: `touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`
-							}`}
-							onPointerDown={isPanMode ? undefined : handlePointerDown}
-							onPointerMove={isPanMode ? undefined : handlePointerMove}
-							onPointerUp={isPanMode ? undefined : handlePointerUp}
-							onPointerCancel={isPanMode ? undefined : handlePointerCancel}
+							className={`block h-full w-full touch-none rounded-lg border border-border ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
+							onPointerDown={gesture.onPointerDown}
+							onPointerMove={gesture.onPointerMove}
+							onPointerUp={gesture.onPointerUp}
+							onPointerCancel={gesture.onPointerCancel}
+							onLostPointerCapture={gesture.onLostPointerCapture}
 						/>
 						{/* 選択レイヤーの破線バウンディングボックス（DOMオーバーレイ） */}
 						{selectedLayer &&

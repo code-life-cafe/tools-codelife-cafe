@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 /**
  * 画像座標（canvas内部解像度の座標）をページのCSS座標に変換する。
@@ -284,4 +284,68 @@ export async function generateSyntheticImage(
 	);
 	const base64 = dataUrl.split(',')[1] ?? '';
 	return Buffer.from(base64, 'base64');
+}
+
+type CDPSession = Awaited<ReturnType<BrowserContext['newCDPSession']>>;
+
+type TouchPoint = { x: number; y: number; id: number };
+
+function toCdpTouchPoint(p: TouchPoint) {
+	return { x: p.x, y: p.y, id: p.id, radiusX: 1, radiusY: 1, force: 1 };
+}
+
+/**
+ * Input.dispatchTouchEvent の低レベルラッパー（CDP、Chromiumのみ）。
+ * touchPoints にはその時点でアクティブな全接触点を渡す。
+ * 一部の指だけを離す場合は type: 'touchEnd' に「残す指のみ」を渡し、
+ * 完全に離す場合は空配列を渡す。
+ */
+export async function dispatchTouchEvent(
+	client: CDPSession,
+	type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel',
+	touchPoints: TouchPoint[],
+): Promise<void> {
+	await client.send('Input.dispatchTouchEvent', {
+		type,
+		touchPoints: touchPoints.map(toCdpTouchPoint),
+	});
+}
+
+/**
+ * 2本指のピンチ＋パンをCDP経由でシミュレートする（Chromiumのみ）。
+ * page.touchscreen は単点tap()のみで多点非対応のため、CDPを直接叩く。
+ */
+export async function pinch(
+	page: Page,
+	params: {
+		center: { x: number; y: number };
+		startDistance: number;
+		endDistance: number;
+		panDeltaX?: number;
+		panDeltaY?: number;
+		steps?: number;
+	},
+): Promise<void> {
+	const client = await page.context().newCDPSession(page);
+	const steps = params.steps ?? 8;
+	const panDeltaX = params.panDeltaX ?? 0;
+	const panDeltaY = params.panDeltaY ?? 0;
+
+	const pointsAt = (t: number): TouchPoint[] => {
+		const distance =
+			params.startDistance + (params.endDistance - params.startDistance) * t;
+		const cx = params.center.x + panDeltaX * t;
+		const cy = params.center.y + panDeltaY * t;
+		return [
+			{ x: cx - distance / 2, y: cy, id: 0 },
+			{ x: cx + distance / 2, y: cy, id: 1 },
+		];
+	};
+
+	await dispatchTouchEvent(client, 'touchStart', pointsAt(0));
+	for (let i = 1; i <= steps; i++) {
+		await dispatchTouchEvent(client, 'touchMove', pointsAt(i / steps));
+	}
+	await dispatchTouchEvent(client, 'touchEnd', []);
+	await client.detach();
 }

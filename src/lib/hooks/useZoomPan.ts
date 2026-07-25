@@ -10,6 +10,7 @@ import {
 	useState,
 } from 'react';
 import {
+	clampScrollPosition,
 	computeContentOffset,
 	computeFitScale,
 	computeWheelZoom,
@@ -21,8 +22,6 @@ import {
 	nextZoomOutStep,
 } from '@/lib/tools/zoom-pan';
 
-export type MobilePanMode = 'edit' | 'pan';
-
 type ContainerSize = { width: number; height: number };
 
 type PendingAnchor = {
@@ -31,6 +30,9 @@ type PendingAnchor = {
 	scrollLeft: number;
 	scrollTop: number;
 	oldScale: number;
+	/** 2本指パンの追加補正量（wheel/ボタンズームでは常に0） */
+	panDeltaX: number;
+	panDeltaY: number;
 } | null;
 
 export function useZoomPan(params: {
@@ -46,14 +48,12 @@ export function useZoomPan(params: {
 		height: 0,
 	});
 	const [mode, setMode] = useState<'fit' | number>('fit');
-	const [mobileMode, setMobileMode] = useState<MobilePanMode>('edit');
 	const pendingAnchorRef = useRef<PendingAnchor>(null);
 
 	// resetKey の変化のみを契機とする（本文内では参照しない）
 	// biome-ignore lint/correctness/useExhaustiveDependencies: resetKeyは識別子変更の検知にのみ使う
 	useEffect(() => {
 		setMode('fit');
-		setMobileMode('edit');
 		pendingAnchorRef.current = null;
 	}, [resetKey]);
 
@@ -109,7 +109,7 @@ export function useZoomPan(params: {
 			containerSize.height,
 			contentHeight * anchor.oldScale,
 		);
-		el.scrollLeft = computeZoomScrollPosition({
+		const rawScrollLeft = computeZoomScrollPosition({
 			pointerInViewport: anchor.pointerX,
 			scrollPosition: anchor.scrollLeft,
 			oldContentOffset: oldOffsetX,
@@ -119,7 +119,7 @@ export function useZoomPan(params: {
 			containerSize: containerSize.width,
 			contentSize: contentWidth,
 		});
-		el.scrollTop = computeZoomScrollPosition({
+		const rawScrollTop = computeZoomScrollPosition({
 			pointerInViewport: anchor.pointerY,
 			scrollPosition: anchor.scrollTop,
 			oldContentOffset: oldOffsetY,
@@ -129,6 +129,16 @@ export function useZoomPan(params: {
 			containerSize: containerSize.height,
 			contentSize: contentHeight,
 		});
+		const maxScrollLeft = Math.max(0, displayWidth - containerSize.width);
+		const maxScrollTop = Math.max(0, displayHeight - containerSize.height);
+		el.scrollLeft = clampScrollPosition(
+			rawScrollLeft - anchor.panDeltaX,
+			maxScrollLeft,
+		);
+		el.scrollTop = clampScrollPosition(
+			rawScrollTop - anchor.panDeltaY,
+			maxScrollTop,
+		);
 		// scale 変化のたびに保留中の補正があれば適用する
 	}, [
 		scale,
@@ -138,6 +148,8 @@ export function useZoomPan(params: {
 		contentHeight,
 		offsetX,
 		offsetY,
+		displayWidth,
+		displayHeight,
 	]);
 
 	// scaleRef を参照するため scale/mode に依存しない安定した関数にする
@@ -150,6 +162,8 @@ export function useZoomPan(params: {
 			scrollLeft: el.scrollLeft,
 			scrollTop: el.scrollTop,
 			oldScale: scaleRef.current,
+			panDeltaX: 0,
+			panDeltaY: 0,
 		};
 	}, []);
 
@@ -216,6 +230,50 @@ export function useZoomPan(params: {
 		return () => el.removeEventListener('wheel', listener);
 	}, [applyScale]);
 
+	const applyPinchTransform = useCallback(
+		(
+			nextScale: number,
+			focalX: number,
+			focalY: number,
+			panDeltaX: number,
+			panDeltaY: number,
+		) => {
+			const el = containerRef.current;
+			if (!el) return;
+			if (!decideScaleApply(scaleRef.current, nextScale).changed) {
+				// 倍率変化なし: このフレームはDOM（コンテンツ幅/高さ）がリサイズされないため、
+				// パン成分のみ直接scrollLeft/Topへ反映してよい。
+				pendingAnchorRef.current = null;
+				const maxScrollLeft = Math.max(0, displayWidth - containerSize.width);
+				const maxScrollTop = Math.max(0, displayHeight - containerSize.height);
+				el.scrollLeft = clampScrollPosition(
+					el.scrollLeft - panDeltaX,
+					maxScrollLeft,
+				);
+				el.scrollTop = clampScrollPosition(
+					el.scrollTop - panDeltaY,
+					maxScrollTop,
+				);
+				return;
+			}
+			// 倍率変化あり: スクロール補正はDOMリサイズ確定後のuseLayoutEffectに委譲する
+			// （リサイズ前に直接scrollLeftを書くと、旧スケールでのスクロール可能範囲へ
+			// 早期クランプされパン量が欠落するため）。panDeltaはそのeffect側で
+			// 追加の減算補正として適用する。
+			pendingAnchorRef.current = {
+				pointerX: focalX,
+				pointerY: focalY,
+				scrollLeft: el.scrollLeft,
+				scrollTop: el.scrollTop,
+				oldScale: scaleRef.current,
+				panDeltaX,
+				panDeltaY,
+			};
+			setMode(nextScale);
+		},
+		[displayWidth, displayHeight, containerSize.width, containerSize.height],
+	);
+
 	return {
 		containerRef,
 		scale,
@@ -224,13 +282,12 @@ export function useZoomPan(params: {
 		displayHeight,
 		offsetX,
 		offsetY,
-		mobileMode,
-		setMobileMode,
 		zoomIn,
 		zoomOut,
 		zoomTo100,
 		zoomToFit,
 		isZoomOutDisabled: isZoomOutNoop(scale),
 		isZoomInDisabled: isZoomInNoop(scale),
+		applyPinchTransform,
 	};
 }

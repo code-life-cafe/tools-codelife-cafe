@@ -196,3 +196,25 @@ export function computeMidpoint(
 export function computeDistance(a: GeometryPoint, b: GeometryPoint): number {
 	return Math.hypot(b.x - a.x, b.y - a.y);
 }
+
+/**
+ * ピンチ操作による次の倍率を計算する。
+ * startDistance <= 0（指がほぼ重なった状態からの開始等、ゼロ除算になる入力）
+ * では倍率を変化させず startScale を返す。
+ * クランプ方針は computeWheelZoom と同一の非対称ルールに従う。
+ */
+export function computePinchZoom(
+	startScale: number,
+	startDistance: number,
+	currentDistance: number,
+): number {
+	if (startDistance <= 0) return startScale;
+	const raw = startScale * (currentDistance / startDistance);
+	if (startScale >= MIN_ZOOM) return clampZoom(raw);
+	return Math.min(MAX_ZOOM, Math.max(0.01, raw));
+}
+
+/** スクロール位置を [0, maxScroll] にクランプする（2本指パンの直接更新で使用） */
+export function clampScrollPosition(value: number, maxScroll: number): number {
+	return Math.min(Math.max(0, maxScroll), Math.max(0, value));
+}
