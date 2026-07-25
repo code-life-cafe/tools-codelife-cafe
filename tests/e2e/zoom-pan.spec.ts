@@ -7,7 +7,11 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/base';
 import {
+	countDiffFromFixture,
+	dispatchTouchEvent,
+	dragOnCanvas,
 	generateSyntheticImage,
+	getCanvasPixel,
 	getContainerBox,
 	getZoomGeometry,
 	imagePointFromClientPoint,
@@ -64,6 +68,25 @@ async function waitForStableGeometry(
 	return getZoomGeometry(page, canvasTestId);
 }
 
+/**
+ * canvas 自身の boundingBox を返す（zoom-scroll-container ではなく canvas 本体）。
+ * モバイル幅では画像がコンテナ内でレターボックス表示され、コンテナ基準の座標が
+ * 余白（非canvas領域）に落ちてタッチイベントが一切届かなくなることがあるため、
+ * CDP タッチ座標の計算には必ずこちらを使う。scrollIntoViewIfNeeded で
+ * ビューポート内へ確実に入れてから測定する（未実施だとcanvasがビューポート外＝
+ * イベント発火不能な座標を返すことがある）。
+ */
+async function getCanvasBox(
+	page: Page,
+	canvasTestId: string,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+	const canvas = page.getByTestId(canvasTestId);
+	await canvas.scrollIntoViewIfNeeded();
+	const box = await canvas.boundingBox();
+	if (!box) throw new Error(`canvas が表示されていません: ${canvasTestId}`);
+	return box;
+}
+
 async function uploadFixture(page: Page, canvasTestId: string) {
 	await page.locator('input[type="file"]').setInputFiles(SAMPLE);
 	await expect(page.getByTestId(canvasTestId)).toBeVisible();
@@ -113,6 +136,25 @@ async function uploadLargePannableImage(page: Page, canvasTestId: string) {
 	await page.getByRole('button', { name: '100%' }).click();
 	await expect(page.getByTestId('zoom-percent-label')).toHaveText('100%');
 	await waitForStableGeometry(page, canvasTestId);
+}
+
+/**
+ * image-text の選択中テキストレイヤーのバウンディングボックス（DOMオーバーレイの
+ * left/top style、画像サイズに対する%文字列）を読む。レイヤーがドラッグで移動した
+ * ことを、内部状態を直接読まずにDOMから検証するために使う。
+ */
+async function getSelectedTextLayerBounds(
+	page: Page,
+	canvasTestId: string,
+): Promise<{ left: string; top: string } | null> {
+	return page.evaluate((testId) => {
+		const canvas = document.querySelector(`[data-testid="${testId}"]`);
+		const overlay = canvas?.parentElement?.querySelector(
+			'.border-dashed',
+		) as HTMLElement | null;
+		if (!overlay) return null;
+		return { left: overlay.style.left, top: overlay.style.top };
+	}, canvasTestId);
 }
 
 /**
@@ -494,6 +536,190 @@ for (const tool of TOOLS) {
 			const after = await getZoomGeometry(page, tool.canvasTestId);
 			expect(after.scrollLeft).not.toEqual(before.scrollLeft);
 			expect(after.scrollTop).not.toEqual(before.scrollTop);
+		});
+
+		test('1本指描画中に2本目を置いても領域が追加されない', async ({ page }) => {
+			await uploadFixture(page, tool.canvasTestId);
+			const client = await page.context().newCDPSession(page);
+			const canvasBox = await getCanvasBox(page, tool.canvasTestId);
+			const p1 = { x: canvasBox.x + 40, y: canvasBox.y + 40 };
+			const p2 = { x: canvasBox.x + 140, y: canvasBox.y + 100 };
+
+			await dispatchTouchEvent(client, 'touchStart', [{ ...p1, id: 0 }]);
+			await dispatchTouchEvent(client, 'touchMove', [
+				{ x: p1.x + 30, y: p1.y + 20, id: 0 },
+			]);
+			await dispatchTouchEvent(client, 'touchStart', [
+				{ x: p1.x + 30, y: p1.y + 20, id: 0 },
+				{ ...p2, id: 1 },
+			]);
+			await dispatchTouchEvent(client, 'touchEnd', []);
+			await client.detach();
+
+			expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+		});
+
+		test('ピンチ後に残った1本指で意図せず描画が始まらない', async ({
+			page,
+		}) => {
+			await uploadFixture(page, tool.canvasTestId);
+			const client = await page.context().newCDPSession(page);
+			const containerBox = await getContainerBox(page);
+			const cx = containerBox.x + containerBox.width / 2;
+			const cy = containerBox.y + containerBox.height / 2;
+
+			await dispatchTouchEvent(client, 'touchStart', [
+				{ x: cx - 50, y: cy, id: 0 },
+				{ x: cx + 50, y: cy, id: 1 },
+			]);
+			await dispatchTouchEvent(client, 'touchMove', [
+				{ x: cx - 70, y: cy, id: 0 },
+				{ x: cx + 70, y: cy, id: 1 },
+			]);
+			await dispatchTouchEvent(client, 'touchEnd', [
+				{ x: cx - 70, y: cy, id: 0 },
+			]);
+			await dispatchTouchEvent(client, 'touchMove', [
+				{ x: cx + 100, y: cy + 100, id: 0 },
+			]);
+			await dispatchTouchEvent(client, 'touchEnd', []);
+			await client.detach();
+
+			expect(await countDiffFromFixture(page, tool.canvasTestId)).toBe(0);
+		});
+
+		test('片指離脱・3本目追加・指の入れ替わりの後も操作不能にならない', async ({
+			page,
+		}) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+			const client = await page.context().newCDPSession(page);
+			const containerBox = await getContainerBox(page);
+			const cx = containerBox.x + containerBox.width / 2;
+			const cy = containerBox.y + containerBox.height / 2;
+
+			await dispatchTouchEvent(client, 'touchStart', [
+				{ x: cx - 50, y: cy, id: 0 },
+				{ x: cx + 50, y: cy, id: 1 },
+			]);
+			await dispatchTouchEvent(client, 'touchStart', [
+				{ x: cx - 50, y: cy, id: 0 },
+				{ x: cx + 50, y: cy, id: 1 },
+				{ x: cx, y: cy + 80, id: 2 },
+			]);
+			await dispatchTouchEvent(client, 'touchEnd', [
+				{ x: cx + 50, y: cy, id: 1 },
+				{ x: cx, y: cy + 80, id: 2 },
+			]);
+			await dispatchTouchEvent(client, 'touchMove', [
+				{ x: cx + 70, y: cy, id: 1 },
+				{ x: cx, y: cy + 60, id: 2 },
+			]);
+			await dispatchTouchEvent(client, 'touchEnd', []);
+			await client.detach();
+
+			const canvas = page.getByTestId(tool.canvasTestId);
+			const box = await canvas.boundingBox();
+			if (!box) throw new Error('canvas が表示されていません');
+			await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+			await expect(canvas).toBeVisible();
+		});
+
+		test('pointercancel相当（canvas外への移動→touchCancel）の後も操作不能にならない', async ({
+			page,
+		}) => {
+			await uploadFixture(page, tool.canvasTestId);
+			// image-text はキャンバス上の何もない場所へのドラッグでは描画が起きない
+			// （既存テキストレイヤーのヒットテストに当たった場合のみ移動する）ため、
+			// 操作継続性を検証できるようレイヤーを1つ用意しておく。
+			if (tool.id === 'image-text') {
+				await page.getByRole('button', { name: 'テキストを追加' }).click();
+			}
+			const client = await page.context().newCDPSession(page);
+			const canvasBox = await getCanvasBox(page, tool.canvasTestId);
+			// image-text の初期レイヤーは画像中央付近に配置されるため、干渉しないよう
+			// canvas 左端寄りを起点にする（image-mosaic は canvas 内であれば場所を問わない）。
+			// y は canvas 中央高さを使う。image-text ではテキストレイヤー追加後にページの
+			// 固定ヘッダー（sticky header, 高さ約65px）の直下まで canvas がスクロールされる
+			// ことがあり、canvas 左上隅ギリギリの点だとヘッダーに覆われてイベントが一切
+			// 届かない（=検証が素通りする）ケースが実測で確認されたため、垂直方向は
+			// canvas 中央を使いヘッダーの影響を受けない位置にする。
+			const cancelPoint = {
+				x: canvasBox.x + 20,
+				y: canvasBox.y + Math.round(canvasBox.height / 2),
+			};
+
+			await dispatchTouchEvent(client, 'touchStart', [
+				{ ...cancelPoint, id: 0 },
+			]);
+			await dispatchTouchEvent(client, 'touchMove', [
+				{ x: cancelPoint.x, y: cancelPoint.y - 5000, id: 0 },
+			]);
+			await dispatchTouchEvent(client, 'touchCancel', []);
+			await client.detach();
+
+			if (tool.id === 'image-text') {
+				const before = await getSelectedTextLayerBounds(
+					page,
+					tool.canvasTestId,
+				);
+				await dragOnCanvas(
+					page,
+					page.getByTestId(tool.canvasTestId),
+					{ x: 145, y: 135 },
+					{ x: 250, y: 220 },
+				);
+				await expect
+					.poll(() => getSelectedTextLayerBounds(page, tool.canvasTestId))
+					.not.toEqual(before);
+			} else {
+				await dragOnCanvas(
+					page,
+					page.getByTestId(tool.canvasTestId),
+					{ x: 80, y: 60 },
+					{ x: 180, y: 140 },
+				);
+				await expect
+					.poll(() => getCanvasPixel(page, tool.canvasTestId, 96, 100))
+					.not.toEqual([255, 255, 255, 255]);
+			}
+		});
+
+		test('ピンチ中のResizeObserver発火（フルサイズ切替）後もアンカーが飛ばない', async ({
+			page,
+		}) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+			const containerBox = await getContainerBox(page);
+			const center = {
+				x: containerBox.x + containerBox.width / 2,
+				y: containerBox.y + containerBox.height / 2,
+			};
+			const before = await getZoomGeometry(page, tool.canvasTestId);
+			const beforePoint = imagePointFromClientPoint(before, center.x, center.y);
+
+			await pinch(page, { center, startDistance: 100, endDistance: 220 });
+			// Playwright の click() は対象がビューポート外なら自動でページをスクロール
+			// してしまい、モバイル幅ではその副作用（無関係なページスクロール）で
+			// containerTop が大きくずれ、アンカー検証が汚染される。ここで検証したいのは
+			// 「ResizeObserver発火時にズーム内部のアンカーが飛ばないか」であって
+			// ページスクロール量ではないため、ネイティブclick()をDOM経由で直接発火し
+			// スクロールを伴わずにトグルする。
+			await page
+				.getByRole('button', { name: 'フルサイズ' })
+				.evaluate((el) => (el as HTMLElement).click());
+			await waitForStableGeometry(page, tool.canvasTestId);
+
+			const after = await getZoomGeometry(page, tool.canvasTestId);
+			const afterPoint = imagePointFromClientPoint(after, center.x, center.y);
+			const tolerance = toleranceFor(after) + 5;
+			expect(Math.abs(beforePoint.x - afterPoint.x)).toBeLessThanOrEqual(
+				tolerance,
+			);
+			expect(Math.abs(beforePoint.y - afterPoint.y)).toBeLessThanOrEqual(
+				tolerance,
+			);
+			await page
+				.getByRole('button', { name: '標準幅' })
+				.evaluate((el) => (el as HTMLElement).click());
 		});
 	});
 }
