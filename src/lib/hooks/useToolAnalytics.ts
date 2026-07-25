@@ -1,9 +1,43 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { track } from '../analytics';
+import { track } from '../analytics.ts';
 
 // 「初回操作」とみなすユーザー操作イベント。
 // マウント（＝擬似PV）ではなく、実際にツールへ触れた最初の操作で tool_engage を発火させる。
 const ENGAGE_EVENTS = ['pointerdown', 'keydown'] as const;
+
+// 入力依存の再計算（useEffect の deps に生の入力を含む場合）で trackRun を呼ぶツール向けの
+// デバウンス時間。「入力停止後1回だけ」発火させ、ツール間で tool_run を比較可能にする。
+export const DEBOUNCE_MS = 500;
+
+/** trackRunDebounced が使う保留中タイマーの保持先（React 非依存・単体テスト対象） */
+export type DebounceHandle = { current: ReturnType<typeof setTimeout> | null };
+
+/**
+ * handle に保留中のタイマーがあれば解除してから、delayMs 後に fn を1回だけ実行するよう
+ * 再スケジュールする（一般的なデバウンス実装）。React に依存しないため node:test の
+ * mock.timers で直接検証できる。
+ */
+export function scheduleDebounced(
+	handle: DebounceHandle,
+	fn: () => void,
+	delayMs: number,
+): void {
+	if (handle.current !== null) {
+		clearTimeout(handle.current);
+	}
+	handle.current = setTimeout(() => {
+		handle.current = null;
+		fn();
+	}, delayMs);
+}
+
+/** handle に保留中のタイマーがあれば解除する（アンマウント時のクリーンアップ用） */
+export function cancelDebounced(handle: DebounceHandle): void {
+	if (handle.current !== null) {
+		clearTimeout(handle.current);
+		handle.current = null;
+	}
+}
 
 export function useToolAnalytics(toolSlug: string) {
 	const hasEngagedRef = useRef(false);
@@ -43,6 +77,22 @@ export function useToolAnalytics(toolSlug: string) {
 		track('tool_run', { tool: toolSlug });
 	}, [toolSlug]);
 
+	// 入力依存の useEffect から呼ぶための trackRun。DEBOUNCE_MS 内の連続呼び出しは
+	// 最後の1回にまとめられる（＝「入力停止後に1回だけ」発火する）。
+	const debounceHandleRef = useRef<DebounceHandle>({ current: null });
+
+	const trackRunDebounced = useCallback(() => {
+		if (!toolSlug) return;
+		scheduleDebounced(debounceHandleRef.current, trackRun, DEBOUNCE_MS);
+	}, [toolSlug, trackRun]);
+
+	useEffect(() => {
+		const handle = debounceHandleRef.current;
+		return () => {
+			cancelDebounced(handle);
+		};
+	}, []);
+
 	const trackSharedUrlOpen = useCallback(() => {
 		if (!toolSlug) return;
 		track('shared_url_open', { tool: toolSlug });
@@ -58,6 +108,7 @@ export function useToolAnalytics(toolSlug: string) {
 
 	return {
 		trackRun,
+		trackRunDebounced,
 		trackSharedUrlOpen,
 		trackSettingsRestore,
 	};
