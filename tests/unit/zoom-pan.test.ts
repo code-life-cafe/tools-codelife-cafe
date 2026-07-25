@@ -6,7 +6,9 @@ import { test } from 'node:test';
 import {
 	clampZoom,
 	computeContentOffset,
+	computeDistance,
 	computeFitScale,
+	computeMidpoint,
 	computeWheelZoom,
 	computeZoomScrollPosition,
 	decideScaleApply,
@@ -244,4 +246,15 @@ test('decideScaleApply: 浮動小数点誤差程度の差は changed:false と�
 
 test('decideScaleApply: 1e-9をわずかに超える差は changed:true', () => {
 	assert.equal(decideScaleApply(1, 1 + 2e-9).changed, true);
+});
+
+test('computeMidpoint: 2点の中点を返す', () => {
+	assert.deepEqual(computeMidpoint({ x: 0, y: 0 }, { x: 10, y: 20 }), {
+		x: 5,
+		y: 10,
+	});
+});
+
+test('computeDistance: 3-4-5の直角三角形で距離5を返す', () => {
+	assert.equal(computeDistance({ x: 0, y: 0 }, { x: 3, y: 4 }), 5);
 });

@@ -181,3 +181,18 @@ export function decideScaleApply(
 ): { changed: boolean } {
 	return { changed: Math.abs(nextScale - currentScale) >= 1e-9 };
 }
+
+export type GeometryPoint = { x: number; y: number };
+
+/** 2点の中点を求める（2本指ジェスチャーの基準点計算に使用） */
+export function computeMidpoint(
+	a: GeometryPoint,
+	b: GeometryPoint,
+): GeometryPoint {
+	return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/** 2点間のユークリッド距離を求める（ピンチ倍率算出に使用） */
+export function computeDistance(a: GeometryPoint, b: GeometryPoint): number {
+	return Math.hypot(b.x - a.x, b.y - a.y);
+}
