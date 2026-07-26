@@ -4,11 +4,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	clampScrollPosition,
 	clampZoom,
 	computeContentOffset,
+	computeDistance,
 	computeFitScale,
+	computeMidpoint,
+	computePinchZoom,
 	computeWheelZoom,
 	computeZoomScrollPosition,
+	decideScaleApply,
 	formatZoomPercent,
 	isZoomInNoop,
 	isZoomOutNoop,
@@ -227,4 +232,81 @@ test('isZoomInNoop: 400%未満では有効', () => {
 	assert.equal(isZoomInNoop(2), false);
 	assert.equal(isZoomInNoop(MIN_ZOOM), false);
 	assert.equal(isZoomInNoop(0.05), false);
+});
+
+test('decideScaleApply: 十分離れた値は changed:true', () => {
+	assert.equal(decideScaleApply(1, 2).changed, true);
+});
+
+test('decideScaleApply: 同値は changed:false', () => {
+	assert.equal(decideScaleApply(1, 1).changed, false);
+});
+
+test('decideScaleApply: 浮動小数点誤差程度の差は changed:false とみなす', () => {
+	assert.equal(decideScaleApply(0.25, 0.25 + 1e-10).changed, false);
+});
+
+test('decideScaleApply: 1e-9をわずかに超える差は changed:true', () => {
+	assert.equal(decideScaleApply(1, 1 + 2e-9).changed, true);
+});
+
+test('computeMidpoint: 2点の中点を返す', () => {
+	assert.deepEqual(computeMidpoint({ x: 0, y: 0 }, { x: 10, y: 20 }), {
+		x: 5,
+		y: 10,
+	});
+});
+
+test('computeDistance: 3-4-5の直角三角形で距離5を返す', () => {
+	assert.equal(computeDistance({ x: 0, y: 0 }, { x: 3, y: 4 }), 5);
+});
+
+test('computePinchZoom: 距離が2倍になれば倍率も2倍になる（通常拡大）', () => {
+	assert.equal(computePinchZoom(1, 100, 200), 2);
+});
+
+test('computePinchZoom: 距離が半分になれば倍率も半分になる（通常縮小）', () => {
+	assert.equal(computePinchZoom(1, 100, 50), 0.5);
+});
+
+test('computePinchZoom: startDistanceが0以下ならstartScaleを維持する（開始距離0）', () => {
+	assert.equal(computePinchZoom(1, 0, 50), 1);
+	assert.equal(computePinchZoom(2, -5, 50), 2);
+});
+
+test('computePinchZoom: MAX_ZOOM到達後さらに拡大方向へ入力してもクランプされる', () => {
+	assert.equal(computePinchZoom(3.9, 100, 100000), MAX_ZOOM);
+});
+
+test('computePinchZoom: MIN_ZOOM到達後さらに縮小方向へ入力してもクランプされる', () => {
+	assert.equal(computePinchZoom(0.26, 100, 1), MIN_ZOOM);
+});
+
+test('computePinchZoom: 25%未満のフィット倍率からは25%未満を許容する', () => {
+	const next = computePinchZoom(0.18, 100, 90);
+	assert.ok(next < MIN_ZOOM, `${next} はクランプされず25%未満のはず`);
+});
+
+test('computePinchZoom: 指の入れ替わり（基準再初期化）後は新しいstartScale/startDistanceから再計算される', () => {
+	const afterFirstPinch = computePinchZoom(1, 100, 200); // 2.0
+	const afterSwap = computePinchZoom(afterFirstPinch, 50, 50); // 距離比1 → 2.0のまま
+	assert.equal(afterSwap, 2);
+	const afterSwapZoomIn = computePinchZoom(afterFirstPinch, 50, 150); // 2.0 * 3 = 6 → クランプ
+	assert.equal(afterSwapZoomIn, MAX_ZOOM);
+});
+
+test('clampScrollPosition: 範囲内はそのまま、範囲外は上下限にクランプする', () => {
+	assert.equal(clampScrollPosition(50, 100), 50);
+	assert.equal(clampScrollPosition(-10, 100), 0);
+	assert.equal(clampScrollPosition(150, 100), 100);
+});
+
+test('computePinchZoom: 25%未満から拡大した後、同一ジェスチャー内で縮小しても開始倍率を下回らない', () => {
+	// 実機で再現した不具合: フィット18% → 56% → 3%
+	assert.equal(computePinchZoom(0.18, 100, 20), 0.18);
+});
+
+test('computePinchZoom: 25%未満からの拡大は従来どおり距離比に比例する', () => {
+	const next = computePinchZoom(0.18, 100, 300);
+	assert.ok(Math.abs(next - 0.54) < 1e-9);
 });

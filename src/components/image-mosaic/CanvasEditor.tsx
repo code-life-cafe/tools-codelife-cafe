@@ -5,7 +5,12 @@
 
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ZoomableCanvasViewport } from '@/components/common/ZoomableCanvasViewport';
+import {
+	type ZoomableCanvasContext,
+	ZoomableCanvasViewport,
+} from '@/components/common/ZoomableCanvasViewport';
+import { useGestureController } from '@/lib/hooks/useGestureController';
+import type { TwoFingerMoveInfo } from '@/lib/tools/gesture-controller';
 import { clientToImage } from '@/lib/tools/image-common';
 import {
 	isMaskEffectMode,
@@ -16,6 +21,7 @@ import {
 	type Rect,
 	renderMasked,
 } from '@/lib/tools/image-mosaic';
+import { computePinchZoom } from '@/lib/tools/zoom-pan';
 
 /** これ未満のドラッグ距離（CSS px）はクリック＝領域選択として扱う */
 const CLICK_THRESHOLD_PX = 4;
@@ -125,10 +131,8 @@ export function CanvasEditor({
 
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent<HTMLCanvasElement>) => {
-			if (e.button !== 0) return;
 			const canvas = canvasRef.current;
 			if (!canvas) return;
-			canvas.setPointerCapture(e.pointerId);
 			const { x, y } = clientToImage(canvas, e.clientX, e.clientY);
 			dragRef.current = {
 				pointerId: e.pointerId,
@@ -186,7 +190,6 @@ export function CanvasEditor({
 			const drag = dragRef.current;
 			if (!canvas || !drag || drag.pointerId !== e.pointerId) return;
 			dragRef.current = null;
-			canvas.releasePointerCapture(e.pointerId);
 			if (rafRef.current !== null) {
 				cancelAnimationFrame(rafRef.current);
 				rafRef.current = null;
@@ -222,6 +225,70 @@ export function CanvasEditor({
 		},
 		[],
 	);
+
+	const zoomBridgeRef = useRef<ZoomableCanvasContext | null>(null);
+	const startScaleRef = useRef(1);
+	const pinchAccumRef = useRef({ panX: 0, panY: 0 });
+	const pinchLatestRef = useRef<{
+		nextScale: number;
+		focalX: number;
+		focalY: number;
+	} | null>(null);
+	const pinchRafRef = useRef<number | null>(null);
+
+	const handleSingleInterrupted = useCallback(() => {
+		dragRef.current = null;
+		if (rafRef.current !== null) {
+			cancelAnimationFrame(rafRef.current);
+			rafRef.current = null;
+		}
+		setDragRect(null);
+	}, []);
+
+	const handleTwoFingerStart = useCallback(() => {
+		startScaleRef.current = zoomBridgeRef.current?.scale ?? 1;
+		pinchAccumRef.current = { panX: 0, panY: 0 };
+	}, []);
+
+	const handleTwoFingerMove = useCallback((info: TwoFingerMoveInfo) => {
+		const bridge = zoomBridgeRef.current;
+		if (!bridge) return;
+		const nextScale = computePinchZoom(
+			startScaleRef.current,
+			info.startDistance,
+			info.distance,
+		);
+		const focal = bridge.getContainerPoint(info.midpoint.x, info.midpoint.y);
+		// 複数フレーム分のパン量を取りこぼさないよう、rAFでコアレスする間も加算し続ける
+		pinchAccumRef.current.panX += info.midpoint.x - info.previousMidpoint.x;
+		pinchAccumRef.current.panY += info.midpoint.y - info.previousMidpoint.y;
+		pinchLatestRef.current = { nextScale, focalX: focal.x, focalY: focal.y };
+		if (pinchRafRef.current !== null) return;
+		pinchRafRef.current = requestAnimationFrame(() => {
+			pinchRafRef.current = null;
+			const latest = pinchLatestRef.current;
+			const { panX, panY } = pinchAccumRef.current;
+			pinchAccumRef.current = { panX: 0, panY: 0 };
+			if (!latest) return;
+			bridge.applyPinchTransform(
+				latest.nextScale,
+				latest.focalX,
+				latest.focalY,
+				panX,
+				panY,
+			);
+		});
+	}, []);
+
+	const gesture = useGestureController({
+		onSinglePointerDown: handlePointerDown,
+		onSinglePointerMove: handlePointerMove,
+		onSinglePointerUp: handlePointerUp,
+		onSinglePointerCancel: handlePointerCancel,
+		onSinglePointerInterrupted: handleSingleInterrupted,
+		onTwoFingerStart: handleTwoFingerStart,
+		onTwoFingerMove: handleTwoFingerMove,
+	});
 
 	// 領域選択中は Delete / Backspace キーで削除（入力欄へのタイプは除外）
 	useEffect(() => {
@@ -259,20 +326,19 @@ export function CanvasEditor({
 			resetKey={source}
 			fullSize={fullSize}
 		>
-			{({ mobileMode }) => {
-				const isPanMode = mobileMode === 'pan';
+			{(ctx) => {
+				zoomBridgeRef.current = ctx;
 				return (
 					<div className="relative h-full w-full">
 						<canvas
 							ref={canvasRef}
 							data-testid="editor-canvas"
-							className={`block h-full w-full rounded-lg border border-border ${
-								isPanMode ? 'cursor-grab' : 'cursor-crosshair touch-none'
-							}`}
-							onPointerDown={isPanMode ? undefined : handlePointerDown}
-							onPointerMove={isPanMode ? undefined : handlePointerMove}
-							onPointerUp={isPanMode ? undefined : handlePointerUp}
-							onPointerCancel={isPanMode ? undefined : handlePointerCancel}
+							className="block h-full w-full touch-none rounded-lg border border-border cursor-crosshair"
+							onPointerDown={gesture.onPointerDown}
+							onPointerMove={gesture.onPointerMove}
+							onPointerUp={gesture.onPointerUp}
+							onPointerCancel={gesture.onPointerCancel}
+							onLostPointerCapture={gesture.onLostPointerCapture}
 							onPointerLeave={() => setHoveredId(null)}
 						/>
 						{/* 既存領域のアウトライン（DOMオーバーレイ） */}

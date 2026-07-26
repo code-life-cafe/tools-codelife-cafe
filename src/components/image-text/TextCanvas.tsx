@@ -3,7 +3,12 @@
 // 選択レイヤーの破線バウンディングボックスは DOM オーバーレイで表示する
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ZoomableCanvasViewport } from '@/components/common/ZoomableCanvasViewport';
+import {
+	type ZoomableCanvasContext,
+	ZoomableCanvasViewport,
+} from '@/components/common/ZoomableCanvasViewport';
+import { useGestureController } from '@/lib/hooks/useGestureController';
+import type { TwoFingerMoveInfo } from '@/lib/tools/gesture-controller';
 import { clientToImage } from '@/lib/tools/image-common';
 import {
 	BG_PADDING,
@@ -11,6 +16,10 @@ import {
 	renderTextLayers,
 	type TextLayer,
 } from '@/lib/tools/image-text';
+import { computePinchZoom } from '@/lib/tools/zoom-pan';
+
+/** これ未満のドラッグ距離（CSS px）はクリック＝選択のみとして扱い、レイヤーを動かさない */
+const CLICK_THRESHOLD_PX = 4;
 
 type TextCanvasProps = {
 	source: HTMLImageElement | HTMLCanvasElement;
@@ -28,6 +37,14 @@ type DragState = {
 	/** ポインタ位置とレイヤー左上のオフセット（元画像座標） */
 	offsetX: number;
 	offsetY: number;
+	/** ドラッグ開始時のポインタ位置（CSS px）。しきい値判定用 */
+	startClientX: number;
+	startClientY: number;
+	/** ドラッグ開始時点のレイヤー位置（元画像座標）。中断時のロールバック用 */
+	originalX: number;
+	originalY: number;
+	/** しきい値を超えて実際に移動が始まったか */
+	moved: boolean;
 };
 
 /** レイヤーのヒットテスト用バウンディングボックス（背景パディング含む） */
@@ -89,7 +106,6 @@ export function TextCanvas({
 
 	const handlePointerDown = useCallback(
 		(e: React.PointerEvent<HTMLCanvasElement>) => {
-			if (e.button !== 0) return;
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 			const { x, y } = clientToImage(canvas, e.clientX, e.clientY);
@@ -99,12 +115,16 @@ export function TextCanvas({
 				return;
 			}
 			onSelect(hit.id);
-			canvas.setPointerCapture(e.pointerId);
 			dragRef.current = {
 				pointerId: e.pointerId,
 				layerId: hit.id,
 				offsetX: x - hit.x,
 				offsetY: y - hit.y,
+				startClientX: e.clientX,
+				startClientY: e.clientY,
+				originalX: hit.x,
+				originalY: hit.y,
+				moved: false,
 			};
 			setIsDragging(true);
 		},
@@ -116,6 +136,18 @@ export function TextCanvas({
 			const canvas = canvasRef.current;
 			const drag = dragRef.current;
 			if (!canvas || !drag || drag.pointerId !== e.pointerId) return;
+
+			// しきい値未満の移動はクリック（選択のみ）として扱い、レイヤーは動かさない
+			if (
+				!drag.moved &&
+				Math.hypot(
+					e.clientX - drag.startClientX,
+					e.clientY - drag.startClientY,
+				) < CLICK_THRESHOLD_PX
+			) {
+				return;
+			}
+			drag.moved = true;
 
 			// rAF スロットル: 1フレームにつき1回だけ位置を更新
 			const { clientX, clientY } = e;
@@ -141,24 +173,26 @@ export function TextCanvas({
 			const drag = dragRef.current;
 			if (!canvas || !drag || drag.pointerId !== e.pointerId) return;
 			dragRef.current = null;
-			canvas.releasePointerCapture(e.pointerId);
 			if (rafRef.current !== null) {
 				cancelAnimationFrame(rafRef.current);
 				rafRef.current = null;
 			}
-			// pending rAF を破棄した分を含め、リリース座標で最終位置を確定する
-			const { x, y } = clientToImage(canvas, e.clientX, e.clientY);
-			onMoveLayer(
-				drag.layerId,
-				Math.round(x - drag.offsetX),
-				Math.round(y - drag.offsetY),
-			);
+			// しきい値を超えて実際に動いた場合のみ、リリース座標で最終位置を確定する
+			if (drag.moved) {
+				const { x, y } = clientToImage(canvas, e.clientX, e.clientY);
+				onMoveLayer(
+					drag.layerId,
+					Math.round(x - drag.offsetX),
+					Math.round(y - drag.offsetY),
+				);
+			}
 			setIsDragging(false);
 		},
 		[onMoveLayer],
 	);
 
 	// タッチキャンセルやブラウザジェスチャでドラッグが中断された場合の後始末
+	// （しきい値を超えて動いていた場合は、元の位置までロールバックする）
 	const handlePointerCancel = useCallback(
 		(e: React.PointerEvent<HTMLCanvasElement>) => {
 			const drag = dragRef.current;
@@ -168,10 +202,82 @@ export function TextCanvas({
 				cancelAnimationFrame(rafRef.current);
 				rafRef.current = null;
 			}
+			if (drag.moved) {
+				onMoveLayer(drag.layerId, drag.originalX, drag.originalY);
+			}
 			setIsDragging(false);
 		},
-		[],
+		[onMoveLayer],
 	);
+
+	const zoomBridgeRef = useRef<ZoomableCanvasContext | null>(null);
+	const startScaleRef = useRef(1);
+	const pinchAccumRef = useRef({ panX: 0, panY: 0 });
+	const pinchLatestRef = useRef<{
+		nextScale: number;
+		focalX: number;
+		focalY: number;
+	} | null>(null);
+	const pinchRafRef = useRef<number | null>(null);
+
+	// 2本目の指が触れてピンチへ遷移した場合の後始末
+	// （しきい値を超えて動いていた場合は、元の位置までロールバックする）
+	const handleSingleInterrupted = useCallback(() => {
+		const drag = dragRef.current;
+		dragRef.current = null;
+		if (rafRef.current !== null) {
+			cancelAnimationFrame(rafRef.current);
+			rafRef.current = null;
+		}
+		if (drag?.moved) {
+			onMoveLayer(drag.layerId, drag.originalX, drag.originalY);
+		}
+		setIsDragging(false);
+	}, [onMoveLayer]);
+
+	const handleTwoFingerStart = useCallback(() => {
+		startScaleRef.current = zoomBridgeRef.current?.scale ?? 1;
+		pinchAccumRef.current = { panX: 0, panY: 0 };
+	}, []);
+
+	const handleTwoFingerMove = useCallback((info: TwoFingerMoveInfo) => {
+		const bridge = zoomBridgeRef.current;
+		if (!bridge) return;
+		const nextScale = computePinchZoom(
+			startScaleRef.current,
+			info.startDistance,
+			info.distance,
+		);
+		const focal = bridge.getContainerPoint(info.midpoint.x, info.midpoint.y);
+		pinchAccumRef.current.panX += info.midpoint.x - info.previousMidpoint.x;
+		pinchAccumRef.current.panY += info.midpoint.y - info.previousMidpoint.y;
+		pinchLatestRef.current = { nextScale, focalX: focal.x, focalY: focal.y };
+		if (pinchRafRef.current !== null) return;
+		pinchRafRef.current = requestAnimationFrame(() => {
+			pinchRafRef.current = null;
+			const latest = pinchLatestRef.current;
+			const { panX, panY } = pinchAccumRef.current;
+			pinchAccumRef.current = { panX: 0, panY: 0 };
+			if (!latest) return;
+			bridge.applyPinchTransform(
+				latest.nextScale,
+				latest.focalX,
+				latest.focalY,
+				panX,
+				panY,
+			);
+		});
+	}, []);
+
+	const gesture = useGestureController({
+		onSinglePointerDown: handlePointerDown,
+		onSinglePointerMove: handlePointerMove,
+		onSinglePointerUp: handlePointerUp,
+		onSinglePointerCancel: handlePointerCancel,
+		onSinglePointerInterrupted: handleSingleInterrupted,
+		onTwoFingerStart: handleTwoFingerStart,
+		onTwoFingerMove: handleTwoFingerMove,
+	});
 
 	const selectedLayer = layers.find((l) => l.id === selectedId) ?? null;
 
@@ -182,22 +288,19 @@ export function TextCanvas({
 			resetKey={source}
 			fullSize={fullSize}
 		>
-			{({ mobileMode }) => {
-				const isPanMode = mobileMode === 'pan';
+			{(ctx) => {
+				zoomBridgeRef.current = ctx;
 				return (
 					<div className="relative h-full w-full">
 						<canvas
 							ref={canvasRef}
 							data-testid="text-canvas"
-							className={`block h-full w-full rounded-lg border border-border ${
-								isPanMode
-									? 'cursor-grab'
-									: `touch-none ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`
-							}`}
-							onPointerDown={isPanMode ? undefined : handlePointerDown}
-							onPointerMove={isPanMode ? undefined : handlePointerMove}
-							onPointerUp={isPanMode ? undefined : handlePointerUp}
-							onPointerCancel={isPanMode ? undefined : handlePointerCancel}
+							className={`block h-full w-full touch-none rounded-lg border border-border ${isDragging ? 'cursor-grabbing' : 'cursor-pointer'}`}
+							onPointerDown={gesture.onPointerDown}
+							onPointerMove={gesture.onPointerMove}
+							onPointerUp={gesture.onPointerUp}
+							onPointerCancel={gesture.onPointerCancel}
+							onLostPointerCapture={gesture.onLostPointerCapture}
 						/>
 						{/* 選択レイヤーの破線バウンディングボックス（DOMオーバーレイ） */}
 						{selectedLayer &&

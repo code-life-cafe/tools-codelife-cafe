@@ -3,9 +3,9 @@
 // canvas 内部解像度・座標変換（clientToImage）・%配置オーバーレイは無改修のまま、
 // スクロールコンテナ＋表示幅変更（CSSスケーリング）でズーム／パンを実現する。
 
-import { Hand, MousePointer2, ZoomIn, ZoomOut } from 'lucide-react';
+import { ZoomIn, ZoomOut } from 'lucide-react';
+import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import type { MobilePanMode } from '@/lib/hooks/useZoomPan';
 import { useZoomPan } from '@/lib/hooks/useZoomPan';
 import { formatZoomPercent } from '@/lib/tools/zoom-pan';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,21 @@ const VIEWPORT_HEIGHT = {
 	normal: 'h-[420px] max-h-[60dvh] min-h-[240px]',
 	full: 'h-[70dvh] max-h-[70dvh] min-h-[320px]',
 } as const;
+
+export type ZoomableCanvasContext = {
+	scale: number;
+	getContainerPoint: (
+		clientX: number,
+		clientY: number,
+	) => { x: number; y: number };
+	applyPinchTransform: (
+		nextScale: number,
+		focalClientX: number,
+		focalClientY: number,
+		panDeltaX: number,
+		panDeltaY: number,
+	) => void;
+};
 
 type ZoomableCanvasViewportProps = {
 	/** コンテンツ（canvas）の原寸幅（内部解像度、px） */
@@ -28,7 +43,7 @@ type ZoomableCanvasViewportProps = {
 	 * canvas とオーバーレイをレンダーする関数。
 	 * 返す要素は幅・高さ100%で親（このビューポートが用意する原寸ボックス）を満たすこと。
 	 */
-	children: (ctx: { mobileMode: MobilePanMode }) => React.ReactNode;
+	children: (ctx: ZoomableCanvasContext) => React.ReactNode;
 };
 
 export function ZoomableCanvasViewport({
@@ -46,15 +61,23 @@ export function ZoomableCanvasViewport({
 		displayHeight,
 		offsetX,
 		offsetY,
-		mobileMode,
-		setMobileMode,
 		zoomIn,
 		zoomOut,
 		zoomTo100,
 		zoomToFit,
 		isZoomOutDisabled,
 		isZoomInDisabled,
+		applyPinchTransform,
 	} = useZoomPan({ contentWidth, contentHeight, resetKey });
+
+	const getContainerPoint = useCallback(
+		(clientX: number, clientY: number) => {
+			const rect = containerRef.current?.getBoundingClientRect();
+			if (!rect) return { x: clientX, y: clientY };
+			return { x: clientX - rect.left, y: clientY - rect.top };
+		},
+		[containerRef],
+	);
 
 	const percentLabel = isFit
 		? `フィット（${formatZoomPercent(scale)}）`
@@ -97,42 +120,13 @@ export function ZoomableCanvasViewport({
 				</Button>
 				<span
 					data-testid="zoom-percent-label"
-					className="text-xs text-muted-foreground tabular-nums"
+					// 最長表示（フィット（xx%））を基準に最小幅を確保し、フィット⇄数値表示の
+					// 切り替えでラベル幅が変わってツールバーの折り返し行数（＝キャンバスの
+					// 表示位置）が変化してしまうのを防ぐ（狭幅ビューポートで発生しうる）
+					className="min-w-[100px] text-xs text-muted-foreground tabular-nums"
 				>
 					{percentLabel}
 				</span>
-
-				{/* モバイル: 編集／パン切替（デスクトップでは常時ドラッグ選択のため非表示） */}
-				<div className="ml-auto flex items-center gap-1 sm:hidden">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						aria-pressed={mobileMode === 'edit'}
-						aria-label="編集モード（ドラッグで選択・移動）"
-						className={cn(
-							mobileMode === 'edit' && 'border-primary text-primary',
-						)}
-						onClick={() => setMobileMode('edit')}
-					>
-						<MousePointer2 className="h-4 w-4" />
-						編集
-					</Button>
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						aria-pressed={mobileMode === 'pan'}
-						aria-label="パンモード（ドラッグで画像内を移動）"
-						className={cn(
-							mobileMode === 'pan' && 'border-primary text-primary',
-						)}
-						onClick={() => setMobileMode('pan')}
-					>
-						<Hand className="h-4 w-4" />
-						パン
-					</Button>
-				</div>
 			</div>
 
 			<div
@@ -152,7 +146,7 @@ export function ZoomableCanvasViewport({
 					}}
 					className="relative"
 				>
-					{children({ mobileMode })}
+					{children({ scale, getContainerPoint, applyPinchTransform })}
 				</div>
 			</div>
 		</div>
