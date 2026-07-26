@@ -300,3 +300,13 @@ test('clampScrollPosition: 範囲内はそのまま、範囲外は上下限に�
 	assert.equal(clampScrollPosition(-10, 100), 0);
 	assert.equal(clampScrollPosition(150, 100), 100);
 });
+
+test('computePinchZoom: 25%未満から拡大した後、同一ジェスチャー内で縮小しても開始倍率を下回らない', () => {
+	// 実機で再現した不具合: フィット18% → 56% → 3%
+	assert.equal(computePinchZoom(0.18, 100, 20), 0.18);
+});
+
+test('computePinchZoom: 25%未満からの拡大は従来どおり距離比に比例する', () => {
+	const next = computePinchZoom(0.18, 100, 300);
+	assert.ok(Math.abs(next - 0.54) < 1e-9);
+});

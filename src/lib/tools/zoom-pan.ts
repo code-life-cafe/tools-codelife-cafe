@@ -211,7 +211,7 @@ export function computePinchZoom(
 	if (startDistance <= 0) return startScale;
 	const raw = startScale * (currentDistance / startDistance);
 	if (startScale >= MIN_ZOOM) return clampZoom(raw);
-	return Math.min(MAX_ZOOM, Math.max(0.01, raw));
+	return Math.min(MAX_ZOOM, Math.max(startScale, raw));
 }
 
 /** スクロール位置を [0, maxScroll] にクランプする（2本指パンの直接更新で使用） */
