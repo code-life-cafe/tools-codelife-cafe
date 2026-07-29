@@ -770,7 +770,7 @@ function stripJpegMetadata(bytes: Uint8Array): StripResult {
 // Orientation 焼き込み（ブラウザ専用ヘルパー）
 // ---------------------------------------------------------------------------
 
-const ORIENTATION_TRANSFORMS: Record<
+export const ORIENTATION_TRANSFORMS: Record<
 	number,
 	(
 		ctx: CanvasRenderingContext2D,
@@ -808,6 +808,19 @@ const ORIENTATION_TRANSFORMS: Record<
 	},
 };
 
+/**
+ * canvas.toBlob の結果を検証する。null または0バイトはエンコード失敗とみなし、
+ * 呼び出し元に無音で空ファイルを渡さないよう例外を投げる。
+ */
+export function assertEncodedBlob(blob: Blob | null): Blob {
+	if (!blob || blob.size === 0) {
+		throw new Error(
+			'画像のエンコードに失敗しました（回転情報の焼き込み）。別の画像でお試しください。',
+		);
+	}
+	return blob;
+}
+
 export async function bakeOrientation(
 	bytes: Uint8Array,
 	orientation: number,
@@ -841,8 +854,8 @@ export async function bakeOrientation(
 	ctx2.drawImage(bmp, 0, 0);
 	bmp.close();
 
-	const outBlob: Blob = await new Promise((resolve) =>
-		canvas.toBlob((b) => resolve(b ?? new Blob()), 'image/jpeg', 0.95),
+	const outBlob = await new Promise<Blob | null>((resolve) =>
+		canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.95),
 	);
-	return new Uint8Array(await outBlob.arrayBuffer());
+	return new Uint8Array(await assertEncodedBlob(outBlob).arrayBuffer());
 }
