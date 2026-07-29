@@ -184,6 +184,11 @@ export function ExifToolPage() {
 			}
 
 			const result = stripMetadata(bytes, item.format);
+			if (result.data.length === 0) {
+				throw new Error(
+					'処理結果が空になったため、この画像はスキップされました。',
+				);
+			}
 			const blob = new Blob([result.data.slice()], {
 				type: `image/${item.format}`,
 			});

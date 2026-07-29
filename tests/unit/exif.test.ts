@@ -1,12 +1,16 @@
 // 実行方法: npm run test:unit（Node 22 の型ストリッピングで .ts を直接実行）
 // 単体実行: node --test tests/unit/exif.test.ts
 //
-// Canvas/Blob 依存（bakeOrientation）はブラウザ専用のため E2E で検証する。
-// ここでは純粋ロジック（バリデーション・EXIF パース・メタデータ除去）を対象とする。
+// createImageBitmap/document.createElement('canvas') 依存の実エンコード経路は
+// ブラウザ専用のため E2E で検証する。ここでは純粋ロジック（バリデーション・EXIF
+// パース・メタデータ除去・Orientation変換行列の選択・エンコード失敗ガード）を対象とする。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	assertEncodedBlob,
+	bakeOrientation,
 	MAX_BATCH_FILES,
+	ORIENTATION_TRANSFORMS,
 	parseExif,
 	stripMetadata,
 	validateBatch,
@@ -621,6 +625,93 @@ test('stripMetadata: 非 JPEG 形式は warning を返す', () => {
 	const result = stripMetadata(new Uint8Array([0x00]), 'webp');
 	assert.equal(result.warnings.length, 1);
 	assert.ok(result.warnings[0].includes('再エンコード'));
+});
+
+// ---------------------------------------------------------------------------
+// bakeOrientation / ORIENTATION_TRANSFORMS / assertEncodedBlob テスト
+//
+// canvas.toBlob が null を返す実エンコード失敗経路は Canvas API 依存のため
+// E2E で検証する。ここでは transform 行列の選択ロジックと、失敗時に
+// 0バイトを無音で返さないためのガード関数を対象とする。
+// ---------------------------------------------------------------------------
+
+function makeMockCtx(): {
+	ctx: CanvasRenderingContext2D;
+	calls: number[][];
+} {
+	const calls: number[][] = [];
+	const ctx = {
+		transform: (
+			a: number,
+			b: number,
+			c: number,
+			d: number,
+			e: number,
+			f: number,
+		) => {
+			calls.push([a, b, c, d, e, f]);
+		},
+	} as unknown as CanvasRenderingContext2D;
+	return { ctx, calls };
+}
+
+test('ORIENTATION_TRANSFORMS: Orientation 2〜8 それぞれが期待する変換行列とサイズを返す', () => {
+	const w = 100;
+	const h = 60;
+	const expected: Record<number, { cw: number; ch: number; matrix: number[] }> =
+		{
+			2: { cw: w, ch: h, matrix: [-1, 0, 0, 1, w, 0] },
+			3: { cw: w, ch: h, matrix: [-1, 0, 0, -1, w, h] },
+			4: { cw: w, ch: h, matrix: [1, 0, 0, -1, 0, h] },
+			5: { cw: h, ch: w, matrix: [0, 1, 1, 0, 0, 0] },
+			6: { cw: h, ch: w, matrix: [0, 1, -1, 0, h, 0] },
+			7: { cw: h, ch: w, matrix: [0, -1, -1, 0, h, w] },
+			8: { cw: h, ch: w, matrix: [0, -1, 1, 0, 0, w] },
+		};
+
+	for (const [key, exp] of Object.entries(expected)) {
+		const orientation = Number(key);
+		const transform = ORIENTATION_TRANSFORMS[orientation];
+		assert.ok(
+			transform,
+			`Orientation ${orientation} の変換が定義されているべき`,
+		);
+		const { ctx, calls } = makeMockCtx();
+		const { cw, ch } = transform(ctx, w, h);
+		assert.equal(cw, exp.cw, `Orientation ${orientation}: cw`);
+		assert.equal(ch, exp.ch, `Orientation ${orientation}: ch`);
+		assert.deepEqual(
+			calls[0],
+			exp.matrix,
+			`Orientation ${orientation}: transform行列`,
+		);
+	}
+});
+
+test('bakeOrientation: Orientation=1（無変換）は元のバイト列をそのまま返す', async () => {
+	const bytes = new Uint8Array([1, 2, 3, 4]);
+	const result = await bakeOrientation(bytes, 1);
+	assert.deepEqual(Array.from(result), Array.from(bytes));
+});
+
+test('bakeOrientation: 未定義のOrientation値（0等）は元のバイト列をそのまま返す', async () => {
+	const bytes = new Uint8Array([9, 9, 9]);
+	const result = await bakeOrientation(bytes, 0);
+	assert.deepEqual(Array.from(result), Array.from(bytes));
+});
+
+test('assertEncodedBlob: null は例外を投げる（toBlob失敗時に無音で0バイトを返さない）', () => {
+	assert.throws(() => assertEncodedBlob(null), /エンコード/);
+});
+
+test('assertEncodedBlob: 0バイトのBlobは例外を投げる', () => {
+	assert.throws(() => assertEncodedBlob(new Blob([])), /エンコード/);
+});
+
+test('assertEncodedBlob: 有効なBlobはそのまま返す', () => {
+	const blob = new Blob([new Uint8Array([1, 2, 3])]);
+	const result = assertEncodedBlob(blob);
+	assert.equal(result, blob);
 });
 
 // ---------------------------------------------------------------------------
