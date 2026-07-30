@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -68,6 +69,8 @@ export default function CsvEditor() {
 	const [activeTab, setActiveTab] = useState('input');
 	const [inputText, setInputText] = useState('');
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const [copyFailed, setCopyFailed] = useState(false);
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -164,11 +167,18 @@ export default function CsvEditor() {
 		setSortKeys([]);
 	}, []);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	// Parse CSV text input
@@ -330,11 +340,15 @@ export default function CsvEditor() {
 		URL.revokeObjectURL(url);
 	};
 
-	const handleCopy = () => {
+	const handleCopy = useCallback(async () => {
 		if (!csvData) return;
 		const result = exportCsv(csvData, delimiter);
-		navigator.clipboard.writeText(result);
-	};
+		const ok = await copyText(result);
+		setCopyFailed(!ok);
+		if (!ok) {
+			setTimeout(() => setCopyFailed(false), 2000);
+		}
+	}, [csvData, delimiter]);
 
 	// Editor Cell / Row Mutations
 	const updateCell = (
@@ -495,10 +509,16 @@ export default function CsvEditor() {
 							variant="outline"
 							size="sm"
 							onClick={handleShare}
-							className="h-8 flex items-center gap-1.5"
+							className={`h-8 flex items-center gap-1.5 ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 						>
 							<Share2 className="h-4 w-4" />
-							<span>{shareCopied ? 'コピー完了！' : '設定を共有'}</span>
+							<span>
+								{shareCopyFailed
+									? 'コピーに失敗しました'
+									: shareCopied
+										? 'コピー完了！'
+										: '設定を共有'}
+							</span>
 						</Button>
 					</div>
 				</div>
@@ -521,10 +541,12 @@ export default function CsvEditor() {
 								variant="outline"
 								size="sm"
 								onClick={handleCopy}
-								className="h-8 flex-1 sm:flex-none"
+								className={`h-8 flex-1 sm:flex-none ${copyFailed ? 'text-destructive border-destructive/50' : ''}`}
 							>
 								<Copy className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">コピー</span>
+								<span className="hidden sm:inline">
+									{copyFailed ? 'コピー失敗' : 'コピー'}
+								</span>
 							</Button>
 							<Button
 								variant="outline"

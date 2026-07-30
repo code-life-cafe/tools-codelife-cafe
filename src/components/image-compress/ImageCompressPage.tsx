@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { copyText } from '@/lib/clipboard';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -65,6 +66,7 @@ export function ImageCompressPage() {
 		DEFAULT_UI_OPTIONS,
 	);
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	const {
 		items,
@@ -111,11 +113,18 @@ export function ImageCompressPage() {
 		[options],
 	);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	const handleFilesSelect = useCallback(
@@ -235,10 +244,17 @@ export function ImageCompressPage() {
 							variant="outline"
 							onClick={handleShare}
 							disabled={processing}
+							className={
+								shareCopyFailed ? 'text-destructive border-destructive/50' : ''
+							}
 						>
 							<Share2 className="h-4 w-4" />
 							<span className="ml-1">
-								{shareCopied ? 'コピー完了！' : '設定を共有'}
+								{shareCopyFailed
+									? 'コピーに失敗しました'
+									: shareCopied
+										? 'コピー完了！'
+										: '設定を共有'}
 							</span>
 						</Button>
 						{doneCount >= 2 && (

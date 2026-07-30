@@ -24,6 +24,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -108,6 +109,7 @@ export default function SqlFormatter() {
 		[updateSettings],
 	);
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	const [manualOutput, setManualOutput] = useState('');
 	const [manualError, setManualError] = useState<string | null>(null);
@@ -160,11 +162,18 @@ export default function SqlFormatter() {
 		}
 	}, [autoFormat]);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	const applyLayoutWidth = useCallback((expanded: boolean) => {
@@ -402,10 +411,14 @@ export default function SqlFormatter() {
 						variant="outline"
 						size="sm"
 						onClick={handleShare}
-						className="hidden sm:flex"
+						className={`hidden sm:flex ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 					>
 						<Share2 className="h-4 w-4 mr-2" />
-						{shareCopied ? 'コピー完了！' : '設定を共有'}
+						{shareCopyFailed
+							? 'コピーに失敗しました'
+							: shareCopied
+								? 'コピー完了！'
+								: '設定を共有'}
 					</Button>
 
 					<Button
@@ -431,10 +444,14 @@ export default function SqlFormatter() {
 					variant="outline"
 					size="sm"
 					onClick={handleShare}
-					className="w-full"
+					className={`w-full ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 				>
 					<Share2 className="h-4 w-4 mr-2" />
-					{shareCopied ? 'コピー完了！' : '設定を共有'}
+					{shareCopyFailed
+						? 'コピーに失敗しました'
+						: shareCopied
+							? 'コピー完了！'
+							: '設定を共有'}
 				</Button>
 			</div>
 
