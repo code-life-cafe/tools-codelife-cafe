@@ -19,6 +19,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -70,6 +71,7 @@ export default function JsonFormatter() {
 	const [error, setError] = useState<string | null>(null);
 	const [errorPosition, setErrorPosition] = useState<number | null>(null);
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -175,11 +177,18 @@ export default function JsonFormatter() {
 		[indent],
 	);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	return (
@@ -233,10 +242,16 @@ export default function JsonFormatter() {
 					onClick={handleShare}
 					variant="outline"
 					size="sm"
-					className="ml-auto flex items-center gap-1.5"
+					className={`ml-auto flex items-center gap-1.5 ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 				>
 					<Share2 className="h-4 w-4" />
-					<span>{shareCopied ? 'コピー完了！' : '設定を共有'}</span>
+					<span>
+						{shareCopyFailed
+							? 'コピーに失敗しました'
+							: shareCopied
+								? 'コピー完了！'
+								: '設定を共有'}
+					</span>
 				</Button>
 			</div>
 

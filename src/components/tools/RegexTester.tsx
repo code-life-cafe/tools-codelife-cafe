@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
@@ -44,6 +45,7 @@ export default function RegexTester() {
 	const { pattern, flags, showReplace, replacement } = settings;
 	const [text, setText] = useState('郵便番号: 100-0001 と 530-0001');
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -130,11 +132,18 @@ export default function RegexTester() {
 		return nodes;
 	}, [text, result.matches, result.error, pattern]);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	return (
@@ -150,10 +159,16 @@ export default function RegexTester() {
 									onClick={handleShare}
 									variant="outline"
 									size="sm"
-									className="h-8 text-xs rounded-xl flex items-center gap-1.5"
+									className={`h-8 text-xs rounded-xl flex items-center gap-1.5 ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 								>
 									<Share2 className="h-3 w-3" />
-									<span>{shareCopied ? 'コピー完了！' : '設定を共有'}</span>
+									<span>
+										{shareCopyFailed
+											? 'コピーに失敗しました'
+											: shareCopied
+												? 'コピー完了！'
+												: '設定を共有'}
+									</span>
 								</Button>
 								<Select
 									onValueChange={(val) => {

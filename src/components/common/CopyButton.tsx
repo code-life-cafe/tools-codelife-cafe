@@ -1,6 +1,7 @@
-import { Check, Copy } from 'lucide-react';
+import { Check, Copy, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { copyText } from '@/lib/clipboard';
 
 interface CopyButtonProps {
 	text: string;
@@ -20,24 +21,18 @@ export default function CopyButton({
 	disabled = false,
 }: CopyButtonProps) {
 	const [copied, setCopied] = useState(false);
+	const [failed, setFailed] = useState(false);
 
 	const handleCopy = useCallback(async () => {
-		try {
-			await navigator.clipboard.writeText(text);
+		const ok = await copyText(text);
+		if (ok) {
+			setFailed(false);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
-		} catch {
-			// Fallback for older browsers
-			const textarea = document.createElement('textarea');
-			textarea.value = text;
-			textarea.style.position = 'fixed';
-			textarea.style.opacity = '0';
-			document.body.appendChild(textarea);
-			textarea.select();
-			document.execCommand('copy');
-			document.body.removeChild(textarea);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
+		} else {
+			setCopied(false);
+			setFailed(true);
+			setTimeout(() => setFailed(false), 2000);
 		}
 	}, [text]);
 
@@ -47,10 +42,17 @@ export default function CopyButton({
 			size={size}
 			onClick={handleCopy}
 			disabled={disabled}
-			className={`transition-all ${copied ? 'copy-flash text-safety border-safety/50' : ''} ${className}`}
-			aria-label={copied ? 'コピーしました' : label}
+			className={`transition-all ${copied ? 'copy-flash text-safety border-safety/50' : ''} ${failed ? 'text-destructive border-destructive/50' : ''} ${className}`}
+			aria-label={
+				failed ? 'コピーに失敗しました' : copied ? 'コピーしました' : label
+			}
 		>
-			{copied ? (
+			{failed ? (
+				<>
+					<X className="h-4 w-4" />
+					<span className="ml-1">コピー失敗</span>
+				</>
+			) : copied ? (
 				<>
 					<Check className="h-4 w-4" />
 					<span className="ml-1">コピー済み</span>

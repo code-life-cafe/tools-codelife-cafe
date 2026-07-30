@@ -27,6 +27,7 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -107,6 +108,7 @@ export function TaxCalcPage() {
 		createInvoiceLine(2),
 	]);
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -116,11 +118,18 @@ export function TaxCalcPage() {
 		}
 	}, [trackSharedUrlOpen]);
 
-	const handleShare = useCallback(() => {
+	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		navigator.clipboard.writeText(shareUrl);
-		setShareCopied(true);
-		setTimeout(() => setShareCopied(false), 2000);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
+			setShareCopied(true);
+			setTimeout(() => setShareCopied(false), 2000);
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
+		}
 	}, [generateShareUrl]);
 
 	// --- WebMCP Tool Registration ---
@@ -248,10 +257,16 @@ export function TaxCalcPage() {
 					onClick={handleShare}
 					variant="outline"
 					size="sm"
-					className="h-9 flex items-center gap-1.5 shrink-0"
+					className={`h-9 flex items-center gap-1.5 shrink-0 ${shareCopyFailed ? 'text-destructive border-destructive/50' : ''}`}
 				>
 					<Share2 className="h-4 w-4" />
-					<span>{shareCopied ? 'コピー完了！' : '設定を共有'}</span>
+					<span>
+						{shareCopyFailed
+							? 'コピーに失敗しました'
+							: shareCopied
+								? 'コピー完了！'
+								: '設定を共有'}
+					</span>
 				</Button>
 			</div>
 
