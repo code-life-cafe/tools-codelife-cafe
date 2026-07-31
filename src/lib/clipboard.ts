@@ -22,12 +22,17 @@ export async function copyText(text: string): Promise<boolean> {
 function copyTextViaExecCommand(text: string): boolean {
 	if (typeof document === 'undefined') return false;
 
+	const activeElement = document.activeElement as HTMLElement | null;
 	const textarea = document.createElement('textarea');
 	textarea.value = text;
+	textarea.setAttribute('readonly', '');
 	textarea.style.position = 'fixed';
+	textarea.style.top = '0';
+	textarea.style.left = '0';
 	textarea.style.opacity = '0';
 	document.body.appendChild(textarea);
 	textarea.select();
+	textarea.setSelectionRange(0, text.length); // iOS Safari では select() のみだと選択範囲が確定しない
 
 	let succeeded = false;
 	try {
@@ -36,5 +41,6 @@ function copyTextViaExecCommand(text: string): boolean {
 		succeeded = false;
 	}
 	document.body.removeChild(textarea);
+	activeElement?.focus?.();
 	return succeeded;
 }
