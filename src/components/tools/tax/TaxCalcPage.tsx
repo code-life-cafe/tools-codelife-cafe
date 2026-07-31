@@ -27,7 +27,6 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -40,6 +39,7 @@ import {
 	validateAmount,
 	validateQuantity,
 } from '@/lib/tools/tax';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { taxTool } from '@/lib/webmcp/tools/tax.webmcp';
 

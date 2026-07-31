@@ -19,7 +19,6 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -27,6 +26,7 @@ import {
 	type IndentType,
 	minifyJson,
 } from '@/lib/tools/json-formatter';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 function highlightJson(json: string) {
 	if (!json) return '';

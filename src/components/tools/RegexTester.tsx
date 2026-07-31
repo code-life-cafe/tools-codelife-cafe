@@ -22,11 +22,11 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
 import { COMMON_PATTERNS, testRegex } from '@/lib/tools/regex-tester';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 export default function RegexTester() {
 	const { trackRunDebounced, trackSharedUrlOpen } =

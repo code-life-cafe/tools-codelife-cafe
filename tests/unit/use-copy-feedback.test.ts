@@ -4,7 +4,7 @@ import {
 	cancelReset,
 	type ResetHandle,
 	scheduleReset,
-} from '../../src/lib/hooks/useCopyFeedback.ts';
+} from '../../src/lib/useCopyFeedback.ts';
 
 test('scheduleReset: delayMs 経過後に fn が1回だけ実行される', (t) => {
 	t.mock.timers.enable({ apis: ['setTimeout'] });

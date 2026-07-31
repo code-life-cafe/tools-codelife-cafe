@@ -24,7 +24,6 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -33,6 +32,7 @@ import {
 	type SqlDialect,
 	type SqlFormatOptions,
 } from '@/lib/tools/sql-formatter';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { cn } from '@/lib/utils';
 
 const SQL_KEYWORDS = [

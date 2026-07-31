@@ -10,7 +10,6 @@ import { useCallback, useEffect } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
@@ -24,6 +23,7 @@ import {
 	validateImageFile,
 } from '@/lib/tools/image-compress';
 import { buildZip, dedupeZipNames } from '@/lib/tools/zip';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import {
 	CompressOptionsPanel,
 	type CompressUiOptions,

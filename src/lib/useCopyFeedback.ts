@@ -5,7 +5,7 @@
 // useToolAnalytics の trackRunDebounced と同様に DOM無しで単体テストできる。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { copyText } from '../clipboard.ts';
+import { copyText } from './clipboard.ts';
 
 export type CopyFeedbackState = 'idle' | 'copied' | 'failed';
 

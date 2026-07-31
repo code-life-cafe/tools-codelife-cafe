@@ -30,7 +30,6 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -51,6 +50,7 @@ import {
 	parseXlsx,
 	type SheetData,
 } from '@/lib/tools/xlsx-reader';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 const ROWS_PER_PAGE = 50;
 
