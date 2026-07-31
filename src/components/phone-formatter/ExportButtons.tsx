@@ -3,9 +3,10 @@
  * CSVダウンロード / クリップボードコピー + カラム選択設定
  */
 
-import { Check, Clipboard, Download, Settings2 } from 'lucide-react';
+import { Check, Clipboard, Download, Settings2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { copyText } from '@/lib/clipboard';
 import { generateCsvOutput } from '@/lib/phone-formatter/bulk';
 import type { ParseResult } from '@/lib/phone-formatter/types';
 
@@ -31,6 +32,7 @@ export default function ExportButtons({
 }: ExportButtonsProps) {
 	const [copiedCSV, setCopiedCSV] = useState(false);
 	const [copiedClip, setCopiedClip] = useState(false);
+	const [copyClipFailed, setCopyClipFailed] = useState(false);
 	const [showSettings, setShowSettings] = useState(false);
 	const [exportColumns, setExportColumns] = useState<string[]>([
 		'input',
@@ -86,22 +88,15 @@ export default function ExportButtons({
 			.map((r) => r.formats?.e164)
 			.join('\n');
 
-		try {
-			await navigator.clipboard.writeText(e164List);
+		const ok = await copyText(e164List);
+		if (ok) {
+			setCopyClipFailed(false);
 			setCopiedClip(true);
 			setTimeout(() => setCopiedClip(false), 2000);
-		} catch {
-			// フォールバック
-			const textarea = document.createElement('textarea');
-			textarea.value = e164List;
-			textarea.style.position = 'fixed';
-			textarea.style.opacity = '0';
-			document.body.appendChild(textarea);
-			textarea.select();
-			document.execCommand('copy');
-			document.body.removeChild(textarea);
-			setCopiedClip(true);
-			setTimeout(() => setCopiedClip(false), 2000);
+		} else {
+			setCopiedClip(false);
+			setCopyClipFailed(true);
+			setTimeout(() => setCopyClipFailed(false), 2000);
 		}
 	};
 
@@ -143,10 +138,15 @@ export default function ExportButtons({
 			<Button
 				onClick={handleCopyClipboard}
 				variant="outline"
-				className="gap-2"
+				className={`gap-2 ${copyClipFailed ? 'text-destructive border-destructive/50' : ''}`}
 				aria-label="E.164番号一覧をクリップボードにコピー"
 			>
-				{copiedClip ? (
+				{copyClipFailed ? (
+					<>
+						<X className="h-4 w-4" />
+						コピーに失敗しました
+					</>
+				) : copiedClip ? (
 					<>
 						<Check className="h-4 w-4 text-green-500" />
 						コピー完了

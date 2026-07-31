@@ -2,9 +2,10 @@
 //
 // 生成はすべてブラウザ内で完結する（Blob → a[download]）。外部送信は行わない。
 
-import { Check, Clipboard, Download } from 'lucide-react';
+import { Check, Clipboard, Download, X } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { copyText } from '@/lib/clipboard';
 import type { TranscriptSegment } from '@/lib/transcribe/protocol';
 import { toPlainText } from '@/lib/transcribe/segments';
 import { toSrt } from '@/lib/transcribe/srt';
@@ -38,15 +39,19 @@ function stripExtension(name: string): string {
 
 export function ExportBar({ segments, baseName, disabled }: ExportBarProps) {
 	const [copied, setCopied] = useState(false);
+	const [failed, setFailed] = useState(false);
 	const base = stripExtension(baseName);
 
 	const handleCopy = useCallback(async () => {
-		try {
-			await navigator.clipboard.writeText(toPlainText(segments));
+		const ok = await copyText(toPlainText(segments));
+		if (ok) {
+			setFailed(false);
 			setCopied(true);
 			setTimeout(() => setCopied(false), 2000);
-		} catch {
+		} else {
 			setCopied(false);
+			setFailed(true);
+			setTimeout(() => setFailed(false), 2000);
 		}
 	}, [segments]);
 
@@ -91,13 +96,20 @@ export function ExportBar({ segments, baseName, disabled }: ExportBarProps) {
 				size="sm"
 				disabled={disabled}
 				onClick={handleCopy}
+				className={failed ? 'text-destructive' : ''}
 			>
-				{copied ? (
+				{failed ? (
+					<X className="h-4 w-4" aria-hidden="true" />
+				) : copied ? (
 					<Check className="h-4 w-4" aria-hidden="true" />
 				) : (
 					<Clipboard className="h-4 w-4" aria-hidden="true" />
 				)}
-				{copied ? 'コピー完了！' : '全文コピー'}
+				{failed
+					? 'コピーに失敗しました'
+					: copied
+						? 'コピー完了！'
+						: '全文コピー'}
 			</Button>
 		</div>
 	);
