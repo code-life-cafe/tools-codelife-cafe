@@ -21,6 +21,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -87,6 +88,7 @@ export default function CronChecker() {
 	const [input, setInput] = useState('0 9 * * 1');
 	const [jaInput, setJaInput] = useState('');
 	const [shareCopied, setShareCopied] = useState(false);
+	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	const isInitialMountRef = useRef(true);
 
@@ -172,12 +174,15 @@ export default function CronChecker() {
 	}, [input]);
 
 	const handleCopyShare = async () => {
-		try {
-			await navigator.clipboard.writeText(shareUrl);
+		const ok = await copyText(shareUrl);
+		if (ok) {
+			setShareCopyFailed(false);
 			setShareCopied(true);
 			setTimeout(() => setShareCopied(false), 2000);
-		} catch {
-			// クリップボードAPI非対応環境では無視する
+		} else {
+			setShareCopied(false);
+			setShareCopyFailed(true);
+			setTimeout(() => setShareCopyFailed(false), 2000);
 		}
 	};
 
@@ -406,8 +411,19 @@ export default function CronChecker() {
 					</div>
 
 					<div className="flex flex-wrap items-center gap-2">
-						<Button variant="outline" size="sm" onClick={handleCopyShare}>
-							{shareCopied ? 'コピーしました' : '共有URLをコピー'}
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={handleCopyShare}
+							className={
+								shareCopyFailed ? 'text-destructive border-destructive/50' : ''
+							}
+						>
+							{shareCopyFailed
+								? 'コピーに失敗しました'
+								: shareCopied
+									? 'コピーしました'
+									: '共有URLをコピー'}
 						</Button>
 					</div>
 				</div>
