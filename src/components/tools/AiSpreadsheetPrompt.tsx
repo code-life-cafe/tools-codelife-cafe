@@ -1,4 +1,4 @@
-import { Copy, Sparkles } from 'lucide-react';
+import { Copy, Sparkles, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -10,6 +10,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	generateSpreadsheetPrompt,
@@ -29,6 +30,7 @@ export function AiSpreadsheetPrompt() {
 	);
 	const [maxRows, setMaxRows] = useState<number | ''>(30);
 	const [copied, setCopied] = useState(false);
+	const [copyFailed, setCopyFailed] = useState(false);
 
 	const result = useMemo(() => {
 		const finalMaxRows =
@@ -57,9 +59,16 @@ export function AiSpreadsheetPrompt() {
 
 	const copyPrompt = async () => {
 		if (!result.prompt) return;
-		await navigator.clipboard.writeText(result.prompt);
-		setCopied(true);
-		window.setTimeout(() => setCopied(false), 1600);
+		const ok = await copyText(result.prompt);
+		if (ok) {
+			setCopyFailed(false);
+			setCopied(true);
+			window.setTimeout(() => setCopied(false), 1600);
+		} else {
+			setCopied(false);
+			setCopyFailed(true);
+			window.setTimeout(() => setCopyFailed(false), 1600);
+		}
 	};
 
 	return (
@@ -163,9 +172,20 @@ export function AiSpreadsheetPrompt() {
 							size="sm"
 							onClick={copyPrompt}
 							disabled={!result.prompt}
+							className={
+								copyFailed ? 'text-destructive border-destructive/50' : ''
+							}
 						>
-							<Copy className="size-4" />
-							{copied ? 'コピーしました' : 'コピー'}
+							{copyFailed ? (
+								<X className="size-4" />
+							) : (
+								<Copy className="size-4" />
+							)}
+							{copyFailed
+								? 'コピーに失敗しました'
+								: copied
+									? 'コピーしました'
+									: 'コピー'}
 						</Button>
 					</div>
 					<Textarea

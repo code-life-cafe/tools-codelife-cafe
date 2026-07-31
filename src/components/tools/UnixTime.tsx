@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -84,6 +85,7 @@ export default function UnixTime() {
 		Math.floor(Date.now() / 1000),
 	);
 	const [nowCopied, setNowCopied] = useState(false);
+	const [nowCopyFailed, setNowCopyFailed] = useState(false);
 	const [batchText, setBatchText] = useState('');
 
 	useEffect(() => {
@@ -147,12 +149,15 @@ export default function UnixTime() {
 	};
 
 	const handleCopyNow = async () => {
-		try {
-			await navigator.clipboard.writeText(String(nowSeconds));
+		const ok = await copyText(String(nowSeconds));
+		if (ok) {
+			setNowCopyFailed(false);
 			setNowCopied(true);
 			setTimeout(() => setNowCopied(false), 2000);
-		} catch {
-			// クリップボードAPI非対応環境では無視する
+		} else {
+			setNowCopied(false);
+			setNowCopyFailed(true);
+			setTimeout(() => setNowCopyFailed(false), 2000);
 		}
 	};
 
@@ -166,10 +171,14 @@ export default function UnixTime() {
 					<button
 						type="button"
 						onClick={handleCopyNow}
-						className="font-mono text-foreground font-semibold hover:underline"
+						className={`font-mono font-semibold hover:underline ${nowCopyFailed ? 'text-destructive' : 'text-foreground'}`}
 						aria-label="現在のUNIX秒をコピー"
 					>
-						{nowCopied ? 'コピーしました' : nowSeconds}
+						{nowCopyFailed
+							? 'コピーに失敗しました'
+							: nowCopied
+								? 'コピーしました'
+								: nowSeconds}
 					</button>
 				</div>
 				<Button variant="outline" size="sm" onClick={handleNowClick}>
