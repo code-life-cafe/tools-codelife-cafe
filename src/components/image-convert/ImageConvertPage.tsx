@@ -12,8 +12,8 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
-import { copyText } from '@/lib/clipboard';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
+import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
@@ -42,8 +42,9 @@ export function ImageConvertPage() {
 		'image-convert',
 		DEFAULT_UI_OPTIONS,
 	);
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 	const [processedTarget, setProcessedTarget] = useState<TargetFormat>(
 		DEFAULT_UI_OPTIONS.target,
 	);
@@ -139,17 +140,8 @@ export function ImageConvertPage() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	const handleReconvert = useCallback(() => {
 		setProcessedTarget(options.target);

@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { copyText } from '@/lib/clipboard';
+import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -68,9 +68,11 @@ export default function CsvEditor() {
 	const { delimiter, hasHeader } = settings;
 	const [activeTab, setActiveTab] = useState('input');
 	const [inputText, setInputText] = useState('');
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
-	const [copyFailed, setCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
+	const { state: resultCopyState, copy: copyResult } = useCopyFeedback();
+	const copyFailed = resultCopyState === 'failed';
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -169,17 +171,8 @@ export default function CsvEditor() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	// Parse CSV text input
 	const handleParse = () => {
@@ -340,15 +333,15 @@ export default function CsvEditor() {
 		URL.revokeObjectURL(url);
 	};
 
+	const csvResultText = useMemo(
+		() => (csvData ? exportCsv(csvData, delimiter) : null),
+		[csvData, delimiter],
+	);
+
 	const handleCopy = useCallback(async () => {
-		if (!csvData) return;
-		const result = exportCsv(csvData, delimiter);
-		const ok = await copyText(result);
-		setCopyFailed(!ok);
-		if (!ok) {
-			setTimeout(() => setCopyFailed(false), 2000);
-		}
-	}, [csvData, delimiter]);
+		if (csvResultText === null) return;
+		await copyResult(csvResultText);
+	}, [csvResultText, copyResult]);
 
 	// Editor Cell / Row Mutations
 	const updateCell = (

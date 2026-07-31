@@ -24,7 +24,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { copyText } from '@/lib/clipboard';
+import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -108,8 +108,9 @@ export default function SqlFormatter() {
 		},
 		[updateSettings],
 	);
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 
 	const [manualOutput, setManualOutput] = useState('');
 	const [manualError, setManualError] = useState<string | null>(null);
@@ -164,17 +165,8 @@ export default function SqlFormatter() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	const applyLayoutWidth = useCallback((expanded: boolean) => {
 		const container = document.getElementById('tool-layout-container');

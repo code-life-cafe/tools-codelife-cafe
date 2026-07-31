@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { copyText } from '@/lib/clipboard';
+import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
@@ -44,8 +44,9 @@ export default function RegexTester() {
 
 	const { pattern, flags, showReplace, replacement } = settings;
 	const [text, setText] = useState('郵便番号: 100-0001 と 530-0001');
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -134,17 +135,8 @@ export default function RegexTester() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	return (
 		<div className="space-y-8">

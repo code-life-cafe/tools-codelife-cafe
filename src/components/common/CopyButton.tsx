@@ -1,7 +1,7 @@
 import { Check, Copy, X } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { copyText } from '@/lib/clipboard';
+import { useCopyFeedback } from '@/lib/hooks/useCopyFeedback';
 
 interface CopyButtonProps {
 	text: string;
@@ -20,21 +20,13 @@ export default function CopyButton({
 	className = '',
 	disabled = false,
 }: CopyButtonProps) {
-	const [copied, setCopied] = useState(false);
-	const [failed, setFailed] = useState(false);
+	const { state, copy } = useCopyFeedback();
+	const copied = state === 'copied';
+	const failed = state === 'failed';
 
-	const handleCopy = useCallback(async () => {
-		const ok = await copyText(text);
-		if (ok) {
-			setFailed(false);
-			setCopied(true);
-			setTimeout(() => setCopied(false), 2000);
-		} else {
-			setCopied(false);
-			setFailed(true);
-			setTimeout(() => setFailed(false), 2000);
-		}
-	}, [text]);
+	const handleCopy = useCallback(() => {
+		void copy(text);
+	}, [copy, text]);
 
 	return (
 		<Button
