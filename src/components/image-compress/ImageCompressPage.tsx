@@ -6,10 +6,9 @@ import {
 	Share2,
 	Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
-import { copyText } from '@/lib/clipboard';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -24,6 +23,7 @@ import {
 	validateImageFile,
 } from '@/lib/tools/image-compress';
 import { buildZip, dedupeZipNames } from '@/lib/tools/zip';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import {
 	CompressOptionsPanel,
 	type CompressUiOptions,
@@ -65,8 +65,9 @@ export function ImageCompressPage() {
 		'image-compress',
 		DEFAULT_UI_OPTIONS,
 	);
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 
 	const {
 		items,
@@ -115,17 +116,8 @@ export function ImageCompressPage() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	const handleFilesSelect = useCallback(
 		(files: File[]) => {

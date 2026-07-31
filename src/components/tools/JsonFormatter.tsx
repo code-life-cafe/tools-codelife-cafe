@@ -19,7 +19,6 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -27,6 +26,7 @@ import {
 	type IndentType,
 	minifyJson,
 } from '@/lib/tools/json-formatter';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 function highlightJson(json: string) {
 	if (!json) return '';
@@ -70,8 +70,9 @@ export default function JsonFormatter() {
 	const [output, setOutput] = useState('');
 	const [error, setError] = useState<string | null>(null);
 	const [errorPosition, setErrorPosition] = useState<number | null>(null);
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -179,17 +180,8 @@ export default function JsonFormatter() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	return (
 		<div className="space-y-6">

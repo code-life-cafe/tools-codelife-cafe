@@ -27,7 +27,6 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -40,6 +39,7 @@ import {
 	validateAmount,
 	validateQuantity,
 } from '@/lib/tools/tax';
+import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { taxTool } from '@/lib/webmcp/tools/tax.webmcp';
 
@@ -107,8 +107,9 @@ export function TaxCalcPage() {
 		createInvoiceLine(1),
 		createInvoiceLine(2),
 	]);
-	const [shareCopied, setShareCopied] = useState(false);
-	const [shareCopyFailed, setShareCopyFailed] = useState(false);
+	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
+	const shareCopied = shareState === 'copied';
+	const shareCopyFailed = shareState === 'failed';
 
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
@@ -120,17 +121,8 @@ export function TaxCalcPage() {
 
 	const handleShare = useCallback(async () => {
 		const shareUrl = generateShareUrl();
-		const ok = await copyText(shareUrl);
-		if (ok) {
-			setShareCopyFailed(false);
-			setShareCopied(true);
-			setTimeout(() => setShareCopied(false), 2000);
-		} else {
-			setShareCopied(false);
-			setShareCopyFailed(true);
-			setTimeout(() => setShareCopyFailed(false), 2000);
-		}
-	}, [generateShareUrl]);
+		await copyShareUrl(shareUrl);
+	}, [generateShareUrl, copyShareUrl]);
 
 	// --- WebMCP Tool Registration ---
 	useEffect(() => {
