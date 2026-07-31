@@ -9,12 +9,24 @@ function stubNavigator(clipboard: unknown) {
 	});
 }
 
-function stubDocument(execCommandResult: boolean | 'throw') {
+function stubDocument(
+	execCommandResult: boolean | 'throw',
+	options: { activeElement?: { focus: () => void } } = {},
+) {
 	const style: Record<string, string> = {};
+	const attributes: Record<string, string> = {};
+	const selectionRangeCalls: Array<[number, number]> = [];
 	const textarea = {
 		value: '',
 		style,
 		select: () => {},
+		setAttribute: (name: string, value: string) => {
+			attributes[name] = value;
+		},
+		setSelectionRange: (start: number, end: number) => {
+			selectionRangeCalls.push([start, end]);
+		},
+		getAttribute: (name: string) => attributes[name],
 	};
 	const body = {
 		appendChild: () => {},
@@ -24,6 +36,7 @@ function stubDocument(execCommandResult: boolean | 'throw') {
 		value: {
 			createElement: () => textarea,
 			body,
+			activeElement: options.activeElement ?? null,
 			execCommand: () => {
 				if (execCommandResult === 'throw') {
 					throw new Error('execCommand not supported');
@@ -33,6 +46,7 @@ function stubDocument(execCommandResult: boolean | 'throw') {
 		},
 		configurable: true,
 	});
+	return { textarea, attributes, selectionRangeCalls };
 }
 
 function clearDocument() {
@@ -94,4 +108,44 @@ test('document が存在しない環境では false を返す', async () => {
 	clearDocument();
 	const ok = await copyText('hello');
 	assert.equal(ok, false);
+});
+
+test('iOS Safari 対策として readonly 属性と setSelectionRange による選択範囲確定を行う', async () => {
+	stubNavigator(undefined);
+	const { textarea, attributes, selectionRangeCalls } = stubDocument(true);
+	const ok = await copyText('hello');
+	assert.equal(ok, true);
+	assert.equal(attributes.readonly, '');
+	assert.deepEqual(selectionRangeCalls, [[0, 'hello'.length]]);
+	assert.equal(textarea.style.top, '0');
+	assert.equal(textarea.style.left, '0');
+	assert.equal(textarea.style.position, 'fixed');
+});
+
+test('コピー後に元の activeElement へフォーカスを復元する', async () => {
+	stubNavigator(undefined);
+	let focusCalled = false;
+	const activeElement = {
+		focus: () => {
+			focusCalled = true;
+		},
+	};
+	stubDocument(true, { activeElement });
+	const ok = await copyText('hello');
+	assert.equal(ok, true);
+	assert.equal(focusCalled, true);
+});
+
+test('execCommand が失敗してもフォーカス復元は行われる', async () => {
+	stubNavigator(undefined);
+	let focusCalled = false;
+	const activeElement = {
+		focus: () => {
+			focusCalled = true;
+		},
+	};
+	stubDocument(false, { activeElement });
+	const ok = await copyText('hello');
+	assert.equal(ok, false);
+	assert.equal(focusCalled, true);
 });
