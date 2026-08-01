@@ -32,6 +32,7 @@ import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	calculateInvoiceTax,
 	calculateTax,
+	hasInvoiceLineInput,
 	type InvoiceLineInput,
 	type RoundingMode,
 	TAX_RATE_HISTORY,
@@ -158,7 +159,7 @@ export function TaxCalcPage() {
 			if (!amount.ok && line.amount.trim() !== '') {
 				errors.push(`${index + 1}行目: ${amount.message}`);
 			}
-			if (!quantity.ok && line.quantity.trim() !== '') {
+			if (!quantity.ok && hasInvoiceLineInput(line)) {
 				errors.push(`${index + 1}行目: ${quantity.message}`);
 			}
 			if (amount.ok && quantity.ok) {

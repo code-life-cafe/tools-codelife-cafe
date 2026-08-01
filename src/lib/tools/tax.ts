@@ -180,6 +180,18 @@ export function validateAmount(raw: string): AmountValidation {
 	return { ok: true, amount, normalizedInput };
 }
 
+/**
+ * インボイス明細1行に単価または数量の入力があるかを判定する。
+ * 単価が入力されているのに数量が空の場合、数量バリデーションエラーを表示するかどうかの
+ * 判定に用いる。両方とも空（=行全体が未入力）の場合はエラーを表示せず従来どおりスキップする。
+ */
+export function hasInvoiceLineInput(fields: {
+	amount: string;
+	quantity: string;
+}): boolean {
+	return fields.amount.trim() !== '' || fields.quantity.trim() !== '';
+}
+
 /** 数量入力文字列を正規化・検証する。 */
 export function validateQuantity(raw: string): QuantityValidation {
 	const normalizedInput = normalizeNumericInput(raw);
