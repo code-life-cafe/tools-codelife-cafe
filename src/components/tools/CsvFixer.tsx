@@ -64,6 +64,17 @@ export interface FileLoadedEvent {
 	detection: DetectionResult;
 }
 
+function getConversionErrorMessage(e: unknown): string {
+	if (
+		e instanceof RangeError ||
+		e instanceof TypeError ||
+		String(e).includes('memory')
+	) {
+		return 'ファイルが大きすぎます。より小さいファイルでお試しください。';
+	}
+	return '変換中にエラーが発生しました。エンコーディングを変更して再度お試しください。';
+}
+
 // --- Internal Components ---
 
 interface InstantModeToggleProps {
@@ -690,20 +701,7 @@ function DownloadButton({
 		} catch (e: unknown) {
 			console.error('Conversion error:', e);
 			setStatus('error');
-
-			if (
-				e instanceof RangeError ||
-				e instanceof TypeError ||
-				String(e).includes('memory')
-			) {
-				setErrorMessage(
-					'ファイルが大きすぎます。より小さいファイルでお試しください。',
-				);
-			} else {
-				setErrorMessage(
-					'変換中にエラーが発生しました。エンコーディングを変更して再度お試しください。',
-				);
-			}
+			setErrorMessage(getConversionErrorMessage(e));
 		}
 	};
 
@@ -760,6 +758,7 @@ export default function CsvFixer() {
 	const [status, setStatus] = useState<
 		'idle' | 'detecting' | 'ready' | 'converting' | 'done' | 'error'
 	>('idle');
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
 	const [fileInfo, setFileInfo] = useState<{
@@ -829,6 +828,7 @@ export default function CsvFixer() {
 		setDetection(event.detection);
 		setEffectiveEncoding(event.detection.encoding);
 		setStatus('ready');
+		setErrorMessage(null);
 
 		setFileInfo({
 			name: event.file.name,
@@ -874,6 +874,7 @@ export default function CsvFixer() {
 	) => {
 		if (status === 'converting') return;
 		setStatus('converting');
+		setErrorMessage(null);
 		try {
 			const { blob, fileName: outName } = convertEncoding(
 				buf,
@@ -895,6 +896,7 @@ export default function CsvFixer() {
 		} catch (e) {
 			console.error(e);
 			setStatus('error');
+			setErrorMessage(getConversionErrorMessage(e));
 		}
 	};
 
@@ -905,6 +907,7 @@ export default function CsvFixer() {
 		setPreview(null);
 		setFileInfo(null);
 		setStatus('idle');
+		setErrorMessage(null);
 	};
 
 	return (
@@ -946,6 +949,16 @@ export default function CsvFixer() {
 							別のファイルを変換
 						</button>
 					</div>
+
+					{errorMessage && (
+						<div
+							role="alert"
+							className="flex items-center text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md"
+						>
+							<AlertCircle className="w-4 h-4 mr-2 shrink-0" />
+							<p>{errorMessage}</p>
+						</div>
+					)}
 
 					{detection && fileInfo && (
 						<EncodingDetector

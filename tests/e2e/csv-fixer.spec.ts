@@ -165,4 +165,59 @@ test.describe('CSV文字化け修復ツール', () => {
 			page.getByRole('button', { name: '変換してダウンロード' }),
 		).toBeVisible();
 	});
+
+	test('即時変換モードONで変換に失敗した場合、エラーメッセージが表示されること', async ({
+		page,
+	}) => {
+		// 変換処理そのものではなく、ダウンロードトリガー（URL.createObjectURL）を
+		// 失敗させることで、両モード共通のダウンロード処理経路で例外を再現する。
+		// beforeEach で既に読み込み済みのページには追加時点で反映されないため reload する。
+		await page.addInitScript(() => {
+			window.URL.createObjectURL = () => {
+				throw new Error('mock createObjectURL failure');
+			};
+		});
+		await page.reload();
+		await page.waitForSelector('input[type="file"]', { state: 'attached' });
+
+		await page.getByRole('switch', { name: '即時変換モード' }).click();
+
+		await page
+			.locator('input[type="file"]')
+			.setInputFiles(
+				path.join(process.cwd(), 'tests', 'e2e', 'fixtures', 'shift_jis.csv'),
+			);
+
+		await expect(
+			page.getByText(
+				'変換中にエラーが発生しました。エンコーディングを変更して再度お試しください。',
+			),
+		).toBeVisible();
+	});
+
+	test('通常ダウンロードで変換に失敗した場合、エラーメッセージが表示されること', async ({
+		page,
+	}) => {
+		await page.addInitScript(() => {
+			window.URL.createObjectURL = () => {
+				throw new Error('mock createObjectURL failure');
+			};
+		});
+		await page.reload();
+		await page.waitForSelector('input[type="file"]', { state: 'attached' });
+
+		await page
+			.locator('input[type="file"]')
+			.setInputFiles(
+				path.join(process.cwd(), 'tests', 'e2e', 'fixtures', 'shift_jis.csv'),
+			);
+
+		await page.getByRole('button', { name: '変換してダウンロード' }).click();
+
+		await expect(
+			page.getByText(
+				'変換中にエラーが発生しました。エンコーディングを変更して再度お試しください。',
+			),
+		).toBeVisible();
+	});
 });
