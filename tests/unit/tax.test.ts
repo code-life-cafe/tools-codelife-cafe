@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import {
 	calculateInvoiceTax,
 	calculateTax,
+	hasInvoiceLineInput,
 	MAX_AMOUNT,
 	MAX_QUANTITY,
 	TAX_RATE_HISTORY,
@@ -380,6 +381,40 @@ test('validateQuantity: 0・小数・上限超過はエラー', () => {
 
 	const overMax = validateQuantity(String(MAX_QUANTITY + 1));
 	assert.equal(overMax.ok, false);
+});
+
+// ---------------------------------------------------------------------------
+// hasInvoiceLineInput
+// ---------------------------------------------------------------------------
+
+test('hasInvoiceLineInput: 単価のみ入力済みならtrue（数量エラー表示のトリガー）', () => {
+	assert.equal(hasInvoiceLineInput({ amount: '1000', quantity: '' }), true);
+});
+
+test('hasInvoiceLineInput: 数量のみ入力済みならtrue', () => {
+	assert.equal(hasInvoiceLineInput({ amount: '', quantity: 'abc' }), true);
+});
+
+test('hasInvoiceLineInput: 単価・数量ともに空なら行全体が未入力としてfalse', () => {
+	assert.equal(hasInvoiceLineInput({ amount: '', quantity: '' }), false);
+});
+
+test('hasInvoiceLineInput: 前後空白のみの入力は未入力扱いでfalse', () => {
+	assert.equal(hasInvoiceLineInput({ amount: '  ', quantity: '\t' }), false);
+});
+
+test('明細行バリデーション統合: 単価入力済み・数量空はエラー対象、行全体未入力はスキップ対象', () => {
+	// 単価入力済み・数量空 → 数量バリデーションはNGで、hasInvoiceLineInputもtrueのためエラー表示対象
+	const filledAmountEmptyQuantity = { amount: '1000', quantity: '' };
+	const quantityResult = validateQuantity(filledAmountEmptyQuantity.quantity);
+	assert.equal(quantityResult.ok, false);
+	assert.equal(hasInvoiceLineInput(filledAmountEmptyQuantity), true);
+
+	// 行全体が未入力 → hasInvoiceLineInputがfalseのためエラー非表示（従来どおりスキップ）
+	const emptyLine = { amount: '', quantity: '' };
+	const emptyQuantityResult = validateQuantity(emptyLine.quantity);
+	assert.equal(emptyQuantityResult.ok, false);
+	assert.equal(hasInvoiceLineInput(emptyLine), false);
 });
 
 // ---------------------------------------------------------------------------
