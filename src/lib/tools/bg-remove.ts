@@ -20,6 +20,15 @@ export type ProgressInfo = {
 // --- Worker シングルトン ---
 let worker: Worker | null = null;
 
+// 現在進行中の removeBackground 呼び出し（同時に1件のみ）。
+// 新しい呼び出しで上書きされた場合や Worker 終了時に、
+// 古いリスナーの解除と Promise の reject を確実に行うために保持する。
+let activeCall: {
+	id: string;
+	handler: (e: MessageEvent<WorkerResponse>) => void;
+	reject: (reason: unknown) => void;
+} | null = null;
+
 function getWorker(): Worker {
 	if (!worker) {
 		worker = new Worker(
@@ -28,6 +37,15 @@ function getWorker(): Worker {
 		);
 	}
 	return worker;
+}
+
+/** 進行中の呼び出しがあれば、リスナーを解除し reject してから破棄する */
+function cancelActiveCall(w: Worker, reason: string): void {
+	if (!activeCall) return;
+	const current = activeCall;
+	activeCall = null;
+	w.removeEventListener('message', current.handler);
+	current.reject(new Error(reason));
 }
 
 /**
@@ -48,6 +66,7 @@ export function preload(mode: ModelMode = 'high'): void {
  */
 export function terminateWorker(): void {
 	if (worker) {
+		cancelActiveCall(worker, 'Worker が終了されました');
 		worker.terminate();
 		worker = null;
 	}
@@ -65,11 +84,23 @@ export function removeBackground(
 		const w = getWorker();
 		const id = crypto.randomUUID();
 
+		// 前回呼び出しが完了・失敗していない場合は上書きとみなし、
+		// 古いリスナーを解除してその Promise を reject する（メモリリーク防止）。
+		cancelActiveCall(w, '新しい処理により上書きされました');
+
+		// このハンドラを Worker から確実に外し、activeCall を自分自身に限って解放する
+		const cleanup = () => {
+			w.removeEventListener('message', handler);
+			if (activeCall?.id === id) activeCall = null;
+		};
+
 		const handler = (e: MessageEvent<WorkerResponse>) => {
 			const msg = e.data;
 
-			// progress は id に関係なく全て通知
+			// progress は自分の処理 id に一致するものだけ通知する
+			// （preload や並行処理からの進捗混信を防止）
 			if (msg.type === 'progress') {
+				if (msg.id !== id) return;
 				onProgress?.({
 					status: msg.payload.status,
 					progress: msg.payload.progress ?? 0,
@@ -84,7 +115,7 @@ export function removeBackground(
 			if (!('id' in msg) || msg.id !== id) return;
 
 			if (msg.type === 'result') {
-				w.removeEventListener('message', handler);
+				cleanup();
 
 				// RGBA ピクセルデータを Canvas 経由で PNG Blob に変換
 				const rgba = new Uint8ClampedArray(msg.data);
@@ -112,9 +143,18 @@ export function removeBackground(
 			}
 
 			if (msg.type === 'error') {
-				w.removeEventListener('message', handler);
+				cleanup();
 				reject(new Error(msg.message));
 			}
+		};
+
+		activeCall = {
+			id,
+			handler,
+			reject: (reason) => {
+				cleanup();
+				reject(reason);
+			},
 		};
 
 		w.addEventListener('message', handler);
@@ -133,7 +173,10 @@ export function removeBackground(
 					[buffer],
 				);
 			})
-			.catch(reject);
+			.catch((err) => {
+				cleanup();
+				reject(err);
+			});
 	});
 }
 

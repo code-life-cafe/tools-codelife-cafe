@@ -50,6 +50,9 @@ export interface WorkerRequest {
 
 export interface WorkerProgressMessage {
 	type: 'progress';
+	// どのリクエスト（id）に紐づく進捗かを示す。preload と本処理が並行しても
+	// ラッパー側で自分宛て以外の進捗を無視できるようにするため必須。
+	id: string;
 	payload: {
 		status: string;
 		progress?: number;
@@ -89,7 +92,7 @@ export type WorkerResponse =
 let remover: any = null;
 let currentMode: ModelMode | null = null;
 
-async function ensurePipeline(mode: ModelMode) {
+async function ensurePipeline(mode: ModelMode, id: string) {
 	if (remover && currentMode === mode) return remover;
 
 	const model = MODELS[mode];
@@ -107,6 +110,7 @@ async function ensurePipeline(mode: ModelMode) {
 		}) => {
 			self.postMessage({
 				type: 'progress',
+				id,
 				payload: p,
 			} satisfies WorkerProgressMessage);
 		},
@@ -121,12 +125,13 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 	const { id, mode, imageData, mimeType, preloadOnly } = e.data;
 
 	try {
-		const pipe = await ensurePipeline(mode);
+		const pipe = await ensurePipeline(mode, id);
 
 		// キャッシュ済みの場合は progress_callback が発火しないため、
 		// 毎回 'ready' を送って UI の loading→processing 遷移を保証する
 		self.postMessage({
 			type: 'progress',
+			id,
 			payload: { status: 'ready' },
 		} satisfies WorkerProgressMessage);
 
