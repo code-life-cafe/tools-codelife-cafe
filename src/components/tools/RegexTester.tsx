@@ -86,14 +86,25 @@ export default function RegexTester() {
 
 	// Handle synchronized scrolling for highlight overlay
 	const handleScroll = (e: UIEvent<HTMLTextAreaElement>) => {
+		const textarea = e.currentTarget;
 		const overlay = document.getElementById('highlight-overlay');
 		const gutter = document.getElementById('regex-line-numbers');
 		if (overlay) {
-			overlay.scrollTop = e.currentTarget.scrollTop;
-			overlay.scrollLeft = e.currentTarget.scrollLeft;
+			overlay.scrollTop = textarea.scrollTop;
+			// テキストエリアとオーバーレイ（textarea vs div）は内部の文字幅計算がわずかに
+			// 異なるため、生のscrollLeftをそのまま渡すと横スクロール最右端で数px
+			// ずれることがある。可視領域の右端がコンテンツ末尾に十分近い場合は、
+			// 明示的にオーバーレイ側の最大値へ揃えて末尾の見切れ・ズレを防ぐ。
+			const RIGHT_EDGE_TOLERANCE_PX = 24;
+			const isNearRightEdge =
+				textarea.scrollLeft + textarea.clientWidth >=
+				textarea.scrollWidth - RIGHT_EDGE_TOLERANCE_PX;
+			overlay.scrollLeft = isNearRightEdge
+				? overlay.scrollWidth - overlay.clientWidth
+				: textarea.scrollLeft;
 		}
 		if (gutter) {
-			gutter.scrollTop = e.currentTarget.scrollTop;
+			gutter.scrollTop = textarea.scrollTop;
 		}
 	};
 
@@ -276,7 +287,7 @@ export default function RegexTester() {
 					{/* 行番号ガター */}
 					<div
 						id="regex-line-numbers"
-						className="shrink-0 h-full min-h-0 w-12 border-r bg-muted/40 text-right pr-2 py-2 overflow-hidden text-xs text-muted-foreground font-mono-tool select-none z-10"
+						className="shrink-0 h-full min-h-0 w-12 border-r bg-muted/40 text-right pr-2 py-2 overflow-hidden whitespace-nowrap text-xs text-muted-foreground font-mono-tool select-none z-10"
 						aria-hidden="true"
 					>
 						{Array.from(
@@ -293,7 +304,7 @@ export default function RegexTester() {
 						{/* Highlight Layer */}
 						<div
 							id="highlight-overlay"
-							className="absolute inset-0 pointer-events-none px-3 py-2 text-sm whitespace-pre-wrap break-words font-mono-tool overflow-hidden"
+							className="absolute inset-0 pointer-events-none px-3 py-2 text-sm whitespace-pre font-mono-tool overflow-hidden [scrollbar-gutter:stable]"
 							aria-hidden="true"
 						>
 							{highlightNodes}
@@ -305,7 +316,8 @@ export default function RegexTester() {
 							onChange={(e) => setText(e.target.value)}
 							onScroll={handleScroll}
 							resize="none"
-							className="h-full min-h-0 w-full overflow-auto bg-transparent text-foreground font-mono-tool border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
+							wrap="off"
+							className="h-full min-h-0 w-full overflow-auto whitespace-pre field-sizing-fixed [scrollbar-gutter:stable] bg-transparent text-foreground font-mono-tool border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
 							spellCheck={false}
 						/>
 					</div>
