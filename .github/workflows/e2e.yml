@@ -10,7 +10,7 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.61.1-jammy
+      image: mcr.microsoft.com/playwright:v1.62.1-jammy
     env:
       # Playwright の公式コンテナに同梱されているブラウザを明示的に参照する。
       # npm ci --ignore-scripts ではブラウザを再ダウンロードしないため、環境変数が

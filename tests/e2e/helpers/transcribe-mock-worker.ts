@@ -45,9 +45,12 @@ window.__TRANSCRIBE_WORKER_FACTORY__ = () => {
 					}
 					return;
 				}
-				later(20, () => emit({ type: 'progress', kind: 'model', pct: 40 }));
-				later(40, () => emit({ type: 'progress', kind: 'model', pct: 100 }));
-				later(60, () => emit({ type: 'ready', modelId: request.modelId }));
+				// CI の負荷が高いワーカーでは、ボタンクリックからアサーションの初回ポーリングまでに
+				// 数十msかかることがあり、旧来の20/40/60msだと「モデルをダウンロードしています」の
+				// 表示を観測する前に ready まで進んでしまい flaky になっていた。十分な余裕を持たせる。
+				later(150, () => emit({ type: 'progress', kind: 'model', pct: 40 }));
+				later(300, () => emit({ type: 'progress', kind: 'model', pct: 100 }));
+				later(450, () => emit({ type: 'ready', modelId: request.modelId }));
 				return;
 			}
 			if (request.type === 'transcribe') {
