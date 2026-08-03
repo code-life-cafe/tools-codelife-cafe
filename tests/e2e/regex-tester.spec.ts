@@ -171,4 +171,59 @@ test.describe('Regex Tester Tool', () => {
 			);
 		}
 	});
+
+	test('long lines do not wrap, keeping line numbers aligned with text lines', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('regex-tester');
+		await toolPage.goto();
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		const textarea = page.locator('#regex-test-string-textarea');
+		const overlay = page.locator('#highlight-overlay');
+		const gutter = page.locator('#regex-line-numbers');
+
+		const longLine = 'a'.repeat(300);
+		await textarea.fill(`${longLine}\nline2`);
+
+		// 折り返しが無効化されている（whitespace: pre）
+		expect(
+			await textarea.evaluate((el) => getComputedStyle(el).whiteSpace),
+		).toBe('pre');
+		expect(
+			await overlay.evaluate((el) => getComputedStyle(el).whiteSpace),
+		).toBe('pre');
+
+		// 折り返されず横スクロールになるため、scrollWidth が可視幅を超える
+		const scrollWidth = await textarea.evaluate((el) => el.scrollWidth);
+		const clientWidth = await textarea.evaluate((el) => el.clientWidth);
+		expect(scrollWidth).toBeGreaterThan(clientWidth);
+
+		// 改行が1個のみなので行番号は1・2の2行分しか生成されない
+		await expect(gutter.locator('div', { hasText: /^2$/ })).toHaveCount(1);
+	});
+
+	test('horizontal scroll of the textarea stays synced with the highlight overlay', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('regex-tester');
+		await toolPage.goto();
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		const textarea = page.locator('#regex-test-string-textarea');
+		const overlay = page.locator('#highlight-overlay');
+
+		await textarea.fill('b'.repeat(300));
+		await textarea.evaluate((el) => {
+			el.scrollLeft = 50;
+			el.dispatchEvent(new Event('scroll', { bubbles: true }));
+		});
+
+		await expect(async () => {
+			const overlayScrollLeft = await overlay.evaluate((el) => el.scrollLeft);
+			expect(overlayScrollLeft).toBe(50);
+		}).toPass();
+	});
 });

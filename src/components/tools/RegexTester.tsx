@@ -276,7 +276,7 @@ export default function RegexTester() {
 					{/* 行番号ガター */}
 					<div
 						id="regex-line-numbers"
-						className="shrink-0 h-full min-h-0 w-12 border-r bg-muted/40 text-right pr-2 py-2 overflow-hidden text-xs text-muted-foreground font-mono-tool select-none z-10"
+						className="shrink-0 h-full min-h-0 w-12 border-r bg-muted/40 text-right pr-2 py-2 overflow-hidden whitespace-nowrap text-xs text-muted-foreground font-mono-tool select-none z-10"
 						aria-hidden="true"
 					>
 						{Array.from(
@@ -293,7 +293,7 @@ export default function RegexTester() {
 						{/* Highlight Layer */}
 						<div
 							id="highlight-overlay"
-							className="absolute inset-0 pointer-events-none px-3 py-2 text-sm whitespace-pre-wrap break-words font-mono-tool overflow-hidden"
+							className="absolute inset-0 pointer-events-none px-3 py-2 text-sm whitespace-pre font-mono-tool overflow-hidden"
 							aria-hidden="true"
 						>
 							{highlightNodes}
@@ -305,7 +305,8 @@ export default function RegexTester() {
 							onChange={(e) => setText(e.target.value)}
 							onScroll={handleScroll}
 							resize="none"
-							className="h-full min-h-0 w-full overflow-auto bg-transparent text-foreground font-mono-tool border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
+							wrap="off"
+							className="h-full min-h-0 w-full overflow-auto whitespace-pre field-sizing-fixed bg-transparent text-foreground font-mono-tool border-none ring-0 shadow-none focus-visible:ring-0 rounded-none"
 							spellCheck={false}
 						/>
 					</div>
