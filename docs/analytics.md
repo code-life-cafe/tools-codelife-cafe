@@ -13,7 +13,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 
 ## 収集イベント一覧 (Cloudflare Analytics Engine)
 
-改善効果を判定するため、以下の 6 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。
+改善効果を判定するため、以下の 6 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。加えて、非ブラウザ流入を捕捉するための `page_view` を Pages Functions middleware 経由で収集する（詳細は後述の「非ブラウザ流入の計測（page_view）」を参照）。
 
 | イベント名 | 発火条件 | 収集プロパティ (Allowlist) | 目的 |
 |---|---|---|---|
@@ -23,6 +23,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 | `related_click` | 関連ツール回遊カードのクリック時 | `{ from: string, to: string, setId?: string, position: number }` (ツールslug, セットID, リスト内位置) | ツール間回遊の導線効果の検証 |
 | `shared_url_open` | 共有URL（`?settings=`）経由でツールページが開かれた時 | `{ tool: string }` (ツールslug) | 共有機能の利用状況の検証 |
 | `settings_restore` | ツール設定を URL または localStorage から復元した時 | `{ tool: string, source: 'localStorage' \| 'url' }` | 設定保持・共有導線の利用状況の検証 |
+| `page_view` | HTMLレスポンスを配信する全リクエスト時（`functions/_middleware.ts`、詳細後述） | なし（`path` と `traffic_type` のみをblobに格納） | 非ブラウザ流入（AIエージェント・クローラー）を含めたページ到達数の計測 |
 
 ### 特記事項・マスクルール
 - **`tool_run` の発火タイミング（2種類）**: 呼び出し元の性質に応じて2つの発火方法を使い分ける（`src/lib/hooks/useToolAnalytics.ts`）。
@@ -56,6 +57,21 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
   - `human`: 上記いずれにも該当しない通常ブラウザUA
 - **既知UAリストの更新**: `functions/lib/known-bots.ts` の配列に追記するだけで良い（判定ロジック本体の変更は不要）。
 - **格納先**: 既存 blob の順序・意味を変えず末尾に追加した **`blob6`** に格納する（後方互換維持）。クライアント側の `webdriver` ヒント自体は Analytics Engine に直接保存せず、判定結果（`traffic_type`）のみを保存する。
+
+---
+
+## 非ブラウザ流入の計測（page_view）
+
+### 設計上の理由：なぜJSビーコンでは非ブラウザ流入を捕捉できないか
+`src/lib/analytics.ts` の `track()` は `sendBeacon` / `fetch` で `/api/event` を叩くJSビーコンであり、**JSを実行しないクライアント（AIエージェント・クローラー等）はそもそも `/api/event` に到達しない**。そのため `tool_run` 等の既存イベントの `traffic_type`（`blob6`）分類は「ブラウザで来た相手のうち自動化ツールを見分ける」用途にとどまり、非ブラウザ流入そのものの内訳（どれだけがAIエージェント／クローラーか）を可視化する手段にはならない。この構造的な穴を埋めるため、JSの実行有無に関係なく発生する **HTTPレスポンス配信そのもの** を計測点とする `page_view` を Pages Functions middleware に追加した。
+
+### 実装
+- **記録箇所**: `functions/_middleware.ts`。既存の `?settings` 付きURLへの `X-Robots-Tag: noindex, follow` 付与処理と共存し、既存処理は変更していない。
+- **対象リクエスト**: `Accept` ヘッダーに `text/html` を含むリクエストのみ。`.js` / `.css` / 画像等の静的アセット、および `/api/` 配下・`/models/` 配下は明示的に除外する（データポイントの肥大化防止、`/api/event` POSTやR2モデル配信への影響回避のため）。
+- **分類ロジック**: 新規ロジックは実装せず、既存の `classifyTrafficType()`（`functions/lib/traffic-type.ts`）をそのまま再利用する。middleware には `navigator.webdriver` ヒントが存在しないため、第2引数は常に `undefined` を渡す。
+- **書き込み内容**: `blobs: ['page_view', path, '', '', '', trafficType]` / `indexes: ['page_view']`。既存イベントの blob スロットの意味・順序（`blob1`=イベント名、`blob2`=パス、`blob6`=`traffic_type`）を変更していない。UA生文字列・IP・TLS指紋は保存しない。
+- **配信への非影響**: 計測処理は `try/catch` で必ず例外を握りつぶし、`context.waitUntil()` が利用可能な場合はそれに載せてレスポンスを待たせない。計測が失敗・例外を投げても、ページのレスポンスはそのまま配信される。
+- **判定結果はアクセス可否に一切影響しない**: bot・AIアクセスの遮断、レート制限、robots.txt での拒否は行わない（既存方針を踏襲）。
 
 ---
 
@@ -155,6 +171,14 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    -- traffic_type 別の全イベント件数分布（human / ai_agent / crawler / unknown）
    SELECT blob6 AS traffic_type, COUNT(*) AS count
    FROM tools_codelife_cafe_events
+   GROUP BY traffic_type
+   ORDER BY count DESC
+   ```
+   ```sql
+   -- 【page_view限定】非ブラウザ流入の内訳（JSを実行しないクライアントを含む）
+   SELECT blob6 AS traffic_type, COUNT(*) AS count
+   FROM tools_codelife_cafe_events
+   WHERE index1 = 'page_view'
    GROUP BY traffic_type
    ORDER BY count DESC
    ```
