@@ -20,9 +20,12 @@ type PagesMiddlewareContext = {
 // page_view計測の対象外とするパスプレフィックス（API・モデル配信）
 const EXCLUDED_PATH_PREFIXES = ['/api/', '/models/'];
 
-function shouldRecordPageView(request: Request): boolean {
-	const accept = request.headers.get('accept') ?? '';
-	if (!accept.includes('text/html')) return false;
+// リクエストのAcceptヘッダはAIエージェント・クローラーが `*/*` や省略で送ることがあり、
+// それだけを基準にすると非ブラウザ流入を取りこぼす。実際に配信されたレスポンスの
+// Content-Type で判定する。
+function shouldRecordPageView(request: Request, response: Response): boolean {
+	const contentType = response.headers.get('content-type') ?? '';
+	if (!contentType.includes('text/html')) return false;
 
 	const path = new URL(request.url).pathname;
 	return !EXCLUDED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
@@ -30,9 +33,13 @@ function shouldRecordPageView(request: Request): boolean {
 
 // JSを実行しない非ブラウザクライアントはsrc/lib/analytics.tsのビーコンに到達しないため、
 // HTMLレスポンス時にmiddlewareでpage_viewを補完記録する。計測失敗はページ配信に影響させない。
-function recordPageView(context: PagesMiddlewareContext): void {
+function recordPageView(
+	context: PagesMiddlewareContext,
+	response: Response,
+): void {
 	const writeDataPoint = context.env?.EVENTS?.writeDataPoint;
-	if (!writeDataPoint || !shouldRecordPageView(context.request)) return;
+	if (!writeDataPoint || !shouldRecordPageView(context.request, response))
+		return;
 
 	const write = () => {
 		try {
@@ -60,9 +67,9 @@ function recordPageView(context: PagesMiddlewareContext): void {
 export const onRequest = async (
 	context: PagesMiddlewareContext,
 ): Promise<Response> => {
-	recordPageView(context);
-
 	const response = await context.next();
+	recordPageView(context, response);
+
 	const url = new URL(context.request.url);
 
 	if (!url.searchParams.has('settings')) {
