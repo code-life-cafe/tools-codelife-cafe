@@ -31,6 +31,7 @@ import {
 	type ResizeKind,
 } from './CompressOptionsPanel';
 import { type CompressItem, CompressResultList } from './CompressResultList';
+import { sanitizeCompressSettings } from './settingsValidation';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 
@@ -64,6 +65,7 @@ export function ImageCompressPage() {
 	const [options, updateOptions, generateShareUrl] = useToolSettings(
 		'image-compress',
 		DEFAULT_UI_OPTIONS,
+		sanitizeCompressSettings,
 	);
 	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
 	const shareCopied = shareState === 'copied';

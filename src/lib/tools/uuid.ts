@@ -31,6 +31,40 @@ export function validateCount(count: number): string | null {
 	return null;
 }
 
+export interface UuidSettings {
+	kind: IdKind;
+	count: number;
+	uppercase: boolean;
+	hyphens: boolean;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeUuidSettings(
+	value: unknown,
+	defaults: UuidSettings,
+): UuidSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const kind =
+		typeof v.kind === 'string' &&
+		(GENERATABLE_ID_KINDS as readonly string[]).includes(v.kind)
+			? (v.kind as IdKind)
+			: defaults.kind;
+	const count =
+		typeof v.count === 'number' &&
+		Number.isInteger(v.count) &&
+		v.count >= MIN_COUNT &&
+		v.count <= MAX_COUNT
+			? v.count
+			: defaults.count;
+	const uppercase =
+		typeof v.uppercase === 'boolean' ? v.uppercase : defaults.uppercase;
+	const hyphens = typeof v.hyphens === 'boolean' ? v.hyphens : defaults.hyphens;
+	return { kind, count, uppercase, hyphens };
+}
+
 function getRandomBytes(length: number): Uint8Array {
 	const bytes = new Uint8Array(length);
 	crypto.getRandomValues(bytes);

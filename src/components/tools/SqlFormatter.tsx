@@ -31,6 +31,7 @@ import {
 	type IndentStyle,
 	type SqlDialect,
 	type SqlFormatOptions,
+	sanitizeSqlFormatterSettings,
 } from '@/lib/tools/sql-formatter';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { cn } from '@/lib/utils';
@@ -94,6 +95,7 @@ export default function SqlFormatter() {
 			isExpanded: false,
 			layout: 'horizontal' as 'horizontal' | 'vertical',
 		},
+		sanitizeSqlFormatterSettings,
 	);
 	const { autoFormat, dialect, indent, uppercase, compress, isExpanded } =
 		settings;

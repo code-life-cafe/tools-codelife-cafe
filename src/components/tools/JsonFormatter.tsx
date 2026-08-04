@@ -25,6 +25,7 @@ import {
 	formatJson,
 	type IndentType,
 	minifyJson,
+	sanitizeJsonFormatterSettings,
 } from '@/lib/tools/json-formatter';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
@@ -63,6 +64,7 @@ export default function JsonFormatter() {
 		{
 			indent: '2' as IndentType,
 		},
+		sanitizeJsonFormatterSettings,
 	);
 
 	const indent = settings.indent;

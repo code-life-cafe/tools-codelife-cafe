@@ -5,6 +5,31 @@ export interface CsvData {
 	colCount: number;
 }
 
+const VALID_DELIMITERS = [',', '\t', ';', '|'];
+
+export interface CsvEditorSettings {
+	delimiter: string;
+	hasHeader: boolean;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeCsvEditorSettings(
+	value: unknown,
+	defaults: CsvEditorSettings,
+): CsvEditorSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const delimiter =
+		typeof v.delimiter === 'string' && VALID_DELIMITERS.includes(v.delimiter)
+			? v.delimiter
+			: defaults.delimiter;
+	const hasHeader =
+		typeof v.hasHeader === 'boolean' ? v.hasHeader : defaults.hasHeader;
+	return { delimiter, hasHeader };
+}
+
 // Excel-style column labels (A, B, ..., Z, AA, AB...)
 export function getColumnLabel(index: number): string {
 	let label = '';

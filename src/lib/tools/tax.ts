@@ -109,6 +109,61 @@ export const TAX_RATE_HISTORY: TaxRateEntry[] = [
 	},
 ];
 
+const VALID_DIRECTIONS: readonly TaxCalcInput['direction'][] = [
+	'exclusive-to-inclusive',
+	'inclusive-to-exclusive',
+];
+const VALID_ROUNDING_MODES: readonly RoundingMode[] = [
+	'floor',
+	'round',
+	'ceil',
+];
+const VALID_MODES = ['single', 'invoice'] as const;
+type TaxCalcMode = (typeof VALID_MODES)[number];
+// TAX_RATE_HISTORY からUI選択肢のrateSelection値（例: '10' '8-reduced'）を導出する
+const VALID_RATE_SELECTIONS: readonly string[] = TAX_RATE_HISTORY.map(
+	(entry) => (entry.reduced ? `${entry.rate}-reduced` : `${entry.rate}`),
+);
+
+export interface TaxCalcSettings {
+	mode: TaxCalcMode;
+	direction: TaxCalcInput['direction'];
+	rateSelection: string;
+	rounding: RoundingMode;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeTaxCalcSettings(
+	value: unknown,
+	defaults: TaxCalcSettings,
+): TaxCalcSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const mode =
+		typeof v.mode === 'string' &&
+		(VALID_MODES as readonly string[]).includes(v.mode)
+			? (v.mode as TaxCalcMode)
+			: defaults.mode;
+	const direction =
+		typeof v.direction === 'string' &&
+		(VALID_DIRECTIONS as readonly string[]).includes(v.direction)
+			? (v.direction as TaxCalcInput['direction'])
+			: defaults.direction;
+	const rateSelection =
+		typeof v.rateSelection === 'string' &&
+		VALID_RATE_SELECTIONS.includes(v.rateSelection)
+			? v.rateSelection
+			: defaults.rateSelection;
+	const rounding =
+		typeof v.rounding === 'string' &&
+		(VALID_ROUNDING_MODES as readonly string[]).includes(v.rounding)
+			? (v.rounding as RoundingMode)
+			: defaults.rounding;
+	return { mode, direction, rateSelection, rounding };
+}
+
 /** 全角数字を半角数字に変換する */
 function toHalfWidthDigits(input: string): string {
 	return input.replace(/[０-９]/g, (ch) =>

@@ -35,6 +35,7 @@ import {
 	hasInvoiceLineInput,
 	type InvoiceLineInput,
 	type RoundingMode,
+	sanitizeTaxCalcSettings,
 	TAX_RATE_HISTORY,
 	type TaxCalcInput,
 	validateAmount,
@@ -95,12 +96,16 @@ function formatYen(value: number): string {
 export function TaxCalcPage() {
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('tax');
 
-	const [settings, updateSettings, generateShareUrl] = useToolSettings('tax', {
-		mode: 'single' as CalcMode,
-		direction: 'exclusive-to-inclusive' as Direction,
-		rateSelection: '10',
-		rounding: 'floor' as RoundingMode,
-	});
+	const [settings, updateSettings, generateShareUrl] = useToolSettings(
+		'tax',
+		{
+			mode: 'single' as CalcMode,
+			direction: 'exclusive-to-inclusive' as Direction,
+			rateSelection: '10',
+			rounding: 'floor' as RoundingMode,
+		},
+		sanitizeTaxCalcSettings,
+	);
 
 	const { mode, direction, rateSelection, rounding } = settings;
 	const [rawAmount, setRawAmount] = useState('');

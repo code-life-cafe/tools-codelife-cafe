@@ -22,6 +22,7 @@ import {
 	joinIdsForCopy,
 	MAX_COUNT,
 	MIN_COUNT,
+	sanitizeUuidSettings,
 	validateCount,
 } from '@/lib/tools/uuid';
 
@@ -32,12 +33,16 @@ interface GeneratePanelProps {
 const isUuidKind = (kind: IdKind) => kind === 'uuid-v4' || kind === 'uuid-v7';
 
 export function GeneratePanel({ onGenerated }: GeneratePanelProps) {
-	const [settings, updateSettings] = useToolSettings('uuid', {
-		kind: 'uuid-v4' as IdKind,
-		count: 10,
-		uppercase: false,
-		hyphens: true,
-	});
+	const [settings, updateSettings] = useToolSettings(
+		'uuid',
+		{
+			kind: 'uuid-v4' as IdKind,
+			count: 10,
+			uppercase: false,
+			hyphens: true,
+		},
+		sanitizeUuidSettings,
+	);
 	const { kind, count, uppercase, hyphens } = settings;
 
 	const [rawResults, setRawResults] = useState<string[]>([]);

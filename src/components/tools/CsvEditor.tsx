@@ -37,6 +37,7 @@ import {
 	exportCsv,
 	getColumnLabel,
 	parseCsv,
+	sanitizeCsvEditorSettings,
 } from '@/lib/tools/csv-editor';
 import {
 	type Column,
@@ -63,6 +64,7 @@ export default function CsvEditor() {
 			delimiter: ',',
 			hasHeader: true,
 		},
+		sanitizeCsvEditorSettings,
 	);
 
 	const { delimiter, hasHeader } = settings;
