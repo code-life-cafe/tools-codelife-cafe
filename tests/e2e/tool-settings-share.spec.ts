@@ -26,7 +26,7 @@ const tools = [
 		slug: 'image-compress',
 		settings: {
 			format: 'webp',
-			quality: 72,
+			quality: 0.72,
 			resizeKind: 'long-edge',
 			resizeValue: 1024,
 			useTargetSize: false,
