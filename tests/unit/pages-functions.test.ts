@@ -222,3 +222,274 @@ test('通常ブラウザUAでもnavigator.webdriver=trueならtraffic_type=unkno
 
 	assert.strictEqual(writes[0].blobs?.[5], 'unknown');
 });
+
+test('HTMLレスポンスではpage_viewイベントを1件記録する', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: {
+				accept: 'text/html,application/xhtml+xml',
+				'user-agent':
+					'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+			},
+		}),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html; charset=utf-8' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, [
+		{
+			blobs: ['page_view', '/json-formatter', '', '', '', 'human'],
+			indexes: ['page_view'],
+		},
+	]);
+});
+
+test('AIエージェントUAのHTMLレスポンスはtraffic_type=ai_agentとしてpage_viewを記録する', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: {
+				accept: 'text/html',
+				'user-agent':
+					'Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)',
+			},
+		}),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.strictEqual(writes[0].blobs?.[5], 'ai_agent');
+});
+
+test('Accept: */* でもContent-Type: text/htmlのレスポンスはpage_viewを記録する（非ブラウザ流入の取りこぼし防止）', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: {
+				accept: '*/*',
+				'user-agent': 'Mozilla/5.0 (compatible; ClaudeBot/1.0)',
+			},
+		}),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, [
+		{
+			blobs: ['page_view', '/json-formatter', '', '', '', 'ai_agent'],
+			indexes: ['page_view'],
+		},
+	]);
+});
+
+test('Accept: text/html でも非HTMLレスポンスはpage_viewを記録しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: { accept: 'text/html' },
+		}),
+		next: async () =>
+			new Response(JSON.stringify({ ok: true }), {
+				status: 200,
+				headers: { 'content-type': 'application/json' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, []);
+});
+
+test('.jsアセットへのリクエストではpage_viewを記録しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/assets/app.js', {
+			headers: { accept: '*/*' },
+		}),
+		next: async () =>
+			new Response('', {
+				status: 200,
+				headers: { 'content-type': 'application/javascript' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, []);
+});
+
+test('.cssアセットへのリクエストではpage_viewを記録しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/assets/app.css', {
+			headers: { accept: 'text/css,*/*;q=0.1' },
+		}),
+		next: async () =>
+			new Response('', {
+				status: 200,
+				headers: { 'content-type': 'text/css' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, []);
+});
+
+test('/api/配下へのリクエストはレスポンスがtext/htmlでもpage_viewを記録しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			headers: { accept: 'text/html' },
+		}),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, []);
+});
+
+test('/models/配下へのリクエストはレスポンスがtext/htmlでもpage_viewを記録しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequest({
+		request: new Request(
+			'https://tools.codelife.cafe/models/transcribe/tiny/main/config.json',
+			{ headers: { accept: 'text/html' } },
+		),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes, []);
+});
+
+test('page_view記録処理が例外を投げてもレスポンスは正常に配信される', async () => {
+	const response = await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: { accept: 'text/html' },
+		}),
+		next: async () =>
+			new Response('<html>OK</html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint() {
+					throw new Error('AE書き込み失敗');
+				},
+			},
+		},
+	});
+
+	assert.strictEqual(response.status, 200);
+	assert.strictEqual(await response.text(), '<html>OK</html>');
+});
+
+test('envが無い場合でもpage_view記録処理で例外を投げずレスポンスを返す', async () => {
+	const response = await onRequest({
+		request: new Request('https://tools.codelife.cafe/json-formatter', {
+			headers: { accept: 'text/html' },
+		}),
+		next: async () =>
+			new Response('<html>OK</html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+	});
+
+	assert.strictEqual(response.status, 200);
+});
+
+test('?settings付きHTMLレスポンスはpage_view記録とX-Robots-Tag付与の両方を行う', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	const response = await onRequest({
+		request: new Request(
+			'https://tools.codelife.cafe/json-formatter?settings=abc',
+			{ headers: { accept: 'text/html' } },
+		),
+		next: async () =>
+			new Response('<html></html>', {
+				status: 200,
+				headers: { 'content-type': 'text/html' },
+			}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.strictEqual(response.headers.get('X-Robots-Tag'), 'noindex, follow');
+	assert.strictEqual(writes.length, 1);
+	assert.strictEqual(writes[0].blobs?.[1], '/json-formatter');
+});
