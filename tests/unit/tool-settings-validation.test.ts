@@ -219,6 +219,17 @@ test('sanitizeRegexTesterSettings: 不正なflags・過長なpatternはデフォ
 	);
 });
 
+test('sanitizeRegexTesterSettings: 重複フラグ（例: "gg"）はnew RegExpでSyntaxErrorになるためデフォルトへフォールバックする', () => {
+	assert.equal(
+		sanitizeRegexTesterSettings({ flags: 'gg' }, regexDefaults).flags,
+		regexDefaults.flags,
+	);
+	assert.equal(
+		sanitizeRegexTesterSettings({ flags: 'gimi' }, regexDefaults).flags,
+		regexDefaults.flags,
+	);
+});
+
 test('sanitizeRegexTesterSettings: 配列/nullはデフォルトへフォールバックする', () => {
 	assert.deepEqual(
 		sanitizeRegexTesterSettings([], regexDefaults),

@@ -16,6 +16,11 @@ const MAX_PATTERN_LENGTH = 1000;
 const MAX_REPLACEMENT_LENGTH = 2000;
 const VALID_FLAGS_PATTERN = /^[dgimsuvy]*$/;
 
+// 各フラグ文字が重複していないかを検証する（例: "gg" は new RegExp で SyntaxError になる）
+function hasUniqueFlags(flags: string): boolean {
+	return new Set(flags).size === flags.length;
+}
+
 export interface RegexTesterSettings {
 	pattern: string;
 	flags: string;
@@ -39,7 +44,8 @@ export function sanitizeRegexTesterSettings(
 	const flags =
 		typeof v.flags === 'string' &&
 		v.flags.length <= 6 &&
-		VALID_FLAGS_PATTERN.test(v.flags)
+		VALID_FLAGS_PATTERN.test(v.flags) &&
+		hasUniqueFlags(v.flags)
 			? v.flags
 			: defaults.flags;
 	const showReplace =
