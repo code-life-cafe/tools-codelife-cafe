@@ -9,7 +9,9 @@ import {
 	type FetchChunk,
 	formatAddress,
 	lookupZip,
+	MAX_BULK_LINES,
 	normalizeZip,
+	splitBulkLines,
 	type ZipRecord,
 } from '../../src/lib/tools/zipcode.ts';
 
@@ -58,6 +60,51 @@ test('normalizeZip: 不正入力は null', () => {
 	assert.equal(normalizeZip('12345678'), null);
 	assert.equal(normalizeZip('abcdefg'), null);
 	assert.equal(normalizeZip('100-000a'), null);
+});
+
+// ---------------------------------------------------------------------------
+// splitBulkLines
+// ---------------------------------------------------------------------------
+
+test('splitBulkLines: 空白のみの行を除外する（行数表示と実行時の判定基準を統一）', () => {
+	assert.deepEqual(splitBulkLines('100-0001\n \n0600000\n'), [
+		'100-0001',
+		'0600000',
+	]);
+	assert.deepEqual(splitBulkLines('100-0001\n　\n0600000'), [
+		'100-0001',
+		'0600000',
+	]); // 全角空白のみの行も除外
+});
+
+test('splitBulkLines: 末尾改行の有無で件数が変わらない', () => {
+	const withTrailingNewline = splitBulkLines('100-0001\n0600000\n');
+	const withoutTrailingNewline = splitBulkLines('100-0001\n0600000');
+	assert.deepEqual(withTrailingNewline, withoutTrailingNewline);
+	assert.equal(withTrailingNewline.length, 2);
+});
+
+test('splitBulkLines: 上限ちょうどの行数は上限を超えない', () => {
+	const text = Array.from({ length: MAX_BULK_LINES }, (_, i) => `${i}`).join(
+		'\n',
+	);
+	assert.equal(splitBulkLines(text).length, MAX_BULK_LINES);
+});
+
+test('splitBulkLines: 上限+1件は上限を超える', () => {
+	const text = Array.from(
+		{ length: MAX_BULK_LINES + 1 },
+		(_, i) => `${i}`,
+	).join('\n');
+	assert.equal(splitBulkLines(text).length, MAX_BULK_LINES + 1);
+});
+
+test('splitBulkLines: 空白のみの行が混在しても上限判定が変換対象と一致する', () => {
+	// 上限ちょうどの実データ行に空白のみの行を1つ挟んでも、実質件数は上限のまま
+	const dataLines = Array.from({ length: MAX_BULK_LINES }, (_, i) => `${i}`);
+	dataLines.splice(1, 0, '   '); // 空白のみの行を混入
+	const text = dataLines.join('\n');
+	assert.equal(splitBulkLines(text).length, MAX_BULK_LINES);
 });
 
 // ---------------------------------------------------------------------------

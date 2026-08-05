@@ -19,6 +19,7 @@ import {
 	type BulkResult,
 	bulkConvert,
 	MAX_BULK_LINES,
+	splitBulkLines,
 } from '@/lib/tools/zipcode';
 import { fetchZipChunk } from './fetchChunk';
 
@@ -50,12 +51,11 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 	const [converting, setConverting] = useState(false);
 	const [progress, setProgress] = useState({ done: 0, total: 0 });
 
-	const lineCount =
-		text === '' ? 0 : text.split(/\r?\n/).filter(Boolean).length;
+	const lineCount = text === '' ? 0 : splitBulkLines(text).length;
 	const overLimit = lineCount > MAX_BULK_LINES;
 
 	const handleConvert = useCallback(async () => {
-		const lines = text.split(/\r?\n/).filter((l) => l.trim() !== '');
+		const lines = splitBulkLines(text);
 		if (lines.length === 0 || lines.length > MAX_BULK_LINES) return;
 		setConverting(true);
 		setResults(null);

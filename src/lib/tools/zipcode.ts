@@ -69,6 +69,14 @@ function extractZipFromLine(line: string): string | null {
 	return null;
 }
 
+/**
+ * 一括変換対象のテキストを行に分解する（空白のみの行は除外）。
+ * 行数表示・上限判定・実際の変換対象で必ず同じ結果になるよう、分割基準をここに一元化する。
+ */
+export function splitBulkLines(text: string): string[] {
+	return text.split(/\r?\n/).filter((l) => l.trim() !== '');
+}
+
 /** 複数行テキストを行ごとに分解し、各行の抽出結果を返す（空行も保持） */
 export function extractZipsFromLines(
 	text: string,
