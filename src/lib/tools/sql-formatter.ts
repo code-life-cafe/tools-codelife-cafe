@@ -10,6 +10,65 @@ export interface SqlFormatOptions {
 	compress: boolean;
 }
 
+const VALID_DIALECTS: readonly SqlDialect[] = [
+	'sql',
+	'mysql',
+	'postgresql',
+	'tsql',
+	'plsql',
+];
+const VALID_INDENT_STYLES: readonly IndentStyle[] = [
+	'2spaces',
+	'4spaces',
+	'tabs',
+];
+const VALID_LAYOUTS = ['horizontal', 'vertical'] as const;
+type Layout = (typeof VALID_LAYOUTS)[number];
+
+export interface SqlFormatterSettings {
+	autoFormat: boolean;
+	dialect: SqlDialect;
+	indent: IndentStyle;
+	uppercase: boolean;
+	compress: boolean;
+	isExpanded: boolean;
+	layout: Layout;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeSqlFormatterSettings(
+	value: unknown,
+	defaults: SqlFormatterSettings,
+): SqlFormatterSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const bool = (raw: unknown, fallback: boolean) =>
+		typeof raw === 'boolean' ? raw : fallback;
+	return {
+		autoFormat: bool(v.autoFormat, defaults.autoFormat),
+		dialect:
+			typeof v.dialect === 'string' &&
+			(VALID_DIALECTS as readonly string[]).includes(v.dialect)
+				? (v.dialect as SqlDialect)
+				: defaults.dialect,
+		indent:
+			typeof v.indent === 'string' &&
+			(VALID_INDENT_STYLES as readonly string[]).includes(v.indent)
+				? (v.indent as IndentStyle)
+				: defaults.indent,
+		uppercase: bool(v.uppercase, defaults.uppercase),
+		compress: bool(v.compress, defaults.compress),
+		isExpanded: bool(v.isExpanded, defaults.isExpanded),
+		layout:
+			typeof v.layout === 'string' &&
+			(VALID_LAYOUTS as readonly string[]).includes(v.layout)
+				? (v.layout as Layout)
+				: defaults.layout,
+	};
+}
+
 export function formatSql(
 	sql: string,
 	options: SqlFormatOptions,

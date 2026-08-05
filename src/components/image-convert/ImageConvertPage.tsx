@@ -31,6 +31,7 @@ import {
 	DEFAULT_UI_OPTIONS,
 } from './ConvertOptionsPanel';
 import { type ConvertItem, ConvertResultList } from './ConvertResultList';
+import { sanitizeConvertSettings } from './settingsValidation';
 
 // HEIC は type が空のことがあるため拡張子も許可する
 const ACCEPT =
@@ -41,6 +42,7 @@ export function ImageConvertPage() {
 	const [options, updateOptions, generateShareUrl] = useToolSettings(
 		'image-convert',
 		DEFAULT_UI_OPTIONS,
+		sanitizeConvertSettings,
 	);
 	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
 	const shareCopied = shareState === 'copied';

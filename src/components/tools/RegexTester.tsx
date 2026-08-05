@@ -25,7 +25,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
-import { COMMON_PATTERNS, testRegex } from '@/lib/tools/regex-tester';
+import {
+	COMMON_PATTERNS,
+	sanitizeRegexTesterSettings,
+	testRegex,
+} from '@/lib/tools/regex-tester';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 export default function RegexTester() {
@@ -40,6 +44,7 @@ export default function RegexTester() {
 			showReplace: false,
 			replacement: '',
 		},
+		sanitizeRegexTesterSettings,
 	);
 
 	const { pattern, flags, showReplace, replacement } = settings;

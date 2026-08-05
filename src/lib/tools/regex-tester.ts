@@ -12,6 +12,52 @@ export interface RegexResult {
 	replacedText?: string;
 }
 
+const MAX_PATTERN_LENGTH = 1000;
+const MAX_REPLACEMENT_LENGTH = 2000;
+const VALID_FLAGS_PATTERN = /^[dgimsuvy]*$/;
+
+// 各フラグ文字が重複していないかを検証する（例: "gg" は new RegExp で SyntaxError になる）
+function hasUniqueFlags(flags: string): boolean {
+	return new Set(flags).size === flags.length;
+}
+
+export interface RegexTesterSettings {
+	pattern: string;
+	flags: string;
+	showReplace: boolean;
+	replacement: string;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeRegexTesterSettings(
+	value: unknown,
+	defaults: RegexTesterSettings,
+): RegexTesterSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const pattern =
+		typeof v.pattern === 'string' && v.pattern.length <= MAX_PATTERN_LENGTH
+			? v.pattern
+			: defaults.pattern;
+	const flags =
+		typeof v.flags === 'string' &&
+		v.flags.length <= 6 &&
+		VALID_FLAGS_PATTERN.test(v.flags) &&
+		hasUniqueFlags(v.flags)
+			? v.flags
+			: defaults.flags;
+	const showReplace =
+		typeof v.showReplace === 'boolean' ? v.showReplace : defaults.showReplace;
+	const replacement =
+		typeof v.replacement === 'string' &&
+		v.replacement.length <= MAX_REPLACEMENT_LENGTH
+			? v.replacement
+			: defaults.replacement;
+	return { pattern, flags, showReplace, replacement };
+}
+
 export const COMMON_PATTERNS = [
 	{
 		label: 'メールアドレス',

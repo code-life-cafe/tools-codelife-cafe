@@ -2,11 +2,34 @@
 
 export type IndentType = '2' | '4' | 'tab';
 
+const VALID_INDENT_TYPES: readonly IndentType[] = ['2', '4', 'tab'];
+
 export interface FormatResult {
 	success: boolean;
 	output: string;
 	error?: string;
 	errorPosition?: number;
+}
+
+export interface JsonFormatterSettings {
+	indent: IndentType;
+}
+
+// 共有URL/localStorage経由の復元値を検証し、不正値はデフォルトへフォールバックする
+export function sanitizeJsonFormatterSettings(
+	value: unknown,
+	defaults: JsonFormatterSettings,
+): JsonFormatterSettings {
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return defaults;
+	}
+	const v = value as Record<string, unknown>;
+	const indent =
+		typeof v.indent === 'string' &&
+		(VALID_INDENT_TYPES as readonly string[]).includes(v.indent)
+			? (v.indent as IndentType)
+			: defaults.indent;
+	return { indent };
 }
 
 function getIndentString(indent: IndentType): string | number {
