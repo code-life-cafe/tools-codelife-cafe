@@ -71,7 +71,10 @@ src/
 │   └── global.css       # Tailwind CSS v4 設定、カラーテーマ、アニメーション定義
 └── workers/
     ├── bg-remove.worker.ts # 重量処理（AI背景削除）のためのWeb Worker
-    └── upscale.worker.ts   # 重量処理（画像アップスケール・ノイズ除去）のためのWeb Worker
+    ├── qr-reader.worker.ts # QRコード読み取り処理のためのWeb Worker
+    ├── transcribe.worker.ts # 重量処理（音声文字起こし）のためのWeb Worker
+    ├── upscale.worker.ts   # 重量処理（画像アップスケール・ノイズ除去）のためのWeb Worker
+    └── wordcloud.worker.ts # 形態素解析処理のためのWeb Worker
 ```
 
 ---
@@ -137,6 +140,7 @@ flowchart TD
 | Service Worker テンプレート・生成物 | `public/sw.js`、`scripts/generate-sw.mjs`、`dist/sw.js` | プリキャッシュ対象の注入、Cache First / Network First、オフラインフォールバック | 許可。同一オリジンの静的ファイル取得・キャッシュに限定 |
 | 郵便番号チャンク取得 | `/data/zipcode/*.json` などの静的JSON | 郵便番号検索・変換に必要な辞書データを必要分だけ取得 | 例外的に許可。静的データのダウンロードのみで、検索語や入力内容は送信しない |
 | AIモデルファイル取得 | Cloudflare R2 等で配信されるモデル・WASM・関連ファイル | AI背景削除などのブラウザ内推論に必要なモデルを取得 | 例外的に許可。モデルファイル取得のみで、画像などの処理対象データは送信しない |
+| 文字起こしモデルプロキシ通信 | `/models/transcribe/*` (Pages Function `functions/models/transcribe/[[path]].ts`) | 音声文字起こし用AIモデル・WASMを同一オリジン経由で取得（CSP `connect-src: 'self'` 遵守） | 例外的に許可。モデル静的ファイル取得のみで、音声データは送信しない |
 | 完全匿名イベント計測 | Pages Function (`/api/event`) → Cloudflare Analytics Engine | ツール利用頻度・回遊効果等の実地検証（Cookie・個人特定なし） | 許可。Allowlistプロパティのみ。入力テキストやファイル等の具体的データは一切送信しない |
 | Web Analytics (RUM) | Cloudflare Web Analytics ビーコン | ページビュー・パフォーマンス統計の収集 | 許可。ファーストパーティ・Cookieレス・個人特定なしのアクセス解析のみ |
 | ユーザー入力データ送信 | 入力テキスト、アップロード画像、PDF、CSV/JSON 等 | なし | 禁止。外部API、トラッキング、個人プロファイリング目的の送信を行わない |

@@ -49,7 +49,7 @@ npm run build
 # PowerShell での確認例 (dist ディレクトリ内の SoftwareApplication 件数カウント)
 (Get-ChildItem -Path dist -Recurse -Filter *.html | Select-String -Pattern '"@type":"SoftwareApplication"').Count
 ```
-※全ツールの数（例: 37件以上）と出力件数が一致することを確認します。
+※全ツールの数（例: 48件）と出力件数が一致することを確認します。
 
 ### 3.3 Schema Markup Validator での検証
 1. [Google Rich Results Test](https://search.google.com/test/rich-results) または [Schema Markup Validator](https://validator.schema.org/) を開きます。
