@@ -24,6 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type ExportFormat,
+	FIELD_LABELS,
 	type FieldType,
 	generateDummyData,
 	validateDummyDataInput,
@@ -40,18 +41,9 @@ interface FieldItem {
 	label: string;
 }
 
-const ALL_FIELDS: FieldItem[] = [
-	{ id: 'name', label: '氏名' },
-	{ id: 'kana', label: 'フリガナ' },
-	{ id: 'email', label: 'メールアドレス' },
-	{ id: 'phone', label: '電話番号' },
-	{ id: 'zipcode', label: '郵便番号' },
-	{ id: 'address', label: '住所' },
-	{ id: 'company', label: '会社名' },
-	{ id: 'department', label: '部署名' },
-	{ id: 'date', label: '日付' },
-	{ id: 'number', label: '数値' },
-];
+const ALL_FIELDS: FieldItem[] = (Object.keys(FIELD_LABELS) as FieldType[]).map(
+	(id) => ({ id, label: FIELD_LABELS[id] }),
+);
 
 export default function DummyDataGenerator() {
 	const { trackRunDebounced } = useToolAnalytics('dummy-data');
