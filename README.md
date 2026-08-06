@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全45種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全48種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（45種）
+## 📦 収録ツール（48種）
 
 ### テキスト処理
 
@@ -31,6 +31,7 @@
 | [Markdownプレビュー](https://tools.codelife.cafe/markdown) | GFM対応のリアルタイムプレビュー。HTMLコピー・ダウンロード対応（データは外部送信なし） |
 | [JWTデコーダー](https://tools.codelife.cafe/jwt-decoder) | JWTのヘッダー・ペイロードをブラウザ内でデコード。署名検証なしで内容確認 |
 | [ワードクラウド生成](https://tools.codelife.cafe/wordcloud) | 日本語テキストを形態素解析しワードクラウド・頻度表（CSV）化（データは外部送信なし） |
+| [文字起こし（ローカル）](https://tools.codelife.cafe/transcribe) | 会議録音や動画をブラウザ内AIで文字起こし。音声はこの端末から出ません（データは外部送信なし） |
 
 ### データ処理
 
@@ -89,6 +90,8 @@
 | [画像Base64変換](https://tools.codelife.cafe/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
 | [UNIXタイムスタンプ⇔日時変換](https://tools.codelife.cafe/unix-time) | 秒/ミリ秒/マイクロ秒/ナノ秒/Slack TSを自動判定し日時と相互変換。ISO 8601・RFC 3339・和暦・Discord形式も同時出力 |
 | [cron式チェッカー](https://tools.codelife.cafe/cron-checker) | cron式を日本語解説・次回実行10件（JST/UTC）で確認。日本語→cron式の逆引き生成、危険パターンの警告、GitHub Actions/AWS EventBridge形式変換にも対応 |
+| [UUID / ULID 生成ツール](https://tools.codelife.cafe/uuid) | UUID v4/v7・ULID・nanoidを一括生成。表示形式変換・種類判定・時刻抽出に対応 |
+| [YAML ⇔ JSON ⇔ TOML 変換](https://tools.codelife.cafe/yaml-json-toml) | YAML・JSON・TOMLを相互変換。構文エラーは行・列付きの日本語で表示 |
 
 ## 🛡️ セキュリティ・プライバシー
 
