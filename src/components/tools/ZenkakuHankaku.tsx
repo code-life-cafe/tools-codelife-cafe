@@ -53,7 +53,6 @@ export default function ZenkakuHankaku() {
 						onCheckedChange={(checked) =>
 							setDirection(checked ? 'toZenkaku' : 'toHankaku')
 						}
-						className="data-[state=checked]:bg-primary data-[state=unchecked]:bg-primary"
 					/>
 					<Label
 						className={`text-sm font-medium whitespace-nowrap transition-colors ${direction === 'toZenkaku' ? 'text-primary' : 'text-muted-foreground'}`}
