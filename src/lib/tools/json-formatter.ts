@@ -131,6 +131,22 @@ function restoreLargeInts(output: string): string {
 	return output.replace(BIGINT_PLACEHOLDER_RE, '$1');
 }
 
+/**
+ * 構文エラー発生時、置換後文字列ではなく元入力を再度 JSON.parse して
+ * position を取得する。replaceLargeInts は大整数を有効なJSON文字列へ
+ * 置換するだけで構文構造は変えないため、置換後parseが失敗する箇所は
+ * 元入力でも同じ理由で失敗し、position が元入力のオフセットと一致する。
+ */
+function getOriginalErrorPosition(input: string): number | undefined {
+	try {
+		JSON.parse(input);
+		return undefined;
+	} catch (e) {
+		const match = (e as SyntaxError).message.match(/position (\d+)/i);
+		return match ? parseInt(match[1], 10) : undefined;
+	}
+}
+
 export function formatJson(
 	input: string,
 	indent: IndentType = '2',
@@ -145,13 +161,11 @@ export function formatJson(
 		return { success: true, output: restoreLargeInts(formatted) };
 	} catch (e) {
 		const error = e as SyntaxError;
-		const match = error.message.match(/position (\d+)/i);
-		const errorPosition = match ? parseInt(match[1], 10) : undefined;
 		return {
 			success: false,
 			output: input,
 			error: `JSON構文エラー: ${error.message}`,
-			errorPosition,
+			errorPosition: getOriginalErrorPosition(input),
 		};
 	}
 }

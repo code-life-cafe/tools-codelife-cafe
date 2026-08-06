@@ -123,6 +123,45 @@ test('formatJson: 配列内の大整数も精度を保持', async () => {
 });
 
 // ============================================================
+// formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
+// ============================================================
+
+test('formatJson: 大整数を含む不正JSONでもエラー行が元入力基準になる', () => {
+	// 大整数の後にカンマ抜け → 元入力のposition 24でエラーになるはずが、
+	// 置換後文字列でposition取得すると余分に加算されたoffsetになっていた
+	const big = '9007199254740993';
+	const input = `{"big":${big} "next":1}`;
+	const result = formatJson(input);
+	assert.equal(result.success, false);
+	assert.equal(
+		result.errorPosition,
+		24,
+		`期待: 元入力基準のposition 24\n実際: ${result.errorPosition}`,
+	);
+});
+
+test('formatJson: 複数の大整数があってもエラー行が元入力基準になる', () => {
+	const input = `{"a":9007199254740993,"b":9007199254740994 "c":1}`;
+	const result = formatJson(input);
+	assert.equal(result.success, false);
+	// 元入力中で実際にエラーとなる位置（"c" の直前の空白の次）
+	const expectedPosition = input.indexOf('"c"');
+	assert.equal(
+		result.errorPosition,
+		expectedPosition,
+		`期待: ${expectedPosition}\n実際: ${result.errorPosition}`,
+	);
+});
+
+test('formatJson: 大整数なしの不正JSONは従来どおり正しいposition', () => {
+	const input = '{"a":1 "b":2}';
+	const result = formatJson(input);
+	assert.equal(result.success, false);
+	const expectedPosition = input.indexOf('"b"');
+	assert.equal(result.errorPosition, expectedPosition);
+});
+
+// ============================================================
 // minifyJson: 大整数精度保持
 // ============================================================
 
