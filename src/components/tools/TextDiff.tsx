@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
+	buildSplitPairs,
 	computeDiff,
 	type DiffMode,
 	readFileAsText,
@@ -107,43 +108,10 @@ export default function TextDiff() {
 		return lines;
 	}, [result]);
 
-	// split ビュー用の行番号付きパート計算
-	const splitLines = useMemo(() => {
-		if (!result) return { left: [], right: [] };
-		const left: Array<{
-			type: 'removed' | 'unchanged';
-			content: string;
-			lineNum: number;
-		}> = [];
-		const right: Array<{
-			type: 'added' | 'unchanged';
-			content: string;
-			lineNum: number;
-		}> = [];
-		let lineA = 1;
-		let lineB = 1;
-
-		for (const part of result.parts) {
-			const partLines = part.value.split('\n');
-			if (part.value.endsWith('\n')) {
-				partLines.pop();
-			}
-			for (const line of partLines) {
-				if (part.type === 'removed') {
-					left.push({ type: 'removed', content: line, lineNum: lineA });
-					lineA++;
-				} else if (part.type === 'added') {
-					right.push({ type: 'added', content: line, lineNum: lineB });
-					lineB++;
-				} else {
-					left.push({ type: 'unchanged', content: line, lineNum: lineA });
-					right.push({ type: 'unchanged', content: line, lineNum: lineB });
-					lineA++;
-					lineB++;
-				}
-			}
-		}
-		return { left, right };
+	// split ビュー用の行ペア計算（左右の縦位置を揃えるためスペーサーを含む）
+	const splitPairs = useMemo(() => {
+		if (!result) return [];
+		return buildSplitPairs(result.parts);
 	}, [result]);
 
 	return (
@@ -279,22 +247,34 @@ export default function TextDiff() {
 									テキストA（変更前）
 								</div>
 								<div className="w-full min-w-max">
-									{splitLines.left.map((line) => (
+									{splitPairs.map((pair, i) => (
 										<div
-											key={`l-${line.lineNum}`}
-											className={`flex min-w-max ${line.type === 'removed' ? 'bg-red-500/10 text-red-700 dark:text-red-300' : ''}`}
+											key={`l-${i}`}
+											className={`flex min-w-max ${
+												pair.left === null
+													? 'bg-muted/20'
+													: pair.left.type === 'removed'
+														? 'bg-red-500/10 text-red-700 dark:text-red-300'
+														: ''
+											}`}
 										>
 											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
-												{line.lineNum}
+												{pair.left?.lineNum ?? ''}
 											</span>
 											<span className="px-2 py-0.5">
-												{line.type === 'removed' && (
-													<span className="select-none opacity-50">- </span>
+												{pair.left === null ? (
+													' '
+												) : (
+													<>
+														{pair.left.type === 'removed' && (
+															<span className="select-none opacity-50">- </span>
+														)}
+														{pair.left.type === 'unchanged' && (
+															<span className="select-none opacity-30"> </span>
+														)}
+														{pair.left.content}
+													</>
 												)}
-												{line.type === 'unchanged' && (
-													<span className="select-none opacity-30"> </span>
-												)}
-												{line.content}
 											</span>
 										</div>
 									))}
@@ -305,22 +285,34 @@ export default function TextDiff() {
 									テキストB（変更後）
 								</div>
 								<div className="w-full min-w-max">
-									{splitLines.right.map((line) => (
+									{splitPairs.map((pair, i) => (
 										<div
-											key={`r-${line.lineNum}`}
-											className={`flex min-w-max ${line.type === 'added' ? 'bg-green-500/10 text-green-700 dark:text-green-300' : ''}`}
+											key={`r-${i}`}
+											className={`flex min-w-max ${
+												pair.right === null
+													? 'bg-muted/20'
+													: pair.right.type === 'added'
+														? 'bg-green-500/10 text-green-700 dark:text-green-300'
+														: ''
+											}`}
 										>
 											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
-												{line.lineNum}
+												{pair.right?.lineNum ?? ''}
 											</span>
 											<span className="px-2 py-0.5">
-												{line.type === 'added' && (
-													<span className="select-none opacity-50">+ </span>
+												{pair.right === null ? (
+													' '
+												) : (
+													<>
+														{pair.right.type === 'added' && (
+															<span className="select-none opacity-50">+ </span>
+														)}
+														{pair.right.type === 'unchanged' && (
+															<span className="select-none opacity-30"> </span>
+														)}
+														{pair.right.content}
+													</>
 												)}
-												{line.type === 'unchanged' && (
-													<span className="select-none opacity-30"> </span>
-												)}
-												{line.content}
 											</span>
 										</div>
 									))}

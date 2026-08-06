@@ -65,6 +65,56 @@ export function computeDiff(
 	return { parts, addedLines, removedLines, addedChars, removedChars };
 }
 
+export interface SplitCell {
+	type: 'added' | 'removed' | 'unchanged';
+	content: string;
+	lineNum: number;
+}
+
+export interface SplitPair {
+	left: SplitCell | null;
+	right: SplitCell | null;
+}
+
+// Split（左右分割）表示用の行ペアを構築する。
+// 追加・削除で片側だけ行が増える場合、反対側に null（スペーサー）を入れて
+// 同じインデックスの左右が同じ縦位置になるようにする。
+export function buildSplitPairs(parts: DiffPart[]): SplitPair[] {
+	const pairs: SplitPair[] = [];
+	let lineA = 1;
+	let lineB = 1;
+
+	for (const part of parts) {
+		const partLines = part.value.split('\n');
+		if (part.value.endsWith('\n')) {
+			partLines.pop();
+		}
+		for (const line of partLines) {
+			if (part.type === 'removed') {
+				pairs.push({
+					left: { type: 'removed', content: line, lineNum: lineA },
+					right: null,
+				});
+				lineA++;
+			} else if (part.type === 'added') {
+				pairs.push({
+					left: null,
+					right: { type: 'added', content: line, lineNum: lineB },
+				});
+				lineB++;
+			} else {
+				pairs.push({
+					left: { type: 'unchanged', content: line, lineNum: lineA },
+					right: { type: 'unchanged', content: line, lineNum: lineB },
+				});
+				lineA++;
+				lineB++;
+			}
+		}
+	}
+	return pairs;
+}
+
 export function readFileAsText(file: File): Promise<string> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
