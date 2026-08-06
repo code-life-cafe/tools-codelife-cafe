@@ -17,7 +17,6 @@ import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId, downloadBlob } from '@/lib/tools/image-common';
 import {
 	MAX_METADATA_FILE_COUNT,
-	MAX_METADATA_FILE_SIZE,
 	type StripMetadataOptions,
 	type StripMetadataResult,
 	stripImageMetadata,
@@ -141,8 +140,6 @@ export function ImageMetadataPage() {
 				onFileSelect={(file) => onFiles([file])}
 				onFilesSelect={onFiles}
 				onValidationError={setError}
-				maxSizeBytes={MAX_METADATA_FILE_SIZE}
-				validationMessage="25MB以下の画像を選択してください。"
 			/>
 
 			<div className="rounded-xl border border-border bg-card p-4">

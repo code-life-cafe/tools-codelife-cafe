@@ -3,23 +3,13 @@ import { useCallback, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export interface FileDropzoneProps {
+interface FileDropzoneCommonProps {
 	/** 検証を通過したファイルのみ通知される（単一選択時） */
 	onFileSelect: (file: File) => void;
-	/** 複数選択を許可する（デフォルト false）。既存の単一選択挙動は不変 */
-	multiple?: boolean;
-	/** multiple 時に選択された全ファイルを通知する（ドメイン検証は呼び出し側で行う） */
-	onFilesSelect?: (files: File[]) => void;
 	/** 検証失敗時のエラーメッセージ通知（表示は呼び出し側で行う） */
 	onValidationError?: (message: string) => void;
 	/** input の accept 属性（例: '.json,.csv,.txt'）。未指定は任意ファイル */
 	accept?: string;
-	/** ファイルサイズ上限（バイト）。超過時は validationMessage を通知 */
-	maxSizeBytes?: number;
-	/** maxSizeBytes 超過時のメッセージ */
-	validationMessage?: string;
-	/** 追加の検証フック。エラーメッセージを返すと選択を拒否（null = OK） */
-	validate?: (file: File) => string | null;
 	label?: string;
 	description?: string;
 	privacyNote?: string;
@@ -32,6 +22,36 @@ export interface FileDropzoneProps {
 	className?: string;
 	'data-testid'?: string;
 }
+
+interface FileDropzoneSingleProps extends FileDropzoneCommonProps {
+	/** 複数選択を許可する（デフォルト false）。既存の単一選択挙動は不変 */
+	multiple?: false;
+	onFilesSelect?: never;
+	/** ファイルサイズ上限（バイト）。超過時は validationMessage を通知（単一選択時のみ有効） */
+	maxSizeBytes?: number;
+	/** maxSizeBytes 超過時のメッセージ */
+	validationMessage?: string;
+	/** 追加の検証フック。エラーメッセージを返すと選択を拒否（null = OK）（単一選択時のみ有効） */
+	validate?: (file: File) => string | null;
+}
+
+interface FileDropzoneMultipleProps extends FileDropzoneCommonProps {
+	multiple: true;
+	/** multiple 時に選択された全ファイルを通知する。サイズ・独自検証は呼び出し側の onFilesSelect で行う */
+	onFilesSelect: (files: File[]) => void;
+	/**
+	 * multiple 時は handleFile を経由しないため maxSizeBytes は評価されない。
+	 * 誤用防止のため型で受け付けない。検証は onFilesSelect 内で行うこと
+	 */
+	maxSizeBytes?: never;
+	validationMessage?: never;
+	/** multiple 時は評価されない。誤用防止のため型で受け付けない（理由は maxSizeBytes と同様） */
+	validate?: never;
+}
+
+export type FileDropzoneProps =
+	| FileDropzoneSingleProps
+	| FileDropzoneMultipleProps;
 
 function matchesAccept(file: File, accept?: string): boolean {
 	if (!accept) return true;
@@ -174,17 +194,18 @@ export function FileDropzone({
 						{privacyNote}
 					</p>
 				</div>
-				<input
-					ref={fileInputRef}
-					type="file"
-					accept={accept}
-					multiple={multiple}
-					aria-label={inputAriaLabel}
-					data-testid={dataTestId}
-					onChange={handleInputChange}
-					className="hidden"
-				/>
 			</button>
+			{/* HTML仕様上 button の内容にインタラクティブ要素は置けないため、input は button の外に置く */}
+			<input
+				ref={fileInputRef}
+				type="file"
+				accept={accept}
+				multiple={multiple}
+				aria-label={inputAriaLabel}
+				data-testid={dataTestId}
+				onChange={handleInputChange}
+				className="hidden"
+			/>
 			{selectedFileName && (
 				<div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
 					<span className="truncate font-mono" title={selectedFileName}>
