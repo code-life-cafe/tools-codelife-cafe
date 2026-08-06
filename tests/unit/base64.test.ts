@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { decodeBase64, encodeBase64 } from '../../src/lib/tools/base64.ts';
+import {
+	decodeBase64,
+	encodeBase64,
+	stripDataUriPrefix,
+} from '../../src/lib/tools/base64.ts';
 
 test('encodeBase64 & decodeBase64: 日本語・絵文字を含むテキストの往復変換が無損失', () => {
 	const text = 'こんにちは、世界！🎉';
@@ -19,4 +23,9 @@ test('decodeBase64: URL-Safe Base64 (- と _) 入力およびパディング欠�
 
 	const decoded = decodeBase64(urlSafeNoPadding);
 	assert.strictEqual(decoded, text);
+});
+
+test('stripDataUriPrefix: Data URI から base64, 以降のみを残す', () => {
+	const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+	assert.strictEqual(stripDataUriPrefix(dataUri), 'iVBORw0KGgoAAAANSUhEUg==');
 });
