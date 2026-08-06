@@ -18,6 +18,20 @@ export interface FieldConfig {
 
 export type ExportFormat = 'json' | 'csv' | 'tsv';
 
+// CSV/TSVヘッダー用の日本語ラベル（正本）。JSON出力のキーは英語IDのまま維持する。
+export const FIELD_LABELS: Record<FieldType, string> = {
+	name: '氏名',
+	kana: 'フリガナ',
+	email: 'メールアドレス',
+	phone: '電話番号',
+	zipcode: '郵便番号',
+	address: '住所',
+	company: '会社名',
+	department: '部署名',
+	date: '日付',
+	number: '数値',
+};
+
 // --- Dictionaries ---
 const SURNAMES = [
 	{ kanji: '佐藤', kana: 'サトウ', romaji: 'sato' },
@@ -205,22 +219,21 @@ export function generateDummyData(
 	}
 
 	const separator = format === 'csv' ? ',' : '\t';
-	const header = fields.join(separator);
+	const escapeCell = (val: string) => {
+		if (
+			format === 'csv' &&
+			(val.includes(',') || val.includes('"') || val.includes('\n'))
+		) {
+			return `"${val.replace(/"/g, '""')}"`;
+		}
+		return val;
+	};
+
+	const header = fields.map((f) => escapeCell(FIELD_LABELS[f])).join(separator);
 
 	const body = rows
 		.map((r) =>
-			fields
-				.map((f) => {
-					const val = String(r[f] ?? '');
-					if (
-						format === 'csv' &&
-						(val.includes(',') || val.includes('"') || val.includes('\n'))
-					) {
-						return `"${val.replace(/"/g, '""')}"`;
-					}
-					return val;
-				})
-				.join(separator),
+			fields.map((f) => escapeCell(String(r[f] ?? ''))).join(separator),
 		)
 		.join('\n');
 
