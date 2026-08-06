@@ -33,6 +33,12 @@ export function decodeBase64(base64: string): string {
 	}
 }
 
+// Data URI (e.g. data:image/png;base64,...) から base64 部分のみを取り出す
+export function stripDataUriPrefix(dataUri: string): string {
+	const base64Index = dataUri.indexOf('base64,') + 7;
+	return dataUri.substring(base64Index);
+}
+
 export function fileToBase64(
 	file: File,
 	withDataUri: boolean = true,
@@ -41,13 +47,7 @@ export function fileToBase64(
 		const reader = new FileReader();
 		reader.onload = () => {
 			const result = reader.result as string;
-			if (withDataUri) {
-				resolve(result);
-			} else {
-				// Remove the data URI prefix (e.g. data:image/png;base64,)
-				const base64Index = result.indexOf('base64,') + 7;
-				resolve(result.substring(base64Index));
-			}
+			resolve(withDataUri ? result : stripDataUriPrefix(result));
 		};
 		reader.onerror = () =>
 			reject(new Error('ファイルの読み込みに失敗しました。'));

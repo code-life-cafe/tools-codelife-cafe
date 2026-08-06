@@ -20,6 +20,7 @@ import {
 	fileToBase64,
 	getBase64ByteSize,
 	getByteSize,
+	stripDataUriPrefix,
 } from '@/lib/tools/base64';
 
 export default function Base64Converter() {
@@ -31,11 +32,17 @@ export default function Base64Converter() {
 	const [direction, setDirection] = useState<'encode' | 'decode'>('encode');
 
 	// File Tab State
-	const [fileOutput, setFileOutput] = useState('');
+	// 常に完全な Data URI (data:*;base64,...) を保持し、表示用文字列は withDataUri から派生する
+	const [fileRawDataUrl, setFileRawDataUrl] = useState('');
 	const [withDataUri, setWithDataUri] = useState(true);
 	const [dragOver, setDragOver] = useState(false);
 	const [fileName, setFileName] = useState('');
 	const [loading, setLoading] = useState(false);
+
+	const fileOutput = useMemo(() => {
+		if (!fileRawDataUrl) return '';
+		return withDataUri ? fileRawDataUrl : stripDataUriPrefix(fileRawDataUrl);
+	}, [fileRawDataUrl, withDataUri]);
 
 	// Computed Text Result
 	const textResult = useMemo(() => {
@@ -74,8 +81,8 @@ export default function Base64Converter() {
 				setLoading(true);
 				try {
 					setFileName(file.name);
-					const b64 = await fileToBase64(file, withDataUri);
-					setFileOutput(b64);
+					const rawDataUrl = await fileToBase64(file, true);
+					setFileRawDataUrl(rawDataUrl);
 					// ファイルのBase64変換が完了した時点で実行を計測
 					trackRun();
 				} catch (_err) {
@@ -85,7 +92,7 @@ export default function Base64Converter() {
 				}
 			}
 		},
-		[withDataUri, trackRun],
+		[trackRun],
 	);
 
 	// Download decoded text
@@ -236,7 +243,7 @@ export default function Base64Converter() {
 									setDragOver(true);
 								}}
 								onDragLeave={() => setDragOver(false)}
-								className={`flex flex-col items-center justify-center min-h-[240px] rounded-xl border-2 border-dashed transition-colors ${
+								className={`relative flex flex-col items-center justify-center min-h-[240px] rounded-xl border-2 border-dashed transition-colors ${
 									dragOver
 										? 'border-primary bg-primary/5'
 										: 'border-border bg-card hover:bg-muted/50'
@@ -248,9 +255,9 @@ export default function Base64Converter() {
 									</div>
 								) : fileName ? (
 									<div className="flex flex-col items-center p-4">
-										{fileOutput?.startsWith('data:image/') && (
+										{fileRawDataUrl?.startsWith('data:image/') && (
 											<img
-												src={fileOutput}
+												src={fileRawDataUrl}
 												alt={fileName}
 												className="max-h-32 max-w-full rounded-md object-contain mb-3 shadow-sm border border-border"
 											/>
@@ -280,8 +287,8 @@ export default function Base64Converter() {
 											setLoading(true);
 											try {
 												setFileName(file.name);
-												const b64 = await fileToBase64(file, withDataUri);
-												setFileOutput(b64);
+												const rawDataUrl = await fileToBase64(file, true);
+												setFileRawDataUrl(rawDataUrl);
 												// ファイルのBase64変換が完了した時点で実行を計測
 												trackRun();
 											} catch (_err) {
@@ -305,7 +312,7 @@ export default function Base64Converter() {
 										variant="outline"
 										size="sm"
 										onClick={() => {
-											setFileOutput('');
+											setFileRawDataUrl('');
 											setFileName('');
 										}}
 										disabled={!fileOutput}
