@@ -558,24 +558,81 @@ test('年齢計算: 基準日はタイムゾーンに関わらず暦日として
 	assert.deepStrictEqual(fromDate, fromString);
 });
 
-// --- 回帰: 月・日の片側指定を禁止 ------------------------------------------
+// --- 回帰: 月・日の片側指定は年単位換算にフォールバックする -----------------
 
-test('月または日だけの指定はエラーになる', () => {
-	assert.strictEqual(
-		convertWesternYearToResult(2000, REF_DATE, 5, undefined).error,
-		'月と日は両方指定してください。',
+test('月のみ指定はエラーにならず、年単位換算＋noticeになる', () => {
+	const result = convertWesternYearToResult(2000, REF_DATE, 5, undefined);
+	assert.strictEqual(result.error, undefined);
+	assert.deepStrictEqual(
+		result.eraCandidates.map((c) => c.label),
+		getEraCandidates(2000).map((c) => c.label),
+		'月のみ指定は年単位候補と同じ結果になること',
 	);
-	assert.strictEqual(
-		convertWesternYearToResult(2000, REF_DATE, undefined, 15).error,
-		'月と日は両方指定してください。',
+	assert.strictEqual(result.age.kind, 'range', '月のみでは満年齢を確定しない');
+	assert.ok(
+		result.notices.includes(
+			'月のみの指定では年単位で換算しています。厳密な日付換算には日も指定してください。',
+		),
 	);
-	assert.strictEqual(
-		convertWarekiToResult('reiwa', 6, REF_DATE, 5, undefined).error,
-		'月と日は両方指定してください。',
+});
+
+test('日のみ指定はエラーにならず、年単位換算＋noticeになる', () => {
+	const result = convertWesternYearToResult(2000, REF_DATE, undefined, 15);
+	assert.strictEqual(result.error, undefined);
+	assert.strictEqual(result.age.kind, 'range');
+	assert.ok(
+		result.notices.includes(
+			'日のみの指定は無視し、年単位で換算しています。厳密な日付換算には月も指定してください。',
+		),
 	);
-	assert.strictEqual(
-		convertWarekiToResult('reiwa', 6, REF_DATE, undefined, 15).error,
-		'月と日は両方指定してください。',
+});
+
+test('和暦→西暦でも月のみ・日のみ指定はエラーにならず年単位換算になる', () => {
+	const monthOnly = convertWarekiToResult('reiwa', 6, REF_DATE, 5, undefined);
+	assert.strictEqual(monthOnly.error, undefined);
+	assert.ok(
+		monthOnly.notices.includes(
+			'月のみの指定では年単位で換算しています。厳密な日付換算には日も指定してください。',
+		),
+	);
+
+	const dayOnly = convertWarekiToResult('reiwa', 6, REF_DATE, undefined, 15);
+	assert.strictEqual(dayOnly.error, undefined);
+	assert.ok(
+		dayOnly.notices.includes(
+			'日のみの指定は無視し、年単位で換算しています。厳密な日付換算には月も指定してください。',
+		),
+	);
+});
+
+test('早見表（table builder）経由でも月のみ指定はエラーにならない', () => {
+	const table = buildConversionTable(2000, REF_DATE, 2, 5, undefined);
+	assert.strictEqual(table.error, undefined);
+	const inputRow = table.rows.find((r) => r.isInputYear);
+	assert.ok(inputRow);
+	assert.strictEqual(inputRow.result.age.kind, 'range');
+	assert.ok(
+		table.notices.includes(
+			'月のみの指定では年単位で換算しています。厳密な日付換算には日も指定してください。',
+		),
+	);
+});
+
+test('月日両方指定時は従来どおり厳密換算・満年齢が維持される', () => {
+	const result = convertWesternYearToResult(2000, REF_DATE, 5, 15);
+	assert.strictEqual(result.error, undefined);
+	assert.strictEqual(result.age.kind, 'exact');
+	assert.ok(
+		!result.notices.some((n) => n.includes('月のみ') || n.includes('日のみ')),
+	);
+});
+
+test('年月日すべて未指定は従来どおり年単位（notice無し）', () => {
+	const result = convertWesternYearToResult(2000, REF_DATE);
+	assert.strictEqual(result.error, undefined);
+	assert.strictEqual(result.age.kind, 'range');
+	assert.ok(
+		!result.notices.some((n) => n.includes('月のみ') || n.includes('日のみ')),
 	);
 });
 

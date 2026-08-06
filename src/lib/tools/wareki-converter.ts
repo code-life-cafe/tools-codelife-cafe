@@ -392,6 +392,23 @@ function buildNotices(
 	return notices;
 }
 
+/**
+ * 月・日のどちらか一方のみが指定された場合の注記。この場合は月日を無視し、
+ * 年単位換算にフォールバックする（改元月・誕生日前後の曖昧さを避けるため）。
+ */
+function buildPartialMonthDayNotice(
+	hasMonth: boolean,
+	hasDay: boolean,
+): string | null {
+	if (hasMonth && !hasDay) {
+		return '月のみの指定では年単位で換算しています。厳密な日付換算には日も指定してください。';
+	}
+	if (!hasMonth && hasDay) {
+		return '日のみの指定は無視し、年単位で換算しています。厳密な日付換算には月も指定してください。';
+	}
+	return null;
+}
+
 function emptyErrorResult(message: string): ConversionResult {
 	return {
 		westernYear: 0,
@@ -421,9 +438,6 @@ export function convertWesternYearToResult(
 
 	const hasMonth = birthMonth !== undefined;
 	const hasDay = birthDay !== undefined;
-	if (hasMonth !== hasDay) {
-		return emptyErrorResult('月と日は両方指定してください。');
-	}
 
 	if (hasMonth && hasDay) {
 		const month = birthMonth as number;
@@ -457,12 +471,15 @@ export function convertWesternYearToResult(
 
 	const eraCandidates = getEraCandidates(westernYear);
 	const age = calculateAge(westernYear, referenceDate);
+	const notices = buildNotices(westernYear, eraCandidates, age);
+	const partialNotice = buildPartialMonthDayNotice(hasMonth, hasDay);
+	if (partialNotice) notices.push(partialNotice);
 	return {
 		westernYear,
 		eraCandidates,
 		zodiac: getZodiac(westernYear),
 		age,
-		notices: buildNotices(westernYear, eraCandidates, age),
+		notices,
 	};
 }
 
@@ -618,9 +635,6 @@ export function convertWarekiToResult(
 
 	const hasMonth = birthMonth !== undefined;
 	const hasDay = birthDay !== undefined;
-	if (hasMonth !== hasDay) {
-		return emptyErrorResult('月と日は両方指定してください。');
-	}
 
 	if (hasMonth && hasDay) {
 		const month = birthMonth as number;
