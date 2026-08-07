@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import {
 	clampScrollPosition,
 	clampZoom,
+	computeCenterPreservingScroll,
 	computeContentOffset,
 	computeDistance,
 	computeFitScale,
@@ -191,6 +192,49 @@ test('computeZoomScrollPosition: 中央配置オフセットがある場合も�
 		contentSize: 400,
 	});
 	assert.ok(scroll >= 0);
+});
+
+test('computeCenterPreservingScroll: コンテナリサイズ前後でビューポート中央の画像内座標を維持する', () => {
+	// コンテナ800→600（回転相当）、倍率3固定、中央配置オフセットなし
+	const scroll = computeCenterPreservingScroll({
+		oldContainerSize: 800,
+		newContainerSize: 600,
+		scrollPosition: 300,
+		oldContentOffset: 0,
+		newContentOffset: 0,
+		scale: 3,
+		contentSize: 1000,
+	});
+	// oldCenter=400 → imagePoint=(400+300)/3=233.33 → newScroll=233.33*3-300=400
+	assert.equal(scroll, 400);
+});
+
+test('computeCenterPreservingScroll: 結果は最大スクロール量を超えない', () => {
+	const scroll = computeCenterPreservingScroll({
+		oldContainerSize: 50,
+		newContainerSize: 90,
+		scrollPosition: 50,
+		oldContentOffset: 0,
+		newContentOffset: 0,
+		scale: 1,
+		contentSize: 100,
+	});
+	assert.equal(scroll, 10); // maxScroll = 100 - 90 = 10 でクランプされる
+});
+
+test('computeCenterPreservingScroll: scaleが0以下なら0を返す（ゼロ除算回避）', () => {
+	assert.equal(
+		computeCenterPreservingScroll({
+			oldContainerSize: 100,
+			newContainerSize: 100,
+			scrollPosition: 50,
+			oldContentOffset: 0,
+			newContentOffset: 0,
+			scale: 0,
+			contentSize: 100,
+		}),
+		0,
+	);
 });
 
 test('formatZoomPercent: 倍率を%表示に変換する', () => {
