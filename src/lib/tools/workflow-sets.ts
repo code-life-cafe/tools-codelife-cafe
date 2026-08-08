@@ -45,7 +45,7 @@ export const workflowSets: readonly WorkflowSet[] = [
 		name: '画像最適化',
 		description:
 			'Webサイトや資料への掲載用に画像を圧縮し、必要な比率で切り抜き、不要なEXIFメタデータを削除してファイル容量とプライバシーを最適化します。',
-		steps: ['image-compress', 'image-crop', 'exif'],
+		steps: ['image-compress', 'image-edit', 'exif'],
 	},
 	{
 		id: 'invoice-document',
