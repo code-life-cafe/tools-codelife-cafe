@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {
 	clampScrollPosition,
+	computeCenterPreservingScroll,
 	computeContentOffset,
 	computeFitScale,
 	computeWheelZoom,
@@ -49,6 +50,9 @@ export function useZoomPan(params: {
 	});
 	const [mode, setMode] = useState<'fit' | number>('fit');
 	const pendingAnchorRef = useRef<PendingAnchor>(null);
+	// コンテナサイズの前回値。画面回転・iOSアドレスバー伸縮による中心保持補正の
+	// 基準にする（nullのままなら「まだ実測前」として補正しない）。
+	const prevContainerSizeRef = useRef<ContainerSize | null>(null);
 
 	// resetKey の変化のみを契機とする（本文内では参照しない）
 	// biome-ignore lint/correctness/useExhaustiveDependencies: resetKeyは識別子変更の検知にのみ使う
@@ -95,55 +99,97 @@ export function useZoomPan(params: {
 	const offsetX = computeContentOffset(containerSize.width, displayWidth);
 	const offsetY = computeContentOffset(containerSize.height, displayHeight);
 
-	// カーソル/中心基準ズーム: スケール変更後にスクロール位置を補正して同じ画像内座標を維持する
+	// カーソル/中心基準ズーム: スケール変更後にスクロール位置を補正して同じ画像内座標を維持する。
+	// アンカーが無い場合でも、数値ズーム中にコンテナサイズだけが変化した（画面回転・
+	// iOSアドレスバー伸縮）ときはビューポート中央の画像内座標を保持する。fitモードは
+	// 常にスクロール不要（画像全体が収まる）ため対象外とする。
 	useLayoutEffect(() => {
-		const anchor = pendingAnchorRef.current;
 		const el = containerRef.current;
-		if (!anchor || !el) return;
-		pendingAnchorRef.current = null;
-		const oldOffsetX = computeContentOffset(
-			containerSize.width,
-			contentWidth * anchor.oldScale,
+		const prevSize = prevContainerSizeRef.current;
+		prevContainerSizeRef.current = containerSize;
+		if (!el) return;
+
+		const anchor = pendingAnchorRef.current;
+		if (anchor) {
+			pendingAnchorRef.current = null;
+			const oldOffsetX = computeContentOffset(
+				containerSize.width,
+				contentWidth * anchor.oldScale,
+			);
+			const oldOffsetY = computeContentOffset(
+				containerSize.height,
+				contentHeight * anchor.oldScale,
+			);
+			const rawScrollLeft = computeZoomScrollPosition({
+				pointerInViewport: anchor.pointerX,
+				scrollPosition: anchor.scrollLeft,
+				oldContentOffset: oldOffsetX,
+				newContentOffset: offsetX,
+				oldScale: anchor.oldScale,
+				newScale: scale,
+				containerSize: containerSize.width,
+				contentSize: contentWidth,
+			});
+			const rawScrollTop = computeZoomScrollPosition({
+				pointerInViewport: anchor.pointerY,
+				scrollPosition: anchor.scrollTop,
+				oldContentOffset: oldOffsetY,
+				newContentOffset: offsetY,
+				oldScale: anchor.oldScale,
+				newScale: scale,
+				containerSize: containerSize.height,
+				contentSize: contentHeight,
+			});
+			const maxScrollLeft = Math.max(0, displayWidth - containerSize.width);
+			const maxScrollTop = Math.max(0, displayHeight - containerSize.height);
+			el.scrollLeft = clampScrollPosition(
+				rawScrollLeft - anchor.panDeltaX,
+				maxScrollLeft,
+			);
+			el.scrollTop = clampScrollPosition(
+				rawScrollTop - anchor.panDeltaY,
+				maxScrollTop,
+			);
+			return;
+		}
+
+		const containerSizeChanged =
+			prevSize !== null &&
+			(prevSize.width !== containerSize.width ||
+				prevSize.height !== containerSize.height);
+		if (isFit || prevSize === null || !containerSizeChanged) return;
+		if (prevSize.width <= 0 || prevSize.height <= 0) return;
+
+		const prevOffsetX = computeContentOffset(
+			prevSize.width,
+			contentWidth * scale,
 		);
-		const oldOffsetY = computeContentOffset(
-			containerSize.height,
-			contentHeight * anchor.oldScale,
+		const prevOffsetY = computeContentOffset(
+			prevSize.height,
+			contentHeight * scale,
 		);
-		const rawScrollLeft = computeZoomScrollPosition({
-			pointerInViewport: anchor.pointerX,
-			scrollPosition: anchor.scrollLeft,
-			oldContentOffset: oldOffsetX,
+		el.scrollLeft = computeCenterPreservingScroll({
+			oldContainerSize: prevSize.width,
+			newContainerSize: containerSize.width,
+			scrollPosition: el.scrollLeft,
+			oldContentOffset: prevOffsetX,
 			newContentOffset: offsetX,
-			oldScale: anchor.oldScale,
-			newScale: scale,
-			containerSize: containerSize.width,
+			scale,
 			contentSize: contentWidth,
 		});
-		const rawScrollTop = computeZoomScrollPosition({
-			pointerInViewport: anchor.pointerY,
-			scrollPosition: anchor.scrollTop,
-			oldContentOffset: oldOffsetY,
+		el.scrollTop = computeCenterPreservingScroll({
+			oldContainerSize: prevSize.height,
+			newContainerSize: containerSize.height,
+			scrollPosition: el.scrollTop,
+			oldContentOffset: prevOffsetY,
 			newContentOffset: offsetY,
-			oldScale: anchor.oldScale,
-			newScale: scale,
-			containerSize: containerSize.height,
+			scale,
 			contentSize: contentHeight,
 		});
-		const maxScrollLeft = Math.max(0, displayWidth - containerSize.width);
-		const maxScrollTop = Math.max(0, displayHeight - containerSize.height);
-		el.scrollLeft = clampScrollPosition(
-			rawScrollLeft - anchor.panDeltaX,
-			maxScrollLeft,
-		);
-		el.scrollTop = clampScrollPosition(
-			rawScrollTop - anchor.panDeltaY,
-			maxScrollTop,
-		);
-		// scale 変化のたびに保留中の補正があれば適用する
 	}, [
 		scale,
-		containerSize.width,
-		containerSize.height,
+		isFit,
+		containerSize,
 		contentWidth,
 		contentHeight,
 		offsetX,
