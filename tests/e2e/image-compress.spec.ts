@@ -174,6 +174,17 @@ test.describe('画像圧縮・リサイズ', () => {
 		await expect(page.getByRole('alert')).toContainText('対応していない形式');
 	});
 
+	test('上限枚数を超えるドロップは件数エラーになり処理されない', async ({
+		page,
+	}) => {
+		const files = Array.from({ length: 31 }, () => SAMPLE);
+		await fileInput(page).setInputFiles(files);
+		await expect(page.getByRole('alert')).toContainText(
+			'一度に処理できるのは30枚までです。',
+		);
+		await expect(page.getByTestId('compress-result-list')).toBeHidden();
+	});
+
 	test('処理中にキャンセルすると中断され、未処理のアイテムはpendingのまま残る', async ({
 		page,
 	}) => {
