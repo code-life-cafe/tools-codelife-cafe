@@ -59,7 +59,6 @@
 | [画像形式変換](https://tools.codelife.cafe/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
 | [画像メタデータ削除](https://tools.codelife.cafe/image-metadata) | JPEG・PNG・WebP画像のExif・GPS位置情報などを削除。形式変換・一括ZIP出力対応（完全ローカル実行） |
 | [EXIF確認・削除](https://tools.codelife.cafe/exif) | 写真の撮影情報・GPS位置情報を確認し、ワンクリックで削除（完全ローカル実行） |
-| [画像トリミング・回転](https://tools.codelife.cafe/image-crop) | 画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行（完全ローカル実行） |
 | [画像のクロップ・回転・反転](https://tools.codelife.cafe/image-edit) | アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力（完全ローカル実行） |
 | [画像連結・結合](https://tools.codelife.cafe/image-merge) | 複数画像を縦・横・グリッドで1枚に結合。コンタクトシート作成・余白/背景色/並び替え対応（完全ローカル実行） |
 | [QRコード生成](https://tools.codelife.cafe/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |

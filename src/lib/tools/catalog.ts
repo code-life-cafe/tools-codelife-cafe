@@ -613,7 +613,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
 		keywords: ['テキスト', '文字入れ', '画像', '注釈', 'キャプション'],
-		related: ['image-mosaic', 'image-crop', 'image-compress'],
+		related: ['image-mosaic', 'image-edit', 'image-compress'],
 		llmsFull: {
 			useCase: '画像上に任意のフォント・色・縁取りでテキストや注釈を追加合成',
 			inputs: 'imageFile（画像ファイル）, textLayers（テキストレイヤー情報）',
@@ -684,42 +684,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
-		id: 'image-crop',
-		title: '画像トリミング・回転',
-		description:
-			'画像の切り抜き、90度回転、上下左右反転をブラウザ内で実行。画像はアップロードされません。',
-		href: '/image-crop',
-		icon: 'Crop',
-		category: 'AI/画像',
-		categoryColor: 'border-l-chart-5',
-		keywords: [
-			'画像トリミング',
-			'切り抜き',
-			'回転',
-			'反転',
-			'クロップ',
-			'画像',
-		],
-		related: ['image-compress', 'image-convert', 'image-text'],
-		llmsFull: {
-			useCase:
-				'画像の矩形範囲切り抜き（クロップ）、90度単位の回転、上下左右反転',
-			inputs:
-				'imageFile（画像ファイル）, cropArea（切り抜き範囲）, rotation（角度）',
-			outputs: '加工済み画像ファイル',
-		},
-	},
-	{
 		id: 'image-edit',
 		title: '画像のクロップ・回転・反転',
 		description:
-			'アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力に対応。画像はアップロードされません。',
+			'画像のアスペクト比指定クロップ・任意角度回転・反転をブラウザ内で実行。PNG/JPEG/WebP書き出し・背景色合成・EXIF向き反映・最大30枚まで一括ZIP出力に対応。画像はアップロードされません。',
 		href: '/image-edit',
 		icon: 'RotateCw',
 		category: 'AI/画像',
 		categoryColor: 'border-l-chart-5',
-		keywords: ['画像編集', 'クロップ', '回転', '反転', '一括処理', 'ZIP'],
-		related: ['image-crop', 'image-compress', 'image-convert', 'image-merge'],
+		keywords: [
+			'画像編集',
+			'クロップ',
+			'回転',
+			'反転',
+			'一括処理',
+			'ZIP',
+			'画像トリミング',
+			'切り抜き',
+			'画像',
+		],
+		related: ['image-compress', 'image-convert', 'image-merge'],
 		llmsFull: {
 			useCase:
 				'画像のアスペクト比指定クロップ、任意角度回転、水平/垂直反転、一括処理',
@@ -777,7 +761,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'一括',
 			'ZIP',
 		],
-		related: ['image-compress', 'image-crop', 'image-base64', 'image-merge'],
+		related: ['image-compress', 'image-edit', 'image-base64', 'image-merge'],
 		llmsFull: {
 			useCase:
 				'iPhoneのHEIC形式やWebP/AVIF画像を汎用的なJPEG/PNG形式に相互変換',
@@ -851,7 +835,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			'アップロードしない',
 			'安全',
 		],
-		related: ['pdf-merge', 'image-crop'],
+		related: ['pdf-merge', 'image-edit'],
 		llmsFull: {
 			useCase:
 				'単一のPDFファイルから指定したページ範囲を別個のPDFとして切り出し分割抽出',
@@ -1153,7 +1137,7 @@ export const purposeCategories = [
 				name: '画像圧縮・リサイズ',
 				href: '/image-compress',
 			},
-			{ id: 'image-crop', name: '画像切り抜き', href: '/image-crop' },
+			{ id: 'image-edit', name: '画像トリミング編集', href: '/image-edit' },
 			{ id: 'bg-remove', name: '背景透過・削除', href: '/bg-remove' },
 		],
 	},
