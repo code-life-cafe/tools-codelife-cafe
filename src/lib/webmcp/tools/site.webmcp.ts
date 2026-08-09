@@ -62,6 +62,7 @@ export function createSiteTools(
 			'List all web tools available on tools.codelife.cafe. Every tool runs entirely client-side and never sends input data to a server. / サイトで利用できる全Webツールの一覧を返す。全ツールがブラウザ内で完結し、入力データを外部送信しない。',
 		inputSchema: { type: 'object', properties: {} },
 		outputSchema: TOOL_LIST_SCHEMA,
+		annotations: { readOnlyHint: true },
 		validate(input) {
 			// 引数なしツールのため undefined / null / 空オブジェクトのいずれも許容する
 			if (input !== undefined && input !== null && !isObject(input)) {
@@ -92,6 +93,7 @@ export function createSiteTools(
 			required: ['query'],
 		},
 		outputSchema: TOOL_LIST_SCHEMA,
+		annotations: { readOnlyHint: true },
 		validate(input) {
 			if (!isObject(input)) {
 				return failure('Input must be an object / 入力値が不正です');

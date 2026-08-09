@@ -85,6 +85,7 @@ export const taxTool = createWebMcpTool<TaxInput, TaxOutput>({
 		},
 		required: ['base', 'tax', 'total', 'result', 'taxAmount'],
 	},
+	annotations: { readOnlyHint: true },
 	validate(input) {
 		if (!isObject(input))
 			return failure('Input must be an object / 入力値が不正です');
