@@ -168,3 +168,17 @@
 .copy-flash {
     animation: copy-flash 0.8s ease-in-out;
 }
+
+/* ===== Reduced Motion (WCAG 2.3.3) =====
+   OSの「視差効果を減らす」設定を尊重し、アニメーション・トランジションを実質的に無効化する。
+   個別対応（例: CameraScanner, QrReader）より後に評価されるよう最後に配置する。 */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
