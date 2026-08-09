@@ -138,7 +138,7 @@ const schema = {
     </div>
 
     <!-- 4. すべてのツール（カテゴリ絞り込み） -->
-    <div id="all-tools-section" class="mb-12">
+    <div id="all-tools-section" class="mb-12 scroll-mt-20">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
         <LayoutGrid className="h-6 w-6 text-primary" aria-hidden="true" /> すべてのツール
       </h2>
@@ -363,12 +363,14 @@ const schema = {
   }
 
   // 初回ロード時に実行
-  setupCategoryFilter();
+  // setupRecentTools() を先に実行し、「最近使ったツール」セクションの表示/非表示を確定させてから
+  // setupCategoryFilter() の自動スクロールを行う（順序が逆だとスクロール後にレイアウトが伸び、見出しが中央にずれる）
   setupRecentTools();
+  setupCategoryFilter();
 
   // AstroのView Transitionsに対応するための再バインド処理
   document.addEventListener('astro:after-swap', () => {
-    setupCategoryFilter();
     setupRecentTools();
+    setupCategoryFilter();
   });
 </script>
