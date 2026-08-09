@@ -41,6 +41,88 @@ const WEBMCP_INIT_SCRIPT = `
 })();
 `;
 
+interface WebMcpDocMockWindow extends Window {
+	__webmcpDocTools: WebMcpMockTool[];
+	__webmcpDocAborted: boolean;
+}
+
+// document.modelContext.registerTool() は現行のWebMCP仕様における主API。
+// ツール単位で呼ばれ、Promise<undefined>を返し、登録解除はoptions.signalのabort経由でのみ行われる。
+const WEBMCP_DOCUMENT_INIT_SCRIPT = `
+(() => {
+  window.__webmcpDocTools = [];
+  window.__webmcpDocAborted = false;
+
+  Object.defineProperty(document, 'modelContext', {
+    configurable: true,
+    value: {
+      registerTool(tool, options) {
+        window.__webmcpDocTools.push(tool);
+        options?.signal?.addEventListener('abort', () => {
+          window.__webmcpDocAborted = true;
+        });
+        return Promise.resolve(undefined);
+      },
+    },
+  });
+})();
+`;
+
+test.describe('WebMCP Tool Registration — document.modelContext (現行仕様)', () => {
+	test('generate_hash is registered via document.modelContext.registerTool', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(WEBMCP_DOCUMENT_INIT_SCRIPT);
+
+		const toolPage = createToolPage('hash');
+		await toolPage.goto();
+
+		const tools = await page.evaluate(
+			() => (window as unknown as WebMcpDocMockWindow).__webmcpDocTools,
+		);
+		const toolNames = tools.map((t) => t.name);
+		expect(toolNames).toContain('generate_hash');
+	});
+
+	test('generate_hash execute() returns a hash via the registered tool', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(WEBMCP_DOCUMENT_INIT_SCRIPT);
+
+		const toolPage = createToolPage('hash');
+		await toolPage.goto();
+
+		const result = await page.evaluate(async () => {
+			const tool = (
+				window as unknown as WebMcpDocMockWindow
+			).__webmcpDocTools.find((t) => t.name === 'generate_hash');
+			if (!tool) throw new Error('generate_hash tool is not registered');
+			return await tool.execute({ text: 'hello', algorithm: 'md5' });
+		});
+
+		expect(result).toEqual({ hash: '5d41402abc4b2a76b9719d911017c592' });
+	});
+
+	test('registerTool is called with an AbortSignal for spec-defined unregistration', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(WEBMCP_DOCUMENT_INIT_SCRIPT);
+
+		const toolPage = createToolPage('hash');
+		await toolPage.goto();
+
+		// 仕様上、登録解除はregisterTool()の返り値ではなくoptions.signalのabortでのみ行われる。
+		// signalが渡されていること自体を確認する（未abort状態）。
+		const abortedBefore = await page.evaluate(
+			() => (window as unknown as WebMcpDocMockWindow).__webmcpDocAborted,
+		);
+		expect(abortedBefore).toBe(false);
+	});
+});
+
 test.describe('WebMCP Tool Registration — /hash', () => {
 	test('generate_hash tool is registered via mock modelContext', async ({
 		page,

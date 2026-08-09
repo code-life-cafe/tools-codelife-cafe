@@ -12,18 +12,17 @@ test('webmcp: window / navigator / document が未定義の環境では no-op �
 	cleanup();
 });
 
-test('webmcp: document.modelContext (最新Chrome仕様) が存在する場合に registerTool が呼ばれ cleanup が機能すること', () => {
+test('webmcp: document.modelContext (WebMCP仕様) が存在する場合に registerTool が呼ばれ、cleanupがAbortSignal経由で機能すること', () => {
 	const registeredTools: unknown[] = [];
-	let unregistered = false;
+	let capturedSignal: AbortSignal | undefined;
 
 	const mockDocModelContext = {
-		registerTool(tool: unknown) {
+		// 仕様上 registerTool() は Promise<undefined> を返し、
+		// 登録解除は戻り値ではなく options.signal の abort でのみ行われる
+		registerTool(tool: unknown, options?: { signal?: AbortSignal }) {
 			registeredTools.push(tool);
-			return {
-				unregister() {
-					unregistered = true;
-				},
-			};
+			capturedSignal = options?.signal;
+			return Promise.resolve(undefined);
 		},
 	};
 
@@ -52,10 +51,10 @@ test('webmcp: document.modelContext (最新Chrome仕様) が存在する場合�
 
 		assert.equal(registeredTools.length, 1);
 		assert.deepEqual(registeredTools[0], tools[0]);
-		assert.equal(unregistered, false);
+		assert.equal(capturedSignal?.aborted, false);
 
 		cleanup();
-		assert.equal(unregistered, true);
+		assert.equal(capturedSignal?.aborted, true);
 	} finally {
 		Object.defineProperty(globalThis, 'document', {
 			value: originalDocument,

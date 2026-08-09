@@ -506,7 +506,8 @@ test('provideToolsFromFactory: wraps tool results with isError for failures', as
 					registeredTools.push(
 						tool as { execute: (input: unknown) => Promise<unknown> },
 					);
-					return { unregister() {} };
+					// 仕様上 registerTool() は Promise<undefined> を返す
+					return Promise.resolve(undefined);
 				},
 			},
 		},
@@ -573,7 +574,8 @@ test('provideToolsFromFactory: forwards outputSchema to registered tool', async 
 			modelContext: {
 				registerTool(tool: unknown) {
 					registeredTools.push(tool as Record<string, unknown>);
-					return { unregister() {} };
+					// 仕様上 registerTool() は Promise<undefined> を返す
+					return Promise.resolve(undefined);
 				},
 			},
 		},
@@ -620,5 +622,153 @@ test('provideToolsFromFactory: forwards outputSchema to registered tool', async 
 			configurable: true,
 		});
 		registeredTools = [];
+	}
+});
+
+test('provideToolsFromFactory: forwards annotations.readOnlyHint to registered tool', async () => {
+	const { provideToolsFromFactory } = await import('../../src/lib/webmcp.ts');
+
+	let registeredTools: Array<Record<string, unknown>> = [];
+
+	const originalDocument = globalThis.document;
+	const originalWindow = globalThis.window;
+
+	Object.defineProperty(globalThis, 'window', {
+		value: {},
+		configurable: true,
+	});
+	Object.defineProperty(globalThis, 'document', {
+		value: {
+			modelContext: {
+				registerTool(tool: unknown) {
+					registeredTools.push(tool as Record<string, unknown>);
+					return Promise.resolve(undefined);
+				},
+			},
+		},
+		configurable: true,
+	});
+
+	try {
+		const testTool = createWebMcpTool({
+			name: 'test_annotations',
+			description: 'Test annotations forwarding',
+			inputSchema: { type: 'object', properties: {} },
+			annotations: { readOnlyHint: true },
+			validate: () => success({}),
+			execute: () => ({}),
+		});
+
+		provideToolsFromFactory([testTool]);
+
+		assert.equal(registeredTools.length, 1);
+		assert.deepEqual(registeredTools[0].annotations, { readOnlyHint: true });
+	} finally {
+		Object.defineProperty(globalThis, 'document', {
+			value: originalDocument,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'window', {
+			value: originalWindow,
+			configurable: true,
+		});
+		registeredTools = [];
+	}
+});
+
+test('provideToolsFromFactory: registerTool rejection does not throw or crash', async () => {
+	const { provideToolsFromFactory } = await import('../../src/lib/webmcp.ts');
+
+	const originalDocument = globalThis.document;
+	const originalWindow = globalThis.window;
+
+	Object.defineProperty(globalThis, 'window', {
+		value: {},
+		configurable: true,
+	});
+	Object.defineProperty(globalThis, 'document', {
+		value: {
+			modelContext: {
+				// 仕様上、同名ツールの重複登録等はPromiseのrejectで表現される
+				registerTool() {
+					return Promise.reject(new Error('InvalidStateError'));
+				},
+			},
+		},
+		configurable: true,
+	});
+
+	try {
+		const testTool = createWebMcpTool({
+			name: 'test_reject',
+			description: 'Test rejection handling',
+			inputSchema: { type: 'object', properties: {} },
+			validate: () => success({}),
+			execute: () => ({}),
+		});
+
+		assert.doesNotThrow(() => provideToolsFromFactory([testTool]));
+		// マイクロタスクキューを1周させ、rejectionが処理されるのを待つ
+		await Promise.resolve();
+		await Promise.resolve();
+	} finally {
+		Object.defineProperty(globalThis, 'document', {
+			value: originalDocument,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'window', {
+			value: originalWindow,
+			configurable: true,
+		});
+	}
+});
+
+test('provideToolsFromFactory: cleanup aborts the signal passed to registerTool (no unregister handle used)', async () => {
+	const { provideToolsFromFactory } = await import('../../src/lib/webmcp.ts');
+
+	let capturedSignal: AbortSignal | undefined;
+
+	const originalDocument = globalThis.document;
+	const originalWindow = globalThis.window;
+
+	Object.defineProperty(globalThis, 'window', {
+		value: {},
+		configurable: true,
+	});
+	Object.defineProperty(globalThis, 'document', {
+		value: {
+			modelContext: {
+				registerTool(_tool: unknown, options?: { signal?: AbortSignal }) {
+					capturedSignal = options?.signal;
+					return Promise.resolve(undefined);
+				},
+			},
+		},
+		configurable: true,
+	});
+
+	try {
+		const testTool = createWebMcpTool({
+			name: 'test_cleanup',
+			description: 'Test cleanup via AbortSignal',
+			inputSchema: { type: 'object', properties: {} },
+			validate: () => success({}),
+			execute: () => ({}),
+		});
+
+		const cleanup = provideToolsFromFactory([testTool]);
+		assert.equal(capturedSignal?.aborted, false);
+
+		cleanup();
+		assert.equal(capturedSignal?.aborted, true);
+	} finally {
+		Object.defineProperty(globalThis, 'document', {
+			value: originalDocument,
+			configurable: true,
+		});
+		Object.defineProperty(globalThis, 'window', {
+			value: originalWindow,
+			configurable: true,
+		});
 	}
 });
