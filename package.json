@@ -73,7 +73,7 @@
 	},
 	"devDependencies": {
 		"@astrojs/check": "^0.9.10",
-		"@biomejs/biome": "2.5.6",
+		"@biomejs/biome": "2.5.7",
 		"@playwright/test": "^1.62.1",
 		"@types/d3-cloud": "1.2.9",
 		"@types/d3-scale": "4.0.9",
