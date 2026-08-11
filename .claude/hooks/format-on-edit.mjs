@@ -12,6 +12,9 @@ function readStdin() {
 const input = readStdin();
 const filePath = input?.tool_input?.file_path;
 
+// カレントディレクトリがサブディレクトリでもフックが機能するようプロジェクトルートを基準にする
+const projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
 // npxはWindowsで.cmdシムのためshellが必須（shell:falseだとEINVAL）。
 // shell経由での注入を防ぐため、パスは英数字・./\-_のみの安全な文字集合に限定する。
 const SAFE_PATH_RE = /^[A-Za-z0-9_.:/\\-]+$/;
@@ -23,6 +26,7 @@ if (
 ) {
 	const result = spawnSync('npx', ['biome', 'check', '--write', filePath], {
 		shell: true,
+		cwd: projectRoot,
 		encoding: 'utf-8',
 	});
 	if (result.status !== 0) {

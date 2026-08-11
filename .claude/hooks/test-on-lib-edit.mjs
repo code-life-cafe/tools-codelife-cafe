@@ -13,15 +13,19 @@ function readStdin() {
 const input = readStdin();
 const filePath = input?.tool_input?.file_path;
 
+// カレントディレクトリがサブディレクトリでもフックが機能するようプロジェクトルートを基準にする
+const projectRoot = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+
 const match = filePath?.match(/(^|[/\\])src[/\\]lib[/\\]tools[/\\]([^/\\]+)\.ts$/);
 if (!match) process.exit(0);
 
 const slug = match[2];
-const testPath = path.join('tests', 'unit', `${slug}.test.ts`);
+const testPath = path.join(projectRoot, 'tests', 'unit', `${slug}.test.ts`);
 if (!existsSync(testPath)) process.exit(0);
 
 // node実行ファイルは直接起動できるためshellを介さない（args配列がそのままexecvに渡る）
 const result = spawnSync('node', ['--test', testPath], {
+	cwd: projectRoot,
 	encoding: 'utf-8',
 });
 
