@@ -29,8 +29,8 @@
 			{
 				"matcher": "Edit|Write",
 				"hooks": [
-					{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format-on-edit.mjs\"" },
-					{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-on-lib-edit.mjs\"" }
+					{ "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/format-on-edit.mjs"] },
+					{ "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/test-on-lib-edit.mjs"] }
 				]
 			}
 		]
