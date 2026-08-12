@@ -74,7 +74,9 @@ test.describe('画像アップスケール', () => {
 		const requests: string[] = [];
 		page.on('request', (r) => requests.push(r.url()));
 		await uploadGeneratedImage(page, 64, 64);
-		await page.waitForTimeout(500);
+		// アップロード処理（解像度検証等の非同期処理）完了後に表示される実行ボタンを
+		// 待つことで、モデル/ランタイム未取得の判定を確定させてから検証する
+		await expect(page.locator('[data-testid="upscale-run"]')).toBeVisible();
 		expect(
 			requests.some((u) => /onnxruntime-web|\.onnx/.test(u)),
 			'アップロード時点ではモデル/ランタイム未取得',

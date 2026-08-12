@@ -42,8 +42,7 @@ test.describe('Layout & Navigation', () => {
 	});
 
 	test('Cmd+K Search focuses search input', async ({ page }) => {
-		// Wait for React SearchModal component to hydrate by checking for an interactive element
-		await page.waitForTimeout(1000);
+		// SearchModal (client:load) のハイドレーションは beforeEach の page.goto 内で待機済み
 
 		// Press Ctrl+K
 		await page.keyboard.press('Control+k');

@@ -151,7 +151,7 @@ test.describe('画像モザイク・ぼかし', () => {
 		});
 		await expect(page.getByText('blue.png')).toBeVisible();
 		await dragOnCanvas(page, canvas, { x: 140, y: 140 }, { x: 220, y: 220 });
-		await page.waitForTimeout(500);
+		// rAF経由の非同期描画完了は poll のリトライで待つ
 		await expect
 			.poll(() => getCanvasPixel(page, 'editor-canvas', 180, 180))
 			.toEqual(BLUE);

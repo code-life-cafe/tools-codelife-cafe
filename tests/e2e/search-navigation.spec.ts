@@ -10,9 +10,8 @@ test.describe('Search after page navigation', () => {
 	test('Search button works after navigating to a tool page', async ({
 		page,
 	}) => {
-		// 1. トップページにアクセス
+		// 1. トップページにアクセス（fixtureのgotoがハイドレーション完了まで待機する）
 		await page.goto('/');
-		await page.waitForTimeout(1000);
 
 		// 2. 検索ボタンが動作することを確認
 		const searchTrigger = page.locator('#search-trigger');
@@ -29,7 +28,6 @@ test.describe('Search after page navigation', () => {
 
 		// 4. ツールページに遷移（View Transitionsによるクライアントサイド遷移）
 		await page.goto('/char-count');
-		await page.waitForTimeout(1000);
 
 		// 5. 遷移後に検索ボタンが動作することを確認
 		const searchTriggerAfter = page.locator('#search-trigger');
@@ -43,13 +41,11 @@ test.describe('Search after page navigation', () => {
 	test('Ctrl+K shortcut works after navigating to a tool page', async ({
 		page,
 	}) => {
-		// 1. トップページにアクセス
+		// 1. トップページにアクセス（fixtureのgotoがハイドレーション完了まで待機する）
 		await page.goto('/');
-		await page.waitForTimeout(1000);
 
 		// 2. ツールページに遷移
 		await page.goto('/zenkaku-hankaku');
-		await page.waitForTimeout(1000);
 
 		// 3. 遷移後にCtrl+Kが動作することを確認
 		await page.keyboard.press('Control+k');
@@ -60,16 +56,16 @@ test.describe('Search after page navigation', () => {
 	});
 
 	test('Search via internal link navigation works', async ({ page }) => {
-		// 1. トップページにアクセス
+		// 1. トップページにアクセス（fixtureのgotoがハイドレーション完了まで待機する）
 		await page.goto('/');
-		await page.waitForTimeout(1000);
 
 		// 2. ツールカードをクリックして内部遷移
 		const toolLink = page.locator('a[href="/char-count"]').first();
 		if (await toolLink.isVisible()) {
 			await toolLink.click();
 			await page.waitForURL('**/char-count');
-			await page.waitForTimeout(1000);
+			// View Transitionによるクライアントサイド遷移の完了を待つ
+			await page.waitForLoadState('networkidle');
 
 			// 3. 遷移後に検索ボタンが動作することを確認
 			const searchTrigger = page.locator('#search-trigger');
@@ -82,9 +78,8 @@ test.describe('Search after page navigation', () => {
 	});
 
 	test('Enter during IME composition does not navigate', async ({ page }) => {
-		// 1. トップページにアクセスして検索モーダルを開く
+		// 1. トップページにアクセスして検索モーダルを開く（fixtureのgotoがハイドレーション完了まで待機する）
 		await page.goto('/');
-		await page.waitForTimeout(1000);
 
 		await page.keyboard.press('Control+k');
 		const searchInput = page.getByPlaceholder(/ツールを検索/i);
@@ -101,22 +96,21 @@ test.describe('Search after page navigation', () => {
 				}),
 			);
 		});
-		await page.waitForTimeout(500);
 
 		// 3. ページ遷移せず、モーダルが開いたままであることを確認
+		// （isComposing判定はハンドラ内で同期的に行われるため、待機なしで検証可能）
 		expect(new URL(page.url()).pathname).toBe('/');
 		await expect(searchInput).toBeVisible();
 
 		// 4. 通常の Enter では選択中ツールへ遷移することを確認
 		await page.keyboard.press('Enter');
-		await page.waitForTimeout(1000);
+		await page.waitForURL((url) => url.pathname !== '/');
 		expect(new URL(page.url()).pathname).not.toBe('/');
 	});
 
 	test('Keyboard shortcut label shows correct OS key', async ({ page }) => {
 		// Playwright runs on non-Mac typically, so expect Ctrl+K
 		await page.goto('/');
-		await page.waitForTimeout(1000);
 
 		const kbdElement = page.locator('#search-kbd');
 		await expect(kbdElement).toBeVisible();
@@ -126,7 +120,6 @@ test.describe('Search after page navigation', () => {
 
 		// ツールページに遷移
 		await page.goto('/json-formatter');
-		await page.waitForTimeout(1000);
 
 		// 遷移後も同じ表記が維持されることを確認
 		const afterNavText = await kbdElement.textContent();
