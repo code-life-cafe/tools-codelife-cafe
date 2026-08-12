@@ -14,7 +14,7 @@ export default function SafetyBadge() {
 			<PopoverTrigger asChild>
 				<button
 					type="button"
-					className="inline-flex items-center gap-2 rounded-lg border border-safety/30 bg-safety/5 px-3 py-1.5 text-sm font-medium text-safety hover:bg-safety/10 transition-colors cursor-pointer"
+					className="inline-flex items-center gap-2 rounded-lg border border-safety/30 bg-safety/5 px-3 py-1.5 text-sm font-medium text-[#047857] hover:bg-safety/10 transition-colors cursor-pointer dark:text-safety"
 					aria-label="セキュリティ情報を表示"
 				>
 					<ShieldCheck className="h-4 w-4" />
