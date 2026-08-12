@@ -5,6 +5,7 @@ export type WebMcpTool = {
 	description: string;
 	inputSchema: Record<string, unknown>;
 	execute: (input: unknown) => Promise<unknown> | unknown;
+	annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
 };
 
 type MaybeDisposable =
@@ -28,6 +29,9 @@ function wrapToolForClient(tool: WebMcpToolDefinition): WebMcpTool {
 	if (tool.outputSchema) {
 		(wrapped as Record<string, unknown>).outputSchema = tool.outputSchema;
 	}
+	if (tool.annotations) {
+		wrapped.annotations = tool.annotations;
+	}
 	return wrapped;
 }
 
@@ -40,7 +44,9 @@ export function provideToolsFromFactory(
 export function provideTools(tools: WebMcpTool[]): () => void {
 	if (typeof window === 'undefined') return () => {};
 
-	// 1. 最新 Chrome Imperative API 仕様 (document.modelContext.registerTool)
+	// 1. WebMCP仕様 (document.modelContext.registerTool)
+	// registerTool() は Promise<undefined> を返し、登録解除は AbortSignal 経由のみ
+	// （返り値にdispose/unregisterを持つハンドルは仕様上存在しない）。
 	if (
 		typeof document !== 'undefined' &&
 		document.modelContext &&
@@ -49,37 +55,24 @@ export function provideTools(tools: WebMcpTool[]): () => void {
 		const docCtx = document.modelContext;
 		const controller =
 			typeof AbortController !== 'undefined' ? new AbortController() : null;
-		const disposables: MaybeDisposable[] = [];
 
 		for (const tool of tools) {
 			try {
-				const res = docCtx.registerTool(
-					tool,
-					controller ? { signal: controller.signal } : undefined,
-				) as MaybeDisposable;
-				if (res) disposables.push(res);
+				Promise.resolve(
+					docCtx.registerTool(
+						tool,
+						controller ? { signal: controller.signal } : undefined,
+					),
+				).catch(() => {
+					/* no-op: 同名ツールの重複登録など、登録失敗は無視する */
+				});
 			} catch {
 				/* no-op */
 			}
 		}
 
 		return () => {
-			try {
-				if (controller) {
-					controller.abort();
-				}
-				for (const d of disposables) {
-					if (typeof d === 'function') {
-						d();
-					} else if (d && typeof d.dispose === 'function') {
-						d.dispose();
-					} else if (d && typeof d.unregister === 'function') {
-						d.unregister();
-					}
-				}
-			} catch {
-				/* no-op */
-			}
+			controller?.abort();
 		};
 	}
 

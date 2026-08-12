@@ -59,8 +59,8 @@ test.describe('関連ツール 回遊カード', () => {
 		{
 			name: '画像最適化',
 			from: 'image-compress',
-			to: 'image-crop',
-			toHref: '/image-crop',
+			to: 'image-edit',
+			toHref: '/image-edit',
 		},
 		{
 			name: '請求・帳票作成',

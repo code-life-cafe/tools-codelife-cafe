@@ -70,6 +70,34 @@ async function waitForStableGeometry(
 }
 
 /**
+ * 修飾キーなしホイールでのスクロールは、Chromiumのデフォルトのスムーズ
+ * スクロールにより wheel イベント後も数百msかけて目標位置へ遷移する。
+ * scrollLeft/scrollTop が2回連続で同じ値になるまで待ち、アニメーション
+ * 途中の値を「リサイズ前の基準点」として誤って使わないようにする。
+ */
+async function waitForScrollStable(
+	page: Page,
+	canvasTestId: string,
+): Promise<ZoomGeometry> {
+	let previous: { left: number; top: number } | null = null;
+	await expect
+		.poll(
+			async () => {
+				const current = await getZoomGeometry(page, canvasTestId);
+				const stable =
+					previous !== null &&
+					previous.left === current.scrollLeft &&
+					previous.top === current.scrollTop;
+				previous = { left: current.scrollLeft, top: current.scrollTop };
+				return stable;
+			},
+			{ intervals: [50, 50, 100], timeout: 5000 },
+		)
+		.toBe(true);
+	return getZoomGeometry(page, canvasTestId);
+}
+
+/**
  * canvas 自身の boundingBox を返す（zoom-scroll-container ではなく canvas 本体）。
  * モバイル幅では画像がコンテナ内でレターボックス表示され、コンテナ基準の座標が
  * 余白（非canvas領域）に落ちてタッチイベントが一切届かなくなることがあるため、
@@ -411,6 +439,91 @@ for (const tool of TOOLS) {
 			}
 			await expect(percentLabel).toHaveText('400%');
 			await expect(page.getByRole('button', { name: '拡大' })).toBeDisabled();
+		});
+	});
+
+	test.describe(`${tool.id}: アンカー無しのコンテナリサイズ（画面回転・アドレスバー伸縮相当）`, () => {
+		test.beforeEach(async ({ page, createToolPage }) => {
+			const toolPage = createToolPage(tool.id);
+			await toolPage.goto();
+			await expect(
+				page.getByText('画像をドラッグ＆ドロップ、またはクリックして選択'),
+			).toBeVisible({ timeout: 10000 });
+		});
+
+		test('ズーム操作を伴わない純粋なコンテナリサイズでも、ビューポート中央の画像内座標が保持される', async ({
+			page,
+		}) => {
+			await uploadLargePannableImage(page, tool.canvasTestId);
+
+			// ズーム由来のアンカーが残らないよう、素のホイールスクロール（修飾キーなし）で
+			// コンテンツを中央からずらしておく。0,0のままだと既にクランプ端にあり、
+			// 補正が効かなくても偶然「ずれない」ケースを検証してしまうため。
+			const containerBoxBefore = await getContainerBox(page);
+			await page.mouse.move(
+				containerBoxBefore.x + containerBoxBefore.width / 2,
+				containerBoxBefore.y + containerBoxBefore.height / 2,
+			);
+			await page.mouse.wheel(250, 200);
+			// Chromiumの既定スムーズスクロールでwheel後もscrollLeft/Topが遷移し続けるため、
+			// 静定するまで待ってから基準点を記録する（アニメーション途中の値を使うと
+			// リサイズ後の中心保持検証が偽陽性/偽陰性になる）。
+			await waitForScrollStable(page, tool.canvasTestId);
+
+			// getContainerBox はコンテナをビューポート内へスクロールしうる。1回目の
+			// 呼び出しでそのスクロールを確定させ、幾何情報の安定を待ってから、
+			// スクロールが既に不要（no-op）になった状態で2回目を呼んで
+			// containerBox と幾何情報（containerTop等）を同じ瞬間の値として揃える
+			// （順序を誤ると getContainerBox の副作用でページが動き、containerTop
+			// だけ古い値のままずれる）。
+			await getContainerBox(page);
+			const before = await waitForStableGeometry(page, tool.canvasTestId);
+			const containerBox = await getContainerBox(page);
+			const centerBefore = {
+				x: containerBox.x + containerBox.width / 2,
+				y: containerBox.y + containerBox.height / 2,
+			};
+			const beforePoint = imagePointFromClientPoint(
+				before,
+				centerBefore.x,
+				centerBefore.y,
+			);
+
+			const viewport = page.viewportSize();
+			if (!viewport) throw new Error('viewportSizeが取得できません');
+			try {
+				// 画面回転相当: 縦横を入れ替える。ズームやポインタ操作を伴わない
+				// 「アンカー無しのコンテナリサイズ」だけを発生させる
+				// （P10: useZoomPan.ts のcontainerSize変化検知の回帰テスト）。
+				await page.setViewportSize({
+					width: viewport.height,
+					height: viewport.width,
+				});
+				await getContainerBox(page);
+				const after = await waitForStableGeometry(page, tool.canvasTestId);
+				const containerBoxAfter = await getContainerBox(page);
+				const centerAfter = {
+					x: containerBoxAfter.x + containerBoxAfter.width / 2,
+					y: containerBoxAfter.y + containerBoxAfter.height / 2,
+				};
+				const afterPoint = imagePointFromClientPoint(
+					after,
+					centerAfter.x,
+					centerAfter.y,
+				);
+
+				const tolerance = toleranceFor(after) + 5;
+				expect(
+					Math.abs(beforePoint.x - afterPoint.x),
+					`x座標のずれ（許容${tolerance.toFixed(1)}px）`,
+				).toBeLessThanOrEqual(tolerance);
+				expect(
+					Math.abs(beforePoint.y - afterPoint.y),
+					`y座標のずれ（許容${tolerance.toFixed(1)}px）`,
+				).toBeLessThanOrEqual(tolerance);
+			} finally {
+				await page.setViewportSize(viewport);
+			}
 		});
 	});
 
@@ -793,8 +906,21 @@ for (const tool of TOOLS) {
 				.evaluate((el) => (el as HTMLElement).click());
 			await waitForStableGeometry(page, tool.canvasTestId);
 
+			// フルサイズ切替はピンチ由来のアンカーが消費された後に発生する、アンカー無しの
+			// コンテナリサイズ（P10修正の対象）。コンテナの高さが変わるため、リサイズ前の
+			// 固定ページ座標ではなくコンテナ自身の中心を基準に「同じ画像内座標が
+			// ビューポート中央に留まるか」を検証する。
+			const containerBoxAfter = await getContainerBox(page);
+			const centerAfter = {
+				x: containerBoxAfter.x + containerBoxAfter.width / 2,
+				y: containerBoxAfter.y + containerBoxAfter.height / 2,
+			};
 			const after = await getZoomGeometry(page, tool.canvasTestId);
-			const afterPoint = imagePointFromClientPoint(after, center.x, center.y);
+			const afterPoint = imagePointFromClientPoint(
+				after,
+				centerAfter.x,
+				centerAfter.y,
+			);
 			const tolerance = toleranceFor(after) + 5;
 			expect(Math.abs(beforePoint.x - afterPoint.x)).toBeLessThanOrEqual(
 				tolerance,

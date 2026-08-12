@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { getSearchQueryMetadata, track } from '@/lib/analytics';
 import { toolCatalog } from '@/lib/tools/catalog';
 import { searchTools } from '@/lib/tools/search';
@@ -11,8 +11,14 @@ export default function SearchModal() {
 	const [query, setQuery] = useState('');
 	const [activeIndex, setActiveIndex] = useState(0);
 	const inputRef = useRef<HTMLInputElement>(null);
+	const dialogRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLElement | null>(null);
+	const titleId = useId();
+	const listboxId = useId();
 
 	const filteredTools = query ? searchTools(query) : toolCatalog;
+	const activeOptionId =
+		filteredTools.length > 0 ? `${listboxId}-option-${activeIndex}` : undefined;
 
 	// Track search_empty when query results in 0 tools
 	const trackedQueryRef = useRef<string>('');
@@ -54,15 +60,65 @@ export default function SearchModal() {
 		};
 	}, [isOpen]);
 
-	// Reset state and focus input when opened
+	// Reset state, remember the trigger element, and focus input when opened.
+	// Restore focus to the trigger when closed (WCAG 2.4.3 focus order).
 	useEffect(() => {
 		if (isOpen) {
+			triggerRef.current = document.activeElement as HTMLElement | null;
 			setQuery('');
 			setActiveIndex(0);
 			setTimeout(() => {
 				inputRef.current?.focus();
 			}, 0);
+		} else if (triggerRef.current) {
+			triggerRef.current.focus();
+			triggerRef.current = null;
 		}
+	}, [isOpen]);
+
+	// Lock background scroll while the modal is open (mobile背景スクロール防止)
+	useEffect(() => {
+		if (!isOpen) return;
+		const original = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		return () => {
+			document.body.style.overflow = original;
+		};
+	}, [isOpen]);
+
+	// Focus trap: keep Tab navigation within the dialog while open
+	useEffect(() => {
+		if (!isOpen) return;
+
+		const handleFocusTrap = (e: KeyboardEvent) => {
+			if (e.key !== 'Tab') return;
+			const container = dialogRef.current;
+			if (!container) return;
+
+			const focusable = Array.from(
+				container.querySelectorAll<HTMLElement>(
+					'a[href], button:not([disabled]), input:not([disabled]), [tabindex]',
+				),
+			).filter((el) => el.tabIndex !== -1);
+			if (focusable.length === 0) return;
+
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			const active = document.activeElement;
+
+			if (e.shiftKey) {
+				if (active === first || !container.contains(active)) {
+					e.preventDefault();
+					last.focus();
+				}
+			} else if (active === last || !container.contains(active)) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+
+		window.addEventListener('keydown', handleFocusTrap);
+		return () => window.removeEventListener('keydown', handleFocusTrap);
 	}, [isOpen]);
 
 	// Handle keyboard navigation within the modal
@@ -112,13 +168,31 @@ export default function SearchModal() {
 				if (e.key === 'Escape') setIsOpen(false);
 			}}
 		>
-			<div className="relative w-full max-w-xl mx-4 overflow-hidden bg-card border border-border rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+			<div
+				ref={dialogRef}
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={titleId}
+				className="relative w-full max-w-xl mx-4 overflow-hidden bg-card border border-border rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+			>
+				<h2 id={titleId} className="sr-only">
+					ツールを検索
+				</h2>
 				<div className="flex items-center px-4 py-3 border-b border-border">
-					<Search className="w-5 h-5 text-muted-foreground mr-3" />
+					<Search
+						className="w-5 h-5 text-muted-foreground mr-3"
+						aria-hidden="true"
+					/>
 					<input
 						ref={inputRef}
 						className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-muted-foreground"
 						placeholder="ツールを検索... (Enterで移動)"
+						aria-label="ツールを検索"
+						role="combobox"
+						aria-expanded={filteredTools.length > 0}
+						aria-controls={listboxId}
+						aria-autocomplete="list"
+						aria-activedescendant={activeOptionId}
 						value={query}
 						onChange={(e) => {
 							setQuery(e.target.value);
@@ -131,16 +205,28 @@ export default function SearchModal() {
 				</div>
 				<div className="max-h-[60vh] overflow-y-auto p-2">
 					{filteredTools.length === 0 ? (
-						<div className="p-4 text-center text-sm text-muted-foreground">
+						<div
+							className="p-4 text-center text-sm text-muted-foreground"
+							aria-live="polite"
+						>
 							一致するツールが見つかりません。
 						</div>
 					) : (
-						<div className="flex flex-col gap-1">
+						<div
+							id={listboxId}
+							role="listbox"
+							aria-label="検索結果"
+							className="flex flex-col gap-1"
+						>
 							{filteredTools.map((tool, index) => (
 								<a
 									key={tool.id}
+									id={`${listboxId}-option-${index}`}
 									href={tool.href}
 									data-testid="search-result"
+									role="option"
+									aria-selected={index === activeIndex}
+									tabIndex={-1}
 									className={`flex flex-col gap-1 px-4 py-3 rounded-lg transition-colors ${
 										index === activeIndex
 											? 'bg-primary/10 text-foreground'
@@ -166,6 +252,11 @@ export default function SearchModal() {
 									</div>
 								</a>
 							))}
+						</div>
+					)}
+					{query.trim() && filteredTools.length > 0 && (
+						<div role="status" aria-live="polite" className="sr-only">
+							{filteredTools.length}件のツールが見つかりました
 						</div>
 					)}
 				</div>

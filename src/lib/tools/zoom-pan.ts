@@ -151,6 +151,50 @@ export function computeZoomScrollPosition(params: ZoomScrollParams): number {
 	return Math.min(maxScroll, Math.max(0, rawScroll));
 }
 
+export type CenterPreservingScrollParams = {
+	/** リサイズ前のコンテナサイズ（px、1軸分） */
+	oldContainerSize: number;
+	/** リサイズ後のコンテナサイズ（px、1軸分） */
+	newContainerSize: number;
+	/** リサイズ前のスクロール位置（px） */
+	scrollPosition: number;
+	/** リサイズ前の中央配置オフセット（px） */
+	oldContentOffset: number;
+	/** リサイズ後の中央配置オフセット（px） */
+	newContentOffset: number;
+	/** リサイズ前後で共通の倍率（呼び出し側でfitモードを対象外にすること） */
+	scale: number;
+	/** コンテンツの原寸（スケール適用前、px） */
+	contentSize: number;
+};
+
+/**
+ * コンテナサイズ変化（画面回転・iOSアドレスバー伸縮など、倍率変化を伴わない
+ * リサイズ）の前後で、ビューポート中央にあった画像内座標を維持するスクロール
+ * 位置を計算する。computeZoomScrollPosition と同じ「画像内座標を求めて
+ * 再配置する」手順を、ポインタ位置の代わりにコンテナ中心を基準に適用する。
+ */
+export function computeCenterPreservingScroll(
+	params: CenterPreservingScrollParams,
+): number {
+	const {
+		oldContainerSize,
+		newContainerSize,
+		scrollPosition,
+		oldContentOffset,
+		newContentOffset,
+		scale,
+		contentSize,
+	} = params;
+	if (scale <= 0) return 0;
+	const oldCenter = oldContainerSize / 2;
+	const newCenter = newContainerSize / 2;
+	const imagePoint = (oldCenter + scrollPosition - oldContentOffset) / scale;
+	const rawScroll = imagePoint * scale + newContentOffset - newCenter;
+	const maxScroll = Math.max(0, contentSize * scale - newContainerSize);
+	return clampScrollPosition(rawScroll, maxScroll);
+}
+
 /** 実効倍率を表示用文字列に変換する（例: "18%", "100%"） */
 export function formatZoomPercent(scale: number): string {
 	return `${Math.round(scale * 100)}%`;

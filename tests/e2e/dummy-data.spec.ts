@@ -27,8 +27,9 @@ test.describe('Dummy Data Generator Tool', () => {
 		// 3. Switch format to CSV
 		await page.getByRole('tab', { name: 'CSV' }).click();
 
-		// 4. Verify output changes to CSV layout (should contain English header ID)
-		await expect(previewContainer).toContainText('name');
+		// 4. Verify output changes to CSV layout (Japanese header, no JSON quoting)
+		await expect(previewContainer).toContainText('氏名');
+		await expect(previewContainer).not.toContainText('"name"');
 	});
 	test('同一設定の再生成クリックで出力が変わる', async ({
 		page,

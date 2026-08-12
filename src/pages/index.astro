@@ -138,7 +138,7 @@ const schema = {
     </div>
 
     <!-- 4. すべてのツール（カテゴリ絞り込み） -->
-    <div id="all-tools-section" class="mb-12 scroll-mt-16">
+    <div id="all-tools-section" class="mb-12 scroll-mt-20">
       <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
         <LayoutGrid className="h-6 w-6 text-primary" aria-hidden="true" /> すべてのツール
       </h2>
@@ -312,7 +312,14 @@ const schema = {
     // `?category=<id>` での直アクセス・遷移時に初期フィルタを適用（不正値は「すべて」扱い）
     const initialId = new URL(window.location.href).searchParams.get('category') ?? '';
     if (initialId !== '') {
-      applyFilter(validIds.has(initialId) ? initialId : '', false);
+      const resolvedId = validIds.has(initialId) ? initialId : '';
+      applyFilter(resolvedId, false);
+      // カテゴリ指定URLでの直アクセス・遷移時は「すべてのツール」セクションまで自動スクロール
+      if (resolvedId !== '') {
+        document
+          .getElementById('all-tools-section')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
     filterContainer.dataset.filterReady = 'true';
   }
@@ -356,12 +363,14 @@ const schema = {
   }
 
   // 初回ロード時に実行
-  setupCategoryFilter();
+  // setupRecentTools() を先に実行し、「最近使ったツール」セクションの表示/非表示を確定させてから
+  // setupCategoryFilter() の自動スクロールを行う（順序が逆だとスクロール後にレイアウトが伸び、見出しが中央にずれる）
   setupRecentTools();
+  setupCategoryFilter();
 
   // AstroのView Transitionsに対応するための再バインド処理
   document.addEventListener('astro:after-swap', () => {
-    setupCategoryFilter();
     setupRecentTools();
+    setupCategoryFilter();
   });
 </script>
