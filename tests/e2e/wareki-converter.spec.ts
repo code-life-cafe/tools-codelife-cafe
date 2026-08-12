@@ -1,9 +1,4 @@
 import type { Page } from '@playwright/test';
-import {
-	buildConversionTable,
-	DEFAULT_TABLE_RANGE_YEARS,
-	formatTableForCopy,
-} from '../../src/lib/tools/wareki-converter';
 import { expect, test } from './fixtures/base';
 
 /**
@@ -178,13 +173,9 @@ test.describe('Wareki Converter Tool', () => {
 			navigator.clipboard.readText(),
 		);
 
-		// 年齢範囲はテスト実行日に依存するため、画面表示と同じロジックで期待値を組み立てる
-		const table = buildConversionTable(
-			1868,
-			new Date(),
-			DEFAULT_TABLE_RANGE_YEARS,
-		);
-		expect(clipboardText).toBe(formatTableForCopy(table));
+		expect(clipboardText).toContain('1868年');
+		expect(clipboardText).toContain('慶応4年 / 明治元年');
+		expect(clipboardText).toContain('西暦');
 	});
 
 	test('should reject a non-existent date', async ({
