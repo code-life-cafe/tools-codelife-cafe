@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures/base';
 
 test.describe('Phase 3h: llms.txt & schema.org JSON-LD E2E', () => {
 	test('GET /llms.txt が 200 OK で text/plain を返し、主要テキストを含むこと', async ({
