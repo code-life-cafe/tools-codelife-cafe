@@ -158,12 +158,12 @@ test.describe('CSV文字化け修復ツール', () => {
 			page.getByText('エンコーディングの自動検出の信頼度が低いです'),
 		).toBeVisible();
 
-		await page.waitForTimeout(1000);
-		expect(downloadCount).toBe(0);
-
+		// フォールバックボタンの表示を待つことで、自動ダウンロード判定処理が
+		// 完了済みであることを保証してから未発火を検証する
 		await expect(
 			page.getByRole('button', { name: '変換してダウンロード' }),
 		).toBeVisible();
+		expect(downloadCount).toBe(0);
 	});
 
 	test('即時変換モードONで変換に失敗した場合、エラーメッセージが表示されること', async ({
