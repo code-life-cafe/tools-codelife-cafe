@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/table';
 import { parsePreview } from '@/lib/csv/preview';
 import type { PreviewResult } from '@/lib/csv/types';
+import { downloadBlob } from '@/lib/download';
 import { convertEncoding } from '@/lib/encoding/convert';
 import { detectEncoding } from '@/lib/encoding/detect';
 import { detectLineEnding } from '@/lib/encoding/lineEndings';
@@ -681,16 +682,7 @@ function DownloadButton({
 				originalFilename,
 			);
 
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = fileName;
-			a.dataset.astroReload = 'true';
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-
-			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			downloadBlob(blob, fileName);
 
 			setStatus('success');
 			onConverted?.();
@@ -882,15 +874,7 @@ export default function CsvFixer() {
 				settings,
 				fileName,
 			);
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = outName;
-			a.dataset.astroReload = 'true';
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			downloadBlob(blob, outName);
 			setStatus('done');
 			trackRun();
 		} catch (e) {
