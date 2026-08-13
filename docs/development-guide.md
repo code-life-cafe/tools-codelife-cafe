@@ -20,15 +20,16 @@
 
 ## 2. 新規ツールのファイル構成
 
-各ツールは、基本的に以下の **3ファイル**（重量処理がある場合は Web Worker を加えた **4ファイル**）で完結するように設計します。画像・PDFなどUIが大きいツールは、`src/components/[feature]/` のように機能別ディレクトリへ分割できます。
+各ツールは、基本的に以下の **4ファイル**（重量処理がある場合は Web Worker を加えた **5ファイル**）で完結するように設計します。画像・PDFなどUIが大きいツールは、`src/components/[feature]/` のように機能別ディレクトリへ分割できます。
 
 ```
 src/
 ├── lib/tools/[name].ts          # 1. 純粋関数のロジック (TypeScript)
 ├── components/tools/[Name].tsx  # 2. React Island (UI & 状態管理)
-└── pages/[name].astro           # 3. Astro ページシェル (レイアウト・メタデータ)
+├── content/tools/[name].md      # 3. LPコンテンツ (title/description/useCases/howto/faq等のフロントマター)
+└── pages/[name].astro           # 4. Astro ページシェル (content collection を取得し ToolLayout に渡すだけ)
 (オプション)
-└── workers/[name].worker.ts     # 4. 重量級処理用の Web Worker
+└── workers/[name].worker.ts     # 5. 重量級処理用の Web Worker
 ```
 
 ### 2.1 命名規約
@@ -72,7 +73,7 @@ import { useState } from 'react';
 import { countCharacters } from '@/lib/tools/char-count';
 import { Textarea } from '@/components/ui/textarea';
 
-export function CharCount() {
+export default function CharCount() {
 	const [text, setText] = useState('');
 	const result = countCharacters(text);
 
@@ -93,29 +94,50 @@ export function CharCount() {
 }
 ```
 
-### 3.3 ページシェル層 (`src/pages/[name].astro`)
-Astroを用いて静的なWebページを宣言します。SEO用のJSON-LDやメタデータ、SafetyBadge（安全表示）、使い方（使い方スロット）などは、`ToolLayout` を使うことで統一的にレイアウトされます。
+### 3.3 コンテンツ層 (`src/content/tools/[name].md`) とページシェル層 (`src/pages/[name].astro`)
+タイトル・説明文・ユースケース・使い方・FAQ・関連ツール等のLP向けコンテンツは、Astro Content Collections（`src/content.config.ts` の `tools` コレクション）のフロントマターとして `src/content/tools/[name].md` に記述します。本文（Markdown本体）は使用せず、フロントマターのみで完結させます。
 
-Reactコンポーネントを配置する際は、ハイドレーションを行うために **`client:load`** ディレクティブを付与します。関連ツールは `src/lib/tools/catalog.ts` の `related` と `getRelatedTools()`、および `ToolLayout.astro` で自動表示するため、各ページの `usage` スロット内に手書きの「関連ツール」リンクを追加しないでください。
+```md
+---
+# 例: src/content/tools/char-count.md
+title: "文字数カウント"
+description: "文字数・バイト数・行数をリアルタイムでカウントします。"
+category: "テキスト解析"
+summary: "テキストの文字数やバイト数をローカル環境で瞬時に計算します。"
+useCases:
+  - "SNSの投稿文字数制限を確認したい"
+howto:
+  - "入力欄にテキストをペーストまたは入力すると、リアルタイムで解析結果が表示されます。"
+faq:
+  - q: "バイト数はどの文字コードで計算されますか？"
+    a: "UTF-8とShift-JISの両方を切り替えて確認できます。"
+related:
+  - "zenkaku-hankaku"
+  - "text-diff"
+updated: 2026-06-28
+---
+```
+
+`src/pages/[name].astro` では、この Content Collection エントリを `getEntry()` で取得し、`ToolLayout` にそのまま渡します。SEO用のJSON-LD、メタデータ、`SafetyBadge`（安全表示）、パンくず、使い方・FAQ・関連ツールの表示は、フロントマターの内容をもとに `ToolLayout` が統一的にレイアウトします（`BaseLayout` も `ToolLayout` が内部でラップするため、ページ側で個別に読み込む必要はありません）。
+
+Reactコンポーネントを配置する際は、ハイドレーションを行うために **`client:load`** ディレクティブを付与します。関連ツールは `src/content/tools/[name].md` の `related`（優先）と `src/lib/tools/catalog.ts` の `getRelatedTools()`（同カテゴリ補完）、および `ToolLayout.astro` で自動表示するため、各ページに手書きの「関連ツール」リンクを追加しないでください。
 
 ```astro
 ---
 // 例: src/pages/char-count.astro
-import BaseLayout from '@/layouts/BaseLayout.astro';
-import ToolLayout from '@/components/common/ToolLayout.astro';
-import { CharCount } from '@/components/tools/CharCount';
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import CharCount from '../components/tools/CharCount.tsx';
+
+const toolEntry = await getEntry('tools', 'char-count');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: char-count');
+}
 ---
 
-<BaseLayout title="文字数カウント" description="リアルタイムで文字数・行数・バイト数をカウントします。">
-  <ToolLayout title="文字数カウント" description="テキストの文字数やバイト数をローカル環境で瞬時に計算します。">
-    <CharCount client:load />
-
-    <div slot="usage">
-      <h3>使い方</h3>
-      <p>入力欄にテキストをペーストまたは入力すると、リアルタイムで解析結果が表示されます。</p>
-    </div>
-  </ToolLayout>
-</BaseLayout>
+<ToolLayout tool={toolEntry}>
+  <CharCount client:load />
+</ToolLayout>
 ```
 
 ---
@@ -126,11 +148,12 @@ import { CharCount } from '@/components/tools/CharCount';
 
 - [ ] `src/lib/tools/[name].ts` に、DOM や React に依存しない純粋関数としてロジックを実装する。
 - [ ] `src/components/tools/[Name].tsx`、または UI の規模に応じた機能別ディレクトリに React UI を実装する。
-- [ ] `src/pages/[name].astro` を作成し、共通レイアウトとして `ToolLayout` を利用し、React コンポーネントには `client:load` を付与する。
-- [ ] `src/lib/tools/catalog.ts` に `id`、`title`、`description`、`href`、`category`、`icon`、`related` を登録する。
+- [ ] `src/content/tools/[name].md` に `title`、`description`、`category`、`summary`、`useCases`、`howto`、`faq`、`related`、`updated`（任意で `keywords`）をフロントマターとして登録する（`src/content.config.ts` のスキーマ参照）。
+- [ ] `src/pages/[name].astro` を作成し、`getEntry('tools', '[name]')` で取得したエントリを `<ToolLayout tool={entry}>` に渡す。React コンポーネントには `client:load` を付与する。
+- [ ] `src/lib/tools/catalog.ts` に `id`、`title`、`description`、`href`、`category`、`icon`、`categoryColor`、`keywords`、`related` を登録する。
 - [ ] UI文言、エラーメッセージ、プレースホルダーが日本語であることを確認する。
 - [ ] 外部API、トラッキング、ユーザーデータ送信がないことを確認する。
-- [ ] 関連ツールは各ページに手書きせず、`catalog.ts` の `related` と `ToolLayout.astro` に集約する。
+- [ ] 関連ツールは各ページに手書きせず、コンテンツの `related` と `catalog.ts`・`ToolLayout.astro` に集約する。
 - [ ] `npm run lint` を実行し、必要に応じて `npm run build` と `npm test` も実行する。
 
 ## 4. デザインシステム & スタイリング
@@ -178,12 +201,19 @@ npx shadcn@latest add [component-name]
 
 プロジェクトのコード品質を保つため、**Biome** を採用しています。
 - **インデント:** タブ（Tab）を使用。
-- **型チェック:** TypeScript `strict` モードを有効化。インポート時はエイリアス `@/` を使用（例: `import { cn } from '@/lib/utils'`）。
+- **型チェック:** TypeScript `strict` モードを有効化。`.ts`/`.tsx` からのインポート時はエイリアス `@/` を使用できます（例: `import { cn } from '@/lib/utils'`）。ただし `.astro` ページは慣例としてコンポーネントを相対パスでインポートします（例: `import ToolLayout from '../components/tool/ToolLayout.astro'`）。
 - **Linter & Formatter コマンド:**
   ```bash
   npm run lint       # チェックのみ
   npm run lint:fix   # 自動フォーマットと自動修正の適用
   ```
+
+### 6.1 Biome と astro check の責務分担
+`biome.json` の `files.includes` は `**/*.astro` と `**/*.css` を明示的に除外しています。役割分担は以下の通りです。
+
+- **Biome**（`npm run lint` / `npm run lint:fix`）: `.ts` / `.tsx`（`src/`、`tests/` 配下）の Lint と Formatter を担当します。`.astro` ファイルの構文・テンプレート部分は解析対象外です。
+- **`astro check`**: `.astro` ファイルの型チェック・診断（Props の型不整合、未使用の import、テンプレートバインディングの誤り等）を担当します。`.astro` 内の `<script>` に書かれた TypeScript も含めてチェックします。
+- **`npm run check`** は `astro check && biome check src/ tests/` を実行するため、`.astro` を含む全ファイルの品質を両者で分担して担保します。`npm run lint` 単体では `.astro` の診断は行われない点に注意してください。
 
 ---
 

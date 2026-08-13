@@ -10,7 +10,7 @@
 - **`WebSite`**: サイト全体のメタデータを提供。
 - **`Person`**: 運営者/管理者エンティティ（`@id: "https://tools.codelife.cafe/#org"`）を定義し、GitHub などの `sameAs` リンクを接続。
 
-### 全ツールページ (`src/components/common/ToolLayout.astro`)
+### 全ツールページ (`src/components/tool/ToolLayout.astro`)
 - **`SoftwareApplication`**: ツールごとのアプリケーション情報（名称、説明、料金 `0 JPY`、動作環境 `Any` 等）。`publisher` としてトップページの `@id` (`https://tools.codelife.cafe/#org`) を参照し、エンティティグラフを構成。
 - **`BreadcrumbList`**: ツールページへの階層（ホーム > カテゴリ > ツール名）を絶対 URL で記述。
 
@@ -24,7 +24,7 @@
 - `breadcrumb(path, title, categoryName, categoryHref)`: `BreadcrumbList` オブジェクトを生成
 - `generateJsonLd(tool, categoryHref)`: 上記 2 つを `@graph` 配列にまとめた JSON-LD を生成
 
-各 Astro ページおよびコンポーネント内では、`<JsonLd data={...} />` コンポーネント経由で `<script type="application/ld+json">` として安全にエスケープ出力します。
+トップページ（`src/pages/index.astro`）では `<JsonLd data={...} />`（`src/components/common/JsonLd.astro`）コンポーネント経由で出力します。各ツールページでは `ToolLayout.astro` が `generateJsonLd()` の結果を `<script is:inline type="application/ld+json">` として直接出力します。いずれも `<` 文字をエスケープしてから `set:html` に渡すため、安全に埋め込まれます。
 
 ---
 
@@ -49,7 +49,7 @@ npm run build
 # PowerShell での確認例 (dist ディレクトリ内の SoftwareApplication 件数カウント)
 (Get-ChildItem -Path dist -Recurse -Filter *.html | Select-String -Pattern '"@type":"SoftwareApplication"').Count
 ```
-※全ツールの数（例: 48件）と出力件数が一致することを確認します。
+※各ツールは正規URL（例: `/base64/`）と旧URL（例: `/tools/base64/`、`canonical` は正規URLを指す）の2ページが生成されるため、出力件数は「全ツールの数（`src/lib/tools/catalog.ts` の登録数。本書執筆時点で47件）× 2」と一致することを確認します。
 
 ### 3.3 Schema Markup Validator での検証
 1. [Google Rich Results Test](https://search.google.com/test/rich-results) または [Schema Markup Validator](https://validator.schema.org/) を開きます。
