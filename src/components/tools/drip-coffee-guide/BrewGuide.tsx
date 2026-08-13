@@ -329,7 +329,8 @@ export function BrewGuide({
 
 				{steps[stepIndex + 1] && (
 					<p className="text-xs text-muted-foreground">
-						次: {steps[stepIndex + 1].label}
+						次: {steps[stepIndex + 1].label}（
+						{formatClock(steps[stepIndex + 1].time_sec)}〜）
 					</p>
 				)}
 
@@ -342,13 +343,33 @@ export function BrewGuide({
 
 			<div className="border-t border-border px-4 py-4 space-y-3">
 				<div
-					className="h-2 w-full overflow-hidden rounded-full bg-muted"
+					className="relative h-2 w-full overflow-hidden rounded-full bg-muted"
 					aria-hidden="true"
 				>
 					<div
 						className="h-full bg-accent transition-all"
 						style={{ width: `${progressPercent}%` }}
 					/>
+					{/* マイルストーン: 各ステップの開始位置に目印を置き、次のアクションまでの
+					    距離をひと目で把握できるようにする（始点・終点は縁と重なるため除外）。
+					    到達済み（塗り部分）と未到達（トラック部分）で背景色が近いため、
+					    どちら側にあるかで目印の色を切り替えてコントラストを保つ */}
+					{totalDurationSec > 0 &&
+						steps.slice(1, -1).map((step) => {
+							const tickPercent = (step.time_sec / totalDurationSec) * 100;
+							const passed = tickPercent <= progressPercent;
+							return (
+								<span
+									key={`${step.step_order}-${step.label}`}
+									className={`absolute top-0 h-full w-0.5 ${passed ? 'bg-background/80' : 'bg-foreground/25'}`}
+									style={{ left: `${tickPercent}%` }}
+								/>
+							);
+						})}
+				</div>
+				<div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+					<span>0:00</span>
+					<span>{formatClock(totalDurationSec)}</span>
 				</div>
 
 				<div className="flex items-center justify-center gap-3">
