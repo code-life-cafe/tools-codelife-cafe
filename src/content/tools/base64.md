@@ -22,6 +22,7 @@ related:
   - "url-encoder"
   - "image-base64"
   - "cipher"
+  - "bookmarklet"
 updated: 2026-06-28
 keywords:
   - "Base64"
