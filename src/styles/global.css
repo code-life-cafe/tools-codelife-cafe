@@ -90,7 +90,7 @@
     --accent: #2DD4BF;
     --accent-foreground: #0C0A09;
     --destructive: #EF4444;
-    --border: #292524;
+    --border: rgba(255, 255, 255, 0.08);
     --input: #292524;
     --ring: #60A5FA;
     --safety: #34D399;
