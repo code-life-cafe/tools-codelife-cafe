@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全48種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全49種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（48種）
+## 📦 収録ツール（49種）
 
 ### テキスト処理
 
@@ -91,6 +91,7 @@
 | [cron式チェッカー](https://tools.codelife.cafe/cron-checker) | cron式を日本語解説・次回実行10件（JST/UTC）で確認。日本語→cron式の逆引き生成、危険パターンの警告、GitHub Actions/AWS EventBridge形式変換にも対応 |
 | [UUID / ULID 生成ツール](https://tools.codelife.cafe/uuid) | UUID v4/v7・ULID・nanoidを一括生成。表示形式変換・種類判定・時刻抽出に対応 |
 | [YAML ⇔ JSON ⇔ TOML 変換](https://tools.codelife.cafe/yaml-json-toml) | YAML・JSON・TOMLを相互変換。構文エラーは行・列付きの日本語で表示 |
+| [ブックマークレット変換（JS ⇔ Bookmarklet）](https://tools.codelife.cafe/bookmarklet) | JavaScript ⇔ ブックマークレットを双方向変換。IIFEラップ・minify・外部スクリプト挿入対応 |
 
 ## 🛡️ セキュリティ・プライバシー
 
