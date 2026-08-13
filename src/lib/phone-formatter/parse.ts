@@ -2,10 +2,10 @@
  * 電話番号パーサー & バリデーター
  */
 import { parsePhoneNumber as awpParse } from 'awesome-phonenumber';
-import { classifyNumber } from './classify';
-import { preprocessInput } from './preprocess';
-import { getRegionName } from './regions';
-import type { ParseResult } from './types';
+import { classifyNumber } from './classify.ts';
+import { preprocessInput } from './preprocess.ts';
+import { getRegionName } from './regions.ts';
+import type { ParseResult } from './types.ts';
 
 /**
  * 電話番号文字列をパースしてフォーマット変換・種別判定・地域名取得を行う
