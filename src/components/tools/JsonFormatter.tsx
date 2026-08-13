@@ -19,41 +19,17 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	formatJson,
+	highlightJson,
 	type IndentType,
 	minifyJson,
 	sanitizeJsonFormatterSettings,
 } from '@/lib/tools/json-formatter';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
-
-function highlightJson(json: string) {
-	if (!json) return '';
-	const jsonStr = json
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;');
-	return jsonStr.replace(
-		/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
-		(match) => {
-			let cls = 'text-green-600 dark:text-green-400'; // number
-			if (/^"/.test(match)) {
-				if (/:$/.test(match)) {
-					cls = 'text-blue-600 dark:text-blue-400 font-semibold'; // key
-				} else {
-					cls = 'text-amber-600 dark:text-amber-400'; // string
-				}
-			} else if (/true|false/.test(match)) {
-				cls = 'text-purple-600 dark:text-purple-400'; // boolean
-			} else if (/null/.test(match)) {
-				cls = 'text-gray-500 dark:text-gray-400'; // null
-			}
-			return `<span class="${cls}">${match}</span>`;
-		},
-	);
-}
 
 export default function JsonFormatter() {
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('json-formatter');
@@ -144,14 +120,7 @@ export default function JsonFormatter() {
 	const handleDownload = useCallback(() => {
 		if (!output) return;
 		const blob = new Blob([output], { type: 'application/json' });
-		const url = URL.createObjectURL(blob);
-		const link = document.createElement('a');
-		link.href = url;
-		link.download = 'formatted.json';
-		document.body.appendChild(link);
-		link.click();
-		document.body.removeChild(link);
-		URL.revokeObjectURL(url);
+		downloadBlob(blob, 'formatted.json');
 	}, [output]);
 
 	const handleInputChange = useCallback(

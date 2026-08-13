@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
 	formatJson,
+	highlightJson,
 	minifyJson,
 	validateJson,
 } from '../../src/lib/tools/json-formatter.ts';
@@ -196,4 +197,86 @@ test('validateJson: 無効なJSONは success=false', () => {
 test('validateJson: 空文字列は有効扱い', () => {
 	const result = validateJson('');
 	assert.equal(result.success, true);
+});
+
+// ============================================================
+// highlightJson: シンタックスハイライトHTML生成
+// ============================================================
+
+test('highlightJson: 空文字列は空文字列を返す', () => {
+	assert.equal(highlightJson(''), '');
+});
+
+test('highlightJson: オブジェクトのキーをハイライトする', () => {
+	const html = highlightJson('{"name":"太郎"}');
+	assert.ok(
+		html.includes(
+			'<span class="text-blue-600 dark:text-blue-400 font-semibold">"name":</span>',
+		),
+		html,
+	);
+});
+
+test('highlightJson: 文字列値をハイライトする', () => {
+	const html = highlightJson('{"name":"太郎"}');
+	assert.ok(
+		html.includes(
+			'<span class="text-amber-600 dark:text-amber-400">"太郎"</span>',
+		),
+		html,
+	);
+});
+
+test('highlightJson: 数値をハイライトする', () => {
+	const html = highlightJson('{"age":30}');
+	assert.ok(
+		html.includes('<span class="text-green-600 dark:text-green-400">30</span>'),
+		html,
+	);
+});
+
+test('highlightJson: 負の数・小数・指数表記もハイライトする', () => {
+	const html = highlightJson('{"a":-1,"b":3.14,"c":1.5e10}');
+	assert.ok(html.includes('>-1<'), html);
+	assert.ok(html.includes('>3.14<'), html);
+	assert.ok(html.includes('>1.5e10<'), html);
+});
+
+test('highlightJson: true/false をハイライトする', () => {
+	const html = highlightJson('{"active":true,"deleted":false}');
+	assert.ok(
+		html.includes(
+			'<span class="text-purple-600 dark:text-purple-400">true</span>',
+		),
+		html,
+	);
+	assert.ok(
+		html.includes(
+			'<span class="text-purple-600 dark:text-purple-400">false</span>',
+		),
+		html,
+	);
+});
+
+test('highlightJson: null をハイライトする', () => {
+	const html = highlightJson('{"value":null}');
+	assert.ok(
+		html.includes('<span class="text-gray-500 dark:text-gray-400">null</span>'),
+		html,
+	);
+});
+
+test('highlightJson: & < > をHTMLエスケープする', () => {
+	const html = highlightJson('{"expr":"a < b && b > c"}');
+	assert.ok(!html.includes('< b'), html);
+	assert.ok(!html.includes('b >'), html);
+	assert.ok(html.includes('&lt;'), html);
+	assert.ok(html.includes('&gt;'), html);
+	assert.ok(html.includes('&amp;&amp;'), html);
+});
+
+test('highlightJson: エスケープはハイライト用span挿入より前に行われる（タグ注入防止）', () => {
+	const html = highlightJson('{"a":"<script>"}');
+	assert.ok(!/<script>/.test(html));
+	assert.ok(html.includes('&lt;script&gt;'));
 });
