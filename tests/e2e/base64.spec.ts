@@ -28,4 +28,43 @@ test.describe('Base64 Converter Tool', () => {
 		await page.getByRole('button', { name: /クリア/ }).click();
 		await expect(page.getByRole('textbox').first()).toHaveValue('');
 	});
+
+	test('file tab: toggling Data URI updates output immediately and the overlay does not block other controls', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('base64');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: 'ファイル変換' }).click();
+
+		const fileInput = page.locator('input[type="file"]');
+		await fileInput.setInputFiles({
+			name: 'sample.txt',
+			mimeType: 'text/plain',
+			buffer: Buffer.from('hello'),
+		});
+
+		const output = page.getByRole('textbox').last();
+		await expect(output).toContainText('data:text/plain;base64,');
+
+		// トグルOFFで即座に生のBase64（Data URIプレフィックスなし）へ切り替わること
+		await page
+			.getByRole('checkbox', { name: /Data URI 形式を出力する/ })
+			.click();
+		await expect(output).not.toContainText('data:text/plain;base64,');
+		await expect(output).toContainText('aGVsbG8=');
+
+		// トグルONに戻すと再びData URI形式に戻ること
+		await page
+			.getByRole('checkbox', { name: /Data URI 形式を出力する/ })
+			.click();
+		await expect(output).toContainText('data:text/plain;base64,');
+
+		// 回帰: 透明なファイル入力オーバーレイが画面全体のクリックを奪わないこと（#296）
+		await page.getByRole('tab', { name: 'テキスト変換' }).click();
+		await expect(
+			page.getByRole('tab', { name: 'テキスト変換' }),
+		).toHaveAttribute('data-state', 'active');
+	});
 });
