@@ -18,7 +18,7 @@
 		"rules": {
 			"recommended": true,
 			"a11y": {
-				"useSemanticElements": "warn",
+				"useSemanticElements": "error",
 				"useKeyWithClickEvents": "warn",
 				"useButtonType": "warn",
 				"noAriaHiddenOnFocusable": "warn",

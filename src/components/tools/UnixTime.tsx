@@ -257,9 +257,8 @@ export default function UnixTime() {
 					</div>
 
 					{candidates.length > 1 && (
-						<div
+						<fieldset
 							className="flex flex-wrap gap-2"
-							role="group"
 							aria-label="解釈候補の切り替え"
 						>
 							{candidates.map((c) => (
@@ -278,7 +277,7 @@ export default function UnixTime() {
 									{c.confidence === 'low' && '（低確度）'}
 								</button>
 							))}
-						</div>
+						</fieldset>
 					)}
 
 					{showUnableToParse && (

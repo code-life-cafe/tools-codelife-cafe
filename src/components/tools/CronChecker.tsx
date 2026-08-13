@@ -204,11 +204,7 @@ export default function CronChecker() {
 					autoComplete="off"
 					spellCheck={false}
 				/>
-				<div
-					className="mt-2 flex flex-wrap gap-2"
-					role="group"
-					aria-label="プリセット"
-				>
+				<fieldset className="mt-2 flex flex-wrap gap-2" aria-label="プリセット">
 					{PRESETS.map((p) => (
 						<button
 							key={p.label}
@@ -219,7 +215,7 @@ export default function CronChecker() {
 							{p.label}
 						</button>
 					))}
-				</div>
+				</fieldset>
 			</div>
 
 			{'error' in parseResult && (
