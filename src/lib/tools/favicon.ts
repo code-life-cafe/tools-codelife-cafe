@@ -10,6 +10,8 @@
 // ICOは複数PNGをラップする単純なコンテナ形式（ICONDIR + ICONDIRENTRY×N + PNGペイロード）。
 // scripts/_gen-favicons.mts（Node Buffer版）のエンコードを Uint8Array/DataView へ移植している。
 
+import { BYTES_PER_MB, FILE_SIZE_LIMITS_MB } from '../constants.ts';
+
 // ---------------------------------------------------------------------------
 // 型定義
 // ---------------------------------------------------------------------------
@@ -82,7 +84,7 @@ export type GeneratedFavicons = {
 // ---------------------------------------------------------------------------
 
 /** 入力ファイルの上限: 20MB */
-export const MAX_FAVICON_FILE_SIZE = 20 * 1024 * 1024;
+export const MAX_FAVICON_FILE_SIZE = FILE_SIZE_LIMITS_MB.FAVICON * BYTES_PER_MB;
 
 /** マスターキャンバスの一辺（SVGはここでラスタライズしてから各サイズへ縮小） */
 export const MASTER_SIZE = 512;

@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { CSV_EDITOR_ROWS_PER_PAGE } from '@/lib/constants';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -54,7 +55,7 @@ import {
 } from '@/lib/tools/xlsx-reader';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
-const ROWS_PER_PAGE = 50;
+const ROWS_PER_PAGE = CSV_EDITOR_ROWS_PER_PAGE;
 
 export default function CsvEditor() {
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('csv-editor');

@@ -2,6 +2,8 @@
 // メインスレッド（UI）と Web Worker の双方から import される。
 // 検証・寸法・タイル分割・ファイル名・モデル定義など、推論を伴わない処理を集約する。
 
+import { BYTES_PER_MB, FILE_SIZE_LIMITS_MB } from '../constants.ts';
+
 // --- 定数 ---
 export const SUPPORTED_INPUT_TYPES = [
 	'image/png',
@@ -10,7 +12,7 @@ export const SUPPORTED_INPUT_TYPES = [
 ] as const;
 
 /** 入力ファイルサイズ上限: 20MB */
-export const MAX_FILE_SIZE = 20 * 1024 * 1024;
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.UPSCALE * BYTES_PER_MB;
 
 /** 入力解像度の長辺上限。これを超えると出力が巨大化・処理が非現実的になるため拒否する。 */
 export const MAX_INPUT_EDGE = 2000;

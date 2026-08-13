@@ -1,3 +1,10 @@
+import {
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+	HASH_HUGE_FILE_THRESHOLD_BYTES,
+	HASH_LARGE_FILE_THRESHOLD_BYTES,
+} from '../constants.ts';
+
 export type HashAlgorithm = 'md5' | 'sha1' | 'sha256' | 'sha512' | 'crc32';
 
 export type HashResults = Partial<Record<HashAlgorithm, string>>;
@@ -6,9 +13,9 @@ export type HashInputValidation =
 	| { ok: true; warnLevel: 'none' | 'large' | 'huge' }
 	| { ok: false; reason: 'too-large-file' };
 
-export const MAX_FILE_SIZE = 256 * 1024 * 1024;
-export const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024;
-export const HUGE_FILE_THRESHOLD = 200 * 1024 * 1024;
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.HASH * BYTES_PER_MB;
+export const LARGE_FILE_THRESHOLD = HASH_LARGE_FILE_THRESHOLD_BYTES;
+export const HUGE_FILE_THRESHOLD = HASH_HUGE_FILE_THRESHOLD_BYTES;
 const CHUNK_SIZE = 8 * 1024 * 1024;
 
 export const HASH_ALGORITHMS: readonly HashAlgorithm[] = [

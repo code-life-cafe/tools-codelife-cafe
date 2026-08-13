@@ -2,6 +2,12 @@
 // 読み込み・バリデーション・縮小・エクスポート・座標変換を提供する純粋関数群
 // （image-mosaic / image-text で共用）
 
+import {
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+	OBJECT_URL_REVOKE_DELAY_MS,
+} from '../constants.ts';
+
 export const SUPPORTED_IMAGE_TYPES = [
 	'image/png',
 	'image/jpeg',
@@ -9,7 +15,7 @@ export const SUPPORTED_IMAGE_TYPES = [
 ] as const;
 
 /** 最大ファイルサイズ: 20MB */
-export const MAX_FILE_SIZE = 20 * 1024 * 1024;
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.IMAGE_COMMON * BYTES_PER_MB;
 
 /** 読み込み可能な最大辺長（これを超える画像は拒否） */
 export const MAX_DIMENSION = 8192;
@@ -201,7 +207,7 @@ export function downloadBlob(blob: Blob, filename: string): void {
 	link.click();
 	document.body.removeChild(link);
 	// click 直後の revoke はダウンロード失敗の原因になるため遅延させる
-	setTimeout(() => URL.revokeObjectURL(url), 1000);
+	setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
 }
 
 /**

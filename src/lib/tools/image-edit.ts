@@ -3,6 +3,12 @@
 // loadBitmap で EXIF Orientation を反映するため、出力には Orientation タグを残さない。
 
 // node --test から直接読み込めるよう、相対パス + 拡張子付きで import する（zip.ts と同じ規約）
+import {
+	BATCH_MAX_FILE_COUNT,
+	BATCH_TOTAL_SIZE_LIMIT_BYTES,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
 import { downloadBlob } from './image-common.ts';
 import { buildZip, dedupeZipNames } from './zip.ts';
 
@@ -59,9 +65,9 @@ const SUPPORTED_TYPES: Record<string, 'png' | 'jpeg' | 'webp'> = {
 	'image/webp': 'webp',
 };
 
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB/ファイル
-export const MAX_FILE_COUNT = 30;
-export const MAX_TOTAL_SIZE = 300 * 1024 * 1024; // 300MB
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.IMAGE_EDIT * BYTES_PER_MB; // 50MB/ファイル
+export const MAX_FILE_COUNT = BATCH_MAX_FILE_COUNT;
+export const MAX_TOTAL_SIZE = BATCH_TOTAL_SIZE_LIMIT_BYTES; // 300MB
 export const DEFAULT_QUALITY = 85;
 export const DEFAULT_BACKGROUND = '#ffffff';
 
