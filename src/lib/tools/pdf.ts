@@ -4,6 +4,12 @@
 // 用途は merge / split / image embed / page count detection に限定する
 // （署名保持・暗号化処理・フォーム完全保持などの高度なPDF処理は対象外）。
 
+import {
+	BATCH_TOTAL_SIZE_LIMIT_BYTES,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
+
 export type MergeInput =
 	| { kind: 'pdf'; name: string; bytes: Uint8Array }
 	| {
@@ -50,9 +56,9 @@ export type SplitResult = {
 	pageNumbers: number[];
 };
 
-export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB/ファイル
+export const MAX_FILE_SIZE_BYTES = FILE_SIZE_LIMITS_MB.PDF * BYTES_PER_MB; // 100MB/ファイル
 export const MAX_MERGE_FILES = 20; // 結合は20ファイル/回
-export const MAX_TOTAL_INPUT_BYTES = 300 * 1024 * 1024; // 合計入力300MB/回
+export const MAX_TOTAL_INPUT_BYTES = BATCH_TOTAL_SIZE_LIMIT_BYTES; // 合計入力300MB/回
 
 export const TOTAL_SIZE_EXCEEDED_MESSAGE =
 	'合計サイズが300MBを超えています。ブラウザのメモリ上限により処理できない可能性があります。ファイル数またはサイズを減らしてください。';

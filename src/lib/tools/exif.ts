@@ -5,6 +5,13 @@
 // メタデータ除去は JPEG セグメント除去（ピクセル非改変）を基本とし、
 // WebP/TIFF は Canvas 再エンコードにフォールバックする。
 
+import {
+	BATCH_MAX_FILE_COUNT,
+	BATCH_TOTAL_SIZE_LIMIT_BYTES,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
+
 // ---------------------------------------------------------------------------
 // 型定義
 // ---------------------------------------------------------------------------
@@ -53,9 +60,9 @@ export type StripResult = { data: Uint8Array; warnings: string[] };
 // 上限値
 // ---------------------------------------------------------------------------
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
-export const MAX_BATCH_FILES = 30;
-export const MAX_TOTAL_INPUT_BYTES = 300 * 1024 * 1024;
+export const MAX_FILE_SIZE_BYTES = FILE_SIZE_LIMITS_MB.EXIF * BYTES_PER_MB;
+export const MAX_BATCH_FILES = BATCH_MAX_FILE_COUNT;
+export const MAX_TOTAL_INPUT_BYTES = BATCH_TOTAL_SIZE_LIMIT_BYTES;
 
 // ---------------------------------------------------------------------------
 // TIFF 型サイズ

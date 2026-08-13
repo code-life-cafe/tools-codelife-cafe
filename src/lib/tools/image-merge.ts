@@ -1,6 +1,13 @@
 // image-merge.ts — 複数画像の結合（縦・横・グリッド）コアロジック（純粋関数中心）
 // 処理はすべてブラウザ内（Canvas API）で完結し、サーバーへの送信は行わない。
 
+import {
+	BATCH_MAX_FILE_COUNT,
+	BATCH_TOTAL_SIZE_LIMIT_BYTES,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
+
 // ---------------------------------------------------------------------------
 // 型定義
 // ---------------------------------------------------------------------------
@@ -54,9 +61,9 @@ const SUPPORTED_TYPES: Record<string, 'png' | 'jpeg' | 'webp' | 'gif'> = {
 	'image/gif': 'gif',
 };
 
-export const MAX_FILE_SIZE = 50 * 1024 * 1024;
-export const MAX_FILE_COUNT = 30;
-export const MAX_TOTAL_SIZE = 300 * 1024 * 1024;
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.IMAGE_MERGE * BYTES_PER_MB;
+export const MAX_FILE_COUNT = BATCH_MAX_FILE_COUNT;
+export const MAX_TOTAL_SIZE = BATCH_TOTAL_SIZE_LIMIT_BYTES;
 export const MAX_CANVAS_DIMENSION = 16384;
 export const DEFAULT_QUALITY = 85;
 

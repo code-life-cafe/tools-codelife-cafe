@@ -1,3 +1,5 @@
+import { BYTES_PER_MB, FILE_SIZE_LIMITS_MB } from '../constants.ts';
+
 export type SnippetKind = 'img' | 'css-bg' | 'raw-base64' | 'data-uri';
 
 export type ImageInputValidation =
@@ -22,7 +24,7 @@ const SUPPORTED_MIMES = new Set([
 	'image/svg+xml',
 ]);
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.IMAGE_BASE64 * BYTES_PER_MB;
 
 const MIME_TO_EXT: Record<string, string> = {
 	'image/png': 'png',

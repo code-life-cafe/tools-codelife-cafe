@@ -1,11 +1,18 @@
+import {
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+	IMAGE_METADATA_MAX_FILE_COUNT,
+} from '../constants.ts';
+
 export const SUPPORTED_METADATA_IMAGE_TYPES = [
 	'image/jpeg',
 	'image/png',
 	'image/webp',
 ] as const;
 
-export const MAX_METADATA_FILE_COUNT = 20;
-export const MAX_METADATA_FILE_SIZE = 25 * 1024 * 1024;
+export const MAX_METADATA_FILE_COUNT = IMAGE_METADATA_MAX_FILE_COUNT;
+export const MAX_METADATA_FILE_SIZE =
+	FILE_SIZE_LIMITS_MB.IMAGE_METADATA * BYTES_PER_MB;
 
 export type MetadataImageType = (typeof SUPPORTED_METADATA_IMAGE_TYPES)[number];
 

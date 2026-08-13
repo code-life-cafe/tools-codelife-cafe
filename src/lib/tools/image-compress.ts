@@ -5,6 +5,12 @@
 // canvas 依存の関数（compressImage / compressToTargetSize）はブラウザ専用。
 // 寸法計算・品質二分探索・形式解決などの純粋ロジックは個別にエクスポートし unit test 対象とする。
 
+import {
+	BATCH_MAX_FILE_COUNT,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
+
 export type ResizeMode =
 	| { type: 'none' }
 	| { type: 'max-width'; value: number }
@@ -49,8 +55,8 @@ export const SUPPORTED_INPUT_TYPES = [
 	'image/webp',
 ] as const;
 
-export const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB/枚
-export const MAX_FILE_COUNT = 30; // 30枚/回
+export const MAX_FILE_SIZE = FILE_SIZE_LIMITS_MB.IMAGE_COMPRESS * BYTES_PER_MB; // 50MB/枚
+export const MAX_FILE_COUNT = BATCH_MAX_FILE_COUNT; // 30枚/回
 export const DEFAULT_QUALITY = 0.8;
 export const DEFAULT_BACKGROUND = '#ffffff';
 export const TARGET_MIN_QUALITY = 0.3;

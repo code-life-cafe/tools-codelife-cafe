@@ -8,6 +8,13 @@
 // 形式判定・EXIF 抽出/再注入・バリデーション等の純粋ロジックは個別にエクスポートし
 // unit test 対象とする。canvas/WASM 依存（decodeToBitmap / encode / convertOne）は E2E で検証する。
 
+import {
+	BATCH_MAX_FILE_COUNT,
+	BATCH_TOTAL_SIZE_LIMIT_BYTES,
+	BYTES_PER_MB,
+	FILE_SIZE_LIMITS_MB,
+} from '../constants.ts';
+
 export type SourceFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'heic';
 export type TargetFormat = 'jpeg' | 'png' | 'webp' | 'avif';
 export type ExifMode = 'keep' | 'strip';
@@ -49,9 +56,10 @@ export type BatchValidation =
 // 上限値
 // ---------------------------------------------------------------------------
 
-export const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB/ファイル
-export const MAX_BATCH_FILES = 30; // 30ファイル/回
-export const MAX_TOTAL_INPUT_BYTES = 300 * 1024 * 1024; // 合計300MB
+export const MAX_FILE_SIZE_BYTES =
+	FILE_SIZE_LIMITS_MB.IMAGE_CONVERT * BYTES_PER_MB; // 50MB/ファイル
+export const MAX_BATCH_FILES = BATCH_MAX_FILE_COUNT; // 30ファイル/回
+export const MAX_TOTAL_INPUT_BYTES = BATCH_TOTAL_SIZE_LIMIT_BYTES; // 合計300MB
 
 export const DEFAULT_QUALITY = 85;
 export const DEFAULT_BACKGROUND = '#ffffff';
