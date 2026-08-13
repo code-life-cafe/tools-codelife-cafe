@@ -3,9 +3,9 @@
  * 複数の電話番号をCSV形式で入力・変換・出力する
  */
 import Papa from 'papaparse';
-import { getNumberTypeLabel } from './classify';
-import { parsePhoneNumber } from './parse';
-import type { BulkResult, ParseResult } from './types';
+import { getNumberTypeLabel } from './classify.ts';
+import { parsePhoneNumber } from './parse.ts';
+import type { BulkResult, ParseResult } from './types.ts';
 
 const MAX_BULK_ITEMS = 10000;
 

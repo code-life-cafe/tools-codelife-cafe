@@ -32,7 +32,7 @@ export const LINE_HEIGHT = 1.4;
 /** 背景ボックスのパディング(px) */
 export const BG_PADDING = 4;
 
-import { createId } from './image-common';
+import { createId } from './image-common.ts';
 
 export const FONT_FAMILIES: readonly { value: FontFamily; label: string }[] = [
 	{ value: 'sans-serif', label: 'ゴシック体' },
