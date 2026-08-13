@@ -67,18 +67,29 @@ function getStepHint(step: RecipeStep | undefined): string | null {
 	}
 }
 
-function playBeep(ctx: AudioContext) {
+function playBeep(ctx: AudioContext, type: 'step' | 'pre' = 'step') {
 	try {
 		const oscillator = ctx.createOscillator();
 		const gain = ctx.createGain();
 		oscillator.type = 'sine';
-		oscillator.frequency.value = 880;
-		gain.gain.setValueAtTime(0.15, ctx.currentTime);
-		gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
-		oscillator.connect(gain);
-		gain.connect(ctx.destination);
-		oscillator.start();
-		oscillator.stop(ctx.currentTime + 0.35);
+
+		if (type === 'pre') {
+			oscillator.frequency.value = 440;
+			gain.gain.setValueAtTime(0.08, ctx.currentTime);
+			gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+			oscillator.connect(gain);
+			gain.connect(ctx.destination);
+			oscillator.start();
+			oscillator.stop(ctx.currentTime + 0.08);
+		} else {
+			oscillator.frequency.value = 880;
+			gain.gain.setValueAtTime(0.15, ctx.currentTime);
+			gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+			oscillator.connect(gain);
+			gain.connect(ctx.destination);
+			oscillator.start();
+			oscillator.stop(ctx.currentTime + 0.35);
+		}
 	} catch {
 		// 効果音の再生失敗はガイドの進行を止めない
 	}
@@ -113,6 +124,7 @@ export function BrewGuide({
 	>('idle');
 	const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 	const lastStepIndexRef = useRef<number>(session.currentStepIndex);
+	const lastCountdownSecRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		saveSession(session);
@@ -120,7 +132,7 @@ export function BrewGuide({
 
 	useEffect(() => {
 		if (session.status !== 'running') return;
-		const id = setInterval(() => setNowMs(Date.now()), 250);
+		const id = setInterval(() => setNowMs(Date.now()), 100);
 		return () => clearInterval(id);
 	}, [session.status]);
 
@@ -196,19 +208,45 @@ export function BrewGuide({
 	const stepIndex = deriveStepIndex(steps, elapsedSec);
 	const currentStep = steps[stepIndex];
 	const totalDurationSec = steps[steps.length - 1]?.time_sec ?? 0;
+	const totalDurationMs = totalDurationSec * 1000;
 	const progressPercent =
-		totalDurationSec > 0
-			? Math.min(100, Math.round((elapsedSec / totalDurationSec) * 100))
+		totalDurationMs > 0
+			? Math.min(100, (elapsedMs / totalDurationMs) * 100)
 			: 0;
 
 	useEffect(() => {
 		if (stepIndex === lastStepIndexRef.current) return;
 		lastStepIndexRef.current = stepIndex;
+		lastCountdownSecRef.current = null;
 		setSession((prev) => ({ ...prev, currentStepIndex: stepIndex }));
 		if (settings.soundEnabled && audioContext) {
-			playBeep(audioContext);
+			playBeep(audioContext, 'step');
 		}
 	}, [stepIndex, settings.soundEnabled, audioContext]);
+
+	// 次のメモリ（ステップ切替）到達直前（残り3秒、2秒、1秒）の予告時報音
+	useEffect(() => {
+		if (session.status !== 'running') return;
+		if (!settings.soundEnabled || !audioContext) return;
+
+		const nextStep = steps[stepIndex + 1];
+		if (!nextStep) return;
+
+		const remainingSec = nextStep.time_sec - elapsedSec;
+		if (remainingSec >= 1 && remainingSec <= 3) {
+			if (lastCountdownSecRef.current !== remainingSec) {
+				lastCountdownSecRef.current = remainingSec;
+				playBeep(audioContext, 'pre');
+			}
+		}
+	}, [
+		elapsedSec,
+		session.status,
+		settings.soundEnabled,
+		audioContext,
+		stepIndex,
+		steps,
+	]);
 
 	const handlePauseResume = () => {
 		setSession((prev) => {
@@ -347,7 +385,7 @@ export function BrewGuide({
 					aria-hidden="true"
 				>
 					<div
-						className="h-full bg-accent transition-all"
+						className="h-full bg-accent transition-[width] duration-100 ease-linear"
 						style={{ width: `${progressPercent}%` }}
 					/>
 					{/* マイルストーン: 各ステップの開始位置に目印を置き、次のアクションまでの
@@ -361,15 +399,39 @@ export function BrewGuide({
 							return (
 								<span
 									key={`${step.step_order}-${step.label}`}
-									className={`absolute top-0 h-full w-0.5 ${passed ? 'bg-background/80' : 'bg-foreground/25'}`}
+									className={`absolute top-0 h-full w-0.5 ${passed ? 'bg-background/90' : 'bg-foreground/40'}`}
 									style={{ left: `${tickPercent}%` }}
 								/>
 							);
 						})}
 				</div>
-				<div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
-					<span>0:00</span>
-					<span>{formatClock(totalDurationSec)}</span>
+
+				<div
+					className="relative h-4 w-full text-[10px] text-muted-foreground tabular-nums"
+					aria-hidden="true"
+				>
+					<span className="absolute left-0 top-0">0:00</span>
+					{totalDurationSec > 0 &&
+						steps.slice(1, -1).map((step) => {
+							const tickPercent = (step.time_sec / totalDurationSec) * 100;
+							const passed = tickPercent <= progressPercent;
+							return (
+								<span
+									key={`time-${step.step_order}-${step.label}`}
+									className={`absolute top-0 -translate-x-1/2 transition-colors ${
+										passed
+											? 'text-foreground font-medium'
+											: 'text-muted-foreground'
+									}`}
+									style={{ left: `${tickPercent}%` }}
+								>
+									{formatClock(step.time_sec)}
+								</span>
+							);
+						})}
+					<span className="absolute right-0 top-0">
+						{formatClock(totalDurationSec)}
+					</span>
 				</div>
 
 				<div className="flex items-center justify-center gap-3">
