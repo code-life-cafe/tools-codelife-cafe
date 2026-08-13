@@ -225,7 +225,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		category: 'ユーティリティ',
 		categoryColor: 'border-l-chart-2',
 		keywords: ['Base64', 'エンコード', 'デコード'],
-		related: ['url-encoder', 'image-base64', 'cipher'],
+		related: ['url-encoder', 'image-base64', 'cipher', 'bookmarklet'],
 		llmsFull: {
 			useCase: 'テキストやバイナリファイルのBase64エンコードおよびデコード',
 			inputs: 'content（テキストまたはファイル）, mode（encode | decode）',
@@ -470,6 +470,32 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			outputs:
 				'変換後の文字列、構文エラー時は行・列付きの日本語エラーメッセージ',
 			options: 'インデント幅（2, 4, コンパクト）、キーソートのON/OFF',
+		},
+	},
+	{
+		id: 'bookmarklet',
+		title: 'ブックマークレット変換（JS ⇔ Bookmarklet）',
+		description:
+			'JavaScript ⇔ ブックマークレット（javascript: URL）を双方向変換。IIFEラップ・minify・外部スクリプト挿入に対応。',
+		href: '/bookmarklet',
+		icon: 'Bookmark',
+		category: '開発ツール',
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'ブックマークレット',
+			'bookmarklet',
+			'javascript:',
+			'IIFE',
+			'minify',
+		],
+		related: ['base64', 'hash', 'url-encoder'],
+		llmsFull: {
+			useCase:
+				'JavaScriptコードとブックマークレット（javascript: URL）の双方向変換。IIFEラップ・minify・外部スクリプト挿入オプション付き',
+			inputs:
+				'code（JavaScriptまたはbookmarklet文字列）, direction（auto | encode | decode）',
+			outputs: 'bookmarklet（javascript: URL）またはJavaScriptコード',
+			options: 'IIFEラップON/OFF、MinifyON/OFF、外部スクリプトURL（任意）',
 		},
 	},
 	{
