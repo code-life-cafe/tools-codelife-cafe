@@ -52,6 +52,21 @@ function formatClock(totalSec: number): string {
 	return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+/** action_typeごとの操作説明。「スワール」など専門用語の意味を補足する。 */
+function getStepHint(step: RecipeStep | undefined): string | null {
+	if (!step) return null;
+	switch (step.action_type) {
+		case 'swirl':
+			return 'スワール: ドリッパーを軽く揺すり、コーヒー粉の層を平らにならします。';
+		case 'wait':
+			return 'そのまま待ちます。';
+		case 'finish':
+			return 'お湯が落ちきったら「抽出完了」を押してください。';
+		default:
+			return null;
+	}
+}
+
 function playBeep(ctx: AudioContext) {
 	try {
 		const oscillator = ctx.createOscillator();
@@ -255,6 +270,29 @@ export function BrewGuide({
 				</Button>
 			</header>
 
+			<div
+				className="overflow-x-auto border-b border-border px-4 py-2"
+				aria-hidden="true"
+			>
+				<ol className="m-0 flex min-w-max list-none gap-1.5 p-0">
+					{steps.map((step, i) => (
+						<li
+							key={`${step.step_order}-${step.label}`}
+							className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs whitespace-nowrap ${
+								i === stepIndex
+									? 'bg-accent text-accent-foreground font-semibold'
+									: i < stepIndex
+										? 'bg-muted text-muted-foreground line-through'
+										: 'bg-muted/50 text-muted-foreground'
+							}`}
+						>
+							<span>{i + 1}</span>
+							<span>{step.label}</span>
+						</li>
+					))}
+				</ol>
+			</div>
+
 			<div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-6 text-center">
 				<div aria-live="polite">
 					<p className="text-sm font-medium text-muted-foreground">
@@ -282,6 +320,18 @@ export function BrewGuide({
 							注湯
 						</p>
 					)}
+
+				{getStepHint(currentStep) && (
+					<p className="text-sm text-muted-foreground">
+						{getStepHint(currentStep)}
+					</p>
+				)}
+
+				{steps[stepIndex + 1] && (
+					<p className="text-xs text-muted-foreground">
+						次: {steps[stepIndex + 1].label}
+					</p>
+				)}
 
 				{wakeLockStatus === 'unsupported' || wakeLockStatus === 'failed' ? (
 					<p className="text-xs text-muted-foreground" role="status">

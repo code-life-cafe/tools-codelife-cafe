@@ -401,6 +401,13 @@ function RecipeEditor({
 							ステップを追加
 						</Button>
 					</div>
+					<div className="hidden sm:grid grid-cols-[5rem_5rem_1fr_7rem_auto] gap-2 px-2 text-xs text-muted-foreground">
+						<span>開始(秒)</span>
+						<span>注湯量(ml)</span>
+						<span>ラベル</span>
+						<span>種別</span>
+						<span />
+					</div>
 					<div className="space-y-2">
 						{draft.steps.map((step, index) => (
 							<div
@@ -408,26 +415,40 @@ function RecipeEditor({
 								key={index}
 								className="grid grid-cols-[5rem_5rem_1fr_7rem_auto] items-center gap-2 rounded-lg border border-border p-2"
 							>
-								<Input
-									type="text"
-									inputMode="numeric"
-									aria-label="開始秒"
-									value={String(step.time_sec)}
-									onChange={(e) =>
-										updateStep(index, { time_sec: Number(e.target.value) || 0 })
-									}
-								/>
-								<Input
-									type="text"
-									inputMode="numeric"
-									aria-label="注湯量(ml)"
-									value={String(step.pour_amount_ml)}
-									onChange={(e) =>
-										updateStep(index, {
-											pour_amount_ml: Number(e.target.value) || 0,
-										})
-									}
-								/>
+								<div className="relative">
+									<Input
+										type="text"
+										inputMode="numeric"
+										aria-label="開始(秒)"
+										value={String(step.time_sec)}
+										onChange={(e) =>
+											updateStep(index, {
+												time_sec: Number(e.target.value) || 0,
+											})
+										}
+										className="pr-7"
+									/>
+									<span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+										秒
+									</span>
+								</div>
+								<div className="relative">
+									<Input
+										type="text"
+										inputMode="numeric"
+										aria-label="注湯量(ml)"
+										value={String(step.pour_amount_ml)}
+										onChange={(e) =>
+											updateStep(index, {
+												pour_amount_ml: Number(e.target.value) || 0,
+											})
+										}
+										className="pr-8"
+									/>
+									<span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+										ml
+									</span>
+								</div>
 								<Input
 									aria-label="ラベル"
 									value={step.label}
@@ -467,6 +488,10 @@ function RecipeEditor({
 							</div>
 						))}
 					</div>
+					<p className="text-xs text-muted-foreground">
+						種別の意味:
+						注湯＝お湯を注ぐ／待つ＝そのまま待機／スワール＝ドリッパーを軽く揺すり粉の層を平らにならす／完了＝抽出終了
+					</p>
 				</div>
 
 				{errors.length > 0 && (

@@ -74,9 +74,9 @@ export function BrewHome({
 			: undefined;
 
 	return (
-		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+		<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 			<ul
-				className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 list-none p-0 m-0"
+				className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3 auto-rows-min list-none p-0 m-0"
 				aria-label="レシピ一覧"
 			>
 				{recipes.map((recipe) => (
