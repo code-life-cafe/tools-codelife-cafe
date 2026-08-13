@@ -31,6 +31,26 @@ test.describe('Dummy Data Generator Tool', () => {
 		await expect(previewContainer).toContainText('氏名');
 		await expect(previewContainer).not.toContainText('"name"');
 	});
+	test('TSV出力の1行目も日本語ラベルになる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('dummy-data');
+		await toolPage.goto();
+
+		const previewContainer = page.locator('pre');
+		await expect(previewContainer).toBeVisible();
+
+		await page.getByRole('tab', { name: 'TSV' }).click();
+
+		await expect(previewContainer).toContainText('氏名');
+		await expect(previewContainer).not.toContainText('"name"');
+		const headerLine = (await previewContainer.textContent())
+			?.split('\n')[0]
+			?.trim();
+		expect(headerLine).not.toContain('name');
+	});
+
 	test('同一設定の再生成クリックで出力が変わる', async ({
 		page,
 		createToolPage,

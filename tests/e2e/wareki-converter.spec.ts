@@ -178,6 +178,30 @@ test.describe('Wareki Converter Tool', () => {
 		expect(clipboardText).toContain('西暦');
 	});
 
+	test('should show a fallback notice instead of an error when only the month is specified', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('2023');
+		await page.getByRole('combobox', { name: '月（任意）' }).click();
+		await page.getByRole('option', { name: '3月', exact: true }).click();
+
+		await expect(
+			page.getByText(
+				'月のみの指定では年単位で換算しています。厳密な日付換算には日も指定してください。',
+			),
+		).toBeVisible();
+		await expect(
+			page.getByText(
+				'存在しない日付です。月・日の入力内容を確認してください。',
+			),
+		).toHaveCount(0);
+	});
+
 	test('should reject a non-existent date', async ({
 		page,
 		createToolPage,

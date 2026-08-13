@@ -50,4 +50,36 @@ test.describe('Text Diff', () => {
 			expect(resize).toBe('none');
 		}
 	});
+
+	test('split view keeps left/right rows aligned when only one side changes', async ({
+		page,
+	}) => {
+		// Split表示の切替タブは `hidden sm:block` でモバイル幅では非表示のため、デスクトップ幅に固定する
+		await page.setViewportSize({ width: 1280, height: 900 });
+
+		const textboxes = page.getByRole('textbox');
+		await textboxes.first().fill('line1\nline2\nline3');
+		await textboxes.nth(1).fill('line1\nNEW\nline2\nline3');
+
+		await page.getByRole('tab', { name: 'Split' }).click();
+
+		const columns = page.locator('.grid.grid-cols-2 > div');
+		const leftRows = columns.nth(0).locator('.w-full.min-w-max > div');
+		const rightRows = columns.nth(1).locator('.w-full.min-w-max > div');
+
+		// 追加行の分だけ、右側だけでなく左側にもスペーサー行が挿入され行数が揃うこと
+		await expect(leftRows).toHaveCount(4);
+		await expect(rightRows).toHaveCount(4);
+
+		// インデックス1: 右のみ "NEW" が追加され、左はスペーサー（空行）
+		await expect(rightRows.nth(1)).toContainText('NEW');
+		await expect(leftRows.nth(1)).not.toContainText('NEW');
+		await expect(leftRows.nth(1)).not.toContainText('line');
+
+		// インデックス2・3: 共通行が左右で同じ縦位置に揃っていること（回帰: #295）
+		await expect(leftRows.nth(2)).toContainText('line2');
+		await expect(rightRows.nth(2)).toContainText('line2');
+		await expect(leftRows.nth(3)).toContainText('line3');
+		await expect(rightRows.nth(3)).toContainText('line3');
+	});
 });
