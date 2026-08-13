@@ -4,7 +4,7 @@ const section = (page: import('@playwright/test').Page) =>
 	page.locator('section[aria-labelledby="related-tools-heading"]');
 
 test.describe('関連ツール 回遊カード', () => {
-	test('ワークフロー所属ツールはステップカードフロー（現在地非リンク、他ステップリンク）を表示する', async ({
+	test('ワークフロー所属ツールは現在地を除く他ステップへのリンクカードを表示する', async ({
 		page,
 		createToolPage,
 	}) => {
@@ -19,10 +19,8 @@ test.describe('関連ツール 回遊カード', () => {
 		await expect(related.locator('a[href="/json-formatter"]')).toHaveCount(1);
 		await expect(related.locator('a[href="/hash"]')).toHaveCount(1);
 		await expect(related.locator('a[href="/regex-tester"]')).toHaveCount(1);
-		// 現在地の base64 は <a> ではなく <div> として出力されるため、リンクは 0 件
+		// 現在地の base64 はリンクとして表示しない（自分自身を除外）
 		await expect(related.locator('a[href="/base64"]')).toHaveCount(0);
-		// 現在地であることを示すテキストが存在することを確認
-		await expect(related.locator('text=現在地')).toBeVisible();
 	});
 
 	test('related 未指定ツールは同カテゴリで補完表示する', async ({
