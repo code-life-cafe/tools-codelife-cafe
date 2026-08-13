@@ -1,5 +1,50 @@
 import { format } from 'sql-formatter';
 
+// 出力SQLのシンタックスハイライトで強調表示するキーワード一覧
+export const SQL_KEYWORDS = [
+	'SELECT',
+	'FROM',
+	'WHERE',
+	'AND',
+	'OR',
+	'JOIN',
+	'LEFT',
+	'RIGHT',
+	'INNER',
+	'OUTER',
+	'ON',
+	'ORDER BY',
+	'GROUP BY',
+	'HAVING',
+	'LIMIT',
+	'OFFSET',
+	'INSERT',
+	'INTO',
+	'VALUES',
+	'UPDATE',
+	'SET',
+	'DELETE',
+	'CREATE',
+	'TABLE',
+	'DROP',
+	'ALTER',
+	'ADD',
+	'COLUMN',
+	'AS',
+	'DISTINCT',
+	'COUNT',
+	'MAX',
+	'MIN',
+	'AVG',
+	'SUM',
+	'IS',
+	'NULL',
+	'NOT',
+	'IN',
+	'BETWEEN',
+	'LIKE',
+];
+
 export type SqlDialect = 'sql' | 'mysql' | 'postgresql' | 'tsql' | 'plsql';
 export type IndentStyle = '2spaces' | '4spaces' | 'tabs';
 
