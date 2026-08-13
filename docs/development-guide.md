@@ -218,6 +218,14 @@ npm run preview
 npm test
 ```
 
+### 7.2 実行時間の閾値とシャーディング方針
+
+CIの `E2E Tests` ワークフロー（`.github/workflows/e2e.yml`）における Playwright 本体の
+実行時間が **8分を超えた場合、シャーディング導入検討の明示的なトリガー**とする。
+測定方法、導入時の分割数（2〜4分割）、blobレポーター統合手順などの詳細は
+[docs/specs/2026-08-13-e2e-sharding-threshold.md](./specs/2026-08-13-e2e-sharding-threshold.md)
+を参照してください。閾値に到達するまでは、シャーディング自体は導入しません。
+
 ---
 
 ## 8. 単体テスト方針 (Unit Testing)
