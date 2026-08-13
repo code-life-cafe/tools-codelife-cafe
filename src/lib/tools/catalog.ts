@@ -1142,6 +1142,37 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			options: 'タイムゾーン選択（JST/UTC/任意IANA TZ）、出力フォーマット選択',
 		},
 	},
+	{
+		id: 'drip-coffee-guide',
+		title: 'ドリップコーヒー抽出ガイド',
+		description:
+			'V60・カリタなどドリップの注湯タイマー付きガイドと抽出記録。プリセット3種＋マイレシピ対応。',
+		href: '/drip-coffee-guide',
+		icon: 'Coffee',
+		category: 'ユーティリティ',
+		categoryColor: 'border-l-chart-2',
+		keywords: [
+			'コーヒー',
+			'ドリップ',
+			'V60',
+			'カリタ',
+			'抽出',
+			'レシピ',
+			'タイマー',
+			'4:6メソッド',
+		],
+		// このツールのページは関連ツールカードを表示しない（ToolLayout の hideRelatedTools）ため、
+		// related は他ツールの補完候補としては使われるが、自ページの表示には影響しない。
+		related: [],
+		llmsFull: {
+			useCase:
+				'ドリップ（透過式）コーヒーのレシピ選択・注湯タイマー付きガイド・抽出記録の管理。豆量に応じた注湯量の自動スケーリング、レシオ・EYの自動計算',
+			inputs: 'レシピ選択、実際の豆量(g)、抽出記録（豆名・湯温・時間・TDS等）',
+			outputs: '注湯ステップごとのタイマーガイド、保存された抽出記録一覧',
+			options:
+				'プリセット3種（4:6メソッド／Hoffmann 1-Cup／ベーシック3投）またはマイレシピ',
+		},
+	},
 ];
 
 export const purposeCategories = [
