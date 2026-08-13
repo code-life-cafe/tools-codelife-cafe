@@ -19,15 +19,15 @@
 			"recommended": true,
 			"a11y": {
 				"useSemanticElements": "error",
-				"useKeyWithClickEvents": "warn",
-				"useButtonType": "warn",
-				"noAriaHiddenOnFocusable": "warn",
-				"noInteractiveElementToNoninteractiveRole": "warn",
-				"noNoninteractiveElementToInteractiveRole": "warn",
-				"noStaticElementInteractions": "warn",
-				"noLabelWithoutControl": "warn",
-				"useAriaPropsForRole": "warn",
-				"useAriaPropsSupportedByRole": "warn"
+				"useKeyWithClickEvents": "error",
+				"useButtonType": "error",
+				"noAriaHiddenOnFocusable": "error",
+				"noInteractiveElementToNoninteractiveRole": "error",
+				"noNoninteractiveElementToInteractiveRole": "error",
+				"noStaticElementInteractions": "error",
+				"noLabelWithoutControl": "error",
+				"useAriaPropsForRole": "error",
+				"useAriaPropsSupportedByRole": "error"
 			},
 			"suspicious": {
 				"noArrayIndexKey": "warn",
