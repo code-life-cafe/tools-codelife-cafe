@@ -49,11 +49,12 @@ src/
 ├── components/          # UIコンポーネント
 │   ├── ui/              # shadcn/ui コンポーネント（Biome自動生成、手動編集不可）
 │   ├── layout/          # 共通レイアウト部品（Header, Footer, Navigation, SafetyBadge等）
+│   ├── tool/            # ツール共通レイアウト（ToolLayout, RelatedTools, ToolHero等）
 │   ├── tools/           # 汎用的な各ツール固有React UI（テキスト/データ/開発系など）
 │   ├── image-* / pdf-*  # 画像・PDF系など機能単位のReact UIコンポーネント群
 │   ├── zipcode/         # 郵便番号変換ツールのUIとチャンク取得補助
-│   └── common/          # 汎用部品（CopyButton, FileDropzone, ToolLayout, ToolCard等）
-├── content/             # ツールLP用コンテンツコレクション (Markdown/MDXデータ)
+│   └── common/          # 汎用部品（CopyButton, FileDropzone, ToolCard, JsonLd等）
+├── content/tools/       # 各ツールのLPコンテンツ（title/description/useCases/howto/faq等、Markdownフロントマター）
 ├── layouts/
 │   └── BaseLayout.astro # 全ページ共通HTMLレイアウト（SEO, SW登録, 計測タグ）
 ├── pages/
@@ -136,7 +137,7 @@ flowchart TD
 | --- | --- | --- | --- |
 | ページ・UIアセット取得 | Cloudflare Pages から配信される HTML、`/_astro/` 配下の JS/CSS/画像、`dist/sw.js` | アプリ本体の表示、Astro Islands のハイドレーション、PWA のキャッシュ制御 | 許可。静的アセット配信のみ。ユーザー入力データは含めない |
 | ツールカタログ参照 | `src/lib/tools/catalog.ts` | トップページ、検索、カテゴリ、関連ツール、OGP 画像生成の単一情報源 | 許可。ビルド成果物またはブラウザ内コードとして参照するだけで、外部送信はしない |
-| ツール共通レイアウト表示 | `src/components/common/ToolLayout.astro` | `SafetyBadge`、パンくず、関連ツール、構造化データ、ツール本文スロットの表示 | 許可。表示制御のみ。処理対象データの送信はしない |
+| ツール共通レイアウト表示 | `src/components/tool/ToolLayout.astro` | `SafetyBadge`、パンくず、関連ツール、構造化データ、ツール本文スロットの表示 | 許可。表示制御のみ。処理対象データの送信はしない |
 | Service Worker テンプレート・生成物 | `public/sw.js`、`scripts/generate-sw.mjs`、`dist/sw.js` | プリキャッシュ対象の注入、Cache First / Network First、オフラインフォールバック | 許可。同一オリジンの静的ファイル取得・キャッシュに限定 |
 | 郵便番号チャンク取得 | `/data/zipcode/*.json` などの静的JSON | 郵便番号検索・変換に必要な辞書データを必要分だけ取得 | 例外的に許可。静的データのダウンロードのみで、検索語や入力内容は送信しない |
 | AIモデルファイル取得 | Cloudflare R2 等で配信されるモデル・WASM・関連ファイル | AI背景削除などのブラウザ内推論に必要なモデルを取得 | 例外的に許可。モデルファイル取得のみで、画像などの処理対象データは送信しない |
@@ -153,7 +154,7 @@ flowchart TD
 完全クライアントサイド処理をユーザーに明示し、安心してデータを入出力してもらうために、すべてのツールの上部には「完全ローカル処理（外部送信なし）」を示す `SafetyBadge` が自動配置されます。
 
 ### 7.2 ツールカタログと関連ツール回遊
-ツール一覧・検索・個別ページの関連ツールカードは `src/lib/tools/catalog.ts` を単一の情報源として管理します。`ToolLayout.astro` は現在ページの `path` からツールを解決し、`getRelatedTools()` によって `related` 指定を優先しつつ同カテゴリのツールで最大3件まで補完して表示します。これにより、各ページに手書きの関連リンクを分散させず、回遊導線を一元管理します。
+ツール一覧・検索・個別ページの関連ツールカードは `src/lib/tools/catalog.ts` を単一の情報源として管理します。`ToolLayout.astro` が内部で描画する `RelatedTools.astro`（`src/components/tool/`）は、対象ツールの `src/content/tools/[name].md` フロントマターに書かれた `related` を優先しつつ、指定が無い・不足する場合は `getRelatedTools()` により `catalog.ts` の同カテゴリのツールで最大3件まで補完して表示します。これにより、各ページに手書きの関連リンクを分散させず、回遊導線を一元管理します。
 
 ### 7.3 ネットワーク遮断の保証
 本アプリは意図的にバックエンドAPIを持たず、静的ファイル配信のみで構成されているため、ブラウザの開発者ツールの「ネットワーク」タブ等で検証しても、ユーザーデータの外部送信が発生しないことが確認できます。

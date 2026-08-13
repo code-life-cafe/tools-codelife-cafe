@@ -15,15 +15,15 @@
 
 プロジェクトの全体設計やルールについては、以下の詳細設計書を必ず参照してください。
 
-- **[architecture.md](file:///d:/tools-codelife-cafe/docs/architecture.md) (システムアーキテクチャ設計書)**
+- **[architecture.md](docs/architecture.md) (システムアーキテクチャ設計書)**
   - 全体技術スタック、ディレクトリ構造、およびビルドプロセスと連携した PWA (Service Worker) の構成。
-- **[development-guide.md](file:///d:/tools-codelife-cafe/docs/development-guide.md) (開発ガイドライン / ツール作成手順)**
-  - 命名規約、UI・ロジックの分離（3ファイル構成）、デザインシステム（Tailwind v4）、Biomeの設定、E2Eテスト。
-- **[data-management.md](file:///d:/tools-codelife-cafe/docs/data-management.md) (データ管理とモデル配信設計書)**
+- **[development-guide.md](docs/development-guide.md) (開発ガイドライン / ツール作成手順)**
+  - 命名規約、UI・ロジックの分離（4ファイル構成）、デザインシステム（Tailwind v4）、Biomeの設定、E2Eテスト。
+- **[data-management.md](docs/data-management.md) (データ管理とモデル配信設計書)**
   - 郵便番号データのチャンク化および更新方法、AIモデルの Cloudflare R2 配信と Web Worker 推論。
-- **[analytics.md](file:///d:/tools-codelife-cafe/docs/analytics.md) (計測基盤設計)**
+- **[analytics.md](docs/analytics.md) (計測基盤設計)**
   - Cloudflare Analytics Engine による完全匿名イベント計測方針とAllowlistプロパティ。
-- **[seo.md](file:///d:/tools-codelife-cafe/docs/seo.md) (SEO & 構造化データガイドライン)**
+- **[seo.md](docs/seo.md) (SEO & 構造化データガイドライン)**
   - Schema.org 準拠の JSON-LD 構造化データ付与規約と検証手順。
 
 ---

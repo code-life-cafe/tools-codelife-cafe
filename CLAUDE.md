@@ -4,11 +4,11 @@
 
 > [!NOTE]
 > 詳細な設計方針、コーディング規約、データ管理については以下の設計書および **AGENTS.md** を参照してください。
-> - [architecture.md](file:///d:/tools-codelife-cafe/docs/architecture.md) (全体設計、PWA)
-> - [development-guide.md](file:///d:/tools-codelife-cafe/docs/development-guide.md) (ツール追加手順、命名規約、UI・ロジック分離、テスト)
-> - [data-management.md](file:///d:/tools-codelife-cafe/docs/data-management.md) (郵便番号チャンク、モデルのR2配信)
-> - [analytics.md](file:///d:/tools-codelife-cafe/docs/analytics.md) (計測基盤設計)
-> - [seo.md](file:///d:/tools-codelife-cafe/docs/seo.md) (SEO & 構造化データガイドライン)
+> - [architecture.md](docs/architecture.md) (全体設計、PWA)
+> - [development-guide.md](docs/development-guide.md) (ツール追加手順、命名規約、UI・ロジック分離、テスト)
+> - [data-management.md](docs/data-management.md) (郵便番号チャンク、モデルのR2配信)
+> - [analytics.md](docs/analytics.md) (計測基盤設計)
+> - [seo.md](docs/seo.md) (SEO & 構造化データガイドライン)
 
 ---
 
@@ -36,11 +36,12 @@ npx playwright test --headed                              # ブラウザを表�
 
 ## 2. ツール開発アーキテクチャ (要約)
 
-### 2.1 3ファイル（+1）構成
+### 2.1 4ファイル（+1）構成
 新しいツールを追加する際は、以下の構成でファイルを配置します。
 - **純粋ロジック:** `src/lib/tools/[name].ts`
 - **React UI Island:** `src/components/tools/[Name].tsx` （UIとローカル状態管理）
-- **Astro ページシェル:** `src/pages/[name].astro`
+- **LPコンテンツ:** `src/content/tools/[name].md` （title/description/useCases/howto/faq等のフロントマター）
+- **Astro ページシェル:** `src/pages/[name].astro` （content collection を取得し `ToolLayout` に渡す）
 - **Web Worker (オプション):** `src/workers/[name].worker.ts` （AI推論などの重量処理）
 
 ### 2.2 E2Eテストの注意点
