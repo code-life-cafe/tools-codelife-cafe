@@ -189,6 +189,37 @@ export function minifyJson(input: string): FormatResult {
 	}
 }
 
+/**
+ * 整形済みJSON文字列をHTMLエスケープしつつ、文字列/キー/数値/真偽値/nullを
+ * それぞれ色分けする <span> タグ付きのHTML文字列に変換する。
+ * CodeBlock の htmlContent に渡すための表示専用ロジック。
+ */
+export function highlightJson(json: string): string {
+	if (!json) return '';
+	const jsonStr = json
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+	return jsonStr.replace(
+		/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+		(match) => {
+			let cls = 'text-green-600 dark:text-green-400'; // number
+			if (/^"/.test(match)) {
+				if (/:$/.test(match)) {
+					cls = 'text-blue-600 dark:text-blue-400 font-semibold'; // key
+				} else {
+					cls = 'text-amber-600 dark:text-amber-400'; // string
+				}
+			} else if (/true|false/.test(match)) {
+				cls = 'text-purple-600 dark:text-purple-400'; // boolean
+			} else if (/null/.test(match)) {
+				cls = 'text-gray-500 dark:text-gray-400'; // null
+			}
+			return `<span class="${cls}">${match}</span>`;
+		},
+	);
+}
+
 export function validateJson(input: string): FormatResult {
 	if (!input.trim()) {
 		return { success: true, output: '有効なJSONです' };

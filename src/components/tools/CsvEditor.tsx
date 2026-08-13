@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -295,14 +296,7 @@ export default function CsvEditor() {
 		if (!csvData) return;
 		const result = exportCsv(csvData, delimiter);
 		const blob = new Blob([result], { type: 'text/csv;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = `edited.${delimiter === '\t' ? 'tsv' : 'csv'}`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
+		downloadBlob(blob, `edited.${delimiter === '\t' ? 'tsv' : 'csv'}`);
 	};
 
 	const handleDownloadJson = () => {
@@ -325,14 +319,7 @@ export default function CsvEditor() {
 		const blob = new Blob([resultStr], {
 			type: 'application/json;charset=utf-8',
 		});
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = 'exported.json';
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
+		downloadBlob(blob, 'exported.json');
 	};
 
 	const csvResultText = useMemo(

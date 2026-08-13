@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	compositeBackground,
@@ -81,6 +82,8 @@ export default function BgRemove() {
 		type: 'transparent',
 	});
 	const [compositeUrl, setCompositeUrl] = useState<string | null>(null);
+	// ダウンロード時に downloadBlob() へ渡すため、表示用URLとは別にBlob実体も保持する
+	const [compositeBlob, setCompositeBlob] = useState<Blob | null>(null);
 
 	// D&D
 	const [isDragOver, setIsDragOver] = useState(false);
@@ -137,6 +140,7 @@ export default function BgRemove() {
 			setResultBlob(null);
 			setResultUrl(null);
 			setCompositeUrl(null);
+			setCompositeBlob(null);
 			setBgOption({ type: 'transparent' });
 
 			try {
@@ -265,6 +269,7 @@ export default function BgRemove() {
 			if (compositeUrlRef.current) URL.revokeObjectURL(compositeUrlRef.current);
 			compositeUrlRef.current = null;
 			setCompositeUrl(null);
+			setCompositeBlob(null);
 			return;
 		}
 
@@ -275,6 +280,7 @@ export default function BgRemove() {
 			const newUrl = URL.createObjectURL(blob);
 			compositeUrlRef.current = newUrl;
 			setCompositeUrl(newUrl);
+			setCompositeBlob(blob);
 		});
 
 		return () => {
@@ -284,18 +290,13 @@ export default function BgRemove() {
 
 	// --- ダウンロード ---
 	const handleDownload = useCallback(() => {
-		const url = compositeUrl ?? resultUrl;
-		if (!url) return;
+		const blob = compositeBlob ?? resultBlob;
+		if (!blob) return;
 
-		const a = document.createElement('a');
-		a.href = url;
 		const baseName = sourceFile?.name?.replace(/\.[^.]+$/, '') ?? 'image';
 		const suffix = bgOption.type === 'transparent' ? '_transparent' : '_bg';
-		a.download = `${baseName}${suffix}.png`;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-	}, [compositeUrl, resultUrl, sourceFile, bgOption]);
+		downloadBlob(blob, `${baseName}${suffix}.png`);
+	}, [compositeBlob, resultBlob, sourceFile, bgOption]);
 
 	// --- リセット ---
 	const handleReset = useCallback(() => {
@@ -309,6 +310,7 @@ export default function BgRemove() {
 		setResultBlob(null);
 		setResultUrl(null);
 		setCompositeUrl(null);
+		setCompositeBlob(null);
 		setStatus('idle');
 		setProgress(null);
 		setError(null);

@@ -24,61 +24,19 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	formatSql,
 	type IndentStyle,
+	SQL_KEYWORDS,
 	type SqlDialect,
 	type SqlFormatOptions,
 	sanitizeSqlFormatterSettings,
 } from '@/lib/tools/sql-formatter';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { cn } from '@/lib/utils';
-
-const SQL_KEYWORDS = [
-	'SELECT',
-	'FROM',
-	'WHERE',
-	'AND',
-	'OR',
-	'JOIN',
-	'LEFT',
-	'RIGHT',
-	'INNER',
-	'OUTER',
-	'ON',
-	'ORDER BY',
-	'GROUP BY',
-	'HAVING',
-	'LIMIT',
-	'OFFSET',
-	'INSERT',
-	'INTO',
-	'VALUES',
-	'UPDATE',
-	'SET',
-	'DELETE',
-	'CREATE',
-	'TABLE',
-	'DROP',
-	'ALTER',
-	'ADD',
-	'COLUMN',
-	'AS',
-	'DISTINCT',
-	'COUNT',
-	'MAX',
-	'MIN',
-	'AVG',
-	'SUM',
-	'IS',
-	'NULL',
-	'NOT',
-	'IN',
-	'BETWEEN',
-	'LIKE',
-];
 
 export default function SqlFormatter() {
 	const { trackRun, trackRunDebounced, trackSharedUrlOpen } =
@@ -273,14 +231,7 @@ export default function SqlFormatter() {
 	const handleDownload = () => {
 		if (output && !error) {
 			const blob = new Blob([output], { type: 'text/sql;charset=utf-8' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = 'query.sql';
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
+			downloadBlob(blob, 'query.sql');
 		}
 	};
 

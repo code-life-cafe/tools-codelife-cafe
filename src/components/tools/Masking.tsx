@@ -13,6 +13,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	type MaskChar,
@@ -76,14 +77,7 @@ export default function Masking() {
 	const handleDownload = () => {
 		if (!maskedText) return;
 		const blob = new Blob([maskedText], { type: 'text/plain;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = 'masked-text.txt';
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
+		downloadBlob(blob, 'masked-text.txt');
 	};
 
 	const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
