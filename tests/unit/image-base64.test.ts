@@ -123,7 +123,10 @@ test('buildSnippet: raw-base64 は Base64 本体のみ', () => {
 
 test('buildSnippet: img タグ', () => {
 	const result = buildSnippet('data:image/png;base64,abc', 'img');
-	assert.equal(result, '<img src="data:image/png;base64,abc" alt="" />');
+	assert.equal(
+		result,
+		'<img src="data:image/png;base64,abc" alt="画像の説明を入力してください" />',
+	);
 });
 
 test('buildSnippet: css-bg', () => {

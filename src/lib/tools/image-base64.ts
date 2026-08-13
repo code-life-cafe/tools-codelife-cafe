@@ -78,7 +78,10 @@ export function buildSnippet(dataUri: string, kind: SnippetKind): string {
 		case 'raw-base64':
 			return toBase64(dataUri);
 		case 'img':
-			return `<img src="${dataUri}" alt="" />`;
+			// この画像がユーザーのサイト上でどんな意味を持つかは判別できないため、
+			// 空alt（装飾画像扱い）をデフォルトにはせず、説明文の入力を促すプレースホルダーにする。
+			// 本当に装飾目的の場合はユーザー側でalt=""に書き換えてもらう想定。
+			return `<img src="${dataUri}" alt="画像の説明を入力してください" />`;
 		case 'css-bg':
 			return `background-image: url("${dataUri}");`;
 	}
