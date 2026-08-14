@@ -31,6 +31,12 @@ function formatDate(iso: string): string {
 	});
 }
 
+function formatClock(totalSec: number): string {
+	const min = Math.floor(totalSec / 60);
+	const sec = totalSec % 60;
+	return `${min}:${sec.toString().padStart(2, '0')}`;
+}
+
 interface BrewHistoryProps {
 	brews: readonly Brew[];
 	onEdit: (brew: Brew) => void;
@@ -56,35 +62,90 @@ export function BrewHistory({ brews, onEdit, onDelete }: BrewHistoryProps) {
 	return (
 		<div className="space-y-2">
 			<ul className="divide-y divide-border rounded-xl border border-border overflow-hidden">
-				{sorted.map((brew) => (
-					<li key={brew.id}>
-						<button
-							type="button"
-							className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors"
-							onClick={() => setSelectedId(brew.id)}
-						>
-							<div className="flex items-center justify-between gap-3">
-								<div className="min-w-0">
-									<p className="truncate font-medium">{brew.bean_name}</p>
-									<p className="text-xs text-muted-foreground">
-										{formatDate(brew.brewed_at)} ・ {METHOD_LABELS[brew.method]}
-										{brew.recipe_name ? ` ・ ${brew.recipe_name}` : ''}
-									</p>
-								</div>
-								<div className="shrink-0 text-right text-sm">
-									<p className="tabular-nums">
-										{brew.dose_g}g → {brew.yield_g}g
-									</p>
-									{brew.overall_score !== undefined && (
-										<p className="text-xs text-muted-foreground">
-											{brew.overall_score}/10
-										</p>
+				{sorted.map((brew) => {
+					const ratio = calcBrewRatio(brew.dose_g, brew.yield_g);
+					return (
+						<li key={brew.id}>
+							<button
+								type="button"
+								className="w-full px-4 py-3.5 text-left hover:bg-muted/50 transition-colors"
+								onClick={() => setSelectedId(brew.id)}
+							>
+								<div className="space-y-1.5">
+									{/* 1行目: 豆名 & 抽出量 / レシオ */}
+									<div className="flex items-start justify-between gap-3">
+										<div className="min-w-0 flex-1">
+											<p className="truncate font-semibold text-base">
+												{brew.bean_name}
+											</p>
+										</div>
+										<div className="shrink-0 text-right">
+											<span className="font-mono text-sm font-semibold tabular-nums">
+												{brew.dose_g}g → {brew.yield_g}g
+											</span>
+											{ratio !== undefined && (
+												<span className="ml-2 text-xs font-mono text-muted-foreground tabular-nums">
+													(1:{ratio.toFixed(1)})
+												</span>
+											)}
+										</div>
+									</div>
+
+									{/* 2行目: 日時・メソッド・レシピ・挽き目・湯温・抽出時間 */}
+									<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+										<span>{formatDate(brew.brewed_at)}</span>
+										<span>・</span>
+										<span className="font-medium text-foreground">
+											{METHOD_LABELS[brew.method]}
+										</span>
+										{brew.recipe_name && (
+											<>
+												<span>・</span>
+												<span>{brew.recipe_name}</span>
+											</>
+										)}
+										{brew.grind_note && (
+											<>
+												<span>・</span>
+												<span>挽き目: {brew.grind_note}</span>
+											</>
+										)}
+										{brew.water_temp_c !== undefined && (
+											<>
+												<span>・</span>
+												<span>{brew.water_temp_c}℃</span>
+											</>
+										)}
+										{brew.brew_time_sec > 0 && (
+											<>
+												<span>・</span>
+												<span className="font-mono tabular-nums">
+													時間: {formatClock(brew.brew_time_sec)}
+												</span>
+											</>
+										)}
+									</div>
+
+									{/* 3行目: 評価スコア・メモプレビュー */}
+									{(brew.overall_score !== undefined || brew.notes) && (
+										<div className="flex items-center gap-3 pt-0.5 text-xs">
+											{brew.overall_score !== undefined && (
+												<span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-1.5 py-0.5 font-medium text-amber-600 dark:text-amber-400 shrink-0">
+													★ {brew.overall_score} / 10
+												</span>
+											)}
+											{brew.notes && (
+												<p className="truncate text-muted-foreground italic flex-1">
+													“{brew.notes}”
+												</p>
+											)}
+										</div>
 									)}
 								</div>
-							</div>
-						</button>
-					</li>
-				))}
+							</button>
+						</li>
+					);
+				})}
 			</ul>
 
 			<Dialog

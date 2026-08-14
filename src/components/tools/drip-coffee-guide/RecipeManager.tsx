@@ -260,28 +260,61 @@ function RecipeEditor({
 	};
 
 	const addStep = () => {
-		setDraft((prev) => ({
-			...prev,
-			steps: [
-				...prev.steps,
-				{
-					step_order: prev.steps.length + 1,
-					time_sec: 0,
-					pour_amount_ml: 0,
-					label: `${prev.steps.length}投目`,
-					action_type: 'pour',
-				},
-			],
-		}));
+		setDraft((prev) => {
+			const steps = [...prev.steps];
+			const finishIndex = steps.findIndex((s) => s.action_type === 'finish');
+			const insertIndex = finishIndex !== -1 ? finishIndex : steps.length;
+
+			const prevStep = insertIndex > 0 ? steps[insertIndex - 1] : null;
+			const nextTimeSec = prevStep ? prevStep.time_sec + 30 : 0;
+			const pourCount = steps
+				.slice(0, insertIndex)
+				.filter((s) => s.action_type === 'pour').length;
+
+			const newStep: RecipeStep = {
+				step_order: insertIndex + 1,
+				time_sec: nextTimeSec,
+				pour_amount_ml: 0,
+				label: `${pourCount + 1}投目`,
+				action_type: 'pour',
+			};
+
+			steps.splice(insertIndex, 0, newStep);
+
+			let lastTime = 0;
+			const reordered = steps.map((s, i) => {
+				const isFinish = s.action_type === 'finish';
+				let t = s.time_sec;
+				if (isFinish && t <= lastTime) {
+					t = lastTime + 30;
+				} else {
+					lastTime = t;
+				}
+				return {
+					...s,
+					step_order: i + 1,
+					time_sec: t,
+				};
+			});
+
+			return {
+				...prev,
+				steps: reordered,
+			};
+		});
 	};
 
 	const removeStep = (index: number) => {
-		setDraft((prev) => ({
-			...prev,
-			steps: prev.steps
-				.filter((_, i) => i !== index)
-				.map((s, i) => ({ ...s, step_order: i + 1 })),
-		}));
+		setDraft((prev) => {
+			const target = prev.steps[index];
+			if (target?.action_type === 'finish') return prev;
+
+			const filtered = prev.steps.filter((_, i) => i !== index);
+			return {
+				...prev,
+				steps: filtered.map((s, i) => ({ ...s, step_order: i + 1 })),
+			};
+		});
 	};
 
 	const handleSave = () => {
@@ -299,11 +332,46 @@ function RecipeEditor({
 			setErrors(validationErrors);
 			return;
 		}
+
+		// finish ステップが末尾に存在することを確認・正規化
+		let normalizedSteps = [...draft.steps];
+		const finishIndex = normalizedSteps.findIndex(
+			(s) => s.action_type === 'finish',
+		);
+		let finishStep: RecipeStep;
+		if (finishIndex !== -1) {
+			[finishStep] = normalizedSteps.splice(finishIndex, 1);
+		} else {
+			finishStep = {
+				step_order: normalizedSteps.length + 1,
+				time_sec: 0,
+				pour_amount_ml: 0,
+				label: '抽出終了',
+				action_type: 'finish',
+			};
+		}
+
+		const maxPrevTimeSec = normalizedSteps.reduce(
+			(max, s) => Math.max(max, s.time_sec),
+			0,
+		);
+		finishStep.time_sec = Math.max(finishStep.time_sec, maxPrevTimeSec + 30);
+		normalizedSteps.push(finishStep);
+
+		normalizedSteps = normalizedSteps.map((s, i) => ({
+			...s,
+			step_order: i + 1,
+		}));
+
 		const totalWaterMl = pourSteps.reduce(
 			(sum, s) => sum + s.pour_amount_ml,
 			0,
 		);
-		onSave({ ...draft, total_water_ml: totalWaterMl });
+		onSave({
+			...draft,
+			steps: normalizedSteps,
+			total_water_ml: totalWaterMl,
+		});
 	};
 
 	return (

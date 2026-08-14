@@ -56,6 +56,9 @@ export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 			setTimeout(() => {
 				playBeep(ctx, 'step', vol);
 			}, 250);
+			setTimeout(() => {
+				ctx.close().catch(() => {});
+			}, 700);
 		} catch {
 			// 無視
 		}
@@ -63,16 +66,15 @@ export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 
 	const handleExport = () => {
 		const json = exportStoreJson(store);
-		const blob = new Blob([json], { type: 'application/json' });
-		const url = URL.createObjectURL(blob);
+		const filename = `drip-coffee-guide-${new Date().toISOString().slice(0, 10)}.json`;
+		const encoded = encodeURIComponent(json);
 		const a = document.createElement('a');
-		a.href = url;
-		a.download = `drip-coffee-guide-${new Date().toISOString().slice(0, 10)}.json`;
+		a.href = `data:application/json;charset=utf-8,${encoded}`;
+		a.setAttribute('download', filename);
 		a.dataset.astroReload = 'true';
 		document.body.appendChild(a);
 		a.click();
 		document.body.removeChild(a);
-		URL.revokeObjectURL(url);
 	};
 
 	const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

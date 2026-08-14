@@ -139,6 +139,9 @@ export function BrewGuide({
 		soundVolume: 50,
 	});
 	const [showAbortConfirm, setShowAbortConfirm] = useState(false);
+	const [pendingJumpStepIndex, setPendingJumpStepIndex] = useState<
+		number | null
+	>(null);
 	const [wakeLockStatus, setWakeLockStatus] = useState<
 		'idle' | 'active' | 'unsupported' | 'failed'
 	>('idle');
@@ -162,9 +165,10 @@ export function BrewGuide({
 		async function acquire() {
 			const nav = navigator as Navigator & {
 				wakeLock?: {
-					request: (
-						type: 'screen',
-					) => Promise<{ release: () => Promise<void> }>;
+					request: (type: 'screen') => Promise<{
+						release: () => Promise<void>;
+						addEventListener?: (type: string, listener: () => void) => void;
+					}>;
 				};
 			};
 			if (!nav.wakeLock) {
@@ -177,6 +181,10 @@ export function BrewGuide({
 					await lock.release();
 					return;
 				}
+				lock.addEventListener?.('release', () => {
+					wakeLockRef.current = null;
+					setWakeLockStatus('idle');
+				});
 				wakeLockRef.current = lock;
 				setWakeLockStatus('active');
 			} catch {
@@ -198,14 +206,19 @@ export function BrewGuide({
 			if (wakeLockRef.current) return;
 			const nav = navigator as Navigator & {
 				wakeLock?: {
-					request: (
-						type: 'screen',
-					) => Promise<{ release: () => Promise<void> }>;
+					request: (type: 'screen') => Promise<{
+						release: () => Promise<void>;
+						addEventListener?: (type: string, listener: () => void) => void;
+					}>;
 				};
 			};
 			nav.wakeLock
 				?.request('screen')
 				.then((lock) => {
+					lock.addEventListener?.('release', () => {
+						wakeLockRef.current = null;
+						setWakeLockStatus('idle');
+					});
 					wakeLockRef.current = lock;
 					setWakeLockStatus('active');
 				})
@@ -296,6 +309,35 @@ export function BrewGuide({
 		lastStepIndexRef.current = 0;
 	};
 
+	const handleConfirmJump = () => {
+		if (pendingJumpStepIndex === null) return;
+		const targetStep = steps[pendingJumpStepIndex];
+		if (!targetStep) return;
+
+		const targetElapsedMs = targetStep.time_sec * 1000;
+		const now = Date.now();
+
+		setSession((prev) => {
+			if (prev.status === 'running') {
+				return {
+					...prev,
+					startedAtUnix: now - targetElapsedMs,
+					pausedElapsedMs: 0,
+					currentStepIndex: pendingJumpStepIndex,
+				};
+			}
+			return {
+				...prev,
+				startedAtUnix: now,
+				pausedElapsedMs: targetElapsedMs,
+				currentStepIndex: pendingJumpStepIndex,
+			};
+		});
+
+		lastStepIndexRef.current = pendingJumpStepIndex;
+		setPendingJumpStepIndex(null);
+	};
+
 	const handleComplete = () => {
 		clearSession();
 		onFinish(elapsedSec);
@@ -331,28 +373,36 @@ export function BrewGuide({
 				</Button>
 			</header>
 
-			<div
+			<nav
+				aria-label="ステップ選択"
 				className="overflow-x-auto border-b border-border px-4 py-2"
-				aria-hidden="true"
 			>
 				<ol className="m-0 flex min-w-max list-none gap-1.5 p-0">
-					{steps.map((step, i) => (
-						<li
-							key={`${step.step_order}-${step.label}`}
-							className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs whitespace-nowrap ${
-								i === stepIndex
-									? 'bg-accent text-accent-foreground font-semibold'
-									: i < stepIndex
-										? 'bg-muted text-muted-foreground line-through'
-										: 'bg-muted/50 text-muted-foreground'
-							}`}
-						>
-							<span>{i + 1}</span>
-							<span>{step.label}</span>
-						</li>
-					))}
+					{steps.map((step, i) => {
+						const isActive = i === stepIndex;
+						return (
+							<li key={`${step.step_order}-${step.label}`}>
+								<button
+									type="button"
+									onClick={() => setPendingJumpStepIndex(i)}
+									disabled={isActive}
+									aria-label={`STEP ${i + 1}: ${step.label}（${formatClock(step.time_sec)}〜）へ移動`}
+									className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+										isActive
+											? 'bg-accent text-accent-foreground font-semibold cursor-default'
+											: i < stepIndex
+												? 'bg-muted text-muted-foreground line-through hover:bg-muted/80 cursor-pointer'
+												: 'bg-muted/50 text-muted-foreground hover:bg-muted cursor-pointer'
+									}`}
+								>
+									<span>{i + 1}</span>
+									<span>{step.label}</span>
+								</button>
+							</li>
+						);
+					})}
 				</ol>
-			</div>
+			</nav>
 
 			<div className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-6 text-center">
 				<div aria-live="polite">
@@ -567,6 +617,36 @@ export function BrewGuide({
 						<Button onClick={handleAbortRecord}>記録する</Button>
 					</DialogFooter>
 				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={pendingJumpStepIndex !== null}
+				onOpenChange={(open) => !open && setPendingJumpStepIndex(null)}
+			>
+				{pendingJumpStepIndex !== null && steps[pendingJumpStepIndex] && (
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>
+								STEP {pendingJumpStepIndex + 1}:{' '}
+								{steps[pendingJumpStepIndex].label} に移動しますか？
+							</DialogTitle>
+							<DialogDescription>
+								タイマーの時間を{' '}
+								{formatClock(steps[pendingJumpStepIndex].time_sec)}{' '}
+								に合わせて、このステップから再開します。
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setPendingJumpStepIndex(null)}
+							>
+								キャンセル
+							</Button>
+							<Button onClick={handleConfirmJump}>移動する</Button>
+						</DialogFooter>
+					</DialogContent>
+				)}
 			</Dialog>
 		</div>
 	);

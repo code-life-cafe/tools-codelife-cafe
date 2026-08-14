@@ -284,3 +284,14 @@ test('computeCumulativeWaterMl & computeTotalWaterMl: ステップごとの累�
 
 	assert.strictEqual(computeTotalWaterMl(steps), 200);
 });
+
+test('PRESET_RECIPES: すべてのプリセットで最後のステップがfinish（抽出終了）になっていること', () => {
+	for (const recipe of PRESET_RECIPES) {
+		const lastStep = recipe.steps[recipe.steps.length - 1];
+		assert.strictEqual(
+			lastStep?.action_type,
+			'finish',
+			`${recipe.name} の最終ステップは finish であること`,
+		);
+	}
+});
