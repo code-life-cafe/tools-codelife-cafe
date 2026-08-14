@@ -226,6 +226,7 @@ export function DripCoffeeGuidePage() {
 				grind_note: recipe.grind_note ?? baseline.grind_note,
 				brew_time_sec: String(measuredSeconds),
 				yield_g: '',
+				notes: '',
 				recipe_id: recipe.id,
 				recipe_name: recipe.name,
 			},
@@ -242,6 +243,7 @@ export function DripCoffeeGuidePage() {
 			values: {
 				...baseline,
 				method: recipe?.method ?? baseline.method,
+				notes: '',
 				recipe_id: recipe?.id,
 				recipe_name: recipe?.name,
 			},
