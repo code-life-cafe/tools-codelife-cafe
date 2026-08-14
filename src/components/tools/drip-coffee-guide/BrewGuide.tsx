@@ -318,15 +318,11 @@ export function BrewGuide({
 
 	const circleRadius = 42;
 	const circumference = 2 * Math.PI * circleRadius; // 約263.89
-	const currentStepTime = currentStep?.time_sec ?? 0;
-	const nextStepTime = steps[stepIndex + 1]?.time_sec ?? totalDurationSec;
-	const stepDuration = Math.max(1, nextStepTime - currentStepTime);
-	const stepElapsed = Math.max(0, elapsedSec - currentStepTime);
-	const stepProgress =
-		countdown !== null || stepDuration <= 0
+	const totalProgress =
+		countdown !== null || totalDurationSec <= 0
 			? 0
-			: Math.min(1, stepElapsed / stepDuration);
-	const strokeDashoffset = circumference * (1 - stepProgress);
+			: Math.min(1, elapsedSec / totalDurationSec);
+	const strokeDashoffset = circumference * (1 - totalProgress);
 
 	useEffect(() => {
 		if (countdown !== null) return;
