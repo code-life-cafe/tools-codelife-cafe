@@ -56,6 +56,8 @@ function deriveStepIndex(
 	return idx;
 }
 
+const VOLUME_PREVIEW_DEBOUNCE_MS = 200;
+
 function formatClock(totalSec: number): string {
 	const m = Math.floor(totalSec / 60);
 	const s = totalSec % 60;
@@ -148,6 +150,17 @@ export function BrewGuide({
 	const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 	const lastStepIndexRef = useRef<number>(session.currentStepIndex);
 	const lastCountdownSecRef = useRef<number | null>(null);
+	const volumePreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	useEffect(() => {
+		return () => {
+			if (volumePreviewTimeoutRef.current) {
+				clearTimeout(volumePreviewTimeoutRef.current);
+			}
+		};
+	}, []);
 
 	useEffect(() => {
 		saveSession(session);
@@ -283,6 +296,17 @@ export function BrewGuide({
 		stepIndex,
 		steps,
 	]);
+
+	const handleVolumeChange = (value: number) => {
+		updateSettings({ soundVolume: value });
+		if (!settings.soundEnabled || !audioContext) return;
+		if (volumePreviewTimeoutRef.current) {
+			clearTimeout(volumePreviewTimeoutRef.current);
+		}
+		volumePreviewTimeoutRef.current = setTimeout(() => {
+			playBeep(audioContext, 'step', value);
+		}, VOLUME_PREVIEW_DEBOUNCE_MS);
+	};
 
 	const handlePauseResume = () => {
 		setSession((prev) => {
@@ -579,9 +603,7 @@ export function BrewGuide({
 								min="0"
 								max="100"
 								value={settings.soundVolume ?? 50}
-								onChange={(e) =>
-									updateSettings({ soundVolume: Number(e.target.value) })
-								}
+								onChange={(e) => handleVolumeChange(Number(e.target.value))}
 								className="w-full accent-primary h-1.5 bg-muted rounded-lg cursor-pointer"
 								aria-label="音量"
 							/>
