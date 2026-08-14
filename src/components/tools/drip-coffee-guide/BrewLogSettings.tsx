@@ -1,5 +1,5 @@
 import { Download, Upload, Volume1, Volume2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -25,8 +25,11 @@ import { playBeep } from './BrewGuide';
 
 interface BrewLogSettingsProps {
 	store: BrewLogStore;
+	ensureAudioContext: () => AudioContext | null;
 	onImport: (incoming: BrewLogStore, mode: 'replace' | 'merge') => void;
 }
+
+const VOLUME_PREVIEW_DEBOUNCE_MS = 200;
 
 interface PendingImport {
 	incoming: BrewLogStore;
@@ -34,7 +37,11 @@ interface PendingImport {
 	previewMerge: { resultRecipeCount: number; resultBrewCount: number };
 }
 
-export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
+export function BrewLogSettings({
+	store,
+	ensureAudioContext,
+	onImport,
+}: BrewLogSettingsProps) {
 	const [settings, updateSettings] = useToolSettings('drip-coffee-guide', {
 		soundEnabled: true,
 		soundVolume: 50,
@@ -42,26 +49,39 @@ export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 	const [pending, setPending] = useState<PendingImport | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const volumePreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	useEffect(() => {
+		return () => {
+			if (volumePreviewTimeoutRef.current) {
+				clearTimeout(volumePreviewTimeoutRef.current);
+			}
+		};
+	}, []);
 
 	const handleTestSound = () => {
-		try {
-			const AudioCtx =
-				window.AudioContext ||
-				(window as unknown as { webkitAudioContext: typeof AudioContext })
-					.webkitAudioContext;
-			if (!AudioCtx) return;
-			const ctx = new AudioCtx();
-			const vol = settings.soundVolume ?? 50;
-			playBeep(ctx, 'pre', vol);
-			setTimeout(() => {
-				playBeep(ctx, 'step', vol);
-			}, 250);
-			setTimeout(() => {
-				ctx.close().catch(() => {});
-			}, 700);
-		} catch {
-			// 無視
+		const ctx = ensureAudioContext();
+		if (!ctx) return;
+		const vol = settings.soundVolume ?? 50;
+		playBeep(ctx, 'pre', vol);
+		setTimeout(() => {
+			playBeep(ctx, 'step', vol);
+		}, 250);
+	};
+
+	const handleVolumeChange = (value: number) => {
+		updateSettings({ soundVolume: value });
+		if (!settings.soundEnabled) return;
+		const ctx = ensureAudioContext();
+		if (!ctx) return;
+		if (volumePreviewTimeoutRef.current) {
+			clearTimeout(volumePreviewTimeoutRef.current);
 		}
+		volumePreviewTimeoutRef.current = setTimeout(() => {
+			playBeep(ctx, 'step', value);
+		}, VOLUME_PREVIEW_DEBOUNCE_MS);
 	};
 
 	const handleExport = () => {
@@ -175,9 +195,7 @@ export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 									min="0"
 									max="100"
 									value={settings.soundVolume ?? 50}
-									onChange={(e) =>
-										updateSettings({ soundVolume: Number(e.target.value) })
-									}
+									onChange={(e) => handleVolumeChange(Number(e.target.value))}
 									className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
 								/>
 								<Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />

@@ -353,6 +353,7 @@ export function DripCoffeeGuidePage() {
 				<TabsContent value="settings" className="mt-4">
 					<BrewLogSettings
 						store={store}
+						ensureAudioContext={ensureAudioContext}
 						onImport={(incoming, mode) =>
 							runAction((s) => importStore(s, incoming, mode))
 						}
