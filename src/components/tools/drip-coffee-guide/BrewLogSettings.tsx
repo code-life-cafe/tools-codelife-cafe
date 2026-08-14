@@ -1,4 +1,4 @@
-import { Download, Upload } from 'lucide-react';
+import { Download, Upload, Volume1, Volume2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +21,7 @@ import {
 	parseImportJson,
 	previewImport,
 } from '@/lib/tools/drip-coffee-guide-store';
+import { playBeep } from './BrewGuide';
 
 interface BrewLogSettingsProps {
 	store: BrewLogStore;
@@ -36,10 +37,29 @@ interface PendingImport {
 export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 	const [settings, updateSettings] = useToolSettings('drip-coffee-guide', {
 		soundEnabled: true,
+		soundVolume: 50,
 	});
 	const [pending, setPending] = useState<PendingImport | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const handleTestSound = () => {
+		try {
+			const AudioCtx =
+				window.AudioContext ||
+				(window as unknown as { webkitAudioContext: typeof AudioContext })
+					.webkitAudioContext;
+			if (!AudioCtx) return;
+			const ctx = new AudioCtx();
+			const vol = settings.soundVolume ?? 50;
+			playBeep(ctx, 'pre', vol);
+			setTimeout(() => {
+				playBeep(ctx, 'step', vol);
+			}, 250);
+		} catch {
+			// 無視
+		}
+	};
 
 	const handleExport = () => {
 		const json = exportStoreJson(store);
@@ -113,17 +133,55 @@ export function BrewLogSettings({ store, onImport }: BrewLogSettingsProps) {
 				)}
 			</section>
 
-			<section className="space-y-3">
+			<section className="space-y-4">
 				<h3 className="text-sm font-semibold text-muted-foreground">効果音</h3>
-				<div className="flex items-center gap-3">
-					<Switch
-						id="sound-enabled"
-						checked={settings.soundEnabled}
-						onCheckedChange={(checked) =>
-							updateSettings({ soundEnabled: checked })
-						}
-					/>
-					<Label htmlFor="sound-enabled">抽出ガイドの効果音を再生する</Label>
+				<div className="space-y-4 rounded-lg border border-border p-4">
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex items-center gap-3">
+							<Switch
+								id="sound-enabled"
+								checked={settings.soundEnabled}
+								onCheckedChange={(checked) =>
+									updateSettings({ soundEnabled: checked })
+								}
+							/>
+							<Label htmlFor="sound-enabled">
+								抽出ガイドの効果音を再生する
+							</Label>
+						</div>
+						{settings.soundEnabled && (
+							<Button variant="outline" size="sm" onClick={handleTestSound}>
+								<Volume2 className="h-3.5 w-3.5 mr-1" />
+								試聴
+							</Button>
+						)}
+					</div>
+
+					{settings.soundEnabled && (
+						<div className="space-y-2 pt-3 border-t border-border/60">
+							<div className="flex justify-between items-center text-xs">
+								<Label htmlFor="sound-volume">音量</Label>
+								<span className="font-mono text-muted-foreground font-medium">
+									{settings.soundVolume ?? 50}%
+								</span>
+							</div>
+							<div className="flex items-center gap-3">
+								<Volume1 className="h-4 w-4 text-muted-foreground shrink-0" />
+								<input
+									id="sound-volume"
+									type="range"
+									min="0"
+									max="100"
+									value={settings.soundVolume ?? 50}
+									onChange={(e) =>
+										updateSettings({ soundVolume: Number(e.target.value) })
+									}
+									className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+								/>
+								<Volume2 className="h-4 w-4 text-muted-foreground shrink-0" />
+							</div>
+						</div>
+					)}
 				</div>
 			</section>
 

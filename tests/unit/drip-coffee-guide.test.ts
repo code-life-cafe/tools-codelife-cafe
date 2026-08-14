@@ -7,6 +7,8 @@ import {
 	type BrewLogStore,
 	calcBrewRatio,
 	calcEy,
+	computeCumulativeWaterMl,
+	computeTotalWaterMl,
 	InvalidBrewLogStoreError,
 	isInRange,
 	mergeStores,
@@ -241,4 +243,44 @@ test('previewImport / applyImport: replaceは取込側の件数、mergeは併合
 	assert.strictEqual(mergePreview.resultBrewCount, 2);
 	const merged = applyImport(existing, incoming, 'merge');
 	assert.strictEqual(merged.brews.length, 2);
+});
+
+test('computeCumulativeWaterMl & computeTotalWaterMl: ステップごとの累積注水量と全体の総注水量を正しく計算する', () => {
+	const steps = [
+		{
+			step_order: 1,
+			time_sec: 0,
+			pour_amount_ml: 50,
+			label: '1投目',
+			action_type: 'pour' as const,
+		},
+		{
+			step_order: 2,
+			time_sec: 30,
+			pour_amount_ml: 0,
+			label: '待つ',
+			action_type: 'wait' as const,
+		},
+		{
+			step_order: 3,
+			time_sec: 45,
+			pour_amount_ml: 70,
+			label: '2投目',
+			action_type: 'pour' as const,
+		},
+		{
+			step_order: 4,
+			time_sec: 90,
+			pour_amount_ml: 80,
+			label: '3投目',
+			action_type: 'pour' as const,
+		},
+	];
+
+	assert.strictEqual(computeCumulativeWaterMl(steps, 0), 50);
+	assert.strictEqual(computeCumulativeWaterMl(steps, 1), 50);
+	assert.strictEqual(computeCumulativeWaterMl(steps, 2), 120);
+	assert.strictEqual(computeCumulativeWaterMl(steps, 3), 200);
+
+	assert.strictEqual(computeTotalWaterMl(steps), 200);
 });

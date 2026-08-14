@@ -567,3 +567,18 @@ export function applyImport(
 	}
 	return mergeStores(existing, incoming);
 }
+
+/** 指定されたステップインデックスまでの累積注水量(ml/g)を計算する */
+export function computeCumulativeWaterMl(
+	steps: readonly RecipeStep[],
+	upToStepIndex: number,
+): number {
+	if (upToStepIndex < 0) return 0;
+	const targetSteps = steps.slice(0, upToStepIndex + 1);
+	return targetSteps.reduce((sum, s) => sum + (s.pour_amount_ml || 0), 0);
+}
+
+/** レシピ全体の総注水量(ml/g)を計算する */
+export function computeTotalWaterMl(steps: readonly RecipeStep[]): number {
+	return steps.reduce((sum, s) => sum + (s.pour_amount_ml || 0), 0);
+}

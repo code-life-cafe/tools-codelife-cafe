@@ -1,4 +1,12 @@
-import { Pause, Play, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import {
+	Pause,
+	Play,
+	RotateCcw,
+	Volume1,
+	Volume2,
+	VolumeX,
+	X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -11,10 +19,12 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
-import type {
-	BrewSession,
-	Recipe,
-	RecipeStep,
+import {
+	type BrewSession,
+	computeCumulativeWaterMl,
+	computeTotalWaterMl,
+	type Recipe,
+	type RecipeStep,
 } from '@/lib/tools/drip-coffee-guide';
 import { clearSession, saveSession } from '@/lib/tools/drip-coffee-guide-store';
 
@@ -67,15 +77,23 @@ function getStepHint(step: RecipeStep | undefined): string | null {
 	}
 }
 
-function playBeep(ctx: AudioContext, type: 'step' | 'pre' = 'step') {
+export function playBeep(
+	ctx: AudioContext,
+	type: 'step' | 'pre' = 'step',
+	volumePercent = 50,
+) {
 	try {
+		const volumeScale = Math.max(0, Math.min(100, volumePercent)) / 100;
+		if (volumeScale <= 0) return;
+
 		const oscillator = ctx.createOscillator();
 		const gain = ctx.createGain();
 		oscillator.type = 'sine';
 
 		if (type === 'pre') {
 			oscillator.frequency.value = 440;
-			gain.gain.setValueAtTime(0.08, ctx.currentTime);
+			const maxGain = 0.08 * volumeScale;
+			gain.gain.setValueAtTime(maxGain, ctx.currentTime);
 			gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
 			oscillator.connect(gain);
 			gain.connect(ctx.destination);
@@ -83,7 +101,8 @@ function playBeep(ctx: AudioContext, type: 'step' | 'pre' = 'step') {
 			oscillator.stop(ctx.currentTime + 0.08);
 		} else {
 			oscillator.frequency.value = 880;
-			gain.gain.setValueAtTime(0.15, ctx.currentTime);
+			const maxGain = 0.15 * volumeScale;
+			gain.gain.setValueAtTime(maxGain, ctx.currentTime);
 			gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
 			oscillator.connect(gain);
 			gain.connect(ctx.destination);
@@ -117,6 +136,7 @@ export function BrewGuide({
 	const [nowMs, setNowMs] = useState(Date.now());
 	const [settings, updateSettings] = useToolSettings('drip-coffee-guide', {
 		soundEnabled: true,
+		soundVolume: 50,
 	});
 	const [showAbortConfirm, setShowAbortConfirm] = useState(false);
 	const [wakeLockStatus, setWakeLockStatus] = useState<
@@ -207,6 +227,8 @@ export function BrewGuide({
 	const elapsedSec = Math.floor(elapsedMs / 1000);
 	const stepIndex = deriveStepIndex(steps, elapsedSec);
 	const currentStep = steps[stepIndex];
+	const currentCumulativeMl = computeCumulativeWaterMl(steps, stepIndex);
+	const totalWaterMl = computeTotalWaterMl(steps);
 	const totalDurationSec = steps[steps.length - 1]?.time_sec ?? 0;
 	const totalDurationMs = totalDurationSec * 1000;
 	const progressPercent =
@@ -220,9 +242,9 @@ export function BrewGuide({
 		lastCountdownSecRef.current = null;
 		setSession((prev) => ({ ...prev, currentStepIndex: stepIndex }));
 		if (settings.soundEnabled && audioContext) {
-			playBeep(audioContext, 'step');
+			playBeep(audioContext, 'step', settings.soundVolume ?? 50);
 		}
-	}, [stepIndex, settings.soundEnabled, audioContext]);
+	}, [stepIndex, settings.soundEnabled, settings.soundVolume, audioContext]);
 
 	// 次のメモリ（ステップ切替）到達直前（残り3秒、2秒、1秒）の予告時報音
 	useEffect(() => {
@@ -236,13 +258,14 @@ export function BrewGuide({
 		if (remainingSec >= 1 && remainingSec <= 3) {
 			if (lastCountdownSecRef.current !== remainingSec) {
 				lastCountdownSecRef.current = remainingSec;
-				playBeep(audioContext, 'pre');
+				playBeep(audioContext, 'pre', settings.soundVolume ?? 50);
 			}
 		}
 	}, [
 		elapsedSec,
 		session.status,
 		settings.soundEnabled,
+		settings.soundVolume,
 		audioContext,
 		stepIndex,
 		steps,
@@ -347,17 +370,32 @@ export function BrewGuide({
 					{formatClock(elapsedSec)}
 				</p>
 
-				{currentStep &&
-					currentStep.action_type === 'pour' &&
-					currentStep.pour_amount_ml > 0 && (
-						<p className="text-lg text-muted-foreground">
-							このステップで{' '}
-							<span className="font-semibold text-foreground">
-								{currentStep.pour_amount_ml}g
-							</span>{' '}
-							注湯
-						</p>
-					)}
+				{currentStep && (
+					<div className="space-y-1">
+						{currentStep.action_type === 'pour' &&
+						currentStep.pour_amount_ml > 0 ? (
+							<p className="text-lg text-muted-foreground">
+								このステップで{' '}
+								<span className="font-semibold text-foreground">
+									+{currentStep.pour_amount_ml}g
+								</span>{' '}
+								注湯
+							</p>
+						) : null}
+
+						{totalWaterMl > 0 && (
+							<div className="flex items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground">
+								<span>スケール目標:</span>
+								<span className="text-base font-bold text-foreground font-mono tabular-nums">
+									{currentCumulativeMl}g
+								</span>
+								<span className="text-xs text-muted-foreground font-mono tabular-nums">
+									/ {totalWaterMl}g（合計）
+								</span>
+							</div>
+						)}
+					</div>
+				)}
 
 				{getStepHint(currentStep) && (
 					<p className="text-sm text-muted-foreground">
@@ -434,46 +472,68 @@ export function BrewGuide({
 					</span>
 				</div>
 
-				<div className="flex items-center justify-center gap-3">
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={handleRestart}
-						aria-label="最初から"
-					>
-						<RotateCcw className="h-4 w-4" />
-					</Button>
-					<Button size="lg" onClick={handlePauseResume} className="min-w-32">
-						{session.status === 'running' ? (
-							<>
-								<Pause className="h-4 w-4" />
-								一時停止
-							</>
-						) : (
-							<>
-								<Play className="h-4 w-4" />
-								再開
-							</>
-						)}
-					</Button>
-					<Button
-						variant="outline"
-						size="icon"
-						onClick={() =>
-							updateSettings({ soundEnabled: !settings.soundEnabled })
-						}
-						aria-label={
-							settings.soundEnabled
-								? '効果音をオフにする'
-								: '効果音をオンにする'
-						}
-					>
-						{settings.soundEnabled ? (
-							<Volume2 className="h-4 w-4" />
-						) : (
-							<VolumeX className="h-4 w-4" />
-						)}
-					</Button>
+				<div className="flex flex-col items-center gap-2">
+					<div className="flex items-center justify-center gap-3 w-full">
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={handleRestart}
+							aria-label="最初から"
+						>
+							<RotateCcw className="h-4 w-4" />
+						</Button>
+						<Button size="lg" onClick={handlePauseResume} className="min-w-32">
+							{session.status === 'running' ? (
+								<>
+									<Pause className="h-4 w-4" />
+									一時停止
+								</>
+							) : (
+								<>
+									<Play className="h-4 w-4" />
+									再開
+								</>
+							)}
+						</Button>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={() =>
+								updateSettings({ soundEnabled: !settings.soundEnabled })
+							}
+							aria-label={
+								settings.soundEnabled
+									? '効果音をオフにする'
+									: '効果音をオンにする'
+							}
+						>
+							{settings.soundEnabled ? (
+								<Volume2 className="h-4 w-4" />
+							) : (
+								<VolumeX className="h-4 w-4" />
+							)}
+						</Button>
+					</div>
+
+					{settings.soundEnabled && (
+						<div className="flex items-center justify-center gap-2 w-full max-w-xs px-2 text-xs text-muted-foreground">
+							<Volume1 className="h-3.5 w-3.5 shrink-0" />
+							<input
+								type="range"
+								min="0"
+								max="100"
+								value={settings.soundVolume ?? 50}
+								onChange={(e) =>
+									updateSettings({ soundVolume: Number(e.target.value) })
+								}
+								className="w-full accent-primary h-1.5 bg-muted rounded-lg cursor-pointer"
+								aria-label="音量"
+							/>
+							<span className="w-8 text-right font-mono text-[11px] tabular-nums">
+								{settings.soundVolume ?? 50}%
+							</span>
+						</div>
+					)}
 				</div>
 
 				<Button
