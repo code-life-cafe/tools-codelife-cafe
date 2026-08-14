@@ -345,11 +345,18 @@ export function BrewForm({
 						</div>
 					)}
 
-					<DialogFooter>
-						<Button type="button" variant="outline" onClick={onCancel}>
+					<DialogFooter className="gap-3">
+						<Button
+							type="button"
+							variant="outline"
+							className="h-11"
+							onClick={onCancel}
+						>
 							キャンセル
 						</Button>
-						<Button type="submit">保存する</Button>
+						<Button type="submit" className="h-11">
+							保存する
+						</Button>
 					</DialogFooter>
 				</form>
 			</DialogContent>

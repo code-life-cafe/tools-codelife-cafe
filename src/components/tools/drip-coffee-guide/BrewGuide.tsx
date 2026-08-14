@@ -523,16 +523,21 @@ export function BrewGuide({
 				</div>
 
 				<div className="flex flex-col items-center gap-2">
-					<div className="flex items-center justify-center gap-3 w-full">
+					<div className="flex items-center justify-center gap-4 w-full">
 						<Button
 							variant="outline"
 							size="icon"
+							className="size-11"
 							onClick={handleRestart}
 							aria-label="最初から"
 						>
 							<RotateCcw className="h-4 w-4" />
 						</Button>
-						<Button size="lg" onClick={handlePauseResume} className="min-w-32">
+						<Button
+							size="lg"
+							onClick={handlePauseResume}
+							className="h-11 min-w-32"
+						>
 							{session.status === 'running' ? (
 								<>
 									<Pause className="h-4 w-4" />
@@ -548,6 +553,7 @@ export function BrewGuide({
 						<Button
 							variant="outline"
 							size="icon"
+							className="size-11"
 							onClick={() =>
 								updateSettings({ soundEnabled: !settings.soundEnabled })
 							}
@@ -587,7 +593,7 @@ export function BrewGuide({
 				</div>
 
 				<Button
-					className="w-full"
+					className="h-11 w-full"
 					size="lg"
 					onClick={handleComplete}
 					data-testid="guide-complete-button"
@@ -604,17 +610,24 @@ export function BrewGuide({
 							ここまでの内容を記録に残すか、破棄するかを選んでください。
 						</DialogDescription>
 					</DialogHeader>
-					<DialogFooter>
+					<DialogFooter className="gap-3">
 						<Button
 							variant="outline"
+							className="h-11"
 							onClick={() => setShowAbortConfirm(false)}
 						>
 							キャンセル
 						</Button>
-						<Button variant="destructive" onClick={handleAbortDiscard}>
+						<Button
+							variant="destructive"
+							className="h-11"
+							onClick={handleAbortDiscard}
+						>
 							破棄する
 						</Button>
-						<Button onClick={handleAbortRecord}>記録する</Button>
+						<Button className="h-11" onClick={handleAbortRecord}>
+							記録する
+						</Button>
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
@@ -636,14 +649,17 @@ export function BrewGuide({
 								に合わせて、このステップから再開します。
 							</DialogDescription>
 						</DialogHeader>
-						<DialogFooter>
+						<DialogFooter className="gap-3">
 							<Button
 								variant="outline"
+								className="h-11"
 								onClick={() => setPendingJumpStepIndex(null)}
 							>
 								キャンセル
 							</Button>
-							<Button onClick={handleConfirmJump}>移動する</Button>
+							<Button className="h-11" onClick={handleConfirmJump}>
+								移動する
+							</Button>
 						</DialogFooter>
 					</DialogContent>
 				)}
