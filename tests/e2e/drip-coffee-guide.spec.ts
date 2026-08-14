@@ -63,8 +63,14 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await expect(page.getByTestId('guide-timer')).toBeVisible();
 		await expect(page.getByText('STEP 1 / 4')).toBeVisible();
 
+		// カウントダウンが表示されていればスキップして進める
+		const skipButton = page.getByRole('button', { name: '今すぐ開始' }).first();
+		if (await skipButton.isVisible()) {
+			await skipButton.click();
+		}
+
 		await page.waitForTimeout(1200);
-		await page.getByTestId('guide-complete-button').click();
+		await page.getByTestId('guide-complete-button').click({ force: true });
 
 		// フォームが開き、メソッド・豆量・総湯量等が自動入力されている
 		const dialog = page.getByRole('dialog');
@@ -85,7 +91,7 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await expect(page.getByText('エチオピア イルガチェフェ')).toBeVisible();
 	});
 
-	test('保存後に一覧・詳細で再表示でき、前回値が次回フォームにプリフィルされること', async ({
+	test('保存後に一覧・詳細で再表示でき、前回値（メモ以外）が次回新規フォームにプリフィルされ、メモは空欄で開始すること', async ({
 		page,
 		createToolPage,
 	}) => {
@@ -99,21 +105,54 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await firstDialog.getByLabel('豆量', { exact: true }).fill('15');
 		await firstDialog.getByLabel('抽出量', { exact: true }).fill('250');
 		await firstDialog.getByLabel('抽出時間').fill('180');
+		await firstDialog.getByLabel('メモ').fill('前回の美味しいメモ');
 		await firstDialog.getByRole('button', { name: '保存する' }).click();
 		await expect(firstDialog).toBeHidden();
 
 		// 履歴詳細を開く
 		await page.getByRole('tab', { name: '履歴' }).click();
 		await page.getByText('ケニア AA').click();
-		await expect(page.getByRole('dialog')).toContainText('ケニア AA');
-		await page.keyboard.press('Escape');
+		const detailDialog = page.getByRole('dialog');
+		await expect(detailDialog).toContainText('ケニア AA');
+		await expect(detailDialog).toContainText('前回の美味しいメモ');
 
-		// 次の新規記録フォームで前回値がプリフィルされる
+		// 編集時はメモが保持されている
+		await detailDialog.getByRole('button', { name: '編集' }).click();
+		const editDialog = page.getByRole('dialog', { name: '記録を編集' });
+		await expect(editDialog).toBeVisible();
+		await expect(editDialog.getByLabel('メモ')).toHaveValue(
+			'前回の美味しいメモ',
+		);
+		await editDialog.getByRole('button', { name: 'キャンセル' }).click();
+		await expect(editDialog).toBeHidden();
+
+		// 次の新規記録フォームで前回値（豆名等）がプリフィルされるが、メモは空欄
 		await page.getByRole('tab', { name: '抽出' }).click();
 		await page.getByRole('button', { name: 'ガイドなしで記録' }).click();
-		await expect(page.getByRole('dialog').getByLabel('豆名')).toHaveValue(
-			'ケニア AA',
-		);
+		const nextDialog = page.getByRole('dialog', { name: '抽出を記録' });
+		await expect(nextDialog).toBeVisible();
+		await expect(nextDialog.getByLabel('豆名')).toHaveValue('ケニア AA');
+		await expect(nextDialog.getByLabel('メモ')).toHaveValue('');
+	});
+
+	test('ガイド開始時にカウントダウンが表示され、スキップまたはタイマー開始すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('drip-coffee-guide');
+		await toolPage.goto();
+
+		await page.getByRole('button', { name: /4:6メソッド/ }).click();
+		await page.getByRole('button', { name: 'ガイド開始' }).click();
+
+		// カウントダウン表示の確認
+		await expect(page.getByTestId('guide-countdown')).toBeVisible();
+		await expect(page.getByText('注湯の準備をしてください')).toBeVisible();
+
+		// 「今すぐ開始」でスキップ
+		await page.getByRole('button', { name: '今すぐ開始' }).first().click();
+		await expect(page.getByTestId('guide-countdown')).toBeHidden();
+		await expect(page.getByTestId('guide-timer')).toBeVisible();
 	});
 
 	test('豆名の直近サジェストが表示されること', async ({
