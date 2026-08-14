@@ -61,16 +61,6 @@ export function BrewLogSettings({
 		};
 	}, []);
 
-	const handleTestSound = () => {
-		const ctx = ensureAudioContext();
-		if (!ctx) return;
-		const vol = settings.soundVolume ?? 50;
-		playBeep(ctx, 'pre', vol);
-		setTimeout(() => {
-			playBeep(ctx, 'step', vol);
-		}, 250);
-	};
-
 	const handleVolumeChange = (value: number) => {
 		updateSettings({ soundVolume: value });
 		if (!settings.soundEnabled) return;
@@ -158,25 +148,15 @@ export function BrewLogSettings({
 			<section className="space-y-4">
 				<h3 className="text-sm font-semibold text-muted-foreground">効果音</h3>
 				<div className="space-y-4 rounded-lg border border-border p-4">
-					<div className="flex items-center justify-between gap-3">
-						<div className="flex items-center gap-3">
-							<Switch
-								id="sound-enabled"
-								checked={settings.soundEnabled}
-								onCheckedChange={(checked) =>
-									updateSettings({ soundEnabled: checked })
-								}
-							/>
-							<Label htmlFor="sound-enabled">
-								抽出ガイドの効果音を再生する
-							</Label>
-						</div>
-						{settings.soundEnabled && (
-							<Button variant="outline" size="sm" onClick={handleTestSound}>
-								<Volume2 className="h-3.5 w-3.5 mr-1" />
-								試聴
-							</Button>
-						)}
+					<div className="flex items-center gap-3">
+						<Switch
+							id="sound-enabled"
+							checked={settings.soundEnabled}
+							onCheckedChange={(checked) =>
+								updateSettings({ soundEnabled: checked })
+							}
+						/>
+						<Label htmlFor="sound-enabled">抽出ガイドの効果音を再生する</Label>
 					</div>
 
 					{settings.soundEnabled && (
