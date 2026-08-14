@@ -480,19 +480,19 @@ export function BrewGuide({
 			{/* メイン: デスクトップ・タブレットはSplit Deck（左右2分割）、モバイルは縦スタック */}
 			<main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 max-w-6xl mx-auto w-full overflow-y-auto md:overflow-hidden">
 				{/* 左側（モバイルでは上部）: 現在ステップ + 円形タイマー + 注湯指示 */}
-				<section className="md:col-span-7 flex flex-col items-center justify-center p-2.5 sm:p-6 lg:p-8 text-center bg-background min-h-0 md:overflow-y-auto">
-					<div className="mb-1 sm:mb-3">
-						<p className="text-[11px] sm:text-sm font-bold text-accent tracking-wide">
+				<section className="md:col-span-7 flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 text-center bg-background min-h-0 md:overflow-y-auto">
+					<div className="mb-1.5 sm:mb-3">
+						<p className="text-xs sm:text-sm font-bold text-accent tracking-wide">
 							STEP {stepIndex + 1} / {steps.length}
 						</p>
-						<h3 className="mt-0.5 text-lg sm:text-2xl lg:text-3xl font-black tracking-tight text-foreground">
+						<h3 className="mt-0.5 text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-foreground">
 							{currentStep?.label}
 						</h3>
 					</div>
 
 					{/* 円形タイマー */}
-					<div className="my-1 sm:my-3 relative flex items-center justify-center">
-						<div className="relative w-32 h-32 sm:w-48 sm:h-48 lg:w-56 lg:h-56 flex items-center justify-center shrink-0">
+					<div className="my-1.5 sm:my-3 relative flex items-center justify-center">
+						<div className="relative w-36 h-36 sm:w-48 sm:h-48 lg:w-56 lg:h-56 flex items-center justify-center shrink-0">
 							<svg
 								className="w-full h-full -rotate-90 transform"
 								viewBox="0 0 100 100"
@@ -529,14 +529,14 @@ export function BrewGuide({
 							<div className="absolute inset-0 flex flex-col items-center justify-center">
 								{isCountdownActive ? (
 									<div
-										className="flex flex-col items-center justify-center gap-0.5 sm:gap-1"
+										className="flex flex-col items-center justify-center gap-1"
 										data-testid="guide-countdown"
 									>
-										<p className="text-[10px] sm:text-xs font-semibold text-muted-foreground">
+										<p className="text-[11px] sm:text-xs font-semibold text-muted-foreground">
 											準備
 										</p>
 										<span
-											className="font-mono text-3xl sm:text-5xl lg:text-6xl font-black text-accent tabular-nums animate-pulse"
+											className="font-mono text-4xl sm:text-5xl lg:text-6xl font-black text-accent tabular-nums animate-pulse"
 											aria-hidden="true"
 										>
 											{countdown}
@@ -546,7 +546,7 @@ export function BrewGuide({
 											variant="outline"
 											size="sm"
 											onClick={handleSkipCountdown}
-											className="mt-0.5 text-xs h-6 px-2 sm:h-7 sm:px-2.5"
+											className="mt-1 text-xs h-7 px-2.5"
 										>
 											今すぐ開始
 										</Button>
@@ -554,14 +554,14 @@ export function BrewGuide({
 								) : (
 									<div className="flex flex-col items-center justify-center">
 										<span
-											className="font-mono text-2xl sm:text-4xl lg:text-5xl font-black tabular-nums tracking-tight text-foreground"
+											className="font-mono text-3xl sm:text-4xl lg:text-5xl font-black tabular-nums tracking-tight text-foreground"
 											style={{ fontVariantNumeric: 'tabular-nums' }}
 											data-testid="guide-timer"
 										>
 											{formatClock(elapsedSec)}
 										</span>
 										{totalDurationSec > 0 && (
-											<span className="text-[11px] sm:text-sm font-mono font-semibold text-muted-foreground tabular-nums mt-0.5">
+											<span className="text-xs sm:text-sm font-mono font-semibold text-muted-foreground tabular-nums mt-0.5">
 												/ {formatClock(totalDurationSec)}
 											</span>
 										)}
@@ -584,19 +584,19 @@ export function BrewGuide({
 							<div>
 								{currentStep.action_type === 'pour' &&
 								currentStep.pour_amount_ml > 0 ? (
-									<p className="text-xs sm:text-base lg:text-lg text-muted-foreground font-medium">
+									<p className="text-sm sm:text-base lg:text-lg text-muted-foreground font-medium">
 										このステップで{' '}
-										<span className="text-lg sm:text-2xl lg:text-3xl font-black text-foreground underline decoration-accent decoration-2 underline-offset-4 font-mono tabular-nums">
+										<span className="text-2xl sm:text-2xl lg:text-3xl font-black text-foreground underline decoration-accent decoration-2 underline-offset-4 font-mono tabular-nums">
 											{currentCumulativeMl}g
 										</span>{' '}
 										まで注ぐ
 									</p>
 								) : currentStep.action_type === 'finish' ? (
-									<p className="text-xs sm:text-base lg:text-lg font-bold text-foreground">
+									<p className="text-sm sm:text-base lg:text-lg font-bold text-foreground">
 										お湯が落ちきったら「抽出完了」
 									</p>
 								) : (
-									<p className="text-xs sm:text-base lg:text-lg font-medium text-muted-foreground">
+									<p className="text-sm sm:text-base lg:text-lg font-medium text-muted-foreground">
 										{currentStep.label}
 									</p>
 								)}
@@ -604,13 +604,13 @@ export function BrewGuide({
 						)}
 
 						{getStepHint(currentStep) && (
-							<p className="text-[11px] sm:text-sm text-foreground/85 bg-muted/60 rounded-md sm:rounded-lg px-2 py-0.5 sm:px-2.5 sm:py-1 inline-block max-w-xs sm:max-w-none truncate sm:whitespace-normal">
+							<p className="text-xs sm:text-sm text-foreground/85 bg-muted/60 rounded-lg px-2.5 py-1 inline-block">
 								{getStepHint(currentStep)}
 							</p>
 						)}
 
 						{steps[stepIndex + 1] && (
-							<p className="text-[11px] sm:text-sm font-medium text-muted-foreground">
+							<p className="text-xs sm:text-sm font-medium text-muted-foreground">
 								次: {steps[stepIndex + 1].label}（
 								{formatClock(steps[stepIndex + 1].time_sec)}〜）
 							</p>
@@ -627,9 +627,9 @@ export function BrewGuide({
 				{/* 右側（モバイルでは下部）: 全ステップ一覧 */}
 				<section
 					aria-label="ステップ一覧"
-					className="md:col-span-5 flex flex-col p-2.5 sm:p-5 lg:p-6 bg-muted/20 border-t md:border-t-0 md:border-l border-border min-h-0 md:overflow-y-auto"
+					className="md:col-span-5 flex flex-col p-3 sm:p-5 lg:p-6 bg-muted/20 border-t md:border-t-0 md:border-l border-border min-h-0 md:overflow-y-auto"
 				>
-					<div className="flex items-center justify-between mb-1.5 sm:mb-3 shrink-0 px-0.5">
+					<div className="flex items-center justify-between mb-2 sm:mb-3 shrink-0 px-0.5">
 						<h4 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
 							ステップ一覧
 						</h4>
@@ -638,7 +638,7 @@ export function BrewGuide({
 						</span>
 					</div>
 
-					<ol className="space-y-1 sm:space-y-2 m-0 p-0 list-none md:flex-1 md:overflow-y-auto">
+					<ol className="space-y-1.5 sm:space-y-2 m-0 p-0 list-none md:flex-1 md:overflow-y-auto">
 						{steps.map((step, i) => {
 							const isActive = i === stepIndex;
 							const isPassed = i < stepIndex;
@@ -651,7 +651,7 @@ export function BrewGuide({
 										onClick={() => setPendingJumpStepIndex(i)}
 										disabled={isActive}
 										aria-current={isActive ? 'step' : undefined}
-										className={`w-full text-left flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl transition-all ${
+										className={`w-full text-left flex items-center justify-between py-2 px-3 sm:p-3 rounded-xl transition-all ${
 											isActive
 												? 'bg-card border-2 border-accent text-foreground shadow-xs'
 												: isPassed
@@ -659,9 +659,9 @@ export function BrewGuide({
 													: 'bg-card/70 border border-border/80 text-foreground hover:bg-card hover:border-accent/40'
 										}`}
 									>
-										<div className="flex items-center gap-2 sm:gap-3">
+										<div className="flex items-center gap-2.5 sm:gap-3">
 											<span
-												className={`size-5 sm:size-7 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-mono font-bold shrink-0 ${
+												className={`size-6 sm:size-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-mono font-bold shrink-0 ${
 													isActive
 														? 'bg-accent text-accent-foreground'
 														: isPassed
@@ -673,7 +673,7 @@ export function BrewGuide({
 											</span>
 											<div>
 												<p
-													className={`text-xs sm:text-sm font-bold ${
+													className={`text-sm sm:text-base font-bold ${
 														isActive
 															? 'text-foreground'
 															: isPassed
@@ -683,7 +683,7 @@ export function BrewGuide({
 												>
 													{step.label}
 												</p>
-												<p className="text-[10px] sm:text-xs font-mono text-muted-foreground tabular-nums">
+												<p className="text-xs font-mono text-muted-foreground tabular-nums">
 													{formatClock(step.time_sec)}〜
 												</p>
 											</div>
@@ -693,7 +693,7 @@ export function BrewGuide({
 											{step.action_type === 'pour' &&
 											step.pour_amount_ml > 0 ? (
 												<span
-													className={`font-mono text-xs sm:text-base font-bold tabular-nums ${
+													className={`font-mono text-sm sm:text-base font-bold tabular-nums ${
 														isActive
 															? 'text-accent'
 															: isPassed
@@ -704,7 +704,7 @@ export function BrewGuide({
 													{stepCumulativeMl}g
 												</span>
 											) : (
-												<span className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+												<span className="text-xs text-muted-foreground font-medium">
 													{step.action_type === 'finish' ? '完了' : '—'}
 												</span>
 											)}
