@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import { DripCoffeeGuidePage } from '../components/tools/drip-coffee-guide/DripCoffeeGuidePage';
+
+const toolEntry = await getEntry('tools', 'drip-coffee-guide');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: drip-coffee-guide');
+}
+---
+
+<ToolLayout tool={toolEntry} hideRelatedTools>
+  <DripCoffeeGuidePage client:load />
+</ToolLayout>
