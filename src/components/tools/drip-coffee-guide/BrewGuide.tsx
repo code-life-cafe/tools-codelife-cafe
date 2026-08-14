@@ -1,4 +1,12 @@
-import { Pause, Play, RotateCcw, Volume2, VolumeX, X } from 'lucide-react';
+import {
+	Pause,
+	Play,
+	RotateCcw,
+	Volume1,
+	Volume2,
+	VolumeX,
+	X,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
@@ -47,6 +55,8 @@ function deriveStepIndex(
 	}
 	return idx;
 }
+
+const VOLUME_PREVIEW_DEBOUNCE_MS = 200;
 
 function formatClock(totalSec: number): string {
 	const m = Math.floor(totalSec / 60);
@@ -143,6 +153,17 @@ export function BrewGuide({
 	const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
 	const lastStepIndexRef = useRef<number>(session.currentStepIndex);
 	const lastCountdownSecRef = useRef<number | null>(null);
+	const volumePreviewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+
+	useEffect(() => {
+		return () => {
+			if (volumePreviewTimeoutRef.current) {
+				clearTimeout(volumePreviewTimeoutRef.current);
+			}
+		};
+	}, []);
 
 	// カウントダウン処理（3 -> 2 -> 1 -> 開始）
 	useEffect(() => {
@@ -345,6 +366,17 @@ export function BrewGuide({
 		steps,
 	]);
 
+	const handleVolumeChange = (value: number) => {
+		updateSettings({ soundVolume: value });
+		if (!settings.soundEnabled || !audioContext) return;
+		if (volumePreviewTimeoutRef.current) {
+			clearTimeout(volumePreviewTimeoutRef.current);
+		}
+		volumePreviewTimeoutRef.current = setTimeout(() => {
+			playBeep(audioContext, 'step', value);
+		}, VOLUME_PREVIEW_DEBOUNCE_MS);
+	};
+
 	const handlePauseResume = () => {
 		if (countdown !== null) {
 			handleSkipCountdown();
@@ -445,10 +477,10 @@ export function BrewGuide({
 			</header>
 
 			{/* メイン: デスクトップはSplit Deck（左右2分割）、モバイルは縦スタック */}
-			<main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col lg:grid lg:grid-cols-12 max-w-6xl mx-auto w-full">
+			<main className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row max-w-6xl mx-auto w-full">
 				{/* 左側: 現在ステップ + 円形タイマー + 注湯指示 */}
-				<section className="flex-1 lg:col-span-7 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 text-center min-h-0 lg:overflow-y-auto">
-					<div className="mb-2 sm:mb-3">
+				<section className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8 text-center min-h-0 lg:overflow-y-auto">
+					<div className="mb-2 sm:mb-4">
 						<p className="text-xs sm:text-sm font-bold text-accent tracking-wide">
 							STEP {stepIndex + 1} / {steps.length}
 						</p>
@@ -459,19 +491,19 @@ export function BrewGuide({
 
 					{/* 円形タイマー */}
 					<div className="my-2 sm:my-4 relative flex items-center justify-center">
-						<div className="relative size-44 sm:size-52 lg:size-60 flex items-center justify-center">
+						<div className="relative w-44 h-44 sm:w-52 sm:h-52 lg:w-60 lg:h-60 flex items-center justify-center">
 							<svg
-								className="size-full -rotate-90"
+								className="w-full h-full -rotate-90 transform"
 								viewBox="0 0 100 100"
 								aria-hidden="true"
 							>
-								{/* 背景トラック */}
+								{/* 背景トラック: ライトモードでもはっきり視認できるグレー */}
 								<circle
 									cx="50"
 									cy="50"
 									r={circleRadius}
-									className="stroke-muted"
-									strokeWidth="6"
+									className="text-stone-300 dark:text-stone-700 stroke-current"
+									strokeWidth="7"
 									fill="none"
 								/>
 								{/* プログレスリング */}
@@ -479,8 +511,8 @@ export function BrewGuide({
 									cx="50"
 									cy="50"
 									r={circleRadius}
-									className="stroke-accent transition-[stroke-dashoffset] duration-100 ease-linear motion-reduce:transition-none"
-									strokeWidth="6"
+									className="text-accent stroke-current transition-[stroke-dashoffset] duration-100 ease-linear motion-reduce:transition-none"
+									strokeWidth="7"
 									strokeLinecap="round"
 									fill="none"
 									style={{
@@ -544,7 +576,7 @@ export function BrewGuide({
 					</div>
 
 					{/* 注湯指示（累計gのみ） */}
-					<div className="space-y-1.5 sm:space-y-2 max-w-md w-full">
+					<div className="space-y-2 max-w-md w-full">
 						{currentStep && (
 							<div>
 								{currentStep.action_type === 'pour' &&
@@ -569,7 +601,7 @@ export function BrewGuide({
 						)}
 
 						{getStepHint(currentStep) && (
-							<p className="text-xs sm:text-sm text-foreground/85 bg-muted/50 rounded-lg px-3 py-1.5 inline-block">
+							<p className="text-xs sm:text-sm text-foreground/85 bg-muted/60 rounded-lg px-3 py-1.5 inline-block">
 								{getStepHint(currentStep)}
 							</p>
 						)}
@@ -592,13 +624,13 @@ export function BrewGuide({
 				{/* 右側: 全ステップ一覧（モバイルでは下部） */}
 				<section
 					aria-label="ステップ一覧"
-					className="border-t lg:border-t-0 lg:border-l border-border lg:col-span-5 flex flex-col p-4 sm:p-5 lg:p-6 min-h-0 bg-muted/20 overflow-y-auto"
+					className="w-full lg:w-88 xl:w-96 shrink-0 flex flex-col p-4 sm:p-5 lg:p-6 min-h-0 bg-muted/20 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto"
 				>
-					<div className="flex items-center justify-between mb-3 shrink-0">
+					<div className="flex items-center justify-between mb-3 shrink-0 px-0.5">
 						<h4 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
 							ステップ一覧
 						</h4>
-						<span className="text-xs text-muted-foreground font-mono">
+						<span className="text-xs text-muted-foreground font-mono font-medium">
 							目標合計: {totalWaterMl}g
 						</span>
 					</div>
@@ -616,12 +648,12 @@ export function BrewGuide({
 										onClick={() => setPendingJumpStepIndex(i)}
 										disabled={isActive}
 										aria-current={isActive ? 'step' : undefined}
-										className={`w-full text-left flex items-center justify-between p-3 rounded-xl transition-all border ${
+										className={`w-full text-left flex items-center justify-between p-3 rounded-xl transition-all ${
 											isActive
-												? 'bg-card border-accent shadow-sm ring-1 ring-accent'
+												? 'bg-card border-2 border-accent text-foreground shadow-xs'
 												: isPassed
-													? 'bg-muted/40 border-transparent text-muted-foreground hover:bg-muted/70 hover:border-border'
-													: 'bg-card/60 border-border/50 text-foreground hover:bg-card hover:border-border'
+													? 'bg-muted/40 border border-transparent text-muted-foreground hover:bg-muted/60'
+													: 'bg-card/70 border border-border/80 text-foreground hover:bg-card hover:border-accent/40'
 										}`}
 									>
 										<div className="flex items-center gap-3">
@@ -683,73 +715,95 @@ export function BrewGuide({
 			</main>
 
 			{/* 操作ドック: 画面最下部に固定 */}
-			<footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:py-4 sm:px-6">
-				<div className="max-w-xl mx-auto flex items-center justify-between gap-2.5 sm:gap-4">
-					{/* 最初から */}
-					<Button
-						variant="outline"
-						size="icon"
-						className="size-11 sm:size-12 shrink-0 rounded-xl"
-						onClick={handleRestart}
-						aria-label="最初から"
-					>
-						<RotateCcw className="size-5" />
-					</Button>
+			<footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:py-3.5 sm:px-6">
+				<div className="max-w-xl mx-auto space-y-2.5">
+					{/* 操作ボタン列 */}
+					<div className="flex items-center justify-between gap-2.5 sm:gap-4">
+						{/* 最初から */}
+						<Button
+							variant="outline"
+							size="icon"
+							className="size-11 sm:size-12 shrink-0 rounded-xl"
+							onClick={handleRestart}
+							aria-label="最初から"
+						>
+							<RotateCcw className="size-5" />
+						</Button>
 
-					{/* 主操作：一時停止 / 再開 */}
-					<Button
-						size="lg"
-						onClick={handlePauseResume}
-						className="flex-1 h-11 sm:h-12 text-sm sm:text-base font-bold rounded-xl shadow-sm gap-2"
-					>
-						{isCountdownActive ? (
-							<>
-								<Play className="size-5" />
-								<span>今すぐ開始</span>
-							</>
-						) : session.status === 'running' ? (
-							<>
-								<Pause className="size-5" />
-								<span>一時停止</span>
-							</>
-						) : (
-							<>
-								<Play className="size-5" />
-								<span>再開</span>
-							</>
-						)}
-					</Button>
+						{/* 主操作：一時停止 / 再開 */}
+						<Button
+							size="lg"
+							onClick={handlePauseResume}
+							className="flex-1 h-11 sm:h-12 text-sm sm:text-base font-bold rounded-xl shadow-sm gap-2"
+						>
+							{isCountdownActive ? (
+								<>
+									<Play className="size-5" />
+									<span>今すぐ開始</span>
+								</>
+							) : session.status === 'running' ? (
+								<>
+									<Pause className="size-5" />
+									<span>一時停止</span>
+								</>
+							) : (
+								<>
+									<Play className="size-5" />
+									<span>再開</span>
+								</>
+							)}
+						</Button>
 
-					{/* 音声トグル */}
-					<Button
-						variant="outline"
-						size="icon"
-						className="size-11 sm:size-12 shrink-0 rounded-xl"
-						onClick={() =>
-							updateSettings({ soundEnabled: !settings.soundEnabled })
-						}
-						aria-label={
-							settings.soundEnabled
-								? '効果音をオフにする'
-								: '効果音をオンにする'
-						}
-					>
-						{settings.soundEnabled ? (
-							<Volume2 className="size-5" />
-						) : (
-							<VolumeX className="size-5 text-muted-foreground" />
-						)}
-					</Button>
+						{/* 音声トグル */}
+						<Button
+							variant="outline"
+							size="icon"
+							className="size-11 sm:size-12 shrink-0 rounded-xl"
+							onClick={() =>
+								updateSettings({ soundEnabled: !settings.soundEnabled })
+							}
+							aria-label={
+								settings.soundEnabled
+									? '効果音をオフにする'
+									: '効果音をオンにする'
+							}
+						>
+							{settings.soundEnabled ? (
+								<Volume2 className="size-5" />
+							) : (
+								<VolumeX className="size-5 text-muted-foreground" />
+							)}
+						</Button>
 
-					{/* 抽出完了: 二次ボタン（誤タップ防止） */}
-					<Button
-						variant="secondary"
-						className="h-11 sm:h-12 px-3.5 sm:px-5 text-xs sm:text-sm font-bold rounded-xl border border-border shrink-0 hover:bg-secondary/80"
-						onClick={handleComplete}
-						data-testid="guide-complete-button"
-					>
-						抽出完了
-					</Button>
+						{/* 抽出完了: 二次ボタン（誤タップ防止） */}
+						<Button
+							variant="secondary"
+							className="h-11 sm:h-12 px-3.5 sm:px-5 text-xs sm:text-sm font-bold rounded-xl border border-border shrink-0 hover:bg-secondary/80"
+							onClick={handleComplete}
+							data-testid="guide-complete-button"
+						>
+							抽出完了
+						</Button>
+					</div>
+
+					{/* 音量調整スライダー（効果音ON時） */}
+					{settings.soundEnabled && (
+						<div className="flex items-center justify-center gap-3 pt-1 text-xs text-muted-foreground">
+							<Volume1 className="size-4 shrink-0" />
+							<input
+								type="range"
+								min="0"
+								max="100"
+								value={settings.soundVolume ?? 50}
+								onChange={(e) => handleVolumeChange(Number(e.target.value))}
+								className="w-full max-w-xs accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+								aria-label="音量"
+							/>
+							<span className="w-9 text-right font-mono tabular-nums font-semibold">
+								{settings.soundVolume ?? 50}%
+							</span>
+						</div>
+					)}
 				</div>
 			</footer>
 
