@@ -140,6 +140,13 @@ export function DripCoffeeGuidePage() {
 		}
 	}, []);
 
+	// ページ離脱時にAudioContextを解放する（作成された場合のみ）
+	useEffect(() => {
+		return () => {
+			audioContext?.close().catch(() => {});
+		};
+	}, [audioContext]);
+
 	function ensureAudioContext(): AudioContext | null {
 		if (typeof window === 'undefined') return null;
 		const Ctor =
