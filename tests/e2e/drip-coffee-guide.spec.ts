@@ -147,12 +147,50 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 
 		// カウントダウン表示の確認
 		await expect(page.getByTestId('guide-countdown')).toBeVisible();
-		await expect(page.getByText('注湯の準備をしてください')).toBeVisible();
+		await expect(page.getByText('準備')).toBeVisible();
 
 		// 「今すぐ開始」でスキップ
 		await page.getByRole('button', { name: '今すぐ開始' }).first().click();
 		await expect(page.getByTestId('guide-countdown')).toBeHidden();
 		await expect(page.getByTestId('guide-timer')).toBeVisible();
+	});
+
+	test('ガイド画面がSplit Deck UIで表示され、累計gで注湯指示が出ること（増分表記+60gなし）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('drip-coffee-guide');
+		await toolPage.goto();
+
+		await page.getByRole('button', { name: /4:6メソッド/ }).click();
+		await page.getByRole('button', { name: 'ガイド開始' }).click();
+
+		// スキップしてタイマースタート
+		const skipButton = page.getByRole('button', { name: '今すぐ開始' }).first();
+		if (await skipButton.isVisible()) {
+			await skipButton.click();
+		}
+
+		// STEP 1 / 6 および累計g指示「このステップで 60g まで注ぐ」が表示される
+		await expect(page.getByText('STEP 1 / 6')).toBeVisible();
+		await expect(page.getByText('このステップで 60g まで注ぐ')).toBeVisible();
+
+		// +60g などの増分表記がガイド画面に出ないこと
+		await expect(page.getByText(/\+\d+g/)).toHaveCount(0);
+		// 重複していた「スケール目標」表示が出ないこと
+		await expect(page.getByText(/スケール目標/)).toHaveCount(0);
+
+		// 右側（または下部）のステップ一覧が表示され、各ステップの累計gが並んでいること
+		const stepList = page.getByRole('region', { name: 'ステップ一覧' });
+		await expect(stepList).toBeVisible();
+		await expect(stepList.getByText('120g', { exact: true })).toBeVisible();
+		await expect(stepList.getByText('180g', { exact: true })).toBeVisible();
+		await expect(stepList.getByText('240g', { exact: true })).toBeVisible();
+		await expect(stepList.getByText('300g', { exact: true })).toBeVisible();
+
+		// 操作ドックの確認（一時停止が主操作、抽出完了が二次ボタン）
+		await expect(page.getByRole('button', { name: '一時停止' })).toBeVisible();
+		await expect(page.getByTestId('guide-complete-button')).toBeVisible();
 	});
 
 	test('豆名の直近サジェストが表示されること', async ({
