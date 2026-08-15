@@ -315,11 +315,14 @@ export function BrewGuide({
 	const currentCumulativeMl = computeCumulativeWaterMl(steps, stepIndex);
 	const totalWaterMl = computeTotalWaterMl(steps);
 	const totalDurationSec = steps[steps.length - 1]?.time_sec ?? 0;
-	const totalDurationMs = totalDurationSec * 1000;
-	const progressPercent =
-		totalDurationMs > 0
-			? Math.min(100, (elapsedMs / totalDurationMs) * 100)
-			: 0;
+
+	const circleRadius = 42;
+	const circumference = 2 * Math.PI * circleRadius; // 約263.89
+	const totalProgress =
+		countdown !== null || totalDurationSec <= 0
+			? 0
+			: Math.min(1, elapsedSec / totalDurationSec);
+	const strokeDashoffset = circumference * (1 - totalProgress);
 
 	useEffect(() => {
 		if (countdown !== null) return;
@@ -450,246 +453,315 @@ export function BrewGuide({
 
 	const guide = (
 		<div
-			className="fixed inset-0 z-50 flex flex-col bg-background"
+			className="fixed inset-0 z-50 flex flex-col bg-background text-foreground"
 			style={{ height: '100dvh' }}
 		>
-			<header className="shrink-0 flex items-center justify-between border-b border-border px-4 py-2.5 sm:py-3 sm:px-6">
+			{/* ヘッダー: 画面上部に固定 */}
+			<header className="shrink-0 flex items-center justify-between border-b border-border px-4 py-2 sm:py-3 sm:px-6 bg-background/95 backdrop-blur">
 				<div>
-					<p className="text-xs sm:text-sm font-semibold tracking-wider text-accent">
+					<p className="text-xs font-semibold tracking-wider text-accent">
 						LIVE GUIDE
 					</p>
-					<h2 className="text-base sm:text-lg font-bold">{recipe.name}</h2>
+					<h2 className="text-sm sm:text-base font-bold truncate max-w-xs sm:max-w-md">
+						{recipe.name}
+					</h2>
 				</div>
 				<Button
 					variant="outline"
 					size="sm"
-					className="h-9 sm:h-10 text-sm font-medium"
+					className="h-8 sm:h-9 text-xs sm:text-sm font-medium gap-1.5"
 					onClick={() => setShowAbortConfirm(true)}
 				>
 					<X className="h-4 w-4" />
-					中断する
+					<span>中断</span>
 				</Button>
 			</header>
 
-			<nav
-				aria-label="ステップ選択"
-				className="shrink-0 overflow-x-auto border-b border-border px-4 py-2 sm:py-2.5 sm:px-6"
-			>
-				<ol className="m-0 flex min-w-max list-none gap-2 p-0">
-					{steps.map((step, i) => {
-						const isActive = i === stepIndex;
-						return (
-							<li key={`${step.step_order}-${step.label}`}>
-								<button
-									type="button"
-									onClick={() => setPendingJumpStepIndex(i)}
-									disabled={isActive}
-									aria-label={`STEP ${i + 1}: ${step.label}（${formatClock(step.time_sec)}〜）へ移動`}
-									className={`flex items-center gap-2 rounded-full px-3.5 py-1 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-										isActive
-											? 'bg-accent text-accent-foreground font-bold cursor-default'
-											: i < stepIndex
-												? 'bg-muted text-muted-foreground line-through hover:bg-muted/80 cursor-pointer'
-												: 'bg-muted/50 text-muted-foreground hover:bg-muted cursor-pointer'
-									}`}
-								>
-									<span className="font-mono font-bold">{i + 1}</span>
-									<span>{step.label}</span>
-								</button>
-							</li>
-						);
-					})}
-				</ol>
-			</nav>
-
-			<div className="flex-1 min-h-0 overflow-y-auto flex flex-col items-center justify-center gap-3 sm:gap-6 px-4 py-4 text-center max-w-xl mx-auto w-full">
-				<div aria-live="polite">
-					<p className="text-sm sm:text-base font-bold text-accent tracking-wide">
-						STEP {stepIndex + 1} / {steps.length}
-					</p>
-					<p className="mt-0.5 text-2xl sm:text-4xl font-black tracking-tight">
-						{currentStep?.label}
-					</p>
-				</div>
-
-				{isCountdownActive ? (
-					<div
-						className="flex flex-col items-center justify-center gap-1.5 py-1"
-						data-testid="guide-countdown"
-					>
-						<p className="text-xs sm:text-sm font-semibold text-muted-foreground">
-							注湯の準備をしてください（まもなく開始）
+			{/* メイン: デスクトップ・タブレットはSplit Deck（左右2分割）、モバイルは縦スタック */}
+			<main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-12 max-w-6xl mx-auto w-full overflow-y-auto md:overflow-hidden">
+				{/* 左側（モバイルでは上部）: 現在ステップ + 円形タイマー + 注湯指示 */}
+				<section className="md:col-span-7 flex flex-col items-center justify-center p-3 sm:p-6 lg:p-8 text-center bg-background min-h-0 md:overflow-y-auto">
+					<div className="mb-1.5 sm:mb-3">
+						<p className="text-xs sm:text-sm font-bold text-accent tracking-wide">
+							STEP {stepIndex + 1} / {steps.length}
 						</p>
-						<div className="flex items-center justify-center">
-							<span
-								className="font-mono text-7xl sm:text-9xl font-black text-accent animate-pulse tabular-nums"
+						<h3 className="mt-0.5 text-xl sm:text-2xl lg:text-3xl font-black tracking-tight text-foreground">
+							{currentStep?.label}
+						</h3>
+					</div>
+
+					{/* 円形タイマー */}
+					<div className="my-1.5 sm:my-3 relative flex items-center justify-center">
+						<div className="relative w-36 h-36 sm:w-48 sm:h-48 lg:w-56 lg:h-56 flex items-center justify-center shrink-0">
+							<svg
+								className="w-full h-full -rotate-90 transform"
+								viewBox="0 0 100 100"
 								aria-hidden="true"
 							>
-								{countdown}
-							</span>
-							<span className="sr-only">開始まであと{countdown}秒</span>
+								{/* 背景トラック: ライトモードでもはっきり視認できるグレー */}
+								<circle
+									cx="50"
+									cy="50"
+									r={circleRadius}
+									stroke="currentColor"
+									className="text-stone-300 dark:text-stone-700"
+									strokeWidth="7"
+									fill="none"
+								/>
+								{/* プログレスリング */}
+								<circle
+									cx="50"
+									cy="50"
+									r={circleRadius}
+									stroke="currentColor"
+									className="text-accent transition-[stroke-dashoffset] duration-100 ease-linear motion-reduce:transition-none"
+									strokeWidth="7"
+									strokeLinecap="round"
+									fill="none"
+									style={{
+										strokeDasharray: circumference,
+										strokeDashoffset,
+									}}
+								/>
+							</svg>
+
+							{/* タイマー中央コンテンツ */}
+							<div className="absolute inset-0 flex flex-col items-center justify-center">
+								{isCountdownActive ? (
+									<div
+										className="flex flex-col items-center justify-center gap-1"
+										data-testid="guide-countdown"
+									>
+										<p className="text-[11px] sm:text-xs font-semibold text-muted-foreground">
+											準備
+										</p>
+										<span
+											className="font-mono text-4xl sm:text-5xl lg:text-6xl font-black text-accent tabular-nums animate-pulse"
+											aria-hidden="true"
+										>
+											{countdown}
+										</span>
+										<span className="sr-only">開始まであと{countdown}秒</span>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={handleSkipCountdown}
+											className="mt-1 text-xs h-7 px-2.5"
+										>
+											今すぐ開始
+										</Button>
+									</div>
+								) : (
+									<div className="flex flex-col items-center justify-center">
+										<span
+											className="font-mono text-3xl sm:text-4xl lg:text-5xl font-black tabular-nums tracking-tight text-foreground"
+											style={{ fontVariantNumeric: 'tabular-nums' }}
+											data-testid="guide-timer"
+										>
+											{formatClock(elapsedSec)}
+										</span>
+										{totalDurationSec > 0 && (
+											<span className="text-xs sm:text-sm font-mono font-semibold text-muted-foreground tabular-nums mt-0.5">
+												/ {formatClock(totalDurationSec)}
+											</span>
+										)}
+									</div>
+								)}
+
+								{/* テスト互換性およびDOM読み取り用の不可視タイマー（カウントダウン中） */}
+								{isCountdownActive && (
+									<span className="sr-only" data-testid="guide-timer">
+										{formatClock(0)}
+									</span>
+								)}
+							</div>
 						</div>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={handleSkipCountdown}
-							className="mt-1 text-xs sm:text-sm h-7 sm:h-8"
-						>
-							今すぐ開始
-						</Button>
 					</div>
-				) : (
-					<p
-						className="font-mono text-6xl sm:text-8xl font-black tabular-nums tracking-tight text-foreground"
-						style={{ fontVariantNumeric: 'tabular-nums' }}
-						data-testid="guide-timer"
-					>
-						{formatClock(elapsedSec)}
-					</p>
-				)}
 
-				{/* テスト互換性およびDOM読み取り用の不可視タイマー（カウントダウン中） */}
-				{isCountdownActive && (
-					<span className="sr-only" data-testid="guide-timer">
-						{formatClock(0)}
-					</span>
-				)}
-
-				{currentStep && (
-					<div className="space-y-1 sm:space-y-2">
-						{currentStep.action_type === 'pour' &&
-						currentStep.pour_amount_ml > 0 ? (
-							<p className="text-lg sm:text-2xl text-muted-foreground font-medium">
-								このステップで{' '}
-								<span className="text-2xl sm:text-4xl font-black text-foreground underline decoration-accent decoration-2 underline-offset-4">
-									+{currentStep.pour_amount_ml}g
-								</span>{' '}
-								注湯
-							</p>
-						) : null}
-
-						{totalWaterMl > 0 && (
-							<div className="flex items-center justify-center gap-2 text-sm sm:text-lg font-semibold text-muted-foreground">
-								<span>スケール目標:</span>
-								<span className="text-xl sm:text-2xl font-black text-foreground font-mono tabular-nums">
-									{currentCumulativeMl}g
-								</span>
-								<span className="text-xs sm:text-sm text-muted-foreground font-mono tabular-nums">
-									/ {totalWaterMl}g（合計）
-								</span>
+					{/* 注湯指示（累計gのみ） */}
+					<div className="space-y-1 sm:space-y-2 max-w-md w-full">
+						{currentStep && (
+							<div>
+								{currentStep.action_type === 'pour' &&
+								currentStep.pour_amount_ml > 0 ? (
+									<p className="text-sm sm:text-base lg:text-lg text-muted-foreground font-medium">
+										このステップで{' '}
+										<span className="text-2xl sm:text-2xl lg:text-3xl font-black text-foreground underline decoration-accent decoration-2 underline-offset-4 font-mono tabular-nums">
+											{currentCumulativeMl}g
+										</span>{' '}
+										まで注ぐ
+									</p>
+								) : currentStep.action_type === 'finish' ? (
+									<p className="text-sm sm:text-base lg:text-lg font-bold text-foreground">
+										お湯が落ちきったら「抽出完了」
+									</p>
+								) : (
+									<p className="text-sm sm:text-base lg:text-lg font-medium text-muted-foreground">
+										{currentStep.label}
+									</p>
+								)}
 							</div>
 						)}
+
+						{getStepHint(currentStep) && (
+							<p className="text-xs sm:text-sm text-foreground/85 bg-muted/60 rounded-lg px-2.5 py-1 inline-block">
+								{getStepHint(currentStep)}
+							</p>
+						)}
+
+						{steps[stepIndex + 1] && (
+							<p className="text-xs sm:text-sm font-medium text-muted-foreground">
+								次: {steps[stepIndex + 1].label}（
+								{formatClock(steps[stepIndex + 1].time_sec)}〜）
+							</p>
+						)}
+
+						{wakeLockStatus === 'unsupported' || wakeLockStatus === 'failed' ? (
+							<p className="text-xs text-muted-foreground pt-1" role="status">
+								画面の自動消灯を防止できませんでした。端末の設定でスリープを延長してください。
+							</p>
+						) : null}
 					</div>
-				)}
+				</section>
 
-				{getStepHint(currentStep) && (
-					<p className="text-xs sm:text-sm text-foreground/90 bg-muted/40 rounded-xl px-3 py-1.5 max-w-md">
-						{getStepHint(currentStep)}
-					</p>
-				)}
-
-				{steps[stepIndex + 1] && (
-					<p className="text-xs sm:text-sm font-semibold text-muted-foreground">
-						次: {steps[stepIndex + 1].label}（
-						{formatClock(steps[stepIndex + 1].time_sec)}〜）
-					</p>
-				)}
-
-				{wakeLockStatus === 'unsupported' || wakeLockStatus === 'failed' ? (
-					<p className="text-xs text-muted-foreground" role="status">
-						画面の自動消灯を防止できませんでした。端末の設定でスリープを延長してください。
-					</p>
-				) : null}
-			</div>
-
-			<div className="shrink-0 border-t border-border px-4 pt-3 pb-4 sm:pb-6 space-y-3 sm:space-y-4 sm:px-6">
-				<div
-					className="relative h-3 w-full overflow-hidden rounded-full bg-muted"
-					aria-hidden="true"
+				{/* 右側（モバイルでは下部）: 全ステップ一覧 */}
+				<section
+					aria-label="ステップ一覧"
+					className="md:col-span-5 flex flex-col p-3 sm:p-5 lg:p-6 bg-muted/20 border-t md:border-t-0 md:border-l border-border min-h-0 md:overflow-y-auto"
 				>
-					<div
-						className="h-full bg-accent transition-[width] duration-100 ease-linear"
-						style={{ width: `${progressPercent}%` }}
-					/>
-					{totalDurationSec > 0 &&
-						steps.slice(1, -1).map((step) => {
-							const tickPercent = (step.time_sec / totalDurationSec) * 100;
-							const passed = tickPercent <= progressPercent;
+					<div className="flex items-center justify-between mb-2 sm:mb-3 shrink-0 px-0.5">
+						<h4 className="text-xs font-bold text-muted-foreground tracking-wider uppercase">
+							ステップ一覧
+						</h4>
+						<span className="text-xs text-muted-foreground font-mono font-medium">
+							目標合計: {totalWaterMl}g
+						</span>
+					</div>
+
+					<ol className="space-y-1.5 sm:space-y-2 m-0 p-0 list-none md:flex-1 md:overflow-y-auto">
+						{steps.map((step, i) => {
+							const isActive = i === stepIndex;
+							const isPassed = i < stepIndex;
+							const stepCumulativeMl = computeCumulativeWaterMl(steps, i);
+
 							return (
-								<span
-									key={`${step.step_order}-${step.label}`}
-									className={`absolute top-0 h-full w-0.5 ${passed ? 'bg-background/90' : 'bg-foreground/40'}`}
-									style={{ left: `${tickPercent}%` }}
-								/>
+								<li key={`${step.step_order}-${step.label}`}>
+									<button
+										type="button"
+										onClick={() => setPendingJumpStepIndex(i)}
+										disabled={isActive}
+										aria-current={isActive ? 'step' : undefined}
+										className={`w-full text-left flex items-center justify-between py-2 px-3 sm:p-3 rounded-xl transition-all ${
+											isActive
+												? 'bg-card border-2 border-accent text-foreground shadow-xs'
+												: isPassed
+													? 'bg-muted/40 border border-transparent text-muted-foreground hover:bg-muted/60'
+													: 'bg-card/70 border border-border/80 text-foreground hover:bg-card hover:border-accent/40'
+										}`}
+									>
+										<div className="flex items-center gap-2.5 sm:gap-3">
+											<span
+												className={`size-6 sm:size-7 rounded-full flex items-center justify-center text-xs sm:text-sm font-mono font-bold shrink-0 ${
+													isActive
+														? 'bg-accent text-accent-foreground'
+														: isPassed
+															? 'bg-muted text-muted-foreground'
+															: 'bg-muted/80 text-foreground'
+												}`}
+											>
+												{i + 1}
+											</span>
+											<div>
+												<p
+													className={`text-sm sm:text-base font-bold ${
+														isActive
+															? 'text-foreground'
+															: isPassed
+																? 'text-muted-foreground line-through'
+																: 'text-foreground'
+													}`}
+												>
+													{step.label}
+												</p>
+												<p className="text-xs font-mono text-muted-foreground tabular-nums">
+													{formatClock(step.time_sec)}〜
+												</p>
+											</div>
+										</div>
+
+										<div className="text-right">
+											{step.action_type === 'pour' &&
+											step.pour_amount_ml > 0 ? (
+												<span
+													className={`font-mono text-sm sm:text-base font-bold tabular-nums ${
+														isActive
+															? 'text-accent'
+															: isPassed
+																? 'text-muted-foreground'
+																: 'text-foreground'
+													}`}
+												>
+													{stepCumulativeMl}g
+												</span>
+											) : (
+												<span className="text-xs text-muted-foreground font-medium">
+													{step.action_type === 'finish' ? '完了' : '—'}
+												</span>
+											)}
+										</div>
+									</button>
+								</li>
 							);
 						})}
-				</div>
+					</ol>
+				</section>
+			</main>
 
-				<div
-					className="relative h-4 w-full text-xs sm:text-sm font-medium text-muted-foreground tabular-nums"
-					aria-hidden="true"
-				>
-					<span className="absolute left-0 top-0">0:00</span>
-					{totalDurationSec > 0 &&
-						steps.slice(1, -1).map((step) => {
-							const tickPercent = (step.time_sec / totalDurationSec) * 100;
-							const passed = tickPercent <= progressPercent;
-							return (
-								<span
-									key={`time-${step.step_order}-${step.label}`}
-									className={`absolute top-0 -translate-x-1/2 transition-colors ${
-										passed
-											? 'text-foreground font-bold'
-											: 'text-muted-foreground'
-									}`}
-									style={{ left: `${tickPercent}%` }}
-								>
-									{formatClock(step.time_sec)}
-								</span>
-							);
-						})}
-					<span className="absolute right-0 top-0">
-						{formatClock(totalDurationSec)}
-					</span>
-				</div>
-
-				<div className="flex flex-col items-center gap-3">
-					<div className="flex items-center justify-center gap-4 w-full">
+			{/* 操作ドック: 画面最下部に固定 */}
+			<footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:py-3.5 sm:px-6">
+				<div className="max-w-xl mx-auto space-y-2.5">
+					{/* 操作ボタン列 */}
+					<div className="flex items-center justify-between gap-2.5 sm:gap-4">
+						{/* 最初から */}
 						<Button
 							variant="outline"
 							size="icon"
-							className="size-12 sm:size-14"
+							className="size-11 sm:size-12 shrink-0 rounded-xl"
 							onClick={handleRestart}
 							aria-label="最初から"
 						>
-							<RotateCcw className="h-5 w-5" />
+							<RotateCcw className="size-5" />
 						</Button>
+
+						{/* 主操作：一時停止 / 再開 */}
 						<Button
 							size="lg"
 							onClick={handlePauseResume}
-							className="h-12 sm:h-14 min-w-36 sm:min-w-44 text-base sm:text-lg font-bold"
+							className="flex-1 h-11 sm:h-12 text-sm sm:text-base font-bold rounded-xl shadow-sm gap-2"
 						>
 							{isCountdownActive ? (
 								<>
-									<Play className="h-5 w-5" />
-									今すぐ開始
+									<Play className="size-5" />
+									<span>今すぐ開始</span>
 								</>
 							) : session.status === 'running' ? (
 								<>
-									<Pause className="h-5 w-5" />
-									一時停止
+									<Pause className="size-5" />
+									<span>一時停止</span>
 								</>
 							) : (
 								<>
-									<Play className="h-5 w-5" />
-									再開
+									<Play className="size-5" />
+									<span>再開</span>
 								</>
 							)}
 						</Button>
+
+						{/* 音声トグル */}
 						<Button
 							variant="outline"
 							size="icon"
-							className="size-12 sm:size-14"
+							className="size-11 sm:size-12 shrink-0 rounded-xl"
 							onClick={() =>
 								updateSettings({ soundEnabled: !settings.soundEnabled })
 							}
@@ -700,42 +772,45 @@ export function BrewGuide({
 							}
 						>
 							{settings.soundEnabled ? (
-								<Volume2 className="h-5 w-5" />
+								<Volume2 className="size-5" />
 							) : (
-								<VolumeX className="h-5 w-5" />
+								<VolumeX className="size-5 text-muted-foreground" />
 							)}
+						</Button>
+
+						{/* 抽出完了: 二次ボタン（誤タップ防止） */}
+						<Button
+							variant="secondary"
+							className="h-11 sm:h-12 px-3.5 sm:px-5 text-xs sm:text-sm font-bold rounded-xl border border-border shrink-0 hover:bg-secondary/80"
+							onClick={handleComplete}
+							data-testid="guide-complete-button"
+						>
+							抽出完了
 						</Button>
 					</div>
 
+					{/* 音量調整スライダー（効果音ON時） */}
 					{settings.soundEnabled && (
-						<div className="flex items-center justify-center gap-2 w-full max-w-xs px-2 text-xs sm:text-sm text-muted-foreground">
-							<Volume1 className="h-4 w-4 shrink-0" />
+						<div className="flex items-center justify-center gap-3 pt-1 text-xs text-muted-foreground">
+							<Volume1 className="size-4 shrink-0" />
 							<input
 								type="range"
 								min="0"
 								max="100"
 								value={settings.soundVolume ?? 50}
 								onChange={(e) => handleVolumeChange(Number(e.target.value))}
-								className="w-full accent-primary h-2 bg-muted rounded-lg cursor-pointer"
+								className="w-full max-w-xs accent-primary h-2 bg-muted rounded-lg cursor-pointer"
 								aria-label="音量"
 							/>
-							<span className="w-9 text-right font-mono text-xs sm:text-sm tabular-nums font-semibold">
+							<span className="w-9 text-right font-mono tabular-nums font-semibold">
 								{settings.soundVolume ?? 50}%
 							</span>
 						</div>
 					)}
 				</div>
+			</footer>
 
-				<Button
-					className="h-12 sm:h-14 w-full text-lg sm:text-xl font-bold"
-					size="lg"
-					onClick={handleComplete}
-					data-testid="guide-complete-button"
-				>
-					抽出完了
-				</Button>
-			</div>
-
+			{/* 中断確認ダイアログ */}
 			<Dialog open={showAbortConfirm} onOpenChange={setShowAbortConfirm}>
 				<DialogContent>
 					<DialogHeader>
@@ -766,6 +841,7 @@ export function BrewGuide({
 				</DialogContent>
 			</Dialog>
 
+			{/* ステップ移動確認ダイアログ */}
 			<Dialog
 				open={pendingJumpStepIndex !== null}
 				onOpenChange={(open) => !open && setPendingJumpStepIndex(null)}
