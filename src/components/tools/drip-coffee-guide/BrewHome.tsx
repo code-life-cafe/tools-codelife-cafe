@@ -1,20 +1,19 @@
+import { Pencil } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
 	calcBrewRatio,
-	type MethodId,
 	type Recipe,
 	scaleSteps,
 } from '@/lib/tools/drip-coffee-guide';
-
-const METHOD_LABELS: Record<MethodId, string> = {
-	v60: 'V60',
-	switch: 'Switch',
-	kalita: 'カリタ',
-	pour_other: 'その他',
-};
+import {
+	METHOD_LABELS,
+	type RecipeDraft,
+	RecipeEditor,
+	recipeToDraft,
+} from './RecipeEditor';
 
 function formatDuration(totalSec: number): string {
 	const m = Math.floor(totalSec / 60);
@@ -28,6 +27,7 @@ interface BrewHomeProps {
 	onSelectRecipe: (id: string) => void;
 	onStartGuide: (recipe: Recipe, actualDoseG: number) => void;
 	onRecordWithoutGuide: (recipe: Recipe | null) => void;
+	onUpdateRecipe: (id: string, draft: RecipeDraft) => void;
 }
 
 export function BrewHome({
@@ -36,12 +36,14 @@ export function BrewHome({
 	onSelectRecipe,
 	onStartGuide,
 	onRecordWithoutGuide,
+	onUpdateRecipe,
 }: BrewHomeProps) {
 	const selectedRecipe =
 		recipes.find((r) => r.id === selectedRecipeId) ?? recipes[0] ?? null;
 	const [doseInput, setDoseInput] = useState(
 		selectedRecipe ? String(selectedRecipe.dose_g) : '',
 	);
+	const [isEditing, setIsEditing] = useState(false);
 	const lastRecipeIdRef = useRef<string | undefined>(selectedRecipe?.id);
 
 	if (selectedRecipe && selectedRecipe.id !== lastRecipeIdRef.current) {
@@ -94,11 +96,25 @@ export function BrewHome({
 				<div className="lg:sticky lg:top-4 space-y-4 rounded-xl border border-border bg-card p-4">
 					{selectedRecipe ? (
 						<>
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{METHOD_LABELS[selectedRecipe.method]}
-								</p>
-								<h3 className="text-lg font-semibold">{selectedRecipe.name}</h3>
+							<div className="flex items-start justify-between gap-2">
+								<div>
+									<p className="text-xs text-muted-foreground">
+										{METHOD_LABELS[selectedRecipe.method]}
+									</p>
+									<h3 className="text-lg font-semibold">
+										{selectedRecipe.name}
+									</h3>
+								</div>
+								{!selectedRecipe.is_preset && (
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label="レシピを編集"
+										onClick={() => setIsEditing(true)}
+									>
+										<Pencil className="h-4 w-4" />
+									</Button>
+								)}
 							</div>
 
 							<div className="space-y-2">
@@ -175,6 +191,17 @@ export function BrewHome({
 					) : null}
 				</div>
 			</div>
+
+			{isEditing && selectedRecipe && (
+				<RecipeEditor
+					initialDraft={recipeToDraft(selectedRecipe)}
+					onCancel={() => setIsEditing(false)}
+					onSave={(draft) => {
+						onUpdateRecipe(selectedRecipe.id, draft);
+						setIsEditing(false);
+					}}
+				/>
+			)}
 		</div>
 	);
 }

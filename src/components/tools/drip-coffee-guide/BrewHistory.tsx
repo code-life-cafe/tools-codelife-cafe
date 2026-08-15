@@ -91,7 +91,7 @@ export function BrewHistory({ brews, onEdit, onDelete }: BrewHistoryProps) {
 										</div>
 									</div>
 
-									{/* 2行目: 日時・メソッド・レシピ・挽き目・湯温・抽出時間 */}
+									{/* 2行目: 日時・抽出器具・レシピ・挽き目・湯温・抽出時間 */}
 									<div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
 										<span>{formatDate(brew.brewed_at)}</span>
 										<span>・</span>
@@ -160,7 +160,7 @@ export function BrewHistory({ brews, onEdit, onDelete }: BrewHistoryProps) {
 						<dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
 							<DetailRow label="日時" value={formatDate(selected.brewed_at)} />
 							<DetailRow
-								label="メソッド"
+								label="抽出器具"
 								value={METHOD_LABELS[selected.method]}
 							/>
 							<DetailRow label="レシピ" value={selected.recipe_name ?? '—'} />

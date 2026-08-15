@@ -330,6 +330,9 @@ export function DripCoffeeGuidePage() {
 						onSelectRecipe={setSelectedRecipeId}
 						onStartGuide={handleStartGuide}
 						onRecordWithoutGuide={handleRecordWithoutGuide}
+						onUpdateRecipe={(id, draft: RecipeDraft) =>
+							runAction((s) => updateRecipe(s, id, draft).store)
+						}
 					/>
 				</TabsContent>
 				<TabsContent value="history" className="mt-4">
