@@ -192,7 +192,7 @@ export function BrewForm({
 						{mode === 'new' ? '抽出を記録' : '記録を編集'}
 					</DialogTitle>
 					<DialogDescription>
-						豆名・メソッド・豆量・抽出量・抽出時間は必須です。このデータはブラウザ内だけに保存されます。
+						豆名・抽出器具・豆量・抽出量・抽出時間は必須です。このデータはブラウザ内だけに保存されます。
 					</DialogDescription>
 				</DialogHeader>
 
@@ -209,7 +209,7 @@ export function BrewForm({
 						</div>
 
 						<div className="space-y-2">
-							<Label htmlFor="brew-method">メソッド</Label>
+							<Label htmlFor="brew-method">抽出器具</Label>
 							<Select
 								value={values.method}
 								onValueChange={(v) => patch({ method: v as MethodId })}
@@ -217,7 +217,7 @@ export function BrewForm({
 								<SelectTrigger
 									id="brew-method"
 									className="w-full"
-									aria-label="メソッド"
+									aria-label="抽出器具"
 								>
 									<SelectValue />
 								</SelectTrigger>

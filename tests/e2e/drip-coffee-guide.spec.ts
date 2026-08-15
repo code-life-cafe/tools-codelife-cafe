@@ -30,7 +30,7 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await expect(page.getByText('600ml')).toBeVisible();
 	});
 
-	test('エスプレッソ・浸漬用のメソッドが選択肢に存在しないこと', async ({
+	test('エスプレッソ・浸漬用の抽出器具が選択肢に存在しないこと', async ({
 		page,
 		createToolPage,
 	}) => {
@@ -39,7 +39,7 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 
 		await page.getByRole('tab', { name: 'レシピ' }).click();
 		await page.getByRole('button', { name: '新しいレシピを作る' }).click();
-		await page.getByLabel('メソッド').click();
+		await page.getByLabel('抽出器具').click();
 
 		await expect(
 			page.getByRole('option', { name: /Espresso|エスプレッソ/ }),
@@ -265,6 +265,44 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 			.getByRole('button', { name: '削除する' })
 			.click();
 		await expect(page.getByText('E2Eテストレシピ改')).toHaveCount(0);
+	});
+
+	test('抽出タブでもマイレシピを編集でき、プリセットには編集ボタンが出ないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('drip-coffee-guide');
+		await toolPage.goto();
+
+		// マイレシピを作成
+		await page.getByRole('tab', { name: 'レシピ' }).click();
+		await page.getByRole('button', { name: '新しいレシピを作る' }).click();
+		const createDialog = page.getByRole('dialog');
+		await createDialog.getByLabel('レシピ名').fill('抽出タブ編集用レシピ');
+		await createDialog.getByLabel('基準豆量（g）').fill('16');
+		await createDialog.getByLabel('注湯量(ml)').first().fill('260');
+		await createDialog.getByRole('button', { name: '保存する' }).click();
+		await expect(page.getByText('抽出タブ編集用レシピ')).toBeVisible();
+
+		// 抽出タブへ戻り、プリセットを選択中は編集ボタンが出ないことを確認
+		await page.getByRole('tab', { name: '抽出' }).click();
+		const recipeList = page.getByRole('list', { name: 'レシピ一覧' });
+		await recipeList.getByRole('button', { name: /4:6メソッド/ }).click();
+		await expect(
+			page.getByRole('button', { name: 'レシピを編集' }),
+		).toHaveCount(0);
+
+		// マイレシピを選択すると編集ボタンが表示され、編集できる
+		await recipeList
+			.getByRole('button', { name: /抽出タブ編集用レシピ/ })
+			.click();
+		await page.getByRole('button', { name: 'レシピを編集' }).click();
+		const editDialog = page.getByRole('dialog');
+		await editDialog.getByLabel('レシピ名').fill('抽出タブ編集用レシピ改');
+		await editDialog.getByRole('button', { name: '保存する' }).click();
+		await expect(
+			page.getByRole('heading', { name: '抽出タブ編集用レシピ改', level: 3 }),
+		).toBeVisible();
 	});
 
 	test('JSON書き出し→読み込み（置換）でbrew件数が一致すること', async ({
