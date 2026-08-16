@@ -1,0 +1,47 @@
+{
+  "tools": [
+    {
+      "toolId": "hash",
+      "name": "generate_hash",
+      "description": "Calculate MD5 / SHA-256 / SHA-512 hash of text. Runs entirely in the browser; no data is sent externally. / 文字列のハッシュ値を計算する。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to hash / ハッシュ化する文字列"
+          },
+          "algorithm": {
+            "type": "string",
+            "description": "Hash algorithm to use",
+            "enum": [
+              "md5",
+              "sha-256",
+              "sha-512"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "algorithm"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Hex-encoded hash value"
+          }
+        },
+        "required": [
+          "hash"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    }
+  ]
+}

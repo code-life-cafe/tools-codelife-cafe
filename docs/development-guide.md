@@ -272,3 +272,76 @@ CIの `E2E Tests` ワークフロー（`.github/workflows/e2e.yml`）におけ�
    npm run test:unit
    ```
 
+---
+
+## 9. WebMCP対応（AIエージェント向けツール公開）
+
+ツールをAIエージェント（Claude / Notion AI 等のMCPクライアント）から直接呼び出せるようにするための基盤です。人間向けUI（`src/components/tools/[Name].tsx`）は一切変更せず、追加のツール定義ファイルのみで対応します。
+
+### 9.1 単一ソースの定義（手書きディスクリプタは書かない）
+
+MCPディスクリプタ（JSON Schema の `inputSchema`/`outputSchema`・入力検証・実行関数）は、`src/lib/tools/[name].mcp.ts` に宣言する**単一ソースの定義**から自動生成されます。JSON Schema や `isObject`/`requireString` 等の検証コードを個別のツールで手書きすることはありません。
+
+```typescript
+// 例: src/lib/tools/hash.mcp.ts（参照実装）
+import { defineMcpTool } from '../webmcp/define-tool.ts';
+import { hashText } from './hash.ts';
+
+export const hashMcpTool = defineMcpTool({
+	toolId: 'hash', // catalog.ts の id と一致させる（人間向けUIとの接続点）
+	name: 'generate_hash', // MCPツール名
+	description: 'Calculate MD5 / SHA-256 / SHA-512 hash of text. / 文字列のハッシュ値を計算する。',
+	params: {
+		text: { type: 'string', description: 'Text to hash / ハッシュ化する文字列' },
+		algorithm: {
+			type: 'string',
+			enum: ['md5', 'sha-256', 'sha-512'],
+			description: 'Hash algorithm to use',
+		},
+	},
+	returns: {
+		hash: { type: 'string', description: 'Hex-encoded hash value' },
+	},
+	annotations: { readOnlyHint: true },
+	async handler(input) {
+		// 既存の src/lib/tools/[name].ts の純粋関数をそのまま呼び出す
+		const res = await hashText(input.text, ['sha256']);
+		return { hash: res.sha256 ?? '' };
+	},
+});
+```
+
+`params` の各フィールドは `type`（`string`/`number`/`boolean`）・`description`・`required`（省略時 true）・`enum`・`default`・`maxLength` のみを宣言します。これらから `src/lib/webmcp/descriptor-generator.ts` の `generateWebMcpDescriptor()` が `inputSchema`・`outputSchema`・`validate` 関数を自動生成します。
+
+### 9.2 新規ツールへのWebMCP追加手順（定数コスト）
+
+1. `src/lib/tools/[name].mcp.ts` に `defineMcpTool()` で定義を宣言する（`params`/`returns`/`handler` のみ）。
+2. `src/lib/webmcp/registry.ts` の配列に1行追加する（ビルド時のディスクリプタ生成・妥当性検証の対象になる）。
+3. 対象ページのReactコンポーネント（`src/components/tools/[Name].tsx`）で、生成したディスクリプタを登録する。
+
+   ```tsx
+   import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
+   import { provideToolsFromFactory } from '@/lib/webmcp';
+   import { myMcpTool } from '@/lib/tools/[name].mcp';
+
+   useEffect(() => {
+   	return provideToolsFromFactory([generateWebMcpDescriptor(myMcpTool)]);
+   }, []);
+   ```
+
+新規1ツールを追加する場合でも、`inputSchema`/`outputSchema`/`validate` の個別実装（ディスクリプタ側の手書き実装）は不要です。
+
+### 9.3 ビルド時のディスクリプタ生成・検証
+
+`scripts/generate-webmcp-manifest.ts` が `src/lib/webmcp/registry.ts` に登録された全定義からディスクリプタを生成し、JSON Schemaとして妥当かを検証したうえで `public/.well-known/webmcp/tools.generated.json` に書き出します（`npm run build` に組み込み済み）。単体で実行する場合:
+
+```bash
+npm run webmcp:generate
+```
+
+生成物はビルド成果物として `dist/.well-known/webmcp/tools.generated.json` に配信され、リポジトリにもコミットします（`public/data/zipcode/` と同様の方針）。
+
+### 9.4 ランタイムの登録経路（変更なし）
+
+ブラウザ側での実際の登録（`document.modelContext.registerTool()` / 旧仕様の `navigator.modelContext.provideContext()` フォールバック）は `src/lib/webmcp.ts` の `provideToolsFromFactory()` が担い、本節の変更による影響はありません。
+
