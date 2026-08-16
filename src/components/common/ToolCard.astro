@@ -2,14 +2,18 @@
 import type { ToolIconName } from '../../lib/tools/tool-icons';
 import { ToolIcon } from './ToolIcon';
 
+interface CategoryBadge {
+  name: string;
+  id?: string;
+}
+
 interface Props {
   id?: string;
   title: string;
   description: string;
   href: string;
   icon: ToolIconName;
-  category: string;
-  categoryId?: string;
+  categories: readonly CategoryBadge[];
   span?: number;
 }
 
@@ -19,32 +23,38 @@ const {
   description,
   href,
   icon,
-  category,
-  categoryId,
+  categories,
   span = 1,
 } = Astro.props;
+
+const categoryIdList = categories
+  .map((c) => c.id)
+  .filter((cid): cid is string => Boolean(cid))
+  .join(' ');
 ---
 
 <a
   href={href}
   data-tool-id={id}
-  data-category={categoryId}
+  data-categories={categoryIdList || undefined}
   class:list={[
     'group relative flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-card p-5 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:shadow-lg hover:border-primary/30',
     span === 2 ? 'sm:col-span-2' : '',
   ]}
 >
   <div>
-    <div class="mb-3 flex items-center gap-2">
+    <div class="mb-3 flex items-center gap-2 flex-wrap">
       <span class="text-primary"><ToolIcon name={icon} className="h-6 w-6" /></span>
-      <span
-        data-category-badge={categoryId}
-        title={categoryId ? `「${category}」で絞り込む` : undefined}
-        class:list={[
-          'text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full',
-          categoryId ? 'cursor-pointer transition-colors hover:bg-primary/10 hover:text-primary' : '',
-        ]}
-      >{category}</span>
+      {categories.map((category) => (
+        <span
+          data-category-badge={category.id}
+          title={category.id ? `「${category.name}」で絞り込む` : undefined}
+          class:list={[
+            'text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full',
+            category.id ? 'cursor-pointer transition-colors hover:bg-primary/10 hover:text-primary' : '',
+          ]}
+        >{category.name}</span>
+      ))}
     </div>
     <h3 class="text-lg font-semibold mb-1 group-hover:text-primary transition-colors">{title}</h3>
     <p class="text-sm text-muted-foreground leading-relaxed mb-4">{description}</p>

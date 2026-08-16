@@ -150,7 +150,7 @@ if (!toolEntry) {
 - [ ] `src/components/tools/[Name].tsx`、または UI の規模に応じた機能別ディレクトリに React UI を実装する。
 - [ ] `src/content/tools/[name].md` に `title`、`description`、`category`、`summary`、`useCases`、`howto`、`faq`、`related`、`updated`（任意で `keywords`）をフロントマターとして登録する（`src/content.config.ts` のスキーマ参照）。
 - [ ] `src/pages/[name].astro` を作成し、`getEntry('tools', '[name]')` で取得したエントリを `<ToolLayout tool={entry}>` に渡す。React コンポーネントには `client:load` を付与する。
-- [ ] `src/lib/tools/catalog.ts` に `id`、`title`、`description`、`href`、`category`、`icon`、`categoryColor`、`keywords`、`related` を登録する。
+- [ ] `src/lib/tools/catalog.ts` に `id`、`title`、`description`、`href`、`categories`（配列。1ツールが複数カテゴリに属す場合は複数指定）、`icon`、`categoryColor`、`keywords`、`related` を登録する。
 - [ ] UI文言、エラーメッセージ、プレースホルダーが日本語であることを確認する。
 - [ ] 外部API、トラッキング、ユーザーデータ送信がないことを確認する。
 - [ ] 関連ツールは各ページに手書きせず、コンテンツの `related` と `catalog.ts`・`ToolLayout.astro` に集約する。
