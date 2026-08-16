@@ -238,7 +238,7 @@ function toolTemplate(tool) {
 						marginBottom: '28px',
 					},
 				},
-				tool.category,
+				tool.categories.join(' / '),
 			),
 			h(
 				'div',

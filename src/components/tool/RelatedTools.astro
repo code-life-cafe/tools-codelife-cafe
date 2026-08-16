@@ -75,7 +75,7 @@ if (toolId && validTools.length < LIMIT) {
 						description={step.description}
 						href={step.href}
 						icon={step.icon}
-						category={step.category}
+						categories={step.categories.map((c) => ({ name: c }))}
 					/>
 				</div>
 			))}
@@ -101,7 +101,7 @@ if (toolId && validTools.length < LIMIT) {
 							description={t.description}
 							href={t.href}
 							icon={t.icon}
-							category={t.category}
+							categories={t.categories.map((c) => ({ name: c }))}
 						/>
 					</div>
 				))}

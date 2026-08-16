@@ -18,7 +18,7 @@ const webMcpCatalog = toolCatalog
     title: t.title,
     description: t.description,
     url: `https://tools.codelife.cafe${t.href}`,
-    category: t.category,
+    category: t.categories.join(' / '),
     keywords: t.keywords,
   }));
 const webMcpCatalogJson = JSON.stringify(webMcpCatalog).replace(/</g, "\\u003c");
@@ -130,8 +130,7 @@ const schema = {
             description={tool.description}
             href={tool.href}
             icon={tool.icon}
-            category={tool.category}
-            categoryId={getCategoryId(tool.category)}
+            categories={tool.categories.map((c) => ({ name: c, id: getCategoryId(c) }))}
           />
         ))}
       </div>
@@ -179,8 +178,7 @@ const schema = {
             description={tool.description}
             href={tool.href}
             icon={tool.icon}
-            category={tool.category}
-            categoryId={getCategoryId(tool.category)}
+            categories={tool.categories.map((c) => ({ name: c, id: getCategoryId(c) }))}
             span={tool.span}
           />
         ))}
@@ -272,11 +270,12 @@ const schema = {
         const isActive = chip.getAttribute('data-filter-chip') === categoryId;
         chip.setAttribute('aria-pressed', String(isActive));
       }
-      const cards = toolGrid?.querySelectorAll<HTMLElement>('[data-category]') ?? [];
+      const cards = toolGrid?.querySelectorAll<HTMLElement>('[data-categories]') ?? [];
       for (const card of cards) {
+        const cardCategories = (card.dataset.categories ?? '').split(' ').filter(Boolean);
         card.classList.toggle(
           'hidden',
-          categoryId !== '' && card.dataset.category !== categoryId,
+          categoryId !== '' && !cardCategories.includes(categoryId),
         );
       }
       if (updateUrl) {

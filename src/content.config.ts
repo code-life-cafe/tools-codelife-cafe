@@ -9,7 +9,8 @@ export const TOOL_CATEGORIES = [
 	'ユーティリティ',
 	'エンコード/デコード',
 	'データ処理',
-	'AI/画像',
+	'AI',
+	'画像',
 	'PDF',
 ] as const;
 

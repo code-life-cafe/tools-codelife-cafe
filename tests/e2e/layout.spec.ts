@@ -124,8 +124,8 @@ test.describe('Layout & Navigation', () => {
 		// csv-editor は「データ処理」カテゴリ
 		const categoryName = 'データ処理';
 		const categoryId = getCategoryId(categoryName);
-		const categoryCount = toolCatalog.filter(
-			(t) => t.category === categoryName,
+		const categoryCount = toolCatalog.filter((t) =>
+			t.categories.includes(categoryName),
 		).length;
 
 		await page.goto('/csv-editor');
@@ -137,10 +137,12 @@ test.describe('Layout & Navigation', () => {
 		await expect(page).toHaveURL(new RegExp(`/\\?category=${categoryId}$`));
 
 		// 該当カテゴリのカードのみ表示され、それ以外は非表示になる
-		const visibleCards = page.locator('#tool-grid [data-category]:visible');
+		const visibleCards = page.locator('#tool-grid [data-categories]:visible');
 		await expect(visibleCards).toHaveCount(categoryCount);
 		for (const card of await visibleCards.all()) {
-			await expect(card).toHaveAttribute('data-category', categoryId);
+			const cardCategories =
+				(await card.getAttribute('data-categories'))?.split(' ') ?? [];
+			expect(cardCategories).toContain(categoryId);
 		}
 
 		// 対象カテゴリのフィルタチップがアクティブになる

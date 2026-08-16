@@ -1,7 +1,7 @@
 ---
 title: "画像形式変換"
 description: "HEIC・WebP・AVIF・PNG・JPEGをブラウザだけで相互変換できる無料ツール。iPhoneのHEIC写真をJPEGに一括変換、品質指定・ZIPダウンロード対応。完全クライアントサイド処理。"
-category: "AI/画像"
+category: "画像"
 summary: "「この画像、JPEGじゃなくてPNGでほしい」「iPhoneのHEICが開けない」を即解決。HEIC/WebP/AVIF/PNG/JPEG間を双方向変換。すべてブラウザ内。"
 useCases:
   - "iPhoneで撮ったHEIC写真をWindowsで開けるJPEGに変換したい"

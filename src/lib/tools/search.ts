@@ -32,7 +32,9 @@ function scoreSingleTerm(tool: ToolCatalogItem, term: string): number {
 		return SCORE_KEYWORD;
 	}
 
-	const rest = normalizeSearchText(`${tool.category} ${tool.description}`);
+	const rest = normalizeSearchText(
+		`${tool.categories.join(' ')} ${tool.description}`,
+	);
 	if (rest.includes(term)) return SCORE_CATEGORY_DESCRIPTION;
 
 	return 0;

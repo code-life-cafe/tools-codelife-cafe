@@ -52,7 +52,7 @@ test('related が limit に満たない場合は同カテゴリで補完する',
 	assert.equal(result.length, 3);
 	assert.deepEqual(result.slice(0, 2), ['image-mosaic', 'dummy-data']);
 	const filler = toolCatalog.find((t) => t.id === result[2]);
-	assert.equal(filler?.category, 'データ処理');
+	assert.ok(filler?.categories.includes('データ処理'));
 });
 
 // ---------------------------------------------------------------------------
