@@ -8,11 +8,12 @@
 	},
 	"scripts": {
 		"dev": "astro dev",
-		"build": "node scripts/copy-onnx-wasm.mjs && astro build && node scripts/generate-og-images.mjs && node scripts/generate-sw.mjs",
+		"build": "node scripts/copy-onnx-wasm.mjs && node scripts/generate-webmcp-manifest.ts && astro build && node scripts/generate-og-images.mjs && node scripts/generate-sw.mjs",
 		"test": "playwright test",
 		"test:unit": "node --test \"tests/unit/*.test.ts\"",
 		"preview": "astro preview --host",
 		"preview:ci": "astro preview",
+		"webmcp:generate": "node scripts/generate-webmcp-manifest.ts",
 		"generate:fixtures": "node scripts/generate-qr-fixtures.ts",
 		"transcribe:manifest": "node scripts/generate-transcribe-manifest.mjs",
 		"transcribe:models": "node scripts/fetch-transcribe-models.mjs",
