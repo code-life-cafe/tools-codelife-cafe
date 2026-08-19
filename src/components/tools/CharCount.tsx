@@ -264,7 +264,7 @@ export default function CharCount() {
 								ref={secondarySnsContentRef}
 								tabIndex={-1}
 								aria-label="その他のSNSの文字数制限"
-								className="space-y-3 pt-3 outline-none"
+								className="space-y-3 pt-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 							>
 								{snsSecondary.map((service) => (
 									<ServiceProgressCard key={service.id} service={service} />
