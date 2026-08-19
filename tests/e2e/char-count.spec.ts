@@ -82,6 +82,21 @@ test.describe('Character Counter', () => {
 		).toBeVisible();
 	});
 
+	test('moves keyboard focus into the revealed panel when expanding "その他のSNS"', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('char-count');
+		await toolPage.goto();
+
+		const trigger = page.getByRole('button', { name: /その他のSNS/ });
+		await trigger.focus();
+		await page.keyboard.press('Enter');
+
+		await expect(trigger).toHaveAttribute('data-state', 'open');
+		await expect(page.getByLabel('その他のSNSの文字数制限')).toBeFocused();
+	});
+
 	test('switches to the SEO tab and shows title/meta description limits', async ({
 		page,
 		createToolPage,
