@@ -1,5 +1,5 @@
 import { AlertTriangle, ChevronDown, Info, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -113,6 +113,7 @@ export default function CharCount() {
 	const { trackRunDebounced } = useToolAnalytics('char-count');
 	const [text, setText] = useState('');
 	const [secondarySnsOpen, setSecondarySnsOpen] = useState(false);
+	const secondarySnsContentRef = useRef<HTMLDivElement>(null);
 
 	const result = useMemo(() => countChars(text), [text]);
 	const services = useMemo(() => getServiceCounts(text), [text]);
@@ -123,6 +124,14 @@ export default function CharCount() {
 			trackRunDebounced();
 		}
 	}, [text, trackRunDebounced]);
+
+	// 「その他のSNS」展開時、Instagram/LinkedInカードには操作可能な要素がなく
+	// Tab移動がページ内の無関係な要素へ抜けてしまうため、展開領域へ明示的にフォーカスを移す
+	useEffect(() => {
+		if (secondarySnsOpen) {
+			secondarySnsContentRef.current?.focus({ preventScroll: true });
+		}
+	}, [secondarySnsOpen]);
 
 	const snsPrimary = services.filter(
 		(s) => s.category === 'sns' && s.group === 'primary',
@@ -251,7 +260,12 @@ export default function CharCount() {
 									/>
 								</Button>
 							</CollapsibleTrigger>
-							<CollapsibleContent className="space-y-3 pt-3">
+							<CollapsibleContent
+								ref={secondarySnsContentRef}
+								tabIndex={-1}
+								aria-label="その他のSNSの文字数制限"
+								className="space-y-3 pt-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+							>
 								{snsSecondary.map((service) => (
 									<ServiceProgressCard key={service.id} service={service} />
 								))}
