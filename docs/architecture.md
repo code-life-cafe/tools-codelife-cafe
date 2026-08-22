@@ -6,11 +6,12 @@
 
 ## 1. 設計思想とコア原則
 
-### 1.1 完全クライアントサイド処理 (Zero Server-side Logic)
+### 1.1 完全クライアントサイド処理 (Zero Server-side Logic for User Data)
 本プロジェクトの最優先事項は**「ユーザーデータのプライバシーと安全性」**です。
 - すべてのデータ処理（テキスト変換、CSV/JSON整形、画像処理、PDF編集、AI背景削除など）は、利用者のWebブラウザ内で完結します。
 - 外部のサーバーに対して処理対象データ（入力されたテキスト、アップロードされた画像やPDF等）を送信するAPIコールや通信は一切行いません。
 - これにより、機密性の高い業務データや個人情報であっても、情報漏洩のリスクなしで安心して利用できる設計となっています。
+- なお、Cloudflare Pages Functions（`functions/`）によるサーバーサイド処理自体は存在します（完全匿名イベント計測 `functions/api/event.ts`、`X-Robots-Tag` 付与等の `functions/_middleware.ts`、文字起こしモデルの同一オリジンプロキシ `functions/models/transcribe/[[path]].ts`）。いずれもユーザーの処理対象データ（入力テキスト・画像・音声等）には一切触れず、静的ファイル配信の補助や匿名の集計イベント送信に限定されます。詳細は §6 を参照してください。
 
 ### 1.2 オフラインファースト (PWA)
 Service Worker を用いることで、一度アクセスしてインストール（PWA）した後は、インターネット接続がない環境（オフライン）でもすべてのツールを利用可能です。
@@ -67,6 +68,7 @@ src/
 │   ├── tools/           # 各ツールのビジネスロジック、ツールカタログ、関連ツール選定
 │   ├── encoding/        # 文字コード判定・改行/エンコード変換
 │   ├── validation/      # ファイル検証などの共通検証ロジック
+│   ├── webmcp/          # WebMCPディスクリプタ定義・自動生成基盤（development-guide.md §9 参照）
 │   └── utils.ts         # 共通ユーティリティ（cn関数など）
 ├── styles/
 │   └── global.css       # Tailwind CSS v4 設定、カラーテーマ、アニメーション定義
@@ -76,6 +78,11 @@ src/
     ├── transcribe.worker.ts # 重量処理（音声文字起こし）のためのWeb Worker
     ├── upscale.worker.ts   # 重量処理（画像アップスケール・ノイズ除去）のためのWeb Worker
     └── wordcloud.worker.ts # 形態素解析処理のためのWeb Worker
+
+functions/                  # Cloudflare Pages Functions（ユーザーデータには触れないサーバーサイド処理。§6 参照）
+├── api/event.ts            # 完全匿名イベント計測（Cloudflare Analytics Engine）
+├── models/transcribe/[[path]].ts # 文字起こしモデルの同一オリジンプロキシ
+└── _middleware.ts          # page_view計測、X-Robots-Tag付与等
 ```
 
 ---
@@ -104,11 +111,13 @@ Service Worker（`sw.js`）はビルド時に自動生成されます。
 
 ## 5. ビルド・デプロイフロー
 
-本プロジェクトは、ソースコードから静的成果物を生成し、Cloudflare Pages で配信する構成です。アプリケーション実行時のサーバーサイド処理はなく、ビルド済みファイルだけを公開します。
+本プロジェクトは、ソースコードから静的成果物を生成し、Cloudflare Pages で配信する構成です。ユーザーデータを処理するアプリケーションロジックはすべてビルド済みの静的ファイルとしてブラウザ内で完結します（§1.1・§6 のとおり、匿名計測やモデルプロキシ用の Pages Functions は別途稼働します）。
 
 ```mermaid
 flowchart TD
-    A[ソースコード] --> B[astro build]
+    A[ソースコード] --> A1[scripts/copy-onnx-wasm.mjs でONNX/WASMを配置]
+    A1 --> A2[scripts/generate-webmcp-manifest.ts でWebMCPディスクリプタを生成]
+    A2 --> B[astro build]
     B --> C[dist/ に静的HTML・JS・CSS・画像を出力]
     C --> D[scripts/generate-og-images.mjs で OGP 画像を生成]
     D --> E[scripts/generate-sw.mjs]
@@ -118,7 +127,8 @@ flowchart TD
     H --> I[ブラウザが静的アセットとして取得]
 ```
 
-- `npm run build` は `astro build` を起点に、`dist/` へ静的HTML、Astro が生成した `/_astro/` 配下の JS/CSS/画像、各ページの成果物を出力します。
+- `npm run build` は、まず `scripts/copy-onnx-wasm.mjs` がAI推論用ONNX/WASMアセットを配置し、続いて `scripts/generate-webmcp-manifest.ts` が `src/lib/webmcp/registry.ts` の定義から `public/.well-known/webmcp/tools.generated.json` を生成します（development-guide.md §9.3 参照）。
+- その後 `astro build` が `dist/` へ静的HTML、Astro が生成した `/_astro/` 配下の JS/CSS/画像、各ページの成果物を出力します。
 - 続いて `scripts/generate-og-images.mjs` が `src/lib/tools/catalog.ts` のツール情報をもとに OGP 画像を生成します。
 - 最後に `scripts/generate-sw.mjs` が `dist/` を走査し、ページURLと `dist/_astro/` 配下の静的アセットURLを収集します。
 - `scripts/generate-sw.mjs` は `public/sw.js` をテンプレートとして読み込み、`__HASH__`、`/* __ALL_PAGES__ */`、`/* __ALL_ASSETS__ */` をビルド結果に合わせて置換します。

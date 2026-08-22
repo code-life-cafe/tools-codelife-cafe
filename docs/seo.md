@@ -49,7 +49,7 @@ npm run build
 # PowerShell での確認例 (dist ディレクトリ内の SoftwareApplication 件数カウント)
 (Get-ChildItem -Path dist -Recurse -Filter *.html | Select-String -Pattern '"@type":"SoftwareApplication"').Count
 ```
-※各ツールは正規URL（例: `/base64/`）と旧URL（例: `/tools/base64/`、`canonical` は正規URLを指す）の2ページが生成されるため、出力件数は「全ツールの数（`src/lib/tools/catalog.ts` の登録数。本書執筆時点で47件）× 2」と一致することを確認します。
+※各ツールは正規URL（例: `/base64/`）と旧URL（例: `/tools/base64/`、`canonical` は正規URLを指す）の2ページが生成されるため、出力件数は「全ツールの数（`src/lib/tools/catalog.ts` の登録数。ツールが追加され次第増えるため、固定値ではなく都度カタログを参照して確認する）× 2」と一致することを確認します。
 
 ### 3.3 Schema Markup Validator での検証
 1. [Google Rich Results Test](https://search.google.com/test/rich-results) または [Schema Markup Validator](https://validator.schema.org/) を開きます。

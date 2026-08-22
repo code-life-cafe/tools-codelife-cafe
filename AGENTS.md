@@ -37,7 +37,7 @@
 3. **UIとロジックの分離**
    - 計算・変換などのビジネスロジックは React から切り離し、`src/lib/tools/` 内に TypeScript の純粋関数として実装してください。
 4. **新ツールの構成ルール**
-   - 新規ツールは、原則として「ロジック（`src/lib/`）」＋「コンポーネント（`src/components/`）」＋「ページ（`src/pages/`）」の **3ファイル構成** で完結させます。
+   - 新規ツールは、原則として「ロジック（`src/lib/tools/`）」＋「コンポーネント（`src/components/tools/`）」＋「LPコンテンツ（`src/content/tools/`）」＋「ページ（`src/pages/`）」の **4ファイル（＋AI推論等が必要な場合はWeb Worker）構成** で完結させます。詳細は [development-guide.md](docs/development-guide.md) を参照してください。
 5. **単体テストのルール**
    - ユニットテストは Node.js 組み込みの `node:test` および `node:assert/strict` を使用し、`vitest` 等の未宣言フレームワークは使用しないでください。ローカルインポートには `.ts` 拡張子を明記します。
 
