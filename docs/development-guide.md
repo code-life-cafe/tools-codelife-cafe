@@ -345,3 +345,7 @@ npm run webmcp:generate
 
 ブラウザ側での実際の登録（`document.modelContext.registerTool()` / 旧仕様の `navigator.modelContext.provideContext()` フォールバック）は `src/lib/webmcp.ts` の `provideToolsFromFactory()` が担い、本節の変更による影響はありません。
 
+### 9.5 移行中の旧パターン（新規実装では使わない）
+
+`tax` / `unix-time` / `site`（サイト共通）は、9.1 の `defineMcpTool()` 方式が導入される前に `src/lib/webmcp/tool-factory.ts` の `createWebMcpTool()` と `src/lib/webmcp/validation.ts` の `isObject`/`requireString` 等の手書き検証関数で実装されており、`registry.ts`（9.3 のビルド時生成対象）を経由せず各コンポーネント（例: `src/components/tools/tax/TaxCalcPage.tsx`、`src/components/tools/UnixTime.tsx`）から直接登録しています。これはレガシー実装であり、新規ツールでは使わず 9.1〜9.3 の `defineMcpTool()` 方式のみを使用してください。既存3ツールも順次 `defineMcpTool()` へ移行予定です。
+

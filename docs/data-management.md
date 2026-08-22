@@ -31,11 +31,11 @@
 - **構造:**
   ```json
   {
-    "generatedAt": "2026-06-13T08:08:16.000Z",
+    "generatedAt": "2026-06-11T13:12:31.994Z",
     "dataVersion": "2026-06",
     "sourceUrl": "https://www.post.japanpost.jp/service/search/zipcode/download/",
     "sourceLabel": "日本郵便 郵便番号データ",
-    "recordCount": 124500,
+    "recordCount": 124145,
     "chunkCount": 100
   }
   ```
