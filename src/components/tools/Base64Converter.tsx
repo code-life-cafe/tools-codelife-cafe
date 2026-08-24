@@ -23,10 +23,17 @@ import {
 	getByteSize,
 	stripDataUriPrefix,
 } from '@/lib/tools/base64';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { base64McpWebTool } from '@/lib/webmcp/tools/base64.webmcp';
 
 export default function Base64Converter() {
 	const { trackRun, trackRunDebounced } = useToolAnalytics('base64');
 	const [tab, setTab] = useState('text');
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([base64McpWebTool]);
+	}, []);
 
 	// Text Tab State
 	const [textInput, setTextInput] = useState('');

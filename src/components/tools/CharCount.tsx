@@ -18,6 +18,8 @@ import {
 	type LimitStatus,
 	type ServiceCountResult,
 } from '@/lib/tools/char-count';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { charCountTool } from '@/lib/webmcp/tools/char-count.webmcp';
 
 function formatNumber(n: number): string {
 	return n.toLocaleString('ja-JP');
@@ -117,6 +119,11 @@ export default function CharCount() {
 
 	const result = useMemo(() => countChars(text), [text]);
 	const services = useMemo(() => getServiceCounts(text), [text]);
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([charCountTool]);
+	}, []);
 
 	// テキストが実際に入力された（非空）時点でカウント実行を計測
 	useEffect(() => {

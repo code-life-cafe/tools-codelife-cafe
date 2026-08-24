@@ -30,6 +30,8 @@ import {
 	sanitizeJsonFormatterSettings,
 } from '@/lib/tools/json-formatter';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { jsonFormatterTool } from '@/lib/webmcp/tools/json-formatter.webmcp';
 
 export default function JsonFormatter() {
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('json-formatter');
@@ -44,6 +46,11 @@ export default function JsonFormatter() {
 	);
 
 	const indent = settings.indent;
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([jsonFormatterTool]);
+	}, []);
 	const [input, setInput] = useState('');
 	const [output, setOutput] = useState('');
 	const [error, setError] = useState<string | null>(null);

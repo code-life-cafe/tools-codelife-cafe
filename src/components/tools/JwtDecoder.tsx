@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { decodeJwt } from '@/lib/tools/jwt-decoder';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { jwtDecoderTool } from '@/lib/webmcp/tools/jwt-decoder.webmcp';
 
 const SAMPLE_JWT =
 	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IuWxseeUsOWkqumDjiIsInJvbGUiOiLnrqHnkIbogIUiLCJpYXQiOjE3MDQwNjcyMDAsImV4cCI6NDEwMjQ0NDgwMH0.dummy-signature';
@@ -32,6 +34,11 @@ export function JwtDecoder() {
 	const { trackRunDebounced } = useToolAnalytics('jwt-decoder');
 	const [input, setInput] = useState(SAMPLE_JWT);
 	const result = useMemo(() => decodeJwt(input), [input]);
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([jwtDecoderTool]);
+	}, []);
 
 	useEffect(() => {
 		if (input.trim() && !result.error) {

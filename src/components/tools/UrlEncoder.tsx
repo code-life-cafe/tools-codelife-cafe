@@ -12,12 +12,19 @@ import {
 	encodeUrl,
 	type UrlEncodeMode,
 } from '@/lib/tools/url-encoder';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { urlEncoderTool } from '@/lib/webmcp/tools/url-encoder.webmcp';
 
 export default function UrlEncoder() {
 	const { trackRunDebounced } = useToolAnalytics('url-encoder');
 	const [mode, setMode] = useState<UrlEncodeMode>('component');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('decode');
 	const [textInput, setTextInput] = useState('');
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([urlEncoderTool]);
+	}, []);
 
 	// Computed Text Result
 	const textResult = useMemo(() => {

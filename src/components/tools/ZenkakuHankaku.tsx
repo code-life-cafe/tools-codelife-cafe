@@ -12,6 +12,8 @@ import {
 	convert,
 	type Direction,
 } from '@/lib/tools/zenkaku-hankaku';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { zenkakuHankakuTool } from '@/lib/webmcp/tools/zenkaku-hankaku.webmcp';
 
 export default function ZenkakuHankaku() {
 	const { trackRunDebounced } = useToolAnalytics('zenkaku-hankaku');
@@ -23,6 +25,11 @@ export default function ZenkakuHankaku() {
 		numbers: true,
 		symbols: true,
 	});
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([zenkakuHankakuTool]);
+	}, []);
 
 	const output = input ? convert(input, direction, options) : '';
 
