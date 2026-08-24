@@ -42,6 +42,390 @@
       "annotations": {
         "readOnlyHint": true
       }
+    },
+    {
+      "toolId": "zenkaku-hankaku",
+      "name": "convert_full_half_width",
+      "description": "Convert Japanese full-width/half-width characters (kana, alphanumerics, symbols) in both directions. Runs entirely in the browser; no data is sent externally. / カタカナ・英数字・記号の全角半角を相互変換する。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to convert / 変換対象文字列"
+          },
+          "mode": {
+            "type": "string",
+            "description": "to_half: full-width to half-width. to_full: half-width to full-width. / to_half: 全角→半角、to_full: 半角→全角",
+            "enum": [
+              "to_half",
+              "to_full"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "description": "Character category to convert (default: all) / 変換対象の文字種（省略時: all）",
+            "enum": [
+              "all",
+              "kana",
+              "alpha",
+              "digit"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "mode"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "description": "Converted text / 変換後の文字列"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "json-formatter",
+      "name": "format_json",
+      "description": "Format, indent, or minify JSON text. Preserves precision for integers beyond Number.MAX_SAFE_INTEGER. Runs entirely in the browser; no data is sent externally. / JSON文字列を整形・インデント付与・最小化する。安全な整数範囲を超える大整数も精度を保持する。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "json": {
+            "type": "string",
+            "description": "JSON text to format / 対象JSON文字列"
+          },
+          "indent": {
+            "type": "number",
+            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される"
+          },
+          "minify": {
+            "type": "boolean",
+            "description": "Minify instead of indenting when true / trueの場合は整形の代わりに最小化する"
+          }
+        },
+        "required": [
+          "json"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "Formatted or minified JSON / 整形または最小化後のJSON文字列"
+          }
+        },
+        "required": [
+          "output"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "char-count",
+      "name": "count_characters",
+      "description": "Count characters, bytes (UTF-8 / Shift_JIS), and lines in text. Runs entirely in the browser; no data is sent externally. / テキストの文字数・バイト数（UTF-8 / Shift_JIS）・行数を解析する。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to analyze / 解析対象テキスト"
+          },
+          "encoding": {
+            "type": "string",
+            "description": "Encoding used for the primary \"bytes\" field (default: utf-8). Both bytesUtf8 and bytesShiftJis are always returned. / 主要な\"bytes\"フィールドで使うエンコーディング（省略時: utf-8）。bytesUtf8とbytesShiftJisは常に両方返る",
+            "enum": [
+              "utf-8",
+              "shift_jis"
+            ]
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "charsWithSpaces": {
+            "type": "number",
+            "description": "Character count including whitespace / 空白を含む文字数"
+          },
+          "charsWithoutSpaces": {
+            "type": "number",
+            "description": "Character count excluding whitespace / 空白を除く文字数"
+          },
+          "graphemes": {
+            "type": "number",
+            "description": "Grapheme cluster count / 書記素クラスタ数"
+          },
+          "bytes": {
+            "type": "number",
+            "description": "Byte count in the selected encoding / 選択エンコーディングでのバイト数"
+          },
+          "bytesUtf8": {
+            "type": "number",
+            "description": "UTF-8 byte count / UTF-8バイト数"
+          },
+          "bytesShiftJis": {
+            "type": "number",
+            "description": "Shift_JIS byte count / Shift_JISバイト数"
+          },
+          "lines": {
+            "type": "number",
+            "description": "Line count / 行数"
+          }
+        },
+        "required": [
+          "charsWithSpaces",
+          "charsWithoutSpaces",
+          "graphemes",
+          "bytes",
+          "bytesUtf8",
+          "bytesShiftJis",
+          "lines"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "base64",
+      "name": "encode_decode_base64",
+      "description": "Encode text to Base64 or decode Base64 to text. Runs entirely in the browser; no data is sent externally. / テキストのBase64エンコードおよびデコードを行う。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Text to encode or decode / 対象テキスト"
+          },
+          "action": {
+            "type": "string",
+            "description": "encode or decode / エンコードまたはデコード",
+            "enum": [
+              "encode",
+              "decode"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "action"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "description": "Encoded or decoded text / 変換後の文字列"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "url-encoder",
+      "name": "encode_decode_url",
+      "description": "Encode or decode URL strings and query parameters. Runs entirely in the browser; no data is sent externally. / URL文字列・クエリパラメータのエンコードおよびデコードを行う。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Text to encode or decode / 対象文字列"
+          },
+          "action": {
+            "type": "string",
+            "description": "encode or decode / エンコードまたはデコード",
+            "enum": [
+              "encode",
+              "decode"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "description": "component: encodeURIComponent/decodeURIComponent. full: encodeURI/decodeURI. (default: component) / component: URIコンポーネント単位、full: URL全体（省略時: component）",
+            "enum": [
+              "component",
+              "full"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "action"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "description": "Encoded or decoded text / 変換後の文字列"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "uuid",
+      "name": "generate_uuid",
+      "description": "Generate UUID v4 / UUID v7 / ULID / nanoid identifiers using crypto.getRandomValues(). Runs entirely in the browser; no data is sent externally. / crypto.getRandomValues()を用いてUUID v4・UUID v7・ULID・nanoidを生成する。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Identifier type to generate / 生成するID種別",
+            "enum": [
+              "v4",
+              "v7",
+              "ulid",
+              "nanoid"
+            ]
+          },
+          "count": {
+            "type": "number",
+            "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）"
+          }
+        },
+        "required": [
+          "type"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "description": "Generated identifiers / 生成されたID一覧"
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "cron-checker",
+      "name": "check_cron",
+      "description": "Explain a cron expression in Japanese and list its next scheduled run times (Asia/Tokyo). Supports standard 5-field and seconds-prefixed 6-field Vixie cron syntax. Runs entirely in the browser; no data is sent externally. / cron式を日本語で解説し、次回実行日時（Asia/Tokyo）を算出する。標準5フィールドおよび秒付き6フィールドのVixie cron構文に対応。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string",
+            "description": "Cron expression (5 or 6 fields) / cron式文字列（5または6フィールド）"
+          },
+          "count": {
+            "type": "number",
+            "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）"
+          }
+        },
+        "required": [
+          "expression"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Japanese explanation of the schedule / 日本語解説文"
+          },
+          "nextRuns": {
+            "type": "array",
+            "description": "Upcoming run times as ISO 8601 UTC strings / 次回実行予定（ISO 8601 UTC文字列の配列）"
+          }
+        },
+        "required": [
+          "description",
+          "nextRuns"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "toolId": "jwt-decoder",
+      "name": "decode_jwt",
+      "description": "Decode a JWT and return its Header and Payload as JSON, with warnings for an expired (exp) or not-yet-valid (nbf) token. Does not verify the signature. Runs entirely in the browser; no data is sent externally. / JWTのHeaderおよびPayloadをJSONとしてデコードする。有効期限（exp）・有効開始時刻（nbf）の警告を含む。署名検証は行わない。処理はブラウザ内で完結し、外部送信は行わない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "jwt": {
+            "type": "string",
+            "description": "JWT token string / JWTトークン文字列"
+          }
+        },
+        "required": [
+          "jwt"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "header": {
+            "type": "object",
+            "description": "Decoded JWT header / デコードされたJWTヘッダー"
+          },
+          "payload": {
+            "type": "object",
+            "description": "Decoded JWT payload / デコードされたJWTペイロード"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Validity warnings (exp/nbf) / 有効性に関する警告（exp/nbf）"
+          }
+        },
+        "required": [
+          "header",
+          "payload",
+          "warnings"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
     }
   ]
 }

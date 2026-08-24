@@ -1,4 +1,12 @@
+import { base64McpTool } from '../tools/base64.mcp.ts';
+import { charCountMcpTool } from '../tools/char-count.mcp.ts';
+import { cronCheckerMcpTool } from '../tools/cron-checker.mcp.ts';
 import { hashMcpTool } from '../tools/hash.mcp.ts';
+import { jsonFormatterMcpTool } from '../tools/json-formatter.mcp.ts';
+import { jwtDecoderMcpTool } from '../tools/jwt-decoder.mcp.ts';
+import { urlEncoderMcpTool } from '../tools/url-encoder.mcp.ts';
+import { uuidMcpTool } from '../tools/uuid.mcp.ts';
+import { zenkakuHankakuMcpTool } from '../tools/zenkaku-hankaku.mcp.ts';
 import type { McpToolDefinition } from './define-tool.ts';
 
 /**
@@ -13,4 +21,12 @@ import type { McpToolDefinition } from './define-tool.ts';
 // biome-ignore lint/suspicious/noExplicitAny: 各ツールの McpToolDefinition<TParams, TOutput> はツールごとに型引数が異なるため、配列としてまとめる際は unknown 化する
 export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
 	hashMcpTool,
+	zenkakuHankakuMcpTool,
+	jsonFormatterMcpTool,
+	charCountMcpTool,
+	base64McpTool,
+	urlEncoderMcpTool,
+	uuidMcpTool,
+	cronCheckerMcpTool,
+	jwtDecoderMcpTool,
 ];

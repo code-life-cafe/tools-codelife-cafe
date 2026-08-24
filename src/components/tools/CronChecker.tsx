@@ -36,6 +36,8 @@ import {
 	toCrontabLine,
 	toGithubActionsSchedule,
 } from '@/lib/tools/cron-checker';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { cronCheckerTool } from '@/lib/webmcp/tools/cron-checker.webmcp';
 
 const PRESETS: { label: string; expr: string }[] = [
 	{ label: '毎分', expr: '* * * * *' },
@@ -91,6 +93,11 @@ export default function CronChecker() {
 	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
 	const isInitialMountRef = useRef(true);
+
+	// --- WebMCP Tool Registration ---
+	useEffect(() => {
+		return provideToolsFromFactory([cronCheckerTool]);
+	}, []);
 
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
