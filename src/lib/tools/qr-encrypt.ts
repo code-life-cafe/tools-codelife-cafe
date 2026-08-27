@@ -19,6 +19,18 @@ export const MAX_PLAINTEXT_BYTES = 100 * 1024;
 /** QRペイロードの上限（Version 40 / ECC L / Byteモードの最大容量）。 */
 export const MAX_QR_PAYLOAD_BYTES = 2953;
 
+/**
+ * 実用スキャン限界の警告閾値（≒Version 25・117モジュール級）。
+ * 実機検証（2026-08-27）で964Bは読み取り成功、それ以上は失敗を確認済みのため、
+ * 保守的な見積もりとして1,300Bを超過した時点で警告する。
+ */
+export const PRACTICAL_SCAN_WARNING_BYTES = 1300;
+
+/** ペイロードが実用スキャン限界の警告閾値を超えているか判定する。 */
+export function isPracticalScanWarning(payloadBytes: number): boolean {
+	return payloadBytes > PRACTICAL_SCAN_WARNING_BYTES;
+}
+
 export type CompressionMode = 'deflate-raw' | 'none';
 
 export interface EnvelopeV1 {
@@ -145,6 +157,7 @@ export interface CapacityInfo {
 	usedRatio: number;
 	withinLimit: boolean;
 	remainingBytes: number;
+	practicalScanWarning: boolean;
 }
 
 function toCapacityInfo(payloadBytes: number): CapacityInfo {
@@ -154,6 +167,7 @@ function toCapacityInfo(payloadBytes: number): CapacityInfo {
 		usedRatio: payloadBytes / MAX_QR_PAYLOAD_BYTES,
 		withinLimit: payloadBytes <= MAX_QR_PAYLOAD_BYTES,
 		remainingBytes: MAX_QR_PAYLOAD_BYTES - payloadBytes,
+		practicalScanWarning: isPracticalScanWarning(payloadBytes),
 	};
 }
 

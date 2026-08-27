@@ -9,8 +9,10 @@ import {
 	encryptToQrPayload,
 	estimateCapacity,
 	estimatePassphraseStrength,
+	isPracticalScanWarning,
 	KDF_NAME,
 	MAX_QR_PAYLOAD_BYTES,
+	PRACTICAL_SCAN_WARNING_BYTES,
 } from '../../src/lib/tools/qr-encrypt.ts';
 
 test('暗号化→復号のラウンドトリップ（同じ平文・パスフレーズで一致する）', async () => {
@@ -215,4 +217,38 @@ test('パスフレーズ強度の簡易判定', () => {
 	assert.equal(estimatePassphraseStrength('short'), 'weak');
 	assert.equal(estimatePassphraseStrength('alllowercase'), 'medium');
 	assert.equal(estimatePassphraseStrength('Aa1!Aa1!Aa1!'), 'strong');
+});
+
+// ============================================================
+// isPracticalScanWarning / PRACTICAL_SCAN_WARNING_BYTES
+// ============================================================
+
+test('PRACTICAL_SCAN_WARNING_BYTES は1,300バイトである', () => {
+	assert.equal(PRACTICAL_SCAN_WARNING_BYTES, 1300);
+});
+
+test('isPracticalScanWarning: 閾値境界（1,299 / 1,300 / 1,301B）', () => {
+	assert.equal(isPracticalScanWarning(1299), false);
+	assert.equal(isPracticalScanWarning(1300), false);
+	assert.equal(isPracticalScanWarning(1301), true);
+});
+
+test('isPracticalScanWarning: 閾値未満・0では警告なし', () => {
+	assert.equal(isPracticalScanWarning(0), false);
+	assert.equal(isPracticalScanWarning(500), false);
+});
+
+test('estimateCapacity: practicalScanWarning は閾値超過時のみtrueになる', async () => {
+	const rand = () => Math.random().toString(36).slice(2);
+	// 圧縮が効きにくいランダム文字列でペイロードを1,300B超過させる
+	let text = '';
+	while (text.length < 1400) text += rand();
+
+	const largeEstimate = await estimateCapacity(text);
+	assert.ok(largeEstimate.payloadBytes > PRACTICAL_SCAN_WARNING_BYTES);
+	assert.equal(largeEstimate.practicalScanWarning, true);
+
+	const smallEstimate = await estimateCapacity('short text');
+	assert.ok(smallEstimate.payloadBytes <= PRACTICAL_SCAN_WARNING_BYTES);
+	assert.equal(smallEstimate.practicalScanWarning, false);
 });
