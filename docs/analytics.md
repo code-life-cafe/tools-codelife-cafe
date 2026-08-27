@@ -13,7 +13,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 
 ## 収集イベント一覧 (Cloudflare Analytics Engine)
 
-改善効果を判定するため、以下の 6 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。加えて、非ブラウザ流入を捕捉するための `page_view` を Pages Functions middleware 経由で収集する（詳細は後述の「非ブラウザ流入の計測（page_view）」を参照）。
+改善効果を判定するため、以下の 7 つの完全匿名イベントを Cloudflare Analytics Engine 経由で収集する。加えて、非ブラウザ流入を捕捉するための `page_view` を Pages Functions middleware 経由で収集する（詳細は後述の「非ブラウザ流入の計測（page_view）」を参照）。
 
 | イベント名 | 発火条件 | 収集プロパティ (Allowlist) | 目的 |
 |---|---|---|---|
@@ -21,6 +21,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 | `tool_engage` | 個別ツールで初めて入力・操作があった時（タブ単位で1回） | `{ tool: string }` (ツールslug) | ツールごとの実活用セッション数の計測 |
 | `search_empty` | トップ検索でヒットが0件だった時 | `{ lengthBucket: string, hasJapanese: boolean, tokenCount: number, q_redacted?: boolean }` | 未対応ツール需要の把握（生検索語は非送信） |
 | `related_click` | 関連ツール回遊カードのクリック時 | `{ from: string, to: string, setId?: string, position: number }` (ツールslug, セットID, リスト内位置) | ツール間回遊の導線効果の検証 |
+| `top_block_click` | トップページの目的別ブロック内のツールリンククリック時 | `{ block: string, tool: string, position: number }` (ブロックの安定ID, ツールslug, ブロック内の位置) | トップ→ツール実行までの遷移率の測定 |
 | `shared_url_open` | 共有URL（`?settings=`）経由でツールページが開かれた時 | `{ tool: string }` (ツールslug) | 共有機能の利用状況の検証 |
 | `settings_restore` | ツール設定を URL または localStorage から復元した時 | `{ tool: string, source: 'localStorage' \| 'url' }` | 設定保持・共有導線の利用状況の検証 |
 | `page_view` | HTMLレスポンスを配信する全リクエスト時（`functions/_middleware.ts`、詳細後述） | なし（`path` と `traffic_type` のみをblobに格納） | 非ブラウザ流入（AIエージェント・クローラー）を含めたページ到達数の計測 |
@@ -34,6 +35,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 - **`search_empty` のマスクルール**: 検索語の生テキストは送信せず、集計用メタ情報（文字数バケット・日本語の有無・トークン数）のみを送信する。メールアドレスやURL、電話番号などの個人情報らしき文字列が含まれる場合は `q_redacted: true` フラグのみを付与する。
 - **`settings_restore` の実装箇所**: `useToolAnalytics.ts` は `trackSettingsRestore()` を公開しているが、実際の発火は `src/lib/hooks/useToolSettings.ts` が設定復元時に `track()` を直接呼び出す形で行っている（URL 復元・localStorage 復元のそれぞれで1回ずつ）。`?settings=` 付き URL を開いた場合、そのツールが `useToolSettings` を使っていれば `shared_url_open`（「共有URLで開かれた」）と `settings_restore`（`source: 'url'`、「設定が実際に復元された」）の両方が発火し得る。意味が異なる別イベントとして意図的に併存させている。
 - **slug の導出**: `tool`, `from`, `to` に渡す slug は、`src/lib/tools/catalog.ts` の定義を正本として利用し、文字列の手書きによる表記揺れを防止する。
+- **`top_block_click` の `block` ID**: トップページ「目的から探す」の各ブロック（`src/lib/tools/catalog.ts` の `purposeCategories`）に付与した安定ID（`PurposeCategory.id`、例: `data-format` / `image-processing` / `japanese-input` / `pdf`）を送信する。表示タイトル（`title`）はUI文言変更で揺れるため計測には使わず、`id` を正本として時系列比較の一貫性を保つ。実装は `src/components/tool/RelatedTools.astro` の `data-track-*` 属性 + イベント委譲 + `track()` 呼び出しパターンを `src/pages/index.astro` に流用している。
 
 ### 匿名セッションID（プライバシー方針との整合性）
 セッション単位の指標（「セッションあたり利用ツール数」「トップ→個別ツール遷移率」等）を算出するため、全イベントに匿名セッションIDを付与する。本IDは既存のプライバシー方針（Cookie・localStorage による個人追跡をしない）と以下の点で整合する。
@@ -134,6 +136,14 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ORDER BY click_count DESC
    ```
    ```sql
+   -- トップ目的別ブロック：ブロック別クリック数・位置別平均（トップ→ツール遷移導線の効果検証）
+   SELECT blob3 AS block_id, COUNT(*) AS click_count, AVG(double1) AS avg_position
+   FROM tools_codelife_cafe_events
+   WHERE index1 = 'top_block_click'
+   GROUP BY block_id
+   ORDER BY click_count DESC
+   ```
+   ```sql
    -- セッションあたりの tool_run 数（匿名セッションID = blob5）
    SELECT AVG(runs) AS avg_runs_per_session
    FROM (
@@ -183,4 +193,4 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ORDER BY count DESC
    ```
 
-> **blob スロット対応表**: `blob1` = イベント名、`blob2` = ツールslug（`tool` / `from`）、`blob3` = 補助1（`source` / `to` / `lengthBucket`）、`blob4` = 補助2（`setId` / `hasJapanese`）、`blob5` = 匿名セッションID、`blob6` = `traffic_type`（`human` / `ai_agent` / `crawler` / `unknown`）。`index1` = イベント名（インデックスは 1 データポイント 1 つのみ）。`double1` = `related_click` の `position` のみに使用。
+> **blob スロット対応表**: `blob1` = イベント名、`blob2` = ツールslug（`tool` / `from`）、`blob3` = 補助1（`source` / `to` / `lengthBucket` / `top_block_click` の `block`）、`blob4` = 補助2（`setId` / `hasJapanese`）、`blob5` = 匿名セッションID、`blob6` = `traffic_type`（`human` / `ai_agent` / `crawler` / `unknown`）。`index1` = イベント名（インデックスは 1 データポイント 1 つのみ）。`double1` = `related_click` / `top_block_click` の `position` に使用。
