@@ -43,6 +43,8 @@ export type PurposeTool = {
 };
 
 export type PurposeCategory = {
+	// タイトル変更時も時系列比較が壊れないよう計測(top_block_click)に用いる安定ID
+	id: string;
 	title: string;
 	icon: ToolIconName;
 	tools: readonly PurposeTool[];
@@ -1178,6 +1180,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 
 export const purposeCategories = [
 	{
+		id: 'data-format',
 		title: 'データ整形で使う',
 		icon: 'Table',
 		tools: [
@@ -1187,6 +1190,7 @@ export const purposeCategories = [
 		],
 	},
 	{
+		id: 'image-processing',
 		title: '画像加工で使う',
 		icon: 'Image',
 		tools: [
@@ -1200,6 +1204,7 @@ export const purposeCategories = [
 		],
 	},
 	{
+		id: 'japanese-input',
 		title: '日本語入力の困りごと',
 		icon: 'Languages',
 		tools: [
@@ -1213,6 +1218,7 @@ export const purposeCategories = [
 		],
 	},
 	{
+		id: 'pdf',
 		title: 'PDFを扱う',
 		icon: 'FileText',
 		tools: [

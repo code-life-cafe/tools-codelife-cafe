@@ -92,9 +92,13 @@ const schema = {
               <ToolIcon name={purpose.icon} className="h-4 w-4 text-primary" /> {purpose.title}
             </h3>
             <div class="flex flex-col gap-2">
-              {purpose.tools.map((t) => (
+              {purpose.tools.map((t, position) => (
                 <a
                   href={t.href}
+                  data-track-top-block-click
+                  data-block={purpose.id}
+                  data-tool={t.id}
+                  data-position={position}
                   class="text-sm font-medium hover:text-primary transition-colors flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border/30"
                 >
                   <span>{t.name}</span>
@@ -371,5 +375,21 @@ const schema = {
   document.addEventListener('astro:after-swap', () => {
     setupRecentTools();
     setupCategoryFilter();
+  });
+</script>
+
+<script>
+  import { track } from '../lib/analytics';
+
+  document.addEventListener('click', (e) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-track-top-block-click]');
+    if (!el) return;
+    const block = el.dataset.block ?? '';
+    const tool = el.dataset.tool ?? '';
+    const position = parseInt(el.dataset.position ?? '0', 10);
+
+    if (block && tool && !Number.isNaN(position)) {
+      track('top_block_click', { block, tool, position });
+    }
   });
 </script>
