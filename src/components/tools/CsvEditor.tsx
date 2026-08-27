@@ -235,7 +235,7 @@ export default function CsvEditor() {
 				setCurrentPage(1);
 				setUndoStack([]);
 				resetQueryState();
-				trackRun(); // XLSX解析成功を計測
+				trackRun('file-input'); // XLSX解析成功を計測
 			} catch (err) {
 				setError(err instanceof Error ? err.message : String(err));
 			}
@@ -260,7 +260,7 @@ export default function CsvEditor() {
 					setCurrentPage(1);
 					setUndoStack([]);
 					resetQueryState();
-					trackRun(); // CSV/TSV解析成功を計測
+					trackRun('file-input'); // CSV/TSV解析成功を計測
 				}
 			};
 			reader.readAsText(file);

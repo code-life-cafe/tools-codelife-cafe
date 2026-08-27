@@ -23,6 +23,21 @@ interface EventPayload {
 // 匿名セッションIDの許容最大長（crypto.randomUUID は 36 文字。異常値・肥大化を防ぐ上限）
 const MAX_SESSION_ID_LENGTH = 64;
 
+// tool_run の dedupeKey の許容最大長（crypto.randomUUID は 36 文字。異常値・肥大化を防ぐ上限）
+const MAX_DEDUPE_KEY_LENGTH = 64;
+
+// tool_run の発火起点。src/lib/analytics.ts の ToolRunSource と一致させる。
+const ALLOWED_TOOL_RUN_SOURCES = new Set([
+	'button',
+	'drop',
+	'file-input',
+	'debounced-input',
+	'paste',
+	'shortcut',
+	'api',
+	'unknown',
+]);
+
 const ALLOWED_EVENTS = new Set([
 	'tool_run',
 	'tool_engage',
@@ -84,10 +99,26 @@ export const onRequestPost = async (context: {
 		let extra1 = '';
 		let extra2 = '';
 		let double1: number | undefined;
+		// tool_run 専用の追加プロパティ（末尾blobに格納。他イベントでは常に空文字）
+		let toolRunSource = '';
+		let toolRunDedupeKey = '';
 
 		// allowlist 方式で props を抽出
-		if (
-			eventName === 'tool_run' ||
+		if (eventName === 'tool_run') {
+			if (typeof props.tool !== 'string')
+				return new Response(null, { status: 204, headers });
+			toolSlug = props.tool;
+			toolRunSource =
+				typeof props.source === 'string' &&
+				ALLOWED_TOOL_RUN_SOURCES.has(props.source)
+					? props.source
+					: 'unknown';
+			toolRunDedupeKey =
+				typeof props.dedupeKey === 'string' &&
+				props.dedupeKey.length <= MAX_DEDUPE_KEY_LENGTH
+					? props.dedupeKey
+					: '';
+		} else if (
 			eventName === 'tool_engage' ||
 			eventName === 'shared_url_open'
 		) {
@@ -134,6 +165,20 @@ export const onRequestPost = async (context: {
 
 		// Analytics Engine への書き込み
 		if (context.env?.EVENTS?.writeDataPoint) {
+			const blobs = [
+				eventName,
+				toolSlug,
+				extra1,
+				extra2,
+				sessionId,
+				trafficType,
+			];
+			// blob7/blob8 は tool_run 専用に既存blobの意味・順序を変えず末尾追加した
+			// source / dedupeKey（後方互換維持。他イベントには付与しない）。
+			if (eventName === 'tool_run') {
+				blobs.push(toolRunSource, toolRunDedupeKey);
+			}
+
 			const dataPoint: {
 				blobs?: string[];
 				doubles?: number[];
@@ -142,7 +187,7 @@ export const onRequestPost = async (context: {
 				// Analytics Engine のインデックスは 1 データポイントにつき 1 つのみ許容されるため、
 				// セッションIDはインデックスではなく blob5 に格納する。
 				// blob6 は既存blobの意味・順序を変えず末尾追加した traffic_type（後方互換維持）。
-				blobs: [eventName, toolSlug, extra1, extra2, sessionId, trafficType],
+				blobs,
 				indexes: [eventName],
 			};
 			if (double1 !== undefined) {

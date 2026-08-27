@@ -1,5 +1,19 @@
+/**
+ * tool_run の発火起点。呼び出し元のユーザー操作の性質を分類する（docs/analytics.md 参照）。
+ * 既存の起点に合わせた列挙値。新しい起点が生じた場合は最小限追加してよい。
+ */
+export type ToolRunSource =
+	| 'button'
+	| 'drop'
+	| 'file-input'
+	| 'debounced-input'
+	| 'paste'
+	| 'shortcut'
+	| 'api'
+	| 'unknown';
+
 export type AnalyticsEvents = {
-	tool_run: { tool: string };
+	tool_run: { tool: string; source: ToolRunSource; dedupeKey: string };
 	tool_engage: { tool: string };
 	search_empty: {
 		lengthBucket: string;
@@ -37,6 +51,14 @@ function generateId(): string {
 	}
 	// randomUUID 非対応環境向けの簡易フォールバック
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+/**
+ * tool_run の重複排除キーを生成する（1ユーザー操作＝1 UUID）。
+ * `getSessionId()` と異なりストレージには保持せず、呼び出しごとに使い捨てる。
+ */
+export function generateDedupeKey(): string {
+	return generateId();
 }
 
 export function getSessionId(): string {

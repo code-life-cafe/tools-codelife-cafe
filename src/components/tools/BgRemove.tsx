@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import type { ToolRunSource } from '@/lib/analytics';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -128,7 +129,7 @@ export default function BgRemove() {
 
 	// --- 背景削除実行 ---
 	const processImage = useCallback(
-		async (file: File, selectedMode: ModelMode) => {
+		async (file: File, selectedMode: ModelMode, source: ToolRunSource) => {
 			setStatus('loading');
 			setProgress(null);
 			setError(null);
@@ -158,7 +159,7 @@ export default function BgRemove() {
 				setResultUrl(url);
 				setStatus('done');
 				// 背景削除実行の分析計測
-				trackRun();
+				trackRun(source);
 			} catch (err) {
 				const message =
 					err instanceof Error ? err.message : '背景削除に失敗しました';
@@ -171,7 +172,7 @@ export default function BgRemove() {
 
 	// --- ファイル処理 ---
 	const handleFile = useCallback(
-		(file: File) => {
+		(file: File, source: ToolRunSource) => {
 			const validationError = validateFile(file);
 			if (validationError) {
 				setError(validationError);
@@ -186,7 +187,7 @@ export default function BgRemove() {
 			setSourceUrl(URL.createObjectURL(file));
 			setError(null);
 
-			processImage(file, mode);
+			processImage(file, mode, source);
 		},
 		[validateFile, mode, processImage, sourceUrl],
 	);
@@ -211,7 +212,7 @@ export default function BgRemove() {
 			setIsDragOver(false);
 
 			const file = e.dataTransfer.files[0];
-			if (file) handleFile(file);
+			if (file) handleFile(file, 'drop');
 		},
 		[handleFile],
 	);
@@ -227,7 +228,7 @@ export default function BgRemove() {
 					const file = item.getAsFile();
 					if (file) {
 						e.preventDefault();
-						handleFile(file);
+						handleFile(file, 'paste');
 						return;
 					}
 				}
@@ -242,7 +243,7 @@ export default function BgRemove() {
 	const handleFileSelect = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
 			const file = e.target.files?.[0];
-			if (file) handleFile(file);
+			if (file) handleFile(file, 'file-input');
 			// input をリセット（同じファイルの再選択を可能にする）
 			e.target.value = '';
 		},
@@ -257,7 +258,7 @@ export default function BgRemove() {
 
 			// 結果がある場合は再処理
 			if (sourceFile && status === 'done') {
-				processImage(sourceFile, newMode);
+				processImage(sourceFile, newMode, 'button');
 			}
 		},
 		[sourceFile, status, processImage],
@@ -649,7 +650,7 @@ export default function BgRemove() {
 							{sourceFile && (
 								<Button
 									variant="outline"
-									onClick={() => processImage(sourceFile, mode)}
+									onClick={() => processImage(sourceFile, mode, 'button')}
 									className="gap-2"
 								>
 									<RefreshCw className="h-4 w-4" />
