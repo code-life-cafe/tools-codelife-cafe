@@ -8,6 +8,7 @@ export type AnalyticsEvents = {
 		q_redacted?: boolean;
 	};
 	related_click: { from: string; to: string; setId?: string; position: number };
+	top_block_click: { block: string; tool: string; position: number };
 	shared_url_open: { tool: string };
 	settings_restore: { tool: string; source: 'localStorage' | 'url' };
 };

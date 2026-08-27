@@ -28,6 +28,7 @@ const ALLOWED_EVENTS = new Set([
 	'tool_engage',
 	'search_empty',
 	'related_click',
+	'top_block_click',
 	'shared_url_open',
 	'settings_restore',
 ]);
@@ -114,6 +115,17 @@ export const onRequestPost = async (context: {
 			toolSlug = props.from;
 			extra1 = props.to;
 			extra2 = typeof props.setId === 'string' ? props.setId : '';
+			double1 = props.position;
+		} else if (eventName === 'top_block_click') {
+			if (
+				typeof props.block !== 'string' ||
+				typeof props.tool !== 'string' ||
+				typeof props.position !== 'number'
+			) {
+				return new Response(null, { status: 204, headers });
+			}
+			toolSlug = props.tool;
+			extra1 = props.block;
 			double1 = props.position;
 		} else if (eventName === 'search_empty') {
 			if (
