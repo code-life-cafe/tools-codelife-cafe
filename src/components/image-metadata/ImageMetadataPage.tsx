@@ -70,7 +70,7 @@ export function ImageMetadataPage() {
 	} = useBatchProcessing<MetadataItem>({
 		fallbackErrorMessage: '処理に失敗しました。',
 		releaseItem: releaseMetadataItem,
-		onRunComplete: trackRun, // メタデータ削除実行の分析計測
+		onRunComplete: () => trackRun(), // メタデータ削除実行の分析計測
 	});
 
 	const onFiles = useCallback(

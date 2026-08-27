@@ -17,7 +17,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 
 | イベント名 | 発火条件 | 収集プロパティ (Allowlist) | 目的 |
 |---|---|---|---|
-| `tool_run` | ツール実行・変換処理が走った時（発火タイミングの定義は下記） | `{ tool: string }` (ツールslug) | ツールの利用頻度の計測 |
+| `tool_run` | ツール実行・変換処理が走った時（発火タイミングの定義は下記） | `{ tool: string, source: ToolRunSource, dedupeKey: string }` (ツールslug, 発火起点, 重複排除キー) | ツールの利用頻度の計測 |
 | `tool_engage` | 個別ツールで初めて入力・操作があった時（タブ単位で1回） | `{ tool: string }` (ツールslug) | ツールごとの実活用セッション数の計測 |
 | `search_empty` | トップ検索でヒットが0件だった時 | `{ lengthBucket: string, hasJapanese: boolean, tokenCount: number, q_redacted?: boolean }` | 未対応ツール需要の把握（生検索語は非送信） |
 | `related_click` | 関連ツール回遊カードのクリック時 | `{ from: string, to: string, setId?: string, position: number }` (ツールslug, セットID, リスト内位置) | ツール間回遊の導線効果の検証 |
@@ -36,6 +36,27 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 - **`settings_restore` の実装箇所**: `useToolAnalytics.ts` は `trackSettingsRestore()` を公開しているが、実際の発火は `src/lib/hooks/useToolSettings.ts` が設定復元時に `track()` を直接呼び出す形で行っている（URL 復元・localStorage 復元のそれぞれで1回ずつ）。`?settings=` 付き URL を開いた場合、そのツールが `useToolSettings` を使っていれば `shared_url_open`（「共有URLで開かれた」）と `settings_restore`（`source: 'url'`、「設定が実際に復元された」）の両方が発火し得る。意味が異なる別イベントとして意図的に併存させている。
 - **slug の導出**: `tool`, `from`, `to` に渡す slug は、`src/lib/tools/catalog.ts` の定義を正本として利用し、文字列の手書きによる表記揺れを防止する。
 - **`top_block_click` の `block` ID**: トップページ「目的から探す」の各ブロック（`src/lib/tools/catalog.ts` の `purposeCategories`）に付与した安定ID（`PurposeCategory.id`、例: `data-format` / `image-processing` / `japanese-input` / `pdf`）を送信する。表示タイトル（`title`）はUI文言変更で揺れるため計測には使わず、`id` を正本として時系列比較の一貫性を保つ。実装は `src/components/tool/RelatedTools.astro` の `data-track-*` 属性 + イベント委譲 + `track()` 呼び出しパターンを `src/pages/index.astro` に流用している。
+
+### `tool_run` の source（発火起点）と dedupeKey（重複排除キー）
+
+`tool_run` は起点分類と重複排除が可能な集計を行うため、`tool` に加えて `source` と `dedupeKey` を送信する（`src/lib/analytics.ts` の `ToolRunSource` 型・`src/lib/hooks/useToolAnalytics.ts` の `trackRun` / `trackRunDebounced`）。
+
+- **`source`（`ToolRunSource`）**: 呼び出し元のユーザー操作の性質を表す安定した列挙値。
+  - `button`: ボタン押下等の明確な1アクション（`trackRun()` の既定値。呼び出し元で明示しない限りこれになる）
+  - `drop`: ドラッグ＆ドロップによるファイル投入
+  - `file-input`: `<input type="file">` 経由のファイル選択
+  - `debounced-input`: `trackRunDebounced()` によるデバウンス確定発火（ライブなテキスト入力等）
+  - `paste`: クリップボード貼り付け（`Ctrl+V` 等）
+  - `shortcut`: キーボードショートカット起点の実行
+  - `api`: WebMCP 等、UIを介さないプログラム的な呼び出し
+  - `unknown`: 上記のいずれにも分類できない、または `functions/api/event.ts` 側で不正な値として棄却された場合のフォールバック
+  - 実コードの既存起点に合わせた列挙であり、新しい起点が生じた場合は最小限追加してよい（`src/lib/analytics.ts` の `ToolRunSource` と `functions/api/event.ts` の `ALLOWED_TOOL_RUN_SOURCES` の両方を更新する）。
+  - `trackRun(source)` は明示的に起点を渡せる呼び出し元（`Base64Converter.tsx`、`BgRemove.tsx`、`CsvEditor.tsx` 等）でのみ意味のある値を送る。それ以外の呼び出し元は既定値 `button` のまま横展開されており、必要に応じて個別に置き換えていく。
+- **`dedupeKey` の生成単位**: 原則として「1ユーザー操作につき1 UUID」。`trackRun()` は呼び出しごとに `crypto.randomUUID()`（`generateDedupeKey()`）を新規発行する。`trackRunDebounced()` は `DEBOUNCE_MS`（500ms）以内の連続呼び出しを1回にまとめてから内部の `trackRun('debounced-input')` を呼ぶため、**確定発火ごとに1 UUID**が発行される（デバウンス中の各キー入力ごとには発行されない）。`sessionId`（`blob5`）と異なり `dedupeKey` はストレージに保持しない使い捨て値。
+- **同一操作の二重発火対策**: ドロップ領域と `<input type="file">` が重なるUI（例: `Base64Converter.tsx`）では、同一の物理操作で2つのハンドラが発火しうる。このパターンでは直前に処理したファイルの署名（ファイル名・サイズ・`lastModified`）を短時間（300ms）だけ記憶し、同一署名の連続処理をスキップすることで二重計測を防止する。集計側でも `COUNT(DISTINCT dedupeKey)` を使うことで、対策が漏れていた場合の実行回数の過大計上を吸収できる（後述の集計クエリ参照）。
+- **集計時の `COUNT(*)` と `COUNT(DISTINCT dedupeKey)` の使い分け**:
+  - `COUNT(*)`: 送信されたデータポイントの総数（＝ネットワーク到達数）。二重発火や再送があれば水増しされうる。
+  - `COUNT(DISTINCT dedupeKey)`: 一意なユーザー操作の数。`dedupeKey` が空文字（未送信・不正値）のデータポイントは同一キー `''` に丸め込まれてしまうため、`WHERE blob8 != ''` で除外してから使う。UI側の二重発火対策が機能している前提では両者はほぼ一致するはずで、乖離が大きい場合は対策漏れの兆候として調査する。
 
 ### 匿名セッションID（プライバシー方針との整合性）
 セッション単位の指標（「セッションあたり利用ツール数」「トップ→個別ツール遷移率」等）を算出するため、全イベントに匿名セッションIDを付与する。本IDは既存のプライバシー方針（Cookie・localStorage による個人追跡をしない）と以下の点で整合する。
@@ -192,5 +213,27 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    GROUP BY traffic_type
    ORDER BY count DESC
    ```
+   ```sql
+   -- tool_run の発火起点（source）別の内訳（blob7）
+   SELECT blob7 AS source, COUNT(*) AS count
+   FROM tools_codelife_cafe_events
+   WHERE index1 = 'tool_run'
+   GROUP BY source
+   ORDER BY count DESC
+   ```
+   ```sql
+   -- ツール別の実行件数: 送信件数(COUNT(*))と一意な操作数(COUNT(DISTINCT dedupeKey))の比較
+   -- 乖離が大きい場合はUI側の二重発火対策が漏れている可能性がある（dedupeKey = blob8）
+   SELECT
+     blob2 AS tool_slug,
+     COUNT(*) AS raw_count,
+     COUNT(DISTINCT IF(blob8 != '', blob8, NULL)) AS distinct_run_count
+   FROM tools_codelife_cafe_events
+   WHERE index1 = 'tool_run'
+   GROUP BY tool_slug
+   ORDER BY raw_count DESC
+   ```
 
-> **blob スロット対応表**: `blob1` = イベント名、`blob2` = ツールslug（`tool` / `from`）、`blob3` = 補助1（`source` / `to` / `lengthBucket` / `top_block_click` の `block`）、`blob4` = 補助2（`setId` / `hasJapanese`）、`blob5` = 匿名セッションID、`blob6` = `traffic_type`（`human` / `ai_agent` / `crawler` / `unknown`）。`index1` = イベント名（インデックスは 1 データポイント 1 つのみ）。`double1` = `related_click` / `top_block_click` の `position` に使用。
+> **blob スロット対応表**: `blob1` = イベント名、`blob2` = ツールslug（`tool` / `from`）、`blob3` = 補助1（`settings_restore` の `source: 'localStorage' | 'url'` / `related_click` の `to` / `search_empty` の `lengthBucket` / `top_block_click` の `block`）、`blob4` = 補助2（`setId` / `hasJapanese`）、`blob5` = 匿名セッションID、`blob6` = `traffic_type`（`human` / `ai_agent` / `crawler` / `unknown`）、`blob7` = `tool_run` 専用の `source`（`ToolRunSource`。他イベントでは空文字）、`blob8` = `tool_run` 専用の `dedupeKey`（他イベントでは空文字）。`index1` = イベント名（インデックスは 1 データポイント 1 つのみ）。`double1` = `related_click` / `top_block_click` の `position` に使用。
+>
+> `blob3` の `source`（`settings_restore` の復元元 `'localStorage' | 'url'`）と `blob7` の `source`（`tool_run` の発火起点 `ToolRunSource`）は名前が同じだが別イベント・別語彙の値なので混同しないこと。

@@ -92,7 +92,7 @@ export function ImageCompressPage() {
 		releasePatch: (patch) => {
 			if (patch.resultUrl) URL.revokeObjectURL(patch.resultUrl);
 		},
-		onRunComplete: trackRun, // 圧縮実行の分析計測
+		onRunComplete: () => trackRun(), // 圧縮実行の分析計測
 	});
 
 	// 共有URLからアクセスされた場合の計測

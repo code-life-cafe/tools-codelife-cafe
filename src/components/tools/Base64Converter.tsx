@@ -4,6 +4,7 @@ import {
 	useCallback,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from 'react';
 import CopyButton from '@/components/common/CopyButton';
@@ -79,6 +80,52 @@ export default function Base64Converter() {
 		}
 	}, [textResult, trackRunDebounced]);
 
+	// ドロップ領域が input[type=file] と重なっているため、同一ファイルの1回の操作で
+	// onDrop と input の onChange が両方発火しうる。直前に処理したファイルの署名を
+	// 短時間だけ記憶し、同一署名の連続処理をスキップして二重計測を防ぐ。
+	const lastProcessedFileRef = useRef<{
+		signature: string;
+		timer: ReturnType<typeof setTimeout>;
+	} | null>(null);
+
+	useEffect(() => {
+		return () => {
+			if (lastProcessedFileRef.current) {
+				clearTimeout(lastProcessedFileRef.current.timer);
+			}
+		};
+	}, []);
+
+	const processFile = useCallback(
+		async (file: File, source: 'drop' | 'file-input') => {
+			const signature = `${file.name}:${file.size}:${file.lastModified}`;
+			if (lastProcessedFileRef.current?.signature === signature) {
+				return;
+			}
+			if (lastProcessedFileRef.current) {
+				clearTimeout(lastProcessedFileRef.current.timer);
+			}
+			const timer = setTimeout(() => {
+				lastProcessedFileRef.current = null;
+			}, 300);
+			lastProcessedFileRef.current = { signature, timer };
+
+			setLoading(true);
+			try {
+				setFileName(file.name);
+				const rawDataUrl = await fileToBase64(file, true);
+				setFileRawDataUrl(rawDataUrl);
+				// ファイルのBase64変換が完了した時点で実行を計測
+				trackRun(source);
+			} catch (_err) {
+				alert('ファイルの読み込みに失敗しました。');
+			} finally {
+				setLoading(false);
+			}
+		},
+		[trackRun],
+	);
+
 	// Handlers for File Drop
 	const handleDrop = useCallback(
 		async (e: DragEvent<HTMLDivElement>) => {
@@ -86,21 +133,10 @@ export default function Base64Converter() {
 			setDragOver(false);
 			const file = e.dataTransfer.files[0];
 			if (file) {
-				setLoading(true);
-				try {
-					setFileName(file.name);
-					const rawDataUrl = await fileToBase64(file, true);
-					setFileRawDataUrl(rawDataUrl);
-					// ファイルのBase64変換が完了した時点で実行を計測
-					trackRun();
-				} catch (_err) {
-					alert('ファイルの読み込みに失敗しました。');
-				} finally {
-					setLoading(false);
-				}
+				await processFile(file, 'drop');
 			}
 		},
-		[trackRun],
+		[processFile],
 	);
 
 	// Download decoded text
@@ -285,18 +321,7 @@ export default function Base64Converter() {
 									onChange={async (e) => {
 										const file = e.target.files?.[0];
 										if (file) {
-											setLoading(true);
-											try {
-												setFileName(file.name);
-												const rawDataUrl = await fileToBase64(file, true);
-												setFileRawDataUrl(rawDataUrl);
-												// ファイルのBase64変換が完了した時点で実行を計測
-												trackRun();
-											} catch (_err) {
-												alert('エラーが発生しました。');
-											} finally {
-												setLoading(false);
-											}
+											await processFile(file, 'file-input');
 										}
 									}}
 									title="クリックしてファイルを選択"

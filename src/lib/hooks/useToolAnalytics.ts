@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { track } from '../analytics.ts';
+import { generateDedupeKey, type ToolRunSource, track } from '../analytics.ts';
 
 // 「初回操作」とみなすユーザー操作イベント。
 // マウント（＝擬似PV）ではなく、実際にツールへ触れた最初の操作で tool_engage を発火させる。
@@ -67,23 +67,37 @@ export function useToolAnalytics(toolSlug: string) {
 		};
 	}, [toolSlug]);
 
-	const trackRun = useCallback(() => {
-		if (!toolSlug) return;
-		// 実行は明確なエンゲージメントなので、初回操作を捕捉できていなくても保険として engage を確定させる。
-		if (!hasEngagedRef.current) {
-			hasEngagedRef.current = true;
-			track('tool_engage', { tool: toolSlug });
-		}
-		track('tool_run', { tool: toolSlug });
-	}, [toolSlug]);
+	// source省略時は明確な1アクション（ボタン押下等）の呼び出しが大半のため 'button' を既定値とする。
+	const trackRun = useCallback(
+		(source: ToolRunSource = 'button') => {
+			if (!toolSlug) return;
+			// 実行は明確なエンゲージメントなので、初回操作を捕捉できていなくても保険として engage を確定させる。
+			if (!hasEngagedRef.current) {
+				hasEngagedRef.current = true;
+				track('tool_engage', { tool: toolSlug });
+			}
+			// dedupeKeyは呼び出し（＝1ユーザー操作）ごとに1つ発行する使い捨てUUID。
+			track('tool_run', {
+				tool: toolSlug,
+				source,
+				dedupeKey: generateDedupeKey(),
+			});
+		},
+		[toolSlug],
+	);
 
 	// 入力依存の useEffect から呼ぶための trackRun。DEBOUNCE_MS 内の連続呼び出しは
-	// 最後の1回にまとめられる（＝「入力停止後に1回だけ」発火する）。
+	// 最後の1回にまとめられる（＝「入力停止後に1回だけ」発火する）。確定発火ごとに
+	// source='debounced-input' として1つのdedupeKeyを発行する。
 	const debounceHandleRef = useRef<DebounceHandle>({ current: null });
 
 	const trackRunDebounced = useCallback(() => {
 		if (!toolSlug) return;
-		scheduleDebounced(debounceHandleRef.current, trackRun, DEBOUNCE_MS);
+		scheduleDebounced(
+			debounceHandleRef.current,
+			() => trackRun('debounced-input'),
+			DEBOUNCE_MS,
+		);
 	}, [toolSlug, trackRun]);
 
 	useEffect(() => {

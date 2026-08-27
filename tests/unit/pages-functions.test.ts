@@ -76,7 +76,16 @@ test('匿名セッションIDをblob5に格納する', async () => {
 	assert.strictEqual(response.status, 204);
 	assert.deepStrictEqual(writes, [
 		{
-			blobs: ['tool_run', 'json-formatter', '', '', 'abc-123', 'unknown'],
+			blobs: [
+				'tool_run',
+				'json-formatter',
+				'',
+				'',
+				'abc-123',
+				'unknown',
+				'unknown',
+				'',
+			],
 			indexes: ['tool_run'],
 		},
 	]);
@@ -106,6 +115,121 @@ test('過長な匿名セッションIDは無視して空文字にする', async 
 	assert.deepStrictEqual(writes[0].blobs, [
 		'tool_run',
 		'json-formatter',
+		'',
+		'',
+		'',
+		'unknown',
+		'unknown',
+		'',
+	]);
+});
+
+test('tool_runのsource/dedupeKeyを検証してblob7/blob8に格納する', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequestPost({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			body: JSON.stringify({
+				event: 'tool_run',
+				props: {
+					tool: 'base64',
+					source: 'drop',
+					dedupeKey: '11111111-1111-1111-1111-111111111111',
+				},
+			}),
+			headers: { origin: 'https://tools.codelife.cafe' },
+		}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes[0].blobs, [
+		'tool_run',
+		'base64',
+		'',
+		'',
+		'',
+		'unknown',
+		'drop',
+		'11111111-1111-1111-1111-111111111111',
+	]);
+});
+
+test('未知のsource値は許可リストにないため unknown にフォールバックする', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequestPost({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			body: JSON.stringify({
+				event: 'tool_run',
+				props: { tool: 'base64', source: 'not-a-real-source' },
+			}),
+			headers: { origin: 'https://tools.codelife.cafe' },
+		}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.strictEqual(writes[0].blobs?.[6], 'unknown');
+});
+
+test('過長なdedupeKeyは無視して空文字にする', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequestPost({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			body: JSON.stringify({
+				event: 'tool_run',
+				props: { tool: 'base64', source: 'button', dedupeKey: 'x'.repeat(200) },
+			}),
+			headers: { origin: 'https://tools.codelife.cafe' },
+		}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.strictEqual(writes[0].blobs?.[6], 'button');
+	assert.strictEqual(writes[0].blobs?.[7], '');
+});
+
+test('tool_run以外のイベントにはsource/dedupeKey用のblobを付与しない', async () => {
+	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
+	await onRequestPost({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			body: JSON.stringify({
+				event: 'tool_engage',
+				props: { tool: 'base64' },
+			}),
+			headers: { origin: 'https://tools.codelife.cafe' },
+		}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+
+	assert.deepStrictEqual(writes[0].blobs, [
+		'tool_engage',
+		'base64',
 		'',
 		'',
 		'',

@@ -72,7 +72,7 @@ export function ImageConvertPage() {
 		releasePatch: (patch) => {
 			if (patch.resultUrl) URL.revokeObjectURL(patch.resultUrl);
 		},
-		onRunComplete: trackRun,
+		onRunComplete: () => trackRun(),
 	});
 
 	useEffect(() => {
