@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import QrEncrypt from '../components/tools/QrEncrypt.tsx';
+
+const toolEntry = await getEntry('tools', 'qr-encrypt');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: qr-encrypt');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <QrEncrypt client:load />
+</ToolLayout>
