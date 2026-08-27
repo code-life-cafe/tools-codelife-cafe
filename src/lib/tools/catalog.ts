@@ -183,6 +183,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'qr-encrypt',
+		title: '暗号化QR生成・復号',
+		description:
+			'テキストをパスフレーズでAES-256-GCM暗号化しQRコード化。QR読み取り＋パスフレーズで復号も可能。',
+		href: '/qr-encrypt',
+		icon: 'Lock',
+		categories: ['生成ツール', 'ユーティリティ'],
+		categoryColor: 'border-l-chart-3',
+		keywords: ['QR', '暗号化', 'AES', 'パスフレーズ', '2FA', 'リカバリコード'],
+		related: ['qr-generator', 'qr-reader', 'cipher'],
+		llmsFull: {
+			useCase:
+				'テキストをパスフレーズでAES-256-GCM暗号化してQRコード化、またはQRを読み取ってパスフレーズで復号',
+			inputs:
+				'平文テキストとパスフレーズ（暗号化）、またはQR画像/カメラ映像とパスフレーズ（復号）',
+			outputs: '暗号化QRコード画像（PNG/SVG）、または復号された平文テキスト',
+			options: '暗号化⇔復号のタブ切替',
+		},
+	},
+	{
 		id: 'wareki-converter',
 		title: '和暦↔西暦変換',
 		description: '明治〜令和の和暦と西暦を相互変換。干支・年齢も同時表示。',

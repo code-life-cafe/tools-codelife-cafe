@@ -4,6 +4,7 @@ import { cronCheckerMcpTool } from '../tools/cron-checker.mcp.ts';
 import { hashMcpTool } from '../tools/hash.mcp.ts';
 import { jsonFormatterMcpTool } from '../tools/json-formatter.mcp.ts';
 import { jwtDecoderMcpTool } from '../tools/jwt-decoder.mcp.ts';
+import { qrEncryptMcpTool } from '../tools/qr-encrypt.mcp.ts';
 import { urlEncoderMcpTool } from '../tools/url-encoder.mcp.ts';
 import { uuidMcpTool } from '../tools/uuid.mcp.ts';
 import { zenkakuHankakuMcpTool } from '../tools/zenkaku-hankaku.mcp.ts';
@@ -29,4 +30,5 @@ export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
 	uuidMcpTool,
 	cronCheckerMcpTool,
 	jwtDecoderMcpTool,
+	qrEncryptMcpTool,
 ];

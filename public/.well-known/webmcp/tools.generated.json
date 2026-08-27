@@ -426,6 +426,53 @@
       "annotations": {
         "readOnlyHint": true
       }
+    },
+    {
+      "toolId": "qr-encrypt",
+      "name": "encrypt_decrypt_qr_payload",
+      "description": "Encrypt text into a passphrase-protected QR payload string (AES-256-GCM), or decrypt such a payload back to text. Runs entirely in the browser; no data is sent externally. QR image rendering/scanning is not covered by this tool. / パスフレーズ保護された暗号化QRペイロード文字列（AES-256-GCM）へのテキスト暗号化、またはその復号を行う。処理はブラウザ内で完結し、外部送信は行わない。QR画像の生成・読み取り自体は対象外。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "encrypt or decrypt / 暗号化または復号",
+            "enum": [
+              "encrypt",
+              "decrypt"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "description": "Plaintext to encrypt, or a qre1. payload string to decrypt / 暗号化する平文、または復号するqre1.ペイロード文字列"
+          },
+          "passphrase": {
+            "type": "string",
+            "description": "Shared passphrase used for key derivation / 鍵導出に使う共有パスフレーズ"
+          }
+        },
+        "required": [
+          "action",
+          "text",
+          "passphrase"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "description": "Encrypted qre1. payload string, or decrypted plaintext / 暗号化されたqre1.ペイロード文字列、または復号された平文"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": false
+      }
     }
   ]
 }
