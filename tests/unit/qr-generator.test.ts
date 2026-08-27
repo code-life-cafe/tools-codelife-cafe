@@ -9,7 +9,9 @@ import {
 	defaultOptions,
 	generateQRDataUrl,
 	generateQRSvg,
+	MIN_QR_SCALE,
 	type QROptions,
+	resolveQrScale,
 } from '../../src/lib/tools/qr-generator.ts';
 
 function opts(overrides: Partial<QROptions> = {}): QROptions {
@@ -76,4 +78,57 @@ test('generateQRSvg: 前景・背景色オプションが出力に反映され�
 	);
 	assert.ok(result.toLowerCase().includes('#ff0000'));
 	assert.ok(result.toLowerCase().includes('#00ff00'));
+});
+
+// ============================================================
+// resolveQrScale / MIN_QR_SCALE
+// ============================================================
+
+test('MIN_QR_SCALE は8である', () => {
+	assert.equal(MIN_QR_SCALE, 8);
+});
+
+test('resolveQrScale: 8以上の値はそのまま（四捨五入して）返す', () => {
+	assert.equal(resolveQrScale(8), 8);
+	assert.equal(resolveQrScale(10), 10);
+	assert.equal(resolveQrScale(10.7), 11);
+});
+
+test('resolveQrScale: 8未満の値は8に切り上げられる', () => {
+	assert.equal(resolveQrScale(1), 8);
+	assert.equal(resolveQrScale(7.9), 8);
+	assert.equal(resolveQrScale(0), 8);
+});
+
+test('resolveQrScale: 常に整数かつ8以上を返す', () => {
+	for (const requested of [0, 1, 4, 7.4, 7.5, 8, 8.4, 20.6]) {
+		const scale = resolveQrScale(requested);
+		assert.ok(Number.isInteger(scale), `scale=${scale} should be an integer`);
+		assert.ok(
+			scale >= MIN_QR_SCALE,
+			`scale=${scale} should be >= ${MIN_QR_SCALE}`,
+		);
+	}
+});
+
+// ============================================================
+// generateQRDataUrl / generateQRSvg with scale option
+// ============================================================
+
+test('generateQRDataUrl: scaleオプション指定時もPNG data URLを返す（既存呼び出しは非破壊）', async () => {
+	const result = await generateQRDataUrl(
+		'https://tools.codelife.cafe',
+		opts({ scale: 8 }),
+	);
+	assert.ok(result.startsWith('data:image/png;base64,'));
+});
+
+test('generateQRSvg: scaleオプション指定時も<svg>を含む文字列を返す', async () => {
+	const result = await generateQRSvg('scale-test', opts({ scale: 8 }));
+	assert.ok(result.includes('<svg'));
+});
+
+test('generateQRDataUrl: scale未指定時は従来通りsizeベースで生成される（後方互換）', async () => {
+	const result = await generateQRDataUrl('backward-compat', opts());
+	assert.ok(result.startsWith('data:image/png;base64,'));
 });

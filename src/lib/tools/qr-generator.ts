@@ -11,6 +11,12 @@ export interface QROptions {
 	errorCorrection: ErrorCorrectionLevel;
 	foregroundColor: string;
 	backgroundColor: string;
+	/**
+	 * 指定時は `size`（px指定）の代わりにモジュールあたりのpx数で生成する。
+	 * `resolveQrScale` により8px/モジュール以上の整数に丸められる。
+	 * 未指定時は従来通り `size` を使用するため、既存呼び出しの挙動は変わらない。
+	 */
+	scale?: number;
 }
 
 export const defaultOptions: QROptions = {
@@ -20,6 +26,23 @@ export const defaultOptions: QROptions = {
 	backgroundColor: '#FFFFFF',
 };
 
+/** 高密度QR（モジュール数が多い版）でもスキャン耐性を保つための最小スケール（px/モジュール）。 */
+export const MIN_QR_SCALE = 8;
+
+/** 要求スケールを8px/モジュール以上の整数に丸める。 */
+export function resolveQrScale(requestedScale: number): number {
+	return Math.max(MIN_QR_SCALE, Math.round(requestedScale));
+}
+
+function resolveSizeOption(
+	options: QROptions,
+): { width: QRSize } | { scale: number } {
+	if (options.scale !== undefined) {
+		return { scale: resolveQrScale(options.scale) };
+	}
+	return { width: options.size };
+}
+
 export async function generateQRDataUrl(
 	text: string,
 	options: QROptions = defaultOptions,
@@ -27,7 +50,7 @@ export async function generateQRDataUrl(
 	if (!text.trim()) return '';
 
 	return QRCode.toDataURL(text, {
-		width: options.size,
+		...resolveSizeOption(options),
 		margin: 2,
 		errorCorrectionLevel: options.errorCorrection,
 		color: {
@@ -45,7 +68,7 @@ export async function generateQRSvg(
 
 	return QRCode.toString(text, {
 		type: 'svg',
-		width: options.size,
+		...resolveSizeOption(options),
 		margin: 2,
 		errorCorrectionLevel: options.errorCorrection,
 		color: {

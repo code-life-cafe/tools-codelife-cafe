@@ -6,6 +6,7 @@ import {
 	Info,
 	Loader2,
 	Lock,
+	Maximize2,
 	QrCode as QrCodeIcon,
 	RotateCcw,
 } from 'lucide-react';
@@ -16,6 +17,12 @@ import ImageUploader from '@/components/qr-reader/ImageUploader';
 import ModeTabs, { type ScanMode } from '@/components/qr-reader/ModeTabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,6 +36,7 @@ import {
 	encryptToQrPayload,
 	estimateCapacity,
 	estimatePassphraseStrength,
+	isPracticalScanWarning,
 	MAX_PLAINTEXT_BYTES,
 	MAX_QR_PAYLOAD_BYTES,
 	type PassphraseStrength,
@@ -39,13 +47,19 @@ import {
 	downloadSvg,
 	generateQRDataUrl,
 	generateQRSvg,
+	MIN_QR_SCALE,
 } from '@/lib/tools/qr-generator';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
+// プレビュー枠のCSS表示サイズ（実際の生成解像度とは独立。実解像度は scale で決まる）
+const PREVIEW_DISPLAY_SIZE = 400;
+
 // 容量計算はECC Lを前提にしているため固定（サイズ/色/誤り訂正レベルはMVPでは非対応）
+// PNGはsize指定ではなくscale指定にし、高密度QRでもモジュールあたり8px以上を保証する
 const QR_OPTIONS = {
 	size: 400 as const,
+	scale: MIN_QR_SCALE,
 	errorCorrection: 'L' as const,
 	foregroundColor: '#000000',
 	backgroundColor: '#FFFFFF',
@@ -151,6 +165,7 @@ function EncryptTab() {
 	const [qrSvg, setQrSvg] = useState('');
 	const [payloadBytes, setPayloadBytes] = useState(0);
 	const [error, setError] = useState<string | null>(null);
+	const [zoomOpen, setZoomOpen] = useState(false);
 
 	// 使用量メーターはリアルタイム更新するが、PBKDF2を含む実暗号化は行わない
 	// （estimateCapacityは圧縮のみでバイト数を決定論的に見積もる軽量処理）
@@ -253,7 +268,7 @@ function EncryptTab() {
 								className={`h-full transition-all ${
 									!capacity.withinLimit
 										? 'bg-destructive'
-										: capacity.usedRatio > 0.8
+										: capacity.practicalScanWarning
 											? 'bg-yellow-500'
 											: 'bg-primary'
 								}`}
@@ -265,6 +280,11 @@ function EncryptTab() {
 								上限を
 								{(capacity.payloadBytes - capacity.limitBytes).toLocaleString()}
 								バイト超過しています。テキストを短くしてください。
+							</p>
+						)}
+						{capacity.withinLimit && capacity.practicalScanWarning && (
+							<p className="mt-1 text-xs text-yellow-700 dark:text-yellow-500">
+								このサイズは画面表示では読み取りにくい可能性があります。拡大表示・PNG/SVGの高解像度出力、または印刷を推奨します。
 							</p>
 						)}
 					</div>
@@ -332,11 +352,23 @@ function EncryptTab() {
 									src={qrDataUrl}
 									alt="暗号化QRコード"
 									className="max-w-full rounded-lg shimmer aspect-square object-contain"
-									style={{ width: QR_OPTIONS.size, maxHeight: '350px' }}
+									style={{ width: PREVIEW_DISPLAY_SIZE, maxHeight: '350px' }}
 								/>
 								<p className="mt-3 text-xs text-muted-foreground">
 									ペイロード: {payloadBytes.toLocaleString()} bytes
 								</p>
+								<Button
+									type="button"
+									variant={
+										isPracticalScanWarning(payloadBytes) ? 'default' : 'outline'
+									}
+									size="sm"
+									onClick={() => setZoomOpen(true)}
+									className="mt-3 rounded-xl"
+								>
+									<Maximize2 className="h-4 w-4 mr-1" aria-hidden="true" />
+									拡大表示
+								</Button>
 							</div>
 						) : (
 							<div className="flex flex-col items-center justify-center text-muted-foreground">
@@ -354,6 +386,26 @@ function EncryptTab() {
 					</CardContent>
 				</Card>
 			</div>
+
+			<Dialog open={zoomOpen} onOpenChange={setZoomOpen}>
+				<DialogContent className="flex h-[90vh] max-h-[90vh] w-[95vw] max-w-[95vw] flex-col items-center gap-4 p-4 sm:max-w-[95vw]">
+					<DialogHeader>
+						<DialogTitle>暗号化QRコード（拡大表示）</DialogTitle>
+					</DialogHeader>
+					<div className="flex w-full flex-1 items-center justify-center overflow-auto">
+						{qrDataUrl && (
+							<img
+								src={qrDataUrl}
+								alt="暗号化QRコード（拡大表示）"
+								className="max-h-full max-w-full object-contain"
+							/>
+						)}
+					</div>
+					<p className="text-xs text-muted-foreground">
+						ペイロード: {payloadBytes.toLocaleString()} bytes
+					</p>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }
