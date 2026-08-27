@@ -1,6 +1,6 @@
 ---
-title: "文字数カウント"
-description: "「この文字数、バイト数はいくつ？」をリアルタイムで即答。半角・全角・Shift-JISのバイト数を自動判別し、文字数・行数も同時表示。"
+title: "文字数・バイト数カウント（Shift-JIS対応）"
+description: "文字数・行数に加え、Shift-JIS/UTF-8のバイト数もその場で判定。SNS投稿や社内システムの文字数・バイト数制限チェックに使えるリアルタイムカウンターです。"
 category: "テキスト解析"
 summary: "基幹システムやSNSの投稿制限にかかる前に、文字数・行数・Shift-JISバイト数をブラウザ上でリアルタイムにカウント・判別します。"
 useCases:
@@ -22,7 +22,7 @@ related:
   - "zenkaku-hankaku"
   - "text-diff"
   - "sql-formatter"
-updated: 2026-06-28
+updated: 2026-08-27
 keywords:
   - "文字数カウント"
   - "バイト数"
