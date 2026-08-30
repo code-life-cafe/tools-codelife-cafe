@@ -16,6 +16,7 @@ import {
 
 const METHOD_LABELS: Record<MethodId, string> = {
 	v60: 'V60',
+	v60_neo: 'V60 NEO',
 	switch: 'Switch',
 	kalita: 'カリタ',
 	pour_other: 'その他',

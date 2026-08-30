@@ -49,7 +49,7 @@ test('PRESET_RECIPES: THE NEO BREW（V60 NEO）は30mlのpourを10回・初回�
 	const recipe = PRESET_RECIPES.find(
 		(r) => r.id === PRESET_RECIPE_IDS.v60Neo,
 	) as Recipe;
-	assert.strictEqual(recipe.method, 'v60');
+	assert.strictEqual(recipe.method, 'v60_neo');
 	assert.strictEqual(recipe.water_temp_c, 96);
 	assert.strictEqual(recipe.grind_note, '極粗挽き');
 	assert.strictEqual(recipe.steps.length, 11);
