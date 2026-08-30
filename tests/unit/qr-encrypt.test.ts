@@ -59,10 +59,13 @@ test('ciphertext改ざん（GCM認証タグ不一致）は復号に失敗する'
 	assert.equal(decoded.ok, true);
 	if (!decoded.ok) return;
 
-	// ciphertextの最後の1文字を別のBase64URL文字に差し替えて改ざんを模擬する
-	const tamperedCiphertext =
-		decoded.envelope.ciphertext.slice(0, -1) +
-		(decoded.envelope.ciphertext.at(-1) === 'A' ? 'B' : 'A');
+	// ciphertextをバイト列にデコードし、先頭バイトをXOR反転して再エンコードすることで
+	// Base64URLのパディングビットに影響されず確実にバイト値を変化させて改ざんを模擬する
+	// （末尾1文字の差し替えだと、文字列長 mod 4 によってはパディングのみのビットを
+	// 差し替えることになり、デコード結果のバイト列が変化しないことがあるため）
+	const ciphertextBytes = Buffer.from(decoded.envelope.ciphertext, 'base64url');
+	ciphertextBytes[0] ^= 0xff;
+	const tamperedCiphertext = ciphertextBytes.toString('base64url');
 	const tamperedEnvelope = {
 		...decoded.envelope,
 		ciphertext: tamperedCiphertext,
