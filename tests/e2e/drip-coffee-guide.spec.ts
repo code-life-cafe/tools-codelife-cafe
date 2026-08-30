@@ -22,7 +22,7 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await expect(recipeList.getByText('4:6メソッド')).toBeVisible();
 		await expect(recipeList.getByText('Hoffmann 1-Cup')).toBeVisible();
 		await expect(recipeList.getByText('ベーシック3投')).toBeVisible();
-		await expect(recipeList.getByText('V60 10投式')).toBeVisible();
+		await expect(recipeList.getByText('THE NEO BREW（V60 NEO）')).toBeVisible();
 		await expect(recipeList.getByText('Switch 新ハイブリッド')).toBeVisible();
 
 		// 4:6メソッド（20g -> 300ml）を選択し、豆量を2倍にすると総湯量も2倍になる

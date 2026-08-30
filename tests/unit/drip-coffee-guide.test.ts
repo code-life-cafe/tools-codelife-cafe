@@ -29,7 +29,7 @@ test('PRESET_RECIPES: 5種のプリセットが固定IDと総湯量一致のpour
 		PRESET_RECIPE_IDS.fourSix,
 		PRESET_RECIPE_IDS.hoffmann1Cup,
 		PRESET_RECIPE_IDS.basic3Pour,
-		PRESET_RECIPE_IDS.v60TenPour,
+		PRESET_RECIPE_IDS.v60Neo,
 		PRESET_RECIPE_IDS.switchHybrid,
 	]);
 	for (const recipe of PRESET_RECIPES) {
@@ -45,11 +45,13 @@ test('PRESET_RECIPES: 5種のプリセットが固定IDと総湯量一致のpour
 	}
 });
 
-test('PRESET_RECIPES: V60 10投式は30mlのpourを10回・30秒間隔で行い、finishで終わること', () => {
+test('PRESET_RECIPES: THE NEO BREW（V60 NEO）は30mlのpourを10回・初回のみ30秒後、以降15秒間隔で行い、finishで終わること', () => {
 	const recipe = PRESET_RECIPES.find(
-		(r) => r.id === PRESET_RECIPE_IDS.v60TenPour,
+		(r) => r.id === PRESET_RECIPE_IDS.v60Neo,
 	) as Recipe;
 	assert.strictEqual(recipe.method, 'v60');
+	assert.strictEqual(recipe.water_temp_c, 96);
+	assert.strictEqual(recipe.grind_note, '極粗挽き');
 	assert.strictEqual(recipe.steps.length, 11);
 
 	const pourSteps = recipe.steps.filter((s) => s.action_type === 'pour');
@@ -60,12 +62,12 @@ test('PRESET_RECIPES: V60 10投式は30mlのpourを10回・30秒間隔で行い�
 	);
 	assert.deepStrictEqual(
 		pourSteps.map((s) => s.time_sec),
-		[0, 30, 60, 90, 120, 150, 180, 210, 240, 270],
+		[0, 30, 45, 60, 75, 90, 105, 120, 135, 150],
 	);
 
 	const finishStep = recipe.steps[recipe.steps.length - 1];
 	assert.strictEqual(finishStep.action_type, 'finish');
-	assert.strictEqual(finishStep.time_sec, 300);
+	assert.strictEqual(finishStep.time_sec, 210);
 });
 
 test('PRESET_RECIPES: Switch新ハイブリッドは pour→pour→wait→pour→finish の順で浸漬と透過の2フェーズを持つこと', () => {

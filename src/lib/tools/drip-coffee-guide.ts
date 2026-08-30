@@ -70,13 +70,13 @@ export interface BrewSession {
 // --- プリセットレシピ -------------------------------------------------
 
 const PRESET_UPDATED_AT = '2026-08-13T00:00:00.000Z';
-const PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID = '2026-08-30T00:00:00.000Z';
+const PRESET_UPDATED_AT_V60_NEO_SWITCH_HYBRID = '2026-08-30T00:00:00.000Z';
 
 export const PRESET_RECIPE_IDS = {
 	fourSix: 'drip-coffee-guide-preset-4-6',
 	hoffmann1Cup: 'drip-coffee-guide-preset-hoffmann-1cup',
 	basic3Pour: 'drip-coffee-guide-preset-basic-3pour',
-	v60TenPour: 'drip-coffee-guide-preset-v60-10pour',
+	v60Neo: 'drip-coffee-guide-preset-v60-neo',
 	switchHybrid: 'drip-coffee-guide-preset-switch-hybrid',
 } as const;
 
@@ -250,17 +250,17 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 		],
 	},
 	{
-		id: PRESET_RECIPE_IDS.v60TenPour,
-		name: 'V60 10投式',
+		id: PRESET_RECIPE_IDS.v60Neo,
+		name: 'THE NEO BREW（V60 NEO）',
 		method: 'v60',
 		dose_g: 20,
 		total_water_ml: 300,
-		water_temp_c: 92,
-		grind_note: '中挽き',
+		water_temp_c: 96,
+		grind_note: '極粗挽き',
 		is_preset: true,
 		description:
-			'30mlずつ細かく10回に分けて注ぐ多投式。都度水位を保ち、味の均一性を高める。',
-		updated_at: PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID,
+			'粕谷哲考案のV60 NEO公式レシピ。30gずつ10投、2投目以降は15秒間隔で注ぎ、味の均一性と甘みを引き出す。',
+		updated_at: PRESET_UPDATED_AT_V60_NEO_SWITCH_HYBRID,
 		steps: [
 			{
 				step_order: 1,
@@ -278,63 +278,63 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 			},
 			{
 				step_order: 3,
-				time_sec: 60,
+				time_sec: 45,
 				pour_amount_ml: 30,
 				label: '3投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 4,
-				time_sec: 90,
+				time_sec: 60,
 				pour_amount_ml: 30,
 				label: '4投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 5,
-				time_sec: 120,
+				time_sec: 75,
 				pour_amount_ml: 30,
 				label: '5投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 6,
-				time_sec: 150,
+				time_sec: 90,
 				pour_amount_ml: 30,
 				label: '6投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 7,
-				time_sec: 180,
+				time_sec: 105,
 				pour_amount_ml: 30,
 				label: '7投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 8,
-				time_sec: 210,
+				time_sec: 120,
 				pour_amount_ml: 30,
 				label: '8投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 9,
-				time_sec: 240,
+				time_sec: 135,
 				pour_amount_ml: 30,
 				label: '9投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 10,
-				time_sec: 270,
+				time_sec: 150,
 				pour_amount_ml: 30,
 				label: '10投目',
 				action_type: 'pour',
 			},
 			{
 				step_order: 11,
-				time_sec: 300,
+				time_sec: 210,
 				pour_amount_ml: 0,
 				label: '抽出終了',
 				action_type: 'finish',
@@ -352,7 +352,7 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 		is_preset: true,
 		description:
 			'スイッチを閉じた浸漬（イマージョン）で成分を抽出したのち、開けて透過（パーコレーション）で仕上げるハイブリッド式。',
-		updated_at: PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID,
+		updated_at: PRESET_UPDATED_AT_V60_NEO_SWITCH_HYBRID,
 		steps: [
 			{
 				step_order: 1,
