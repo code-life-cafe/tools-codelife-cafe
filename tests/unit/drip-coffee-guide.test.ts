@@ -22,13 +22,15 @@ import {
 	validateBrewLogStore,
 } from '../../src/lib/tools/drip-coffee-guide.ts';
 
-test('PRESET_RECIPES: 3種のプリセットが固定IDと総湯量一致のpour合計を持つ', () => {
-	assert.strictEqual(PRESET_RECIPES.length, 3);
+test('PRESET_RECIPES: 5種のプリセットが固定IDと総湯量一致のpour合計を持つ', () => {
+	assert.strictEqual(PRESET_RECIPES.length, 5);
 	const ids = PRESET_RECIPES.map((r) => r.id);
 	assert.deepStrictEqual(ids, [
 		PRESET_RECIPE_IDS.fourSix,
 		PRESET_RECIPE_IDS.hoffmann1Cup,
 		PRESET_RECIPE_IDS.basic3Pour,
+		PRESET_RECIPE_IDS.v60TenPour,
+		PRESET_RECIPE_IDS.switchHybrid,
 	]);
 	for (const recipe of PRESET_RECIPES) {
 		assert.strictEqual(recipe.is_preset, true);

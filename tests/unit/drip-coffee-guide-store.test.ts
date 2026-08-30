@@ -55,9 +55,9 @@ beforeEach(() => {
 	(globalThis.sessionStorage as unknown as MemoryStorage).clear();
 });
 
-test('loadStore: 未保存時はプリセット3種のみで初期化し永続化する', () => {
+test('loadStore: 未保存時はプリセット5種のみで初期化し永続化する', () => {
 	const store = loadStore();
-	assert.strictEqual(store.recipes.length, 3);
+	assert.strictEqual(store.recipes.length, 5);
 	assert.strictEqual(store.brews.length, 0);
 	assert.ok(localStorage.getItem(STORAGE_KEY));
 });

@@ -10,7 +10,7 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
-	test('プリセット3種が表示され、豆量変更で総湯量が比例スケールされること', async ({
+	test('プリセット5種が表示され、豆量変更で総湯量が比例スケールされること', async ({
 		page,
 		createToolPage,
 	}) => {
@@ -18,10 +18,12 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await toolPage.goto();
 
 		const recipeList = page.getByRole('list', { name: 'レシピ一覧' });
-		await expect(recipeList.locator('button[aria-pressed]')).toHaveCount(3);
+		await expect(recipeList.locator('button[aria-pressed]')).toHaveCount(5);
 		await expect(recipeList.getByText('4:6メソッド')).toBeVisible();
 		await expect(recipeList.getByText('Hoffmann 1-Cup')).toBeVisible();
 		await expect(recipeList.getByText('ベーシック3投')).toBeVisible();
+		await expect(recipeList.getByText('V60 10投式')).toBeVisible();
+		await expect(recipeList.getByText('Switch 新ハイブリッド')).toBeVisible();
 
 		// 4:6メソッド（20g -> 300ml）を選択し、豆量を2倍にすると総湯量も2倍になる
 		await recipeList.getByRole('button', { name: /4:6メソッド/ }).click();
