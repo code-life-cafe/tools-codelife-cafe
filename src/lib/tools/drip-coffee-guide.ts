@@ -4,7 +4,7 @@
 // 丸め誤差は最後のpourステップで吸収」という方式を取る。これにより
 // 実際の投入湯量の合計が常にスケール後の総湯量と一致する。
 
-export type MethodId = 'v60' | 'switch' | 'kalita' | 'pour_other';
+export type MethodId = 'v60' | 'v60_neo' | 'switch' | 'kalita' | 'pour_other';
 
 export type RecipeStepActionType = 'pour' | 'wait' | 'swirl' | 'finish';
 
@@ -252,7 +252,7 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 	{
 		id: PRESET_RECIPE_IDS.v60Neo,
 		name: 'THE NEO BREW（V60 NEO）',
-		method: 'v60',
+		method: 'v60_neo',
 		dose_g: 20,
 		total_water_ml: 300,
 		water_temp_c: 96,
@@ -557,6 +557,7 @@ export class InvalidBrewLogStoreError extends Error {}
 
 const METHOD_IDS: readonly MethodId[] = [
 	'v60',
+	'v60_neo',
 	'switch',
 	'kalita',
 	'pour_other',

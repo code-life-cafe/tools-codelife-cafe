@@ -49,7 +49,12 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 		await expect(
 			page.getByRole('option', { name: /AeroPress|French Press|浸漬/ }),
 		).toHaveCount(0);
-		await expect(page.getByRole('option', { name: 'V60' })).toBeVisible();
+		await expect(
+			page.getByRole('option', { name: 'V60', exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByRole('option', { name: 'V60 NEO', exact: true }),
+		).toBeVisible();
 	});
 
 	test('プリセットからガイドを開始し、完了後の記録フォームにパラメータが反映され保存できること', async ({
