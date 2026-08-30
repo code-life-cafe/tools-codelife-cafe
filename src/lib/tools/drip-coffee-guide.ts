@@ -70,6 +70,7 @@ export interface BrewSession {
 // --- プリセットレシピ -------------------------------------------------
 
 const PRESET_UPDATED_AT = '2026-08-13T00:00:00.000Z';
+const PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID = '2026-08-30T00:00:00.000Z';
 
 export const PRESET_RECIPE_IDS = {
 	fourSix: 'drip-coffee-guide-preset-4-6',
@@ -259,7 +260,7 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 		is_preset: true,
 		description:
 			'30mlずつ細かく10回に分けて注ぐ多投式。都度水位を保ち、味の均一性を高める。',
-		updated_at: PRESET_UPDATED_AT,
+		updated_at: PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID,
 		steps: [
 			{
 				step_order: 1,
@@ -351,7 +352,7 @@ export const PRESET_RECIPES: readonly Recipe[] = [
 		is_preset: true,
 		description:
 			'スイッチを閉じた浸漬（イマージョン）で成分を抽出したのち、開けて透過（パーコレーション）で仕上げるハイブリッド式。',
-		updated_at: PRESET_UPDATED_AT,
+		updated_at: PRESET_UPDATED_AT_V60_TEN_POUR_SWITCH_HYBRID,
 		steps: [
 			{
 				step_order: 1,

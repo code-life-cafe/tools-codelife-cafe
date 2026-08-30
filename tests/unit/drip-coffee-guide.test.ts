@@ -45,6 +45,48 @@ test('PRESET_RECIPES: 5種のプリセットが固定IDと総湯量一致のpour
 	}
 });
 
+test('PRESET_RECIPES: V60 10投式は30mlのpourを10回・30秒間隔で行い、finishで終わること', () => {
+	const recipe = PRESET_RECIPES.find(
+		(r) => r.id === PRESET_RECIPE_IDS.v60TenPour,
+	) as Recipe;
+	assert.strictEqual(recipe.method, 'v60');
+	assert.strictEqual(recipe.steps.length, 11);
+
+	const pourSteps = recipe.steps.filter((s) => s.action_type === 'pour');
+	assert.strictEqual(pourSteps.length, 10);
+	assert.deepStrictEqual(
+		pourSteps.map((s) => s.pour_amount_ml),
+		Array(10).fill(30),
+	);
+	assert.deepStrictEqual(
+		pourSteps.map((s) => s.time_sec),
+		[0, 30, 60, 90, 120, 150, 180, 210, 240, 270],
+	);
+
+	const finishStep = recipe.steps[recipe.steps.length - 1];
+	assert.strictEqual(finishStep.action_type, 'finish');
+	assert.strictEqual(finishStep.time_sec, 300);
+});
+
+test('PRESET_RECIPES: Switch新ハイブリッドは pour→pour→wait→pour→finish の順で浸漬と透過の2フェーズを持つこと', () => {
+	const recipe = PRESET_RECIPES.find(
+		(r) => r.id === PRESET_RECIPE_IDS.switchHybrid,
+	) as Recipe;
+	assert.strictEqual(recipe.method, 'switch');
+	assert.deepStrictEqual(
+		recipe.steps.map((s) => s.action_type),
+		['pour', 'pour', 'wait', 'pour', 'finish'],
+	);
+	assert.deepStrictEqual(
+		recipe.steps.map((s) => s.pour_amount_ml),
+		[40, 100, 0, 160, 0],
+	);
+	assert.deepStrictEqual(
+		recipe.steps.map((s) => s.time_sec),
+		[0, 45, 90, 150, 210],
+	);
+});
+
 test('scaleSteps: 豆量が2倍なら各pourステップも比例して2倍になる', () => {
 	const recipe = PRESET_RECIPES.find(
 		(r) => r.id === PRESET_RECIPE_IDS.fourSix,
