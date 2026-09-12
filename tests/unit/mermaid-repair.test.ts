@@ -94,6 +94,14 @@ flowchart TD
 		assert.ok(result.includes('node_マイページ["マイページ(本会員)"]'));
 	});
 
+	test('PR #374レビュー指摘: 3ノード以上連鎖時の中間ノード括弧補正漏れ', () => {
+		const input = '仮登録(未) --> 本登録(済) --> マイページ(本会員)';
+		const result = safeQuoteNodeLabels(input);
+		assert.ok(result.includes('node_仮登録["仮登録(未)"]'));
+		assert.ok(result.includes('node_本登録["本登録(済)"]'));
+		assert.ok(result.includes('node_マイページ["マイページ(本会員)"]'));
+	});
+
 	test('Claude Review Case 4: クォート内日本語ラベルのコロン保持（制約遵守）', () => {
 		const input = 'A["重要：注意点をご確認ください"] --> B["結果：成功"]';
 		const result = replaceSyntaxZenkaku(input);
