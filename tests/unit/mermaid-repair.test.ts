@@ -104,6 +104,65 @@ flowchart TD
 		);
 	});
 
+	test('Review Follow-up 1: 未クォートの日本語ラベル内の全角コロンを完全保護（角括弧・丸括弧・波括弧）', () => {
+		const input1 = 'flowchart TD\n  A[注意：確認してください] --> B[完了]';
+		const res1 = repairMermaidCode(input1);
+		// 未クォートラベル内の全角コロン「：」が半角「:」に改変されず保護されていること
+		assert.ok(
+			res1.repairedCode.includes('注意：確認してください'),
+			`期待: 注意：確認してください, 実際: ${res1.repairedCode}`,
+		);
+
+		const input2 =
+			'flowchart LR\n  node1(重要：パスワード変更) --> node2{判定：有効？}';
+		const res2 = repairMermaidCode(input2);
+		assert.ok(
+			res2.repairedCode.includes('重要：パスワード変更'),
+			`期待: 重要：パスワード変更, 実際: ${res2.repairedCode}`,
+		);
+		assert.ok(
+			res2.repairedCode.includes('判定：有効？'),
+			`期待: 判定：有効？, 実際: ${res2.repairedCode}`,
+		);
+	});
+
+	test('Review Follow-up 2: autoCloseBlocksのネスト・異構文混在時のスタック追跡', () => {
+		// ケースA: ネストしたsubgraph（外側のみ閉じ忘れ）
+		const nestedLines = [
+			'flowchart TD',
+			'  subgraph 外側',
+			'    subgraph 内側',
+			'      A --> B',
+			'    end',
+		];
+		const { lines: resA, added: addedA } = autoCloseBlocks(nestedLines);
+		assert.strictEqual(addedA.length, 1);
+		assert.strictEqual(resA[resA.length - 1], '  end');
+
+		// ケースB: sequenceDiagramの opt ... end と未終了ブロックの混在
+		const seqLines = [
+			'sequenceDiagram',
+			'  Alice->>Bob: Hello',
+			'  opt 条件あり',
+			'    Bob->>Alice: OK',
+			'  end',
+		];
+		const { added: addedB } = autoCloseBlocks(seqLines);
+		// opt ... end は既に閉じられているため、余分な end は追加されないこと
+		assert.strictEqual(addedB.length, 0);
+
+		// ケースC: sequenceDiagramで opt が閉じられていない場合
+		const seqUnclosed = [
+			'sequenceDiagram',
+			'  Alice->>Bob: Hello',
+			'  opt 未終了の条件',
+			'    Bob->>Alice: 待機中',
+		];
+		const { lines: resC, added: addedC } = autoCloseBlocks(seqUnclosed);
+		assert.strictEqual(addedC.length, 1);
+		assert.strictEqual(resC[resC.length - 1], '  end');
+	});
+
 	test('32件の再現コーパスに対する自動修復率とラベル保護検証', () => {
 		const corpusPath = resolve(
 			process.cwd(),

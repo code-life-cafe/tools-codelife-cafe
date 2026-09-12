@@ -149,8 +149,34 @@ function withProtectedStrings(
 }
 
 /**
+ * 未クォートのノード定義（[...]、(...)、{...}等）のラベル本文を一時保護するヘルパー
+ */
+function withProtectedNodeLabels(
+	line: string,
+	transformSyntax: (syntaxOnlyLine: string) => string,
+): string {
+	const labels: string[] = [];
+	// ノードID + 開き括弧 + 中身 + 閉じ括弧
+	// 例: A[ラベル], node1(ラベル), A{ラベル}, A([ラベル]), A[[ラベル]], A((ラベル))
+	const protectedLine = line.replace(
+		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
+		(_match, id, openBrackets, content, closeBrackets) => {
+			labels.push(content);
+			return `${id}${openBrackets}__MERMAID_LABEL_${labels.length - 1}__${closeBrackets}`;
+		},
+	);
+
+	const transformed = transformSyntax(protectedLine);
+
+	return transformed.replace(
+		/__MERMAID_LABEL_(\d+)__/g,
+		(_match, index) => labels[Number(index)] ?? '',
+	);
+}
+
+/**
  * 構文位置にある全角記号を半角に置換する。
- * 【重要制約】クォートされたラベル内の「：」「（）」などの日本語本文は一切変更しない。
+ * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
  */
 export function replaceSyntaxZenkaku(line: string): string {
 	return withProtectedStrings(line, (syntaxLine) => {
@@ -171,18 +197,25 @@ export function replaceSyntaxZenkaku(line: string): string {
 		res = res.replace(/→/g, '-->');
 		res = res.replace(/==＞/g, '==>');
 
-		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧
+		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧を半角化
 		res = res.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]');
 		res = res.replace(/(\b[A-Za-z0-9_]+)（([\s\S]*?)）/g, '$1($2)');
 		res = res.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}');
 		res = res.replace(/｛([\s\S]*?)｝/g, '{$1}');
 
-		// 4. シーケンス図・クラス図・ER図・ガントチャートの構文全角コロン
-		// クォート文字列の外側のみで作用するため安全
-		res = res.replace(/(>>|-->>|->|-->)：/g, '$1: ');
-		res = res.replace(/(\S)\s*：\s*/g, '$1: ');
-		// gantt: 全角カンマ
-		res = res.replace(/，/g, ', ');
+		// 4. ノードラベル本文を保護した上で、構文位置のコロン・カンマを置換
+		res = withProtectedNodeLabels(res, (nodeProtected) => {
+			let s = nodeProtected;
+
+			// 構文位置の全角コロン（ラベル本文は上記で保護済み）
+			s = s.replace(/(>>|-->>|->|-->|--|==|--x|-x)：/g, '$1: ');
+			s = s.replace(/(\S)\s*：\s*/g, '$1: ');
+
+			// gantt: 全角カンマ
+			s = s.replace(/，/g, ', ');
+
+			return s;
+		});
 
 		return res;
 	});
@@ -255,8 +288,14 @@ export function safeQuoteNodeLabels(line: string): string {
 	return res;
 }
 
+interface BlockScope {
+	type: 'subgraph' | 'brace' | 'sequence_block';
+	indent: string;
+}
+
 /**
- * 未完了ブロック（subgraphのend閉じ忘れ、class/stateの{}閉じ忘れ）を補完する
+ * 未完了ブロック（subgraphのend閉じ忘れ、class/stateの{}閉じ忘れ）を
+ * ネストスタックに基づいて堅牢に追跡・補完する
  */
 export function autoCloseBlocks(lines: string[]): {
 	lines: string[];
@@ -264,48 +303,74 @@ export function autoCloseBlocks(lines: string[]): {
 } {
 	const result = [...lines];
 	const added: string[] = [];
-
-	let subgraphCount = 0;
-	let endCount = 0;
-	let braceOpenCount = 0;
-	let braceCloseCount = 0;
+	const stack: BlockScope[] = [];
 
 	for (const rawLine of result) {
 		const line = rawLine.trim();
 		// コメント行 %% はスキップ
 		if (line.startsWith('%%')) continue;
 
+		const indentMatch = rawLine.match(/^(\s*)/);
+		const indent = indentMatch ? indentMatch[1] : '';
+
+		// 1. subgraph 開始
 		if (/^subgraph\b/.test(line)) {
-			subgraphCount++;
-		} else if (line === 'end') {
-			endCount++;
+			stack.push({ type: 'subgraph', indent });
+			continue;
 		}
 
-		// ブロック開始のみ（行末が { で終わり、インラインで閉じられていない）
+		// 2. sequenceDiagram のブロック構文 (opt, alt, loop, rect, par, critical, break)
+		if (/^(?:opt|alt|loop|rect|par|critical|break)\b/.test(line)) {
+			stack.push({ type: 'sequence_block', indent });
+			continue;
+		}
+
+		// 3. 中括弧ブロック開始 (class ... { / state ... {) ※同一行で閉じていないもの
 		if (/^(?:class|state)\b.*\{$/.test(line)) {
-			braceOpenCount++;
+			stack.push({ type: 'brace', indent });
+			continue;
 		}
-		// ブロック閉じ
+
+		// 4. end 終了行
+		if (line === 'end') {
+			// スタックを末尾から探索し、直近の subgraph または sequence_block を pop
+			for (let i = stack.length - 1; i >= 0; i--) {
+				if (
+					stack[i].type === 'subgraph' ||
+					stack[i].type === 'sequence_block'
+				) {
+					stack.splice(i, 1);
+					break;
+				}
+			}
+			continue;
+		}
+
+		// 5. } 終了行
 		if (line === '}') {
-			braceCloseCount++;
+			// スタックを末尾から探索し、直近の brace を pop
+			for (let i = stack.length - 1; i >= 0; i--) {
+				if (stack[i].type === 'brace') {
+					stack.splice(i, 1);
+					break;
+				}
+			}
 		}
 	}
 
-	// subgraph end補完
-	if (subgraphCount > endCount) {
-		const missing = subgraphCount - endCount;
-		for (let i = 0; i < missing; i++) {
-			result.push('    end');
-			added.push('末尾に閉じタグ `end` を補完しました');
-		}
-	}
+	// スタックに残っている未終了ブロックを後ろから補完
+	while (stack.length > 0) {
+		const unclosed = stack.pop();
+		if (!unclosed) break;
 
-	// 中括弧 } 補完
-	if (braceOpenCount > braceCloseCount) {
-		const missing = braceOpenCount - braceCloseCount;
-		for (let i = 0; i < missing; i++) {
-			result.push('}');
-			added.push('末尾に閉じ括弧 `}` を補完しました');
+		if (unclosed.type === 'subgraph' || unclosed.type === 'sequence_block') {
+			const indent = unclosed.indent || '    ';
+			result.push(`${indent}end`);
+			added.push(`末尾に閉じタグ \`end\` を補完しました`);
+		} else if (unclosed.type === 'brace') {
+			const indent = unclosed.indent || '';
+			result.push(`${indent}}`);
+			added.push(`末尾に閉じ括弧 \`}\` を補完しました`);
 		}
 	}
 
