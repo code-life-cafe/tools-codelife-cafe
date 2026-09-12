@@ -98,17 +98,19 @@ const cfBeaconToken = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
     <slot />
   </main>
   <Footer />
-  <script is:inline>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', async () => {
-        try {
-          await navigator.serviceWorker.register('/sw.js');
-        } catch (err) {
-          console.error('SW registration failed:', err);
-        }
-      });
-    }
-  </script>
+  {!import.meta.env.DEV && (
+    <script is:inline>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', async () => {
+          try {
+            await navigator.serviceWorker.register('/sw.js');
+          } catch (err) {
+            console.error('SW registration failed:', err);
+          }
+        });
+      }
+    </script>
+  )}
   {cfBeaconToken && !disableAnalytics && (
     <script
       is:inline
