@@ -1,0 +1,296 @@
+[
+	{
+		"id": "case-01",
+		"title": "Markdownコードフェンスの混入",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "```mermaid\nflowchart TD\n    A[開始] --> B[終了]\n```",
+		"expectedError": "No diagram type detected / Unrecognized text ```mermaid",
+		"labelIntegrity": ["開始", "終了"]
+	},
+	{
+		"id": "case-02",
+		"title": "AIの前後会話文・説明テキストの混入",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "以下がご要望のフローチャートになります。\n\nflowchart TD\n    A[申請] --> B[承認]\n\nご確認よろしくお願いいたします。",
+		"expectedError": "Lexical error: Unrecognized text '以下がご要望のフローチャートになります。'",
+		"labelIntegrity": ["申請", "承認"]
+	},
+	{
+		"id": "case-03",
+		"title": "全角角括弧（全角ブラケット）によるノード定義",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A［申請入力］ --> B［課長承認］",
+		"expectedError": "Lexical error: Unrecognized text ［",
+		"labelIntegrity": ["申請入力", "課長承認"]
+	},
+	{
+		"id": "case-04",
+		"title": "全角丸括弧による丸角ノード定義",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A（会員登録） --> B（完了画面）",
+		"expectedError": "Lexical error: Unrecognized text （",
+		"labelIntegrity": ["会員登録", "完了画面"]
+	},
+	{
+		"id": "case-05",
+		"title": "全角波括弧によるひし形（分岐）ノード定義",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A{年齢確認} -->|18歳以上| B[購入手続き]\n    A -->|18歳未満| C｛利用制限｝",
+		"expectedError": "Lexical error: Unrecognized text ｛",
+		"labelIntegrity": [
+			"年齢確認",
+			"18歳以上",
+			"購入手続き",
+			"18歳未満",
+			"利用制限"
+		]
+	},
+	{
+		"id": "case-06",
+		"title": "全角矢印（長音・全角不等号）",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[カート追加] ーー＞ B[レジへ進む]",
+		"expectedError": "Lexical error: Unrecognized text ーー＞",
+		"labelIntegrity": ["カート追加", "レジへ進む"]
+	},
+	{
+		"id": "case-07",
+		"title": "Unicode矢印記号の混入",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[検索実行] → B[結果一覧]",
+		"expectedError": "Lexical error: Unrecognized text →",
+		"labelIntegrity": ["検索実行", "結果一覧"]
+	},
+	{
+		"id": "case-08",
+		"title": "スマート二重引用符（Smart Quotes）の混入",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[“ユーザー情報入力”] --> B[“確認画面”]",
+		"expectedError": "Lexical error: Unrecognized text “",
+		"labelIntegrity": ["ユーザー情報入力", "確認画面"]
+	},
+	{
+		"id": "case-09",
+		"title": "スマート単一引用符（Smart Single Quotes）の混入",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[‘初期設定’] --> B[‘完了’]",
+		"expectedError": "Lexical error: Unrecognized text ‘",
+		"labelIntegrity": ["初期設定", "完了"]
+	},
+	{
+		"id": "case-10",
+		"title": "シーケンス図でのスマートクォート",
+		"category": "AI不正構文",
+		"diagramType": "sequenceDiagram",
+		"input": "sequenceDiagram\n    actor “ユーザー”\n    “ユーザー”->>サーバー: リクエスト",
+		"expectedError": "Lexical error: Unrecognized text “",
+		"labelIntegrity": ["ユーザー", "リクエスト"]
+	},
+	{
+		"id": "case-11",
+		"title": "シーケンス図での全角コロン",
+		"category": "全角記号",
+		"diagramType": "sequenceDiagram",
+		"input": "sequenceDiagram\n    Client->>Server：ログイン要求\n    Server-->>Client：トークン返却",
+		"expectedError": "Lexical error: Unrecognized text ：",
+		"labelIntegrity": ["ログイン要求", "トークン返却"]
+	},
+	{
+		"id": "case-12",
+		"title": "シーケンス図での全角矢印",
+		"category": "全角記号",
+		"diagramType": "sequenceDiagram",
+		"input": "sequenceDiagram\n    Client ーー>> Server: 問い合わせ",
+		"expectedError": "Lexical error: Unrecognized text ーー>>",
+		"labelIntegrity": ["問い合わせ"]
+	},
+	{
+		"id": "case-13",
+		"title": "ノードラベル内の未クォート丸括弧（構文衝突）",
+		"category": "Parser",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[ユーザー(契約者)] --> B[申込処理]",
+		"expectedError": "Parse error: Expecting 'SQE', got 'PS'",
+		"labelIntegrity": ["ユーザー(契約者)", "申込処理"]
+	},
+	{
+		"id": "case-14",
+		"title": "ノードラベル内の未クォート角括弧（構文衝突）",
+		"category": "Parser",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[プラン[プレミアム]] --> B[決済]",
+		"expectedError": "Parse error: Expecting 'SQE', got 'SQS'",
+		"labelIntegrity": ["プラン[プレミアム]", "決済"]
+	},
+	{
+		"id": "case-15",
+		"title": "ノードラベル内の未クォートセミコロン・スラッシュ",
+		"category": "Parser",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[処理A; 初期化] --> B[登録/更新]",
+		"expectedError": "Parse error: Expecting 'SQE'",
+		"labelIntegrity": ["処理A; 初期化", "登録/更新"]
+	},
+	{
+		"id": "case-16",
+		"title": "subgraph の end 閉じ忘れ（AI出力中断）",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    subgraph 注文処理グループ\n        A[カート] --> B[購入]\n",
+		"expectedError": "Parse error: Expecting 'end', got 'EOF'",
+		"labelIntegrity": ["注文処理グループ", "カート", "購入"]
+	},
+	{
+		"id": "case-17",
+		"title": "classDiagram の中括弧閉じ忘れ",
+		"category": "AI不正構文",
+		"diagramType": "classDiagram",
+		"input": "classDiagram\n    class 会員アカウント {\n        +String 名前\n        +String メール\n",
+		"expectedError": "Parse error: Expecting '}', got 'EOF'",
+		"labelIntegrity": ["会員アカウント", "名前", "メール"]
+	},
+	{
+		"id": "case-18",
+		"title": "クラス図での全角コロン・全角括弧",
+		"category": "全角記号",
+		"diagramType": "classDiagram",
+		"input": "classDiagram\n    ユーザー ： ログイン（）",
+		"expectedError": "Lexical error: Unrecognized text ：",
+		"labelIntegrity": ["ユーザー", "ログイン（）"]
+	},
+	{
+		"id": "case-19",
+		"title": "クラス図の未クォート日本語属性・メソッド引数",
+		"category": "Parser",
+		"diagramType": "classDiagram",
+		"input": "classDiagram\n    class 注文 {\n        +int 金額(税込)\n        +決済する(カード種別)\n    }",
+		"expectedError": "Parse error: Expecting 'STRUCT_STOP'",
+		"labelIntegrity": ["注文", "金額(税込)", "決済する(カード種別)"]
+	},
+	{
+		"id": "case-20",
+		"title": "ステート図での全角矢印・全角コロン",
+		"category": "全角記号",
+		"diagramType": "stateDiagram-v2",
+		"input": "stateDiagram-v2\n    [*] ーー＞ 審査中 ： 書類受領\n    審査中 --> 承認 ： 合格",
+		"expectedError": "Lexical error: Unrecognized text ーー＞",
+		"labelIntegrity": ["審査中", "書類受領", "承認", "合格"]
+	},
+	{
+		"id": "case-21",
+		"title": "ステート図の state ブロック閉じ忘れ",
+		"category": "AI不正構文",
+		"diagramType": "stateDiagram-v2",
+		"input": "stateDiagram-v2\n    state 処理中 {\n        ステップ1 --> ステップ2\n",
+		"expectedError": "Parse error: Expecting '}', got 'EOF'",
+		"labelIntegrity": ["処理中", "ステップ1", "ステップ2"]
+	},
+	{
+		"id": "case-22",
+		"title": "ER図での全角コロン・全角記号",
+		"category": "全角記号",
+		"diagramType": "erDiagram",
+		"input": "erDiagram\n    ユーザー ||--o{ 注文 ： \"購入する\"",
+		"expectedError": "Lexical error: Unrecognized text ：",
+		"labelIntegrity": ["ユーザー", "注文", "購入する"]
+	},
+	{
+		"id": "case-23",
+		"title": "ER図のリレーション名未クォート日本語",
+		"category": "Parser",
+		"diagramType": "erDiagram",
+		"input": "erDiagram\n    USER ||--o{ ORDER : 注文を作成する",
+		"expectedError": "Parse error: Expecting 'WORD', got '注文を作成する'",
+		"labelIntegrity": ["USER", "ORDER", "注文を作成する"]
+	},
+	{
+		"id": "case-24",
+		"title": "ガントチャートでの全角コロン・全角カンマ",
+		"category": "全角記号",
+		"diagramType": "gantt",
+		"input": "gantt\n    title 開発プロジェクト\n    dateFormat YYYY-MM-DD\n    section 企画フェーズ\n    要件定義 ：done， des1， 2026-01-01， 2026-01-15",
+		"expectedError": "Lexical error: Unrecognized text ：",
+		"labelIntegrity": ["開発プロジェクト", "企画フェーズ", "要件定義"]
+	},
+	{
+		"id": "case-25",
+		"title": "ガントチャートの日付行への日本語曜日混入",
+		"category": "AI不正構文",
+		"diagramType": "gantt",
+		"input": "gantt\n    title スケジュール\n    dateFormat YYYY-MM-DD\n    section 開発\n    基本設計 : active, 2026-02-01(日), 10d",
+		"expectedError": "Error: Unable to parse date",
+		"labelIntegrity": ["スケジュール", "開発", "基本設計"]
+	},
+	{
+		"id": "case-26",
+		"title": "ノードID自体に日本語・特殊文字を直接使用",
+		"category": "Parser",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    ユーザー登録(仮) --> マイページ(本会員)",
+		"expectedError": "Parse error: Expecting 'SQE'",
+		"labelIntegrity": ["ユーザー登録(仮)", "マイページ(本会員)"]
+	},
+	{
+		"id": "case-27",
+		"title": "ラベル内の絵文字と全角括弧の混在",
+		"category": "Parser",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[🎉 開始（初期化）] --> B[🚀 完了（成功）]",
+		"expectedError": "Lexical error or Parse error due to unquoted brackets",
+		"labelIntegrity": ["🎉 開始（初期化）", "🚀 完了（成功）"]
+	},
+	{
+		"id": "case-28",
+		"title": "日本語マルチバイトを含むURLエンコード破損",
+		"category": "共有URL",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[日本語テキスト（UTF-8）] --> B[正常表示]",
+		"expectedError": "Malformed URI / Base64 decode failure on non-ASCII characters",
+		"labelIntegrity": ["日本語テキスト（UTF-8）", "正常表示"]
+	},
+	{
+		"id": "case-29",
+		"title": "SVG/PNGエクスポート時の改行コード崩れ",
+		"category": "Export",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n    A[\"1行目\\n2行目日本語\"] --> B[\"完了\"]",
+		"expectedError": "Export renderer drops text after raw newline without <br/> conversion",
+		"labelIntegrity": ["1行目", "2行目日本語", "完了"]
+	},
+	{
+		"id": "case-30",
+		"title": "古い構文（graph TD;）と&構文の混在による構文エラー",
+		"category": "Version差",
+		"diagramType": "flowchart",
+		"input": "graph TD;\n    A[開始] --> B & C[分岐処理];\n    B & C --> D[合流];",
+		"expectedError": "Older parser syntax semicolon mismatch or token error",
+		"labelIntegrity": ["開始", "分岐処理", "合流"]
+	},
+	{
+		"id": "case-31",
+		"title": "全角スペース（U+3000）によるインデントやトークン区切り異常",
+		"category": "全角記号",
+		"diagramType": "flowchart",
+		"input": "flowchart TD\n　　A[開始]　-->　B[終了]",
+		"expectedError": "Lexical error: Unrecognized text \\u3000",
+		"labelIntegrity": ["開始", "終了"]
+	},
+	{
+		"id": "case-32",
+		"title": "AI出力複合エラー（会話文＋フェンス＋スマートクォート＋全角コロン＋全角矢印）",
+		"category": "AI不正構文",
+		"diagramType": "flowchart",
+		"input": "ご依頼の図を作成しました：\n```mermaid\nflowchart TD\n    A[“ユーザー登録”] ーー＞ B[“審査”]：書類確認\n    B --> C[“完了”]\n```\n以上です。",
+		"expectedError": "Lexical error: Unrecognized text ご依頼の図を作成しました：",
+		"labelIntegrity": ["ユーザー登録", "審査", "書類確認", "完了"]
+	}
+]

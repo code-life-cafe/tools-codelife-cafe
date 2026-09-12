@@ -56,6 +56,7 @@
 		"libheif-js": "1.19.8",
 		"lucide-react": "^1.40.0",
 		"marked": "18.0.11",
+		"mermaid": "^11.17.2",
 		"onnxruntime-web": "1.27.0",
 		"papaparse": "^5.5.4",
 		"pdf-lib": "1.17.1",
@@ -63,7 +64,7 @@
 		"radix-ui": "^1.6.4",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
-		"smol-toml": "^1.7.0",
+		"smol-toml": "^1.8.0",
 		"sql-formatter": "^15.8.2",
 		"tailwind-merge": "^3.6.0",
 		"tailwindcss": "^4.2.4",
@@ -83,13 +84,19 @@
 		"@types/papaparse": "^5.5.2",
 		"satori": "^0.33.4",
 		"schema-dts": "^2.0.0",
-		"sharp": "^0.35.3"
+		"sharp": "^0.35.4"
 	},
 	"overrides": {
 		"esbuild": "^0.28.1",
 		"yaml": "^2.9.0",
-		"adm-zip": "^0.6.0",
-		"sharp": "^0.35.3",
-		"postcss": "^8.5.23"
+		"adm-zip": "^0.6.1",
+		"sharp": "^0.35.4",
+		"postcss": "^8.5.23",
+		"smol-toml": "^1.8.0",
+		"svgo": "^4.1.0",
+		"lodash-es": "^4.18.1",
+		"astro": {
+			"js-yaml": "^4.3.2"
+		}
 	}
 }

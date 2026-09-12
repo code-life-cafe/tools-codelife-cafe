@@ -1196,6 +1196,34 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 				'プリセット3種（4:6メソッド／Hoffmann 1-Cup／ベーシック3投）またはマイレシピ',
 		},
 	},
+	{
+		id: 'mermaid',
+		title: 'Mermaidプレビュー・修復',
+		description:
+			'Mermaid図のリアルタイムプレビュー＆エラー自動修復。全角記号やAI出力の構文エラーを補正し、SVG/PNG保存。',
+		href: '/mermaid',
+		icon: 'Network',
+		categories: ['開発ツール', 'テキスト変換'],
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'Mermaid',
+			'マーメイド',
+			'フローチャート',
+			'シーケンス図',
+			'ER図',
+			'クラス図',
+			'プレビュー',
+			'構文エラー修復',
+		],
+		related: ['json-formatter', 'text-diff'],
+		llmsFull: {
+			useCase:
+				'ChatGPTやClaude等が生成したMermaidコードのエラー（全角記号・Markdownフェンス・未クォート記号）を自動修復し、ブラウザ上でリアルタイムプレビューおよびSVG/PNG画像として出力',
+			inputs: 'mermaidCode（MermaidダイアグラムコードまたはAI生成テキスト）',
+			outputs: 'プレビューSVG、修復後コード、修復ログ一覧、SVG/PNGダウンロード',
+			options: '自動修復トグル、テーマ選択（標準/モノクロ/ダーク/フォレスト）',
+		},
+	},
 ];
 
 export const purposeCategories = [
