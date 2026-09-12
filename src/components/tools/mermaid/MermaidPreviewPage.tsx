@@ -6,6 +6,8 @@ import {
 	Download,
 	Eye,
 	FileCode,
+	Maximize2,
+	Minimize2,
 	RotateCcw,
 	Share2,
 	Sparkles,
@@ -54,11 +56,14 @@ const DEBOUNCE_MS = 250;
 interface MermaidSettings extends Record<string, unknown> {
 	autoRepair: boolean;
 	theme: 'default' | 'neutral' | 'dark' | 'forest';
+	isExpanded: boolean;
 }
 
 const DEFAULT_SETTINGS: MermaidSettings = {
 	autoRepair: true,
 	theme: 'default',
+	// プレビューの視認性を優先し、フルサイズ表示をデフォルトにする
+	isExpanded: true,
 };
 
 export function MermaidPreviewPage() {
@@ -183,6 +188,42 @@ export function MermaidPreviewPage() {
 		}
 	};
 
+	// フルサイズモード切替時にツールレイアウトの最大幅を調整する
+	const applyLayoutWidth = useCallback((expanded: boolean) => {
+		const container = document.getElementById('tool-layout-container');
+		if (!container) return;
+		if (expanded) {
+			container.classList.remove('max-w-[800px]', 'xl:max-w-5xl');
+			container.classList.add('max-w-full');
+		} else {
+			container.classList.remove('max-w-full');
+			container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+		}
+	}, []);
+
+	const toggleExpand = () => {
+		updateSettings({ isExpanded: !settings.isExpanded });
+	};
+
+	useEffect(() => {
+		applyLayoutWidth(settings.isExpanded);
+	}, [settings.isExpanded, applyLayoutWidth]);
+
+	useEffect(() => {
+		return () => {
+			const container = document.getElementById('tool-layout-container');
+			if (container) {
+				container.classList.remove('max-w-full');
+				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+			}
+		};
+	}, []);
+
+	// プレビューの背景色はページのダーク/ライトモードではなく、選択中の Mermaid テーマに合わせる。
+	// テーマが淡色系（標準・モノクロ・フォレスト）の場合にページがダークモードだと
+	// 図形の背景と枠線コントラストが崩れて視認性が落ちるため、常に明るいキャンバスに固定する。
+	const isDarkDiagramTheme = settings.theme === 'dark';
+
 	return (
 		<div className="flex flex-col gap-4">
 			{/* コントロールバー */}
@@ -301,6 +342,20 @@ export function MermaidPreviewPage() {
 						<Download className="size-3.5" />
 						PNG保存
 					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={toggleExpand}
+						className="h-8 gap-1 text-xs"
+						title={settings.isExpanded ? '標準サイズに戻す' : '画面幅を広げる'}
+					>
+						{settings.isExpanded ? (
+							<Minimize2 className="size-3.5" />
+						) : (
+							<Maximize2 className="size-3.5" />
+						)}
+						{settings.isExpanded ? '標準幅' : 'フルサイズ'}
+					</Button>
 				</div>
 			</div>
 
@@ -381,8 +436,8 @@ export function MermaidPreviewPage() {
 				</Tabs>
 			</div>
 
-			{/* メイングリッド */}
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+			{/* メイングリッド（プレビューを広く取り、エディタより比率を大きくする） */}
+			<div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-[2fr_3fr]">
 				{/* エディタ列 */}
 				<div
 					className={cn(
@@ -413,7 +468,7 @@ export function MermaidPreviewPage() {
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						placeholder="Mermaidコード、またはChatGPTなどの出力コードをそのまま貼り付けてください..."
-						className="min-h-[420px] flex-1 resize-y font-mono text-xs leading-relaxed"
+						className="h-[65dvh] min-h-[420px] flex-1 resize-y font-mono text-xs leading-relaxed"
 						spellCheck={false}
 					/>
 					<div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -477,10 +532,17 @@ export function MermaidPreviewPage() {
 						</div>
 					</div>
 
-					{/* プレビュー表示エリア */}
+					{/* プレビュー表示エリア
+					    サイトのダーク/ライトモードに関わらず、選択中の Mermaid テーマに合わせた
+					    キャンバス背景を固定表示する。標準・モノクロ・フォレストテーマは図形が
+					    明るい配色で描画されるため、ページがダークモードでもキャンバスは白背景に
+					    固定し、コントラスト崩れによる視認性低下を防ぐ。 */}
 					<div
 						ref={previewContainerRef}
-						className="relative flex min-h-[420px] flex-1 items-center justify-center overflow-auto rounded-md border bg-white p-4 dark:bg-neutral-950"
+						className={cn(
+							'relative flex h-[65dvh] min-h-[420px] flex-1 items-center justify-center overflow-auto rounded-md border p-4',
+							isDarkDiagramTheme ? 'bg-neutral-900' : 'bg-white',
+						)}
 					>
 						{renderError ? (
 							<div className="flex max-w-md flex-col items-center gap-2 text-center p-4">
@@ -488,7 +550,14 @@ export function MermaidPreviewPage() {
 								<p className="text-xs font-semibold text-destructive">
 									Mermaid構文エラー
 								</p>
-								<p className="font-mono text-[11px] text-muted-foreground whitespace-pre-wrap break-all bg-muted p-2 rounded max-h-40 overflow-auto">
+								<p
+									className={cn(
+										'font-mono text-[11px] whitespace-pre-wrap break-all p-2 rounded max-h-40 overflow-auto',
+										isDarkDiagramTheme
+											? 'bg-neutral-800 text-neutral-300'
+											: 'bg-neutral-100 text-neutral-600',
+									)}
+								>
 									{renderError}
 								</p>
 								{!settings.autoRepair && (
@@ -514,7 +583,12 @@ export function MermaidPreviewPage() {
 								dangerouslySetInnerHTML={{ __html: svgHtml }}
 							/>
 						) : (
-							<div className="text-center text-xs text-muted-foreground">
+							<div
+								className={cn(
+									'text-center text-xs',
+									isDarkDiagramTheme ? 'text-neutral-400' : 'text-neutral-500',
+								)}
+							>
 								Mermaidコードを入力するとプレビューが表示されます
 							</div>
 						)}
