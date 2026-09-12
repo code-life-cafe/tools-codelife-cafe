@@ -56,6 +56,7 @@
 		"libheif-js": "1.19.8",
 		"lucide-react": "^1.40.0",
 		"marked": "18.0.11",
+		"mermaid": "^12.0.0",
 		"onnxruntime-web": "1.27.0",
 		"papaparse": "^5.5.4",
 		"pdf-lib": "1.17.1",
