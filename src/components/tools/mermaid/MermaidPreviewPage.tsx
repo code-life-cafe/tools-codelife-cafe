@@ -74,6 +74,42 @@ const DEFAULT_SETTINGS: MermaidSettings = {
 	isExpanded: true,
 };
 
+const VALID_THEMES = ['mono', 'default', 'dark', 'forest'] as const;
+
+/**
+ * 復元時の設定検証。旧バージョンで保存された「neutral」テーマは、
+ * 選択肢から無くなり Select が空表示になってしまうため「mono」へ移行する。
+ */
+function validateMermaidSettings(
+	value: unknown,
+	defaults: MermaidSettings,
+): MermaidSettings {
+	const result: MermaidSettings = { ...defaults };
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		return result;
+	}
+
+	const raw = value as Record<string, unknown>;
+	if (typeof raw.autoRepair === 'boolean') {
+		result.autoRepair = raw.autoRepair;
+	}
+	if (typeof raw.isExpanded === 'boolean') {
+		result.isExpanded = raw.isExpanded;
+	}
+
+	const rawTheme = raw.theme;
+	if (rawTheme === 'neutral') {
+		result.theme = 'mono';
+	} else if (
+		typeof rawTheme === 'string' &&
+		(VALID_THEMES as readonly string[]).includes(rawTheme)
+	) {
+		result.theme = rawTheme as MermaidSettings['theme'];
+	}
+
+	return result;
+}
+
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(max, Math.max(min, value));
 }
@@ -112,7 +148,11 @@ export function MermaidPreviewPage() {
 	const containerId = useId().replace(/:/g, '_');
 	const { trackRunDebounced, trackSharedUrlOpen } = useToolAnalytics('mermaid');
 	const [settings, updateSettings, generateShareUrl] =
-		useToolSettings<MermaidSettings>('mermaid', DEFAULT_SETTINGS);
+		useToolSettings<MermaidSettings>(
+			'mermaid',
+			DEFAULT_SETTINGS,
+			validateMermaidSettings,
+		);
 	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
 	const isCopied = shareState === 'copied';
 
