@@ -4,12 +4,14 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Download,
+	Expand,
 	Eye,
 	FileCode,
 	Maximize2,
 	Minimize2,
 	RotateCcw,
 	Share2,
+	Shrink,
 	Sparkles,
 	Trash2,
 	Wand2,
@@ -41,6 +43,7 @@ import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	exportSvgToPng,
+	MONO_THEME_VARIABLES,
 	renderMermaidSvg,
 	SAMPLE_MERMAID_CODES,
 } from '@/lib/tools/mermaid';
@@ -52,19 +55,58 @@ import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { cn } from '@/lib/utils';
 
 const DEBOUNCE_MS = 250;
+const MIN_ZOOM = 0.2;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.2;
+const WHEEL_ZOOM_FACTOR = 0.1;
 
 interface MermaidSettings extends Record<string, unknown> {
 	autoRepair: boolean;
-	theme: 'default' | 'neutral' | 'dark' | 'forest';
+	theme: 'mono' | 'default' | 'dark' | 'forest';
 	isExpanded: boolean;
 }
 
 const DEFAULT_SETTINGS: MermaidSettings = {
 	autoRepair: true,
-	theme: 'default',
+	// デフォルトはモノクロ配色とし、サイトのライト/ダークモードに追従させる
+	theme: 'mono',
 	// プレビューの視認性を優先し、フルサイズ表示をデフォルトにする
 	isExpanded: true,
 };
+
+function clamp(value: number, min: number, max: number): number {
+	return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * サイトのライト/ダークモード（html要素の`dark`クラス）を検知するフック
+ */
+function useSiteDarkMode(): boolean {
+	const [isDark, setIsDark] = useState<boolean>(false);
+
+	useEffect(() => {
+		const update = () => {
+			setIsDark(document.documentElement.classList.contains('dark'));
+		};
+		update();
+
+		const observer = new MutationObserver((mutations) => {
+			for (const mutation of mutations) {
+				if (mutation.attributeName === 'class') {
+					update();
+				}
+			}
+		});
+		observer.observe(document.documentElement, {
+			attributes: true,
+			attributeFilter: ['class'],
+		});
+
+		return () => observer.disconnect();
+	}, []);
+
+	return isDark;
+}
 
 export function MermaidPreviewPage() {
 	const containerId = useId().replace(/:/g, '_');
@@ -80,11 +122,28 @@ export function MermaidPreviewPage() {
 	const [svgHtml, setSvgHtml] = useState<string>('');
 	const [renderError, setRenderError] = useState<string | null>(null);
 	const [zoom, setZoom] = useState<number>(1);
+	const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+	const [isPanning, setIsPanning] = useState<boolean>(false);
+	const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 	const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
 	const [showChangesDetail, setShowChangesDetail] = useState<boolean>(false);
 	const [isRendering, setIsRendering] = useState<boolean>(false);
 
 	const previewContainerRef = useRef<HTMLDivElement>(null);
+	const previewColumnRef = useRef<HTMLDivElement>(null);
+	const panStartRef = useRef<{
+		x: number;
+		y: number;
+		panX: number;
+		panY: number;
+	}>({
+		x: 0,
+		y: 0,
+		panX: 0,
+		panY: 0,
+	});
+
+	const isSiteDark = useSiteDarkMode();
 
 	// URLクエリパラメータから設定共有URLが開かれたかを検知して追跡
 	useEffect(() => {
@@ -111,6 +170,15 @@ export function MermaidPreviewPage() {
 
 	const effectiveCode = repairResult.repairedCode;
 
+	// モノクロテーマはサイトのライト/ダークモードに追従させるため 'base' テーマへ切り替える
+	const mermaidTheme = settings.theme === 'mono' ? 'base' : settings.theme;
+	const mermaidThemeVariables =
+		settings.theme === 'mono'
+			? isSiteDark
+				? MONO_THEME_VARIABLES.dark
+				: MONO_THEME_VARIABLES.light
+			: undefined;
+
 	// レンダリング実行
 	useEffect(() => {
 		if (!effectiveCode.trim()) {
@@ -127,7 +195,8 @@ export function MermaidPreviewPage() {
 				const result = await renderMermaidSvg(
 					effectiveCode,
 					containerId,
-					settings.theme,
+					mermaidTheme,
+					mermaidThemeVariables,
 				);
 				if (cancelled) return;
 				setSvgHtml(result.svg);
@@ -149,7 +218,13 @@ export function MermaidPreviewPage() {
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [effectiveCode, containerId, settings.theme, trackRunDebounced]);
+	}, [
+		effectiveCode,
+		containerId,
+		mermaidTheme,
+		mermaidThemeVariables,
+		trackRunDebounced,
+	]);
 
 	// SVGエクスポート
 	const handleDownloadSvg = useCallback(() => {
@@ -178,6 +253,7 @@ export function MermaidPreviewPage() {
 		if (sample) {
 			setInput(sample.code);
 			setZoom(1);
+			setPan({ x: 0, y: 0 });
 		}
 	};
 
@@ -187,6 +263,85 @@ export function MermaidPreviewPage() {
 			setInput(repairResult.repairedCode);
 		}
 	};
+
+	// 倍率・位置のリセット
+	const handleResetView = useCallback(() => {
+		setZoom(1);
+		setPan({ x: 0, y: 0 });
+	}, []);
+
+	// マウスドラッグによるプレビューの移動（MermaidLiveEditor同様のパン操作）
+	const handlePreviewMouseDown = useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			if (!svgHtml || e.button !== 0) return;
+			e.preventDefault();
+			setIsPanning(true);
+			panStartRef.current = {
+				x: e.clientX,
+				y: e.clientY,
+				panX: pan.x,
+				panY: pan.y,
+			};
+		},
+		[svgHtml, pan],
+	);
+
+	const handlePreviewMouseMove = useCallback(
+		(e: React.MouseEvent<HTMLDivElement>) => {
+			if (!isPanning) return;
+			const dx = e.clientX - panStartRef.current.x;
+			const dy = e.clientY - panStartRef.current.y;
+			setPan({
+				x: panStartRef.current.panX + dx,
+				y: panStartRef.current.panY + dy,
+			});
+		},
+		[isPanning],
+	);
+
+	const handlePreviewMouseUp = useCallback(() => {
+		setIsPanning(false);
+	}, []);
+
+	// マウスホイールによる拡大縮小（ページスクロールを防ぐためネイティブリスナーで登録）
+	useEffect(() => {
+		const container = previewContainerRef.current;
+		if (!container) return;
+
+		const handleWheel = (e: WheelEvent) => {
+			if (!svgHtml) return;
+			e.preventDefault();
+			const factor =
+				e.deltaY < 0 ? 1 + WHEEL_ZOOM_FACTOR : 1 - WHEEL_ZOOM_FACTOR;
+			setZoom((prev) => clamp(prev * factor, MIN_ZOOM, MAX_ZOOM));
+		};
+
+		container.addEventListener('wheel', handleWheel, { passive: false });
+		return () => container.removeEventListener('wheel', handleWheel);
+	}, [svgHtml]);
+
+	// フルスクリーン状態の同期
+	useEffect(() => {
+		const handleFullscreenChange = () => {
+			setIsFullscreen(document.fullscreenElement === previewColumnRef.current);
+		};
+		document.addEventListener('fullscreenchange', handleFullscreenChange);
+		return () =>
+			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+	}, []);
+
+	const toggleFullscreen = useCallback(async () => {
+		if (!previewColumnRef.current) return;
+		try {
+			if (document.fullscreenElement) {
+				await document.exitFullscreen();
+			} else {
+				await previewColumnRef.current.requestFullscreen();
+			}
+		} catch {
+			// フルスクリーンAPI非対応環境では何もしない
+		}
+	}, []);
 
 	// フルサイズモード切替時にツールレイアウトの最大幅を調整する
 	const applyLayoutWidth = useCallback((expanded: boolean) => {
@@ -219,10 +374,12 @@ export function MermaidPreviewPage() {
 		};
 	}, []);
 
-	// プレビューの背景色はページのダーク/ライトモードではなく、選択中の Mermaid テーマに合わせる。
-	// テーマが淡色系（標準・モノクロ・フォレスト）の場合にページがダークモードだと
-	// 図形の背景と枠線コントラストが崩れて視認性が落ちるため、常に明るいキャンバスに固定する。
-	const isDarkDiagramTheme = settings.theme === 'dark';
+	// プレビューの背景色は選択中の Mermaid テーマに合わせる。
+	// モノクロテーマはサイトのライト/ダークモードに追従し、それ以外の色付きテーマ
+	// （標準・フォレスト）は淡色配色のため、ページがダークモードでもコントラスト崩れを
+	// 防ぐために常に明るいキャンバスに固定する。「ダーク」テーマ選択時は常に暗いキャンバスにする。
+	const isDarkDiagramTheme =
+		settings.theme === 'dark' || (settings.theme === 'mono' && isSiteDark);
 
 	return (
 		<div className="flex flex-col gap-4">
@@ -257,19 +414,19 @@ export function MermaidPreviewPage() {
 							value={settings.theme}
 							onValueChange={(val) =>
 								updateSettings({
-									theme: val as 'default' | 'neutral' | 'dark' | 'forest',
+									theme: val as 'mono' | 'default' | 'dark' | 'forest',
 								})
 							}
 						>
-							<SelectTrigger className="h-8 w-28 text-xs">
+							<SelectTrigger className="h-8 w-32 text-xs">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
+								<SelectItem value="mono" className="text-xs">
+									モノクロ（自動）
+								</SelectItem>
 								<SelectItem value="default" className="text-xs">
 									標準
-								</SelectItem>
-								<SelectItem value="neutral" className="text-xs">
-									モノクロ
 								</SelectItem>
 								<SelectItem value="dark" className="text-xs">
 									ダーク
@@ -479,9 +636,11 @@ export function MermaidPreviewPage() {
 
 				{/* プレビュー列 */}
 				<div
+					ref={previewColumnRef}
 					className={cn(
 						'flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs',
 						mobileTab === 'editor' && 'hidden md:flex',
+						isFullscreen && 'h-screen w-screen',
 					)}
 				>
 					<div className="flex items-center justify-between">
@@ -494,13 +653,15 @@ export function MermaidPreviewPage() {
 								</span>
 							)}
 						</div>
-						{/* ズームコントローラー */}
+						{/* ズーム・パン・フルスクリーンコントローラー */}
 						<div className="flex items-center gap-1">
 							<Button
 								variant="ghost"
 								size="sm"
 								className="h-7 px-1.5 text-xs"
-								onClick={() => setZoom((prev) => Math.max(0.4, prev - 0.2))}
+								onClick={() =>
+									setZoom((prev) => clamp(prev - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+								}
 								title="縮小"
 								disabled={!svgHtml}
 							>
@@ -513,7 +674,9 @@ export function MermaidPreviewPage() {
 								variant="ghost"
 								size="sm"
 								className="h-7 px-1.5 text-xs"
-								onClick={() => setZoom((prev) => Math.min(2.5, prev + 0.2))}
+								onClick={() =>
+									setZoom((prev) => clamp(prev + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+								}
 								title="拡大"
 								disabled={!svgHtml}
 							>
@@ -523,25 +686,47 @@ export function MermaidPreviewPage() {
 								variant="ghost"
 								size="sm"
 								className="h-7 px-1.5 text-xs"
-								onClick={() => setZoom(1)}
-								title="倍率リセット"
+								onClick={handleResetView}
+								title="倍率・位置をリセット"
 								disabled={!svgHtml}
 							>
 								<RotateCcw className="size-3.5" />
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-7 px-1.5 text-xs border-l ml-1 pl-2"
+								onClick={() => void toggleFullscreen()}
+								title={isFullscreen ? '全画面を終了' : 'プレビューを全画面表示'}
+							>
+								{isFullscreen ? (
+									<Shrink className="size-3.5" />
+								) : (
+									<Expand className="size-3.5" />
+								)}
 							</Button>
 						</div>
 					</div>
 
 					{/* プレビュー表示エリア
 					    サイトのダーク/ライトモードに関わらず、選択中の Mermaid テーマに合わせた
-					    キャンバス背景を固定表示する。標準・モノクロ・フォレストテーマは図形が
-					    明るい配色で描画されるため、ページがダークモードでもキャンバスは白背景に
-					    固定し、コントラスト崩れによる視認性低下を防ぐ。 */}
+					    キャンバス背景を固定表示する。モノクロテーマはサイトのライト/ダークモードに
+					    追従し、標準・フォレストテーマは淡色配色のため、ページがダークモードでも
+					    キャンバスは白背景に固定してコントラスト崩れによる視認性低下を防ぐ。
+					    マウスホイールで拡大縮小、ドラッグで移動できる（MermaidLiveEditor同様）。 */}
 					<div
 						ref={previewContainerRef}
+						role="img"
+						aria-label="Mermaidダイアグラムのプレビュー（マウスドラッグで移動、ホイールで拡大縮小できます）"
+						onMouseDown={handlePreviewMouseDown}
+						onMouseMove={handlePreviewMouseMove}
+						onMouseUp={handlePreviewMouseUp}
+						onMouseLeave={handlePreviewMouseUp}
 						className={cn(
-							'relative flex h-[65dvh] min-h-[420px] flex-1 items-center justify-center overflow-auto rounded-md border p-4',
+							'relative flex flex-1 items-center justify-center overflow-hidden rounded-md border p-4 select-none',
+							isFullscreen ? 'h-full min-h-0' : 'h-[65dvh] min-h-[420px]',
 							isDarkDiagramTheme ? 'bg-neutral-900' : 'bg-white',
+							svgHtml && (isPanning ? 'cursor-grabbing' : 'cursor-grab'),
 						)}
 					>
 						{renderError ? (
@@ -575,10 +760,12 @@ export function MermaidPreviewPage() {
 						) : svgHtml ? (
 							<div
 								style={{
-									transform: `scale(${zoom})`,
+									transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
 									transformOrigin: 'center center',
 								}}
-								className="transition-transform duration-100"
+								className={cn(
+									!isPanning && 'transition-transform duration-100',
+								)}
 								// biome-ignore lint/security/noDangerouslySetInnerHtml: mermaid.render で securityLevel: strict により生成されたSVGのみを描画
 								dangerouslySetInnerHTML={{ __html: svgHtml }}
 							/>
