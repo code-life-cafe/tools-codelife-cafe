@@ -56,7 +56,6 @@ import { cn } from '@/lib/utils';
 
 const DEBOUNCE_MS = 250;
 const MIN_ZOOM = 0.2;
-const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.2;
 const WHEEL_ZOOM_FACTOR = 0.1;
 
@@ -108,10 +107,6 @@ function validateMermaidSettings(
 	}
 
 	return result;
-}
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.min(max, Math.max(min, value));
 }
 
 /**
@@ -171,6 +166,8 @@ export function MermaidPreviewPage() {
 
 	const previewContainerRef = useRef<HTMLDivElement>(null);
 	const previewColumnRef = useRef<HTMLDivElement>(null);
+	// 全画面表示に入る直前にフォーカスされていた要素（終了時にフォーカスを戻すため）
+	const fullscreenTriggerRef = useRef<HTMLElement | null>(null);
 	const panStartRef = useRef<{
 		x: number;
 		y: number;
@@ -353,35 +350,86 @@ export function MermaidPreviewPage() {
 			e.preventDefault();
 			const factor =
 				e.deltaY < 0 ? 1 + WHEEL_ZOOM_FACTOR : 1 - WHEEL_ZOOM_FACTOR;
-			setZoom((prev) => clamp(prev * factor, MIN_ZOOM, MAX_ZOOM));
+			// 上限を設けず、下限のみ MIN_ZOOM でクランプする（巨大な図を大きく拡大したい要望に対応）
+			setZoom((prev) => Math.max(MIN_ZOOM, prev * factor));
 		};
 
 		container.addEventListener('wheel', handleWheel, { passive: false });
 		return () => container.removeEventListener('wheel', handleWheel);
 	}, [svgHtml]);
 
-	// フルスクリーン状態の同期
-	useEffect(() => {
-		const handleFullscreenChange = () => {
-			setIsFullscreen(document.fullscreenElement === previewColumnRef.current);
-		};
-		document.addEventListener('fullscreenchange', handleFullscreenChange);
-		return () =>
-			document.removeEventListener('fullscreenchange', handleFullscreenChange);
+	// 全画面表示のトグル（ブラウザのFullscreen APIはiframe埋め込み等の権限ポリシーに
+	// 依存し利用できない環境があるため使わず、CSSオーバーレイ＋stateで疑似全画面を実現する）
+	const toggleFullscreen = useCallback(() => {
+		setIsFullscreen((prev) => !prev);
 	}, []);
 
-	const toggleFullscreen = useCallback(async () => {
-		if (!previewColumnRef.current) return;
-		try {
-			if (document.fullscreenElement) {
-				await document.exitFullscreen();
-			} else {
-				await previewColumnRef.current.requestFullscreen();
+	// 疑似全画面中はEscキーで解除できるようにし、背面のページスクロールをロックする
+	useEffect(() => {
+		if (!isFullscreen) return;
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				setIsFullscreen(false);
 			}
-		} catch {
-			// フルスクリーンAPI非対応環境では何もしない
+		};
+		document.addEventListener('keydown', handleKeyDown);
+
+		const previousOverflow = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+
+		return () => {
+			document.removeEventListener('keydown', handleKeyDown);
+			document.body.style.overflow = previousOverflow;
+		};
+	}, [isFullscreen]);
+
+	// 全画面開始時にダイアログへフォーカスを移し、終了時に元の要素へ戻す（SearchModal同様の挙動）
+	useEffect(() => {
+		if (isFullscreen) {
+			fullscreenTriggerRef.current =
+				document.activeElement as HTMLElement | null;
+			previewColumnRef.current?.focus();
+		} else if (fullscreenTriggerRef.current) {
+			fullscreenTriggerRef.current.focus();
+			fullscreenTriggerRef.current = null;
 		}
-	}, []);
+	}, [isFullscreen]);
+
+	// 全画面中はTabキーでのフォーカス移動をプレビュー列内に閉じ込める（背面要素への意図しない移動を防ぐ）
+	useEffect(() => {
+		if (!isFullscreen) return;
+
+		const handleFocusTrap = (e: KeyboardEvent) => {
+			if (e.key !== 'Tab') return;
+			const container = previewColumnRef.current;
+			if (!container) return;
+
+			const focusable = Array.from(
+				container.querySelectorAll<HTMLElement>(
+					'a[href], button:not([disabled]), input:not([disabled]), [tabindex]',
+				),
+			).filter((el) => el.tabIndex !== -1);
+			if (focusable.length === 0) return;
+
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+			const active = document.activeElement;
+
+			if (e.shiftKey) {
+				if (active === first || !container.contains(active)) {
+					e.preventDefault();
+					last.focus();
+				}
+			} else if (active === last || !container.contains(active)) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+
+		window.addEventListener('keydown', handleFocusTrap);
+		return () => window.removeEventListener('keydown', handleFocusTrap);
+	}, [isFullscreen]);
 
 	// フルサイズモード切替時にツールレイアウトの最大幅を調整する
 	const applyLayoutWidth = useCallback((expanded: boolean) => {
@@ -675,12 +723,23 @@ export function MermaidPreviewPage() {
 				</div>
 
 				{/* プレビュー列 */}
+				{/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: isFullscreen時のみ role="dialog" になりaria-modalが有効になる（roleが条件式のためBiomeが静的に解決できない） */}
 				<div
 					ref={previewColumnRef}
+					tabIndex={-1}
+					role={isFullscreen ? 'dialog' : undefined}
+					aria-modal={isFullscreen ? true : undefined}
+					aria-label={
+						isFullscreen ? 'Mermaidダイアグラムの全画面プレビュー' : undefined
+					}
 					className={cn(
 						'flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs',
-						mobileTab === 'editor' && 'hidden md:flex',
-						isFullscreen && 'h-screen w-screen',
+						// 全画面中はモバイルタブの状態に関わらず常に表示する（画面幅がmd未満に変化しても閉じ込められないようにする）
+						!isFullscreen && mobileTab === 'editor' && 'hidden md:flex',
+						// ブラウザのFullscreen APIではなくCSSオーバーレイでウィンドウ内疑似全画面を実現する。
+						// h-screen等の固定高さは使わず inset-0 のみに任せ、モバイルのアドレスバー増減による
+						// 100vhのはみ出しを避ける
+						isFullscreen && 'fixed inset-0 z-50',
 					)}
 				>
 					<div className="flex items-center justify-between">
@@ -700,14 +759,14 @@ export function MermaidPreviewPage() {
 								size="sm"
 								className="h-7 px-1.5 text-xs"
 								onClick={() =>
-									setZoom((prev) => clamp(prev - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+									setZoom((prev) => Math.max(MIN_ZOOM, prev - ZOOM_STEP))
 								}
 								title="縮小"
 								disabled={!svgHtml}
 							>
 								<ZoomOut className="size-3.5" />
 							</Button>
-							<span className="w-10 text-center font-mono text-[11px]">
+							<span className="min-w-10 text-center font-mono text-[11px]">
 								{Math.round(zoom * 100)}%
 							</span>
 							<Button
@@ -715,7 +774,7 @@ export function MermaidPreviewPage() {
 								size="sm"
 								className="h-7 px-1.5 text-xs"
 								onClick={() =>
-									setZoom((prev) => clamp(prev + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))
+									setZoom((prev) => Math.max(MIN_ZOOM, prev + ZOOM_STEP))
 								}
 								title="拡大"
 								disabled={!svgHtml}
@@ -736,7 +795,7 @@ export function MermaidPreviewPage() {
 								variant="ghost"
 								size="sm"
 								className="h-7 px-1.5 text-xs border-l ml-1 pl-2"
-								onClick={() => void toggleFullscreen()}
+								onClick={toggleFullscreen}
 								title={isFullscreen ? '全画面を終了' : 'プレビューを全画面表示'}
 							>
 								{isFullscreen ? (
