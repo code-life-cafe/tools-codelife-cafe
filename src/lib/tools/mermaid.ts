@@ -75,12 +75,74 @@ export const SAMPLE_MERMAID_CODES: Record<
 };
 
 /**
+ * モノクロテーマ（ライト/ダーク）用の Mermaid テーマ変数。
+ * サイトのライト/ダークモードに追従させるため 'base' テーマへ上書き適用する。
+ */
+export const MONO_THEME_VARIABLES = {
+	light: {
+		background: '#ffffff',
+		primaryColor: '#f5f5f5',
+		primaryTextColor: '#171717',
+		primaryBorderColor: '#262626',
+		lineColor: '#404040',
+		secondaryColor: '#e5e5e5',
+		tertiaryColor: '#d4d4d4',
+		textColor: '#171717',
+		mainBkg: '#f5f5f5',
+		nodeTextColor: '#171717',
+		clusterBkg: '#e5e5e5',
+		clusterBorder: '#737373',
+		edgeLabelBackground: '#ffffff',
+		actorBkg: '#f5f5f5',
+		actorBorder: '#262626',
+		actorTextColor: '#171717',
+		actorLineColor: '#404040',
+		signalColor: '#262626',
+		signalTextColor: '#171717',
+		labelBoxBkgColor: '#f5f5f5',
+		labelBoxBorderColor: '#262626',
+		labelTextColor: '#171717',
+		noteBkgColor: '#e5e5e5',
+		noteBorderColor: '#737373',
+		noteTextColor: '#171717',
+	},
+	dark: {
+		background: '#171717',
+		primaryColor: '#262626',
+		primaryTextColor: '#f5f5f5',
+		primaryBorderColor: '#a3a3a3',
+		lineColor: '#a3a3a3',
+		secondaryColor: '#404040',
+		tertiaryColor: '#525252',
+		textColor: '#f5f5f5',
+		mainBkg: '#262626',
+		nodeTextColor: '#f5f5f5',
+		clusterBkg: '#404040',
+		clusterBorder: '#a3a3a3',
+		edgeLabelBackground: '#171717',
+		actorBkg: '#262626',
+		actorBorder: '#a3a3a3',
+		actorTextColor: '#f5f5f5',
+		actorLineColor: '#a3a3a3',
+		signalColor: '#d4d4d4',
+		signalTextColor: '#f5f5f5',
+		labelBoxBkgColor: '#262626',
+		labelBoxBorderColor: '#a3a3a3',
+		labelTextColor: '#f5f5f5',
+		noteBkgColor: '#404040',
+		noteBorderColor: '#a3a3a3',
+		noteTextColor: '#f5f5f5',
+	},
+} as const;
+
+/**
  * MermaidコードをSVG文字列としてレンダリングする
  */
 export async function renderMermaidSvg(
 	code: string,
 	containerId: string,
-	theme: 'default' | 'neutral' | 'dark' | 'forest' = 'default',
+	theme: 'default' | 'dark' | 'forest' | 'base' = 'default',
+	themeVariables?: Record<string, string>,
 ): Promise<{ svg: string }> {
 	if (code.length > MAX_INPUT_LENGTH) {
 		throw new Error(
@@ -95,6 +157,7 @@ export async function renderMermaidSvg(
 		startOnLoad: false,
 		securityLevel: 'strict',
 		theme,
+		themeVariables,
 		fontFamily:
 			'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
 	});
