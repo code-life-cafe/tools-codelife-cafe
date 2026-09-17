@@ -1,5 +1,6 @@
 ---
 title: "CSVビューア/エディタ（Excel取込・フィルタ・グラフ）"
+displayTitle: "CSVビューア/エディタ"
 description: "CSV・TSV・Excel(.xlsx)をブラウザだけで表示・編集・フィルタ・並べ替え・グラフ化できる無料ツール。Shift-JIS対応、完全クライアントサイド処理でデータは外部送信されません。"
 category: "データ処理"
 summary: "Excelなしで大容量CSV/TSV/Excelファイルをブラウザ上で閲覧・編集。ソート・フィルタ・セル修正・グラフ描画まで安全に行えます。"

@@ -18,6 +18,8 @@ const toolsCollection = defineCollection({
 	loader: glob({ pattern: '**/*.md', base: './src/content/tools' }),
 	schema: z.object({
 		title: z.string(),
+		/** H1・パンくず表示用の簡潔な名称。未指定時は title を使用（title要素・JSON-LDのSoftwareApplication名はSEO用にtitleを維持） */
+		displayTitle: z.string().optional(),
 		description: z.string(),
 		canonical: z.string().optional(),
 		category: z.enum(TOOL_CATEGORIES),

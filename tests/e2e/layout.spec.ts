@@ -73,8 +73,9 @@ test.describe('Layout & Navigation', () => {
 		);
 
 		// 現在ページ（リンクなし、aria-current="page"）
+		// displayTitle により簡潔な名称になり、括弧書きの機能列挙（詰め込み）は含まない
 		const current = nav.locator('[aria-current="page"]');
-		await expect(current).toHaveText(/^CSVビューア\/エディタ/);
+		await expect(current).toHaveText('CSVビューア/エディタ');
 		await expect(
 			nav.getByRole('link', { name: /^CSVビューア\/エディタ/ }),
 		).toHaveCount(0);
@@ -110,10 +111,11 @@ test.describe('Layout & Navigation', () => {
 			name: 'データ処理',
 			item: `https://tools.codelife.cafe/?category=${getCategoryId('データ処理')}`,
 		});
+		// BreadcrumbList の name は表示中のパンくず文言（displayTitle）と一致させる
 		expect(current).toMatchObject({
 			'@type': 'ListItem',
 			position: 3,
-			name: 'CSVビューア/エディタ（Excel取込・フィルタ・グラフ）',
+			name: 'CSVビューア/エディタ',
 			item: 'https://tools.codelife.cafe/csv-editor',
 		});
 	});

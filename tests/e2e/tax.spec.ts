@@ -4,10 +4,35 @@ test.describe('消費税・税込計算ツール', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
+		// <title>要素はSEO用に詳細な名称を維持する
 		await toolPage.expectTitle(
 			'消費税計算（税込・税抜・複数明細・軽減税率対応）',
 		);
 		await toolPage.expectSafetyBadge();
+	});
+
+	test('H1・パンくずが簡潔な名称になっていること（SEOキーワード詰め込み解消）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('tax');
+		await toolPage.goto();
+
+		// H1は機能列挙の括弧書きを含まない簡潔な名称
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'消費税・税込計算',
+		);
+
+		// パンくずの現在ページ表示も同様に簡潔
+		const nav = page.getByRole('navigation', { name: 'パンくずリスト' });
+		await expect(nav.locator('[aria-current="page"]')).toHaveText(
+			'消費税・税込計算',
+		);
+
+		// <title>要素はSEO用に詳細な名称を維持する（H1簡潔化の影響を受けない）
+		await expect(page).toHaveTitle(
+			/消費税計算（税込・税抜・複数明細・軽減税率対応）/,
+		);
 	});
 
 	test('10,000円・10%・税抜→税込で税額1,000円・税込11,000円が表示されること', async ({

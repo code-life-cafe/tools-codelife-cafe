@@ -25,7 +25,10 @@ const {
 	disableAnalytics = false,
 	hideRelatedTools = false,
 } = Astro.props;
-const { title, description, canonical, category, summary, useCases, howto, faq, related, updated } = entry.data;
+const { title, displayTitle, description, canonical, category, summary, useCases, howto, faq, related, updated } =
+	entry.data;
+// H1・パンくず表示は簡潔な displayTitle を優先し、<title>・JSON-LDのSoftwareApplication名はSEO用に title を維持する
+const heroTitle = displayTitle || title;
 
 const toolId = entry.id;
 const catalogTool = toolCatalog.find((t) => t.id === toolId);
@@ -40,6 +43,7 @@ const ogImage = catalogTool ? `/og/${catalogTool.id}.png` : undefined;
 const jsonLdData = generateJsonLd(
 	{
 		title,
+		breadcrumbTitle: heroTitle,
 		path,
 		summary,
 		category,
@@ -71,13 +75,13 @@ const jsonLdData = generateJsonLd(
 				)}
 				<li class="flex items-center gap-1.5">
 					<span aria-hidden="true">›</span>
-					<span aria-current="page" class="text-foreground font-medium">{title}</span>
+					<span aria-current="page" class="text-foreground font-medium">{heroTitle}</span>
 				</li>
 			</ol>
 		</nav>
 
 		<!-- 1. Hero セクション -->
-		<ToolHero title={title} summary={summary} updated={updated} />
+		<ToolHero title={heroTitle} summary={summary} updated={updated} />
 
 		<!-- 4. ツール本体 (React Island 等) -->
 		<section class="my-8 rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs" aria-label="ツール操作エリア">
