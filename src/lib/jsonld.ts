@@ -6,6 +6,8 @@ import type {
 
 export interface ToolMeta {
 	title: string;
+	/** パンくずのListItem名（BreadcrumbList）に使う簡潔な名称。未指定時は title を使用 */
+	breadcrumbTitle?: string;
 	path: string;
 	summary: string;
 	category?: string;
@@ -101,6 +103,7 @@ export function generateJsonLd(
 	categoryHref?: string,
 ): Record<string, unknown> {
 	const url = `${BASE_URL}${tool.path}`;
+	const breadcrumbTitle = tool.breadcrumbTitle ?? tool.title;
 	const graph: unknown[] = [
 		{
 			'@type': 'SoftwareApplication',
@@ -144,14 +147,14 @@ export function generateJsonLd(
 		items.push({
 			'@type': 'ListItem',
 			position: 3,
-			name: tool.title,
+			name: breadcrumbTitle,
 			item: `${BASE_URL}${tool.path}`,
 		});
 	} else {
 		items.push({
 			'@type': 'ListItem',
 			position: 2,
-			name: tool.title,
+			name: breadcrumbTitle,
 			item: `${BASE_URL}${tool.path}`,
 		});
 	}

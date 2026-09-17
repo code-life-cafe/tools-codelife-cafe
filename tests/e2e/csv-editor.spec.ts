@@ -7,12 +7,18 @@ const __dirname = path.dirname(__filename);
 
 test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 	test('should load the page correctly and show initial UI', async ({
+		page,
 		createToolPage,
 	}) => {
 		const toolPage = createToolPage('csv-editor');
 		await toolPage.goto();
 		await toolPage.expectTitle('CSVビューア/エディタ | CODE:LIFE Tools');
 		await toolPage.expectSafetyBadge();
+
+		// H1は括弧書きの機能列挙（Excel取込・フィルタ・グラフ）を含まない簡潔な名称
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'CSVビューア/エディタ',
+		);
 	});
 
 	test('should parse CSV and allow table editing and Undo', async ({

@@ -82,6 +82,51 @@ test('breadcrumb: カテゴリ指定ありの場合、3階層の BreadcrumbList 
 	);
 });
 
+test('generateJsonLd: breadcrumbTitle 指定時、SoftwareApplication名はtitleを維持しBreadcrumbList名はbreadcrumbTitleになる', () => {
+	const tool = {
+		title: '消費税計算（税込・税抜・複数明細・軽減税率対応）',
+		breadcrumbTitle: '消費税・税込計算',
+		path: '/tax',
+		summary: '税込⇔税抜を即時計算。',
+		category: 'ユーティリティ',
+	};
+
+	const jsonLd = generateJsonLd(tool, '/?category=utility');
+	const graph = jsonLd['@graph'] as Array<Record<string, unknown>>;
+
+	const app = graph.find(
+		(schema) => schema['@type'] === 'SoftwareApplication',
+	) as Record<string, unknown>;
+	assert.strictEqual(
+		app.name,
+		'消費税計算（税込・税抜・複数明細・軽減税率対応）',
+	);
+
+	const breadcrumb = graph.find(
+		(schema) => schema['@type'] === 'BreadcrumbList',
+	) as Record<string, unknown>;
+	const elements = breadcrumb.itemListElement as Array<Record<string, unknown>>;
+	const current = elements[elements.length - 1];
+	assert.strictEqual(current.name, '消費税・税込計算');
+});
+
+test('generateJsonLd: breadcrumbTitle 未指定時はtitleがBreadcrumbList名に使われる（後方互換）', () => {
+	const tool = {
+		title: 'JSON整形',
+		path: '/json-formatter',
+		summary: 'JSONの整形・圧縮・構文チェック。',
+		category: '開発ツール',
+	};
+
+	const jsonLd = generateJsonLd(tool, '/?category=dev');
+	const graph = jsonLd['@graph'] as Array<Record<string, unknown>>;
+	const breadcrumb = graph.find(
+		(schema) => schema['@type'] === 'BreadcrumbList',
+	) as Record<string, unknown>;
+	const elements = breadcrumb.itemListElement as Array<Record<string, unknown>>;
+	assert.strictEqual(elements[elements.length - 1].name, 'JSON整形');
+});
+
 test('generateJsonLd: SoftwareApplication と BreadcrumbList を含む @graph を生成する', () => {
 	const tool = {
 		title: 'JSON整形',
