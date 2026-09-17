@@ -10,7 +10,7 @@ ChatGPT Product Scout → Notion Task Board → Claude Code / Sonnet 5（Plan + 
 
 ## マージの担当
 
-最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）またはmerge queueによる最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17の確認ではstrictは無効だったため、外部設定が確認されるまでは自動Mergeを保留する。設定変更は人間の別途承認対象。
+最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。Routineは実行時にも有効であることを確認し、確認不可・無効なら自動Mergeを保留する。merge queueは現在のWorkflowでは未対応のため使用しない。
 
 通常のR0/R1では、Codexが内容を独立レビューし、GitHub Actionsが検証し、既存Claude Routineが[軽微PRマージ条件](../AGENTS.md#軽微prのマージ判断と実行)を照合してMergeする。条件を満たせばPRごとの人間確認は不要。Makerによる自己承認は許可せず、条件が満たされたことに基づく操作を分けて扱う。R2/R3とR4、リスク不明・未解決指摘・仕様の曖昧さは人間へ返す。
 
