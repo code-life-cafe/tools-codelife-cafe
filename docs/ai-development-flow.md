@@ -8,6 +8,12 @@ ChatGPT Product Scout → Notion Task Board → Claude Code / Sonnet 5（Plan + 
 
 新しいAgent framework、orchestrator、Test Engineer常設、LLM判定Workflowは使わない。モデル名は運用上の指定であり、この文書で外部サービスのモデル設定を変更するものではない。
 
+## マージの担当
+
+通常のR0/R1では、Codexが内容を独立レビューし、GitHub Actionsが検証し、既存Claude Routineが[軽微PRマージ条件](../AGENTS.md#軽微prのマージ判断と実行)を照合してMergeする。条件を満たせばPRごとの人間確認は不要。Makerによる自己承認は許可せず、条件が満たされたことに基づく操作を分けて扱う。R2/R3とR4、リスク不明・未解決指摘・仕様の曖昧さは人間へ返す。
+
+Routineの外部指示に一律の「自動マージ禁止」が残っている場合は、R0/R1についてこの条件付き操作を許すよう整合させる。repo内の条件がmainへ反映されるまでは従来どおり人間承認を待つ。この文書だけで外部Routineの指示やGitHubの権限は変更されない。
+
 ## Quality Gate
 
 | 既存Workflow | PRでの検証 |
