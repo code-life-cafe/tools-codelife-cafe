@@ -1,11 +1,11 @@
 ---
 name: add-tool
-description: tools.codelife.cafe に新しいWebツールを追加する（3ファイル構成＋catalog.ts登録）。「/add-tool <ツール名>」「新しいツールを追加して」で発火。
+description: tools.codelife.cafe に新しいWebツールを追加する（4ファイル構成＋catalog.ts登録）。「/add-tool <ツール名>」「新しいツールを追加して」で発火。
 ---
 
 新しいツールを追加してください。引数として `$ARGUMENTS` が渡されます（例：`/add-tool URLエンコーダー`）。
 
-> **正となる手順書は [docs/development-guide.md](../../docs/development-guide.md) の「3. ツール開発」**（特に §3.4 新規ツール追加チェックリスト）です。本スキルは進め方の枠組みのみを定め、実装詳細は必ず最新の development-guide に従ってください。
+> **正となる手順書は [docs/development-guide.md](../../../docs/development-guide.md) の「3. 各レイヤーの実装方法」**（特に §3.4 新規ツール追加チェックリスト）です。本スキルは進め方の枠組みのみを定め、実装詳細は必ず最新の development-guide に従ってください。
 
 ## 手順
 
@@ -22,7 +22,7 @@ description: tools.codelife.cafe に新しいWebツールを追加する（3フ�
 
 1. `src/lib/tools/{slug}.ts` — DOM/React非依存の純粋ロジック。エラーメッセージは日本語。ローカルimportは `.ts` 拡張子付き（node --test 対応）
 2. `src/components/tools/{Name}.tsx` — React UI。shadcn/ui・Lucide使用、日本語UIファースト、`CopyButton` を出力部に配置
-3. `src/pages/{slug}.astro` — `ToolLayout` 使用、`client:load` 付与、`slot="usage"` に使い方説明
+3. `src/content/tools/{slug}.md` と `src/pages/{slug}.astro` — LPコンテンツをcontent collectionから取得し、`ToolLayout`へ渡すページシェルを作る。UIは`client:load`で配置
 4. **`src/lib/tools/catalog.ts` に1エントリ登録**（id・title・description・href・category・icon・related）— index・ナビ・検索・SEO・OG・sitemap はここから自動連動する。**index.astro や Navigation・SearchModal への手書き追加はしない**
 5. 関連ツールリンクをページに手書きしない（catalog の `related` に集約）
 
@@ -51,4 +51,4 @@ description: tools.codelife.cafe に新しいWebツールを追加する（3フ�
 - `npm run check`・`npm run test:unit`・対象E2E の実行結果
 - ローカル確認用コマンド（`npm run dev` → アクセスURL）
 
-以降の出荷（コミット→PR→Notion更新）が必要なら `/ship` を使う。
+以降のコミット・Draft PR・レビュー対応は [CLAUDE.md](../../../CLAUDE.md) と [AGENTS.md](../../../AGENTS.md) に従う。未定義の出荷スキルを前提にしない。

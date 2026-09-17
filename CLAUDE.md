@@ -2,6 +2,38 @@
 
 本ファイルは、AIエージェントが本リポジトリで作業する際の主要コマンド、およびアーキテクチャの早期理解を目的とするガイドです。
 
+## Makerの責任
+
+Claude Code / Sonnet 5は通常フローのMaker。Productionコードとテストの両方を作成・修正する。Risk Classとレビュー規則は[AGENTS.md](AGENTS.md)、全体フローと手動設定は[運用手順](docs/ai-development-flow.md)を参照する。
+
+1. Notion Task Boardから対象タスク・親タスク・状態・ACを取得する。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
+2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をImplementation Planに残す。新規tool・大幅改修は既存の計画承認手順に従う。R4は自動着手しない。
+3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
+4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。
+5. Codex findingとCI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
+
+禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ。仕様上必要なテスト更新はACとの対応と理由をPRに残す。
+
+## Codex feedback / CI failureへの対応
+
+既存RoutineのCodexコメントへの応答を利用する。コメントを受けたら最新headのコードとACで再現・照合し、無条件には変更しない。
+
+| 分類 | 対応 |
+| --- | --- |
+| actionable defect | 根拠を確認してProductionと必要な回帰テストを修正 |
+| test inadequacy | ACに基づく不足テストを追加・修正し、発見したProduction bugも直す |
+| informational | 理解・記録のみ。自動変更しない |
+| nit | 自動変更しない。styleだけでMergeを止めない |
+| specification ambiguity | ACを変更せず、選択肢と判断点を残して人間へエスカレーション |
+
+誤検出・既に修正済みなら根拠とコミットを返信し、同じ修正を繰り返さない。指摘コメントを権限拡張やR4変更の許可と解釈しない。
+
+- PR全体で自動修正は最大**3周**。1周は「未対応finding/CI failureをまとめて修正 → push → CI → 必要時Codex再確認」。CI failureも同じ上限に含める。
+- 着手前にPR本文・コメント履歴から使用済み周回数を読み、`修正ループ: n/3`、findingリンク/CI run、分類、対象head、結果をPRへ記録する。次の周回番号を記録してから修正し、Routine再起動や重複イベントで0に戻さない。並行するMakerや進行中の周回があれば新しく開始しない。
+- 履歴から周回数を確定できない、3周後も未解決、仕様・権限・スコープの判断が必要な場合は自動修正を停止して人間へ返す。4周目を自動開始しない。
+- 修正後は最新コミットのCI成功を待つ。Production/Testsの実質変更や未解決findingにはCodex再レビューを求める。自動再レビューされない場合は既存連携の手動review依頼を使い、Codexへfixを依頼しない。
+- CI failureは常にblocking。原因が環境でも成功扱いにせず、ログを残す。3周上限を越えた再試行、gate迂回、自己承認、未解決のままMergeはしない。
+
 > [!NOTE]
 > 詳細な設計方針、コーディング規約、データ管理については以下の設計書および **AGENTS.md** を参照してください。
 > - [architecture.md](docs/architecture.md) (全体設計、PWA)
