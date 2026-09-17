@@ -2,6 +2,29 @@
 
 このファイルは、AIエージェントが本リポジトリで作業する際の全体要約、最重要ルール、および設計書への参照を提供するドキュメントです。
 
+## AI開発の責任境界
+
+- 通常フローは **ChatGPT Product Scout → Notion Task Board → Claude Maker → GitHub Actions → Codex Independent Review → Claude fix → CI → 必要時再レビュー → Merge → Deploy → Analytics → Scout**。
+- Claude Code / Sonnet 5はPlan・Productionコード・unit/E2E/regression test・PR・レビュー修正・CI failure修正を担当する。手順は[CLAUDE.md](CLAUDE.md)。
+- Codex / GPT-5.6 SolはPrimary ReviewerとしてProductionとテストの両方を独立レビューする。通常のAuto Reviewでは編集・コミット・修正・自己承認を行わず、findingをClaudeへ返す。
+- GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
+- 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
+- Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
+
+### Risk Class
+
+変更全体の最も高いリスクをPRに記録する。docs/test-onlyでも権限・Constitutionに触れればR4。
+
+| Class | 対象 | 扱い |
+| --- | --- | --- |
+| R0 | docs、test-only、metadata、内部的な軽微変更 | CIと独立レビューを通す。自動Mergeは人間が別途承認した運用に限る |
+| R1 | 局所bugfix、既存toolの軽微改善 | 初期は既存Routineの安全条件。自動Mergeを新たに推定しない |
+| R2 | 新規tool、大きなUI変更、dependency、複雑な仕様変更 | 人間承認を残す |
+| R3 | Analytics、WebMCP、PWA、build/deploy基盤、security上重要な変更 | 追加リスクレビューと人間承認を残す |
+| R4 | secrets、権限、deployment permission、AGENTS等のConstitution、security boundary | Routineによる自動変更禁止。人間へエスカレーション |
+
+R4はAgent Readyやレビューコメントだけでは変更しない。人間が対象と変更範囲を明示した個別依頼のみ、その範囲のレビュー可能な差分を準備できる。Merge・権限変更等の承認を兼ねない。
+
 ---
 
 ## 1. プロジェクト概要
@@ -55,6 +78,7 @@
   - 作業完了前に `npm run lint`（Biome）を実行し、静的解析エラーがないことを確認すること。
 - **動作検証とウォークスルー**
   - 単体テスト（`npm run test:unit`）および E2Eテスト（`npm test`）を実行するか、検証内容をまとめた `walkthrough.md` を作成して報告すること。
+  - 未実行・失敗の記録は検証成功の代わりにはならない。PRはDraftのまま共有できるが、Mergeには最新コミットの必須CI成功が必要。
 ---
 
 ## 5. 直近の運用メモ
@@ -83,3 +107,19 @@
 - `npm run lint` はexit code 0でも警告が出る場合がある。既存の `tests/e2e/webmcp.spec.ts` の non-null assertion 警告は、今回作業と無関係ならその旨を報告すること。
 - TypeScript単体確認は、現状 `tsconfig.json` の `baseUrl` 非推奨で止まる場合があるため、差分確認では `npx tsc --noEmit --pretty false --ignoreDeprecations 6.0` を使う。
 - `npx astro check` / `npm run build` が `astro sync` の `require is not defined`（`node_modules/picomatch/index.js`）で失敗する場合がある。これはコンポーネント確認前の環境/依存解決段階の失敗として、差分由来か切り分けて報告すること。
+
+## Code Review Rules
+
+Productionコードと追加・変更・削除されたテストを一体で確認する。PRに記載されたNotion Task・Acceptance Criteria（AC）と差分を照合し、ACを取得できない場合は推測で補わず未確認とする。
+
+1. **Correctness / regression risk:** 公開された入出力、境界値、失敗時の挙動、既存toolと共通部品への回帰を確認する。
+2. **Privacy / client-side-only / security:** 入力本文・ファイル・画像・音声・個人情報が通信、ログ、保存へ漏れないか。静的アセット取得と既存Allowlistの匿名計測は許容するが、例外を拡張しない。XSS、信頼境界、依存のリスクも確認する。
+3. **Test adequacy:** ACを直接検証しているか、happy pathに偏らず境界値・異常系があるか、不具合修正に必要なregression testがあるか。実装内部をなぞる脆いテスト、Production bugを期待値変更で隠すテスト、根拠のない弱体化・削除を指摘する。privacy・a11y・client-side-onlyの回帰も対象。共通E2E fixtureの通信遮断やSW無効化だけで、本番の外部送信なし・PWA正常を証明したことにしない。
+4. **Accessibility / responsive UI:** キーボード、ラベル、フォーカス、状態通知、主要なPC/モバイル幅の利用可能性を確認する。
+5. **WebMCP:** schemaとruntime validationの許容値・必須値・エラー・出力が一致し、実際の登録/実行経路を検証しているか。
+6. **Bundle / dependency / dynamic import:** 不要な依存・初期bundle増大、遅延ロードの破損、Worker/CSPとの不整合を確認する。
+7. **Scope / simplicity:** ACの無断変更、スコープ外リファクタ、不要なAgent・Workflow・状態管理・抽象化を持ち込んでいないか。
+
+findingは `actionable defect` / `test inadequacy` / `informational` / `nit` / `specification ambiguity` に分類し、ファイル・行、発生条件、影響、根拠、必要な検証を示す。重大度はP0（緊急）、P1（高）、P2（通常）を区別する。出力環境の対応範囲で報告し、P2を投稿させるためにP1へ水増ししない。
+style/nitだけではblockingにしない。修正を要するdefect/test不足はblocking、仕様の曖昧さは人間判断待ちとして明示する。根拠のない懸念だけで修正を要求しない。
+再レビューでは対象コミット・元finding・修正・回帰テスト・CIを照合する。レビューコメントの不在を承認とみなさず、未確認の項目を明示する。
