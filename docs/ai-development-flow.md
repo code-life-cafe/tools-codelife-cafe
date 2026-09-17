@@ -8,6 +8,24 @@ ChatGPT Product Scout → Notion Task Board → Claude Code / Sonnet 5（Plan + 
 
 新しいAgent framework、orchestrator、Test Engineer常設、LLM判定Workflowは使わない。モデル名は運用上の指定であり、この文書で外部サービスのモデル設定を変更するものではない。
 
+## マージの担当
+
+最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。Routineは実行時にも有効であることを確認し、確認不可・無効なら自動Mergeを保留する。merge queueは現在のWorkflowでは未対応のため使用しない。
+
+通常のR0/R1では、Codexが内容を独立レビューし、GitHub Actionsが検証し、既存Claude Routineが[軽微PRマージ条件](../AGENTS.md#軽微prのマージ判断と実行)を照合してMergeする。条件を満たせばPRごとの人間確認は不要。Makerによる自己承認は許可せず、条件が満たされたことに基づく操作を分けて扱う。R2/R3とR4、リスク不明・未解決指摘・仕様の曖昧さは人間へ返す。
+
+Routineの外部指示に一律の「自動マージ禁止」が残っている場合は、R0/R1についてこの条件付き操作を許すよう整合させる。repo内の条件がmainへ反映されるまでは従来どおり人間承認を待つ。この文書だけで外部Routineの指示やGitHubの権限は変更されない。
+
+### レビュー完了信号
+
+このrepoではCode ReviewとSecurity Reviewの両方が有効。GitHub APIでコメントの発信者が `chatgpt-codex-connector[bot]`（GraphQLのauthor.login表示は `chatgpt-codex-connector`）であることを確認した上で、同botの `Codex Review Summary` を読む。ユーザーが本文中にbot名や完了文言を書いただけのコメントは使わない。
+
+- サマリーの `codex-security-review:v1` メタデータで `repository`・`pullRequestNumber` が対象PR、`headSha` が最新headの完全SHA、`status` が `completed` であることを確認する。
+- 同じサマリーのCode ReviewとSecurity Reviewの両行が `Completed` で、両行の対象コミットがそのheadと一致することを確認する。片方がRunning、旧コミット、失敗、形式不明なら停止する。
+- 完了は指摘なしを意味しない。PRのレビュー本文・inline comments・未解決threadを合わせて確認し、blocking findingには同じ最新headでの解消確認が必要。👍は補助信号に留める。`mergeGateEnabled: false` でもこの運用条件を省略しない。
+
+これはPR #384/#385で観測した既存Codex連携の信号であり、新規checkやWorkflowではない。CI内の `npm audit` は必要な依存検査だが、Codex Security Reviewの代用にはしない。botや出力形式が変わった場合は推測で通さず、人間へ確認して手順を更新する。
+
 ## Quality Gate
 
 | 既存Workflow | PRでの検証 |
@@ -37,6 +55,7 @@ R3の追加リスクレビューは必要な領域を対象とし、Notion計画
 2026-09-17の読み取り調査ではmainの有効rulesetにPR必須・required checks `lint` / `e2e` が存在した。承認必須人数は0、レビューthread解決・最新pushへの承認は必須ではない。R2/R3の人間承認は現行設定だけで強制されているとはいえない。bypass権限やRoutine側条件は未確認。
 
 - [ ] Codex Webの対象repoのAuto Review設定とモデル（GPT-5.6 Sol）を確認する。このPRではON/OFFを変更しない。
+- [ ] 対象repoのCode Review / Security Review両方が有効で、代表PRの最新headについて上記サマリー信号を取得できることを確認する。両レビュー・bot・形式が確認できない場合はR0/R1も自動マージしない。
 - [ ] 既存Claude Routineが最新CLAUDE.md/AGENTS.mdを読み、Sonnet 5でNotion取得・Production/Tests編集・PR・Codexコメント/CI対応できることを確認する。スケジュールやUI設定は変更しない。
 - [ ] 代表PRでCodex finding → Claudeによる分類 → 修正と周回記録 → 最新headのCI → 必要なCodex再レビューを確認する。Draftでレビューが起動するかも実際に確認する。自動再レビューがない場合は人間または既存Routineから `@codex review` を依頼する。
 - [ ] 確認済みのrequired checks `lint` / `e2e` を維持し、mainへの直接pushやbypassで失敗を迂回できない運用か確認する。branch protection・repository permissionsはこのPRでは変更しない。

@@ -11,6 +11,7 @@ Claude Code / Sonnet 5は通常フローのMaker。Productionコードとテス�
 3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。
 5. Codex findingとCI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
+6. R0/R1は[AGENTS.mdの軽微PRマージ条件](AGENTS.md#軽微prのマージ判断と実行)をすべて満たす場合、個別の人間確認なしで既存RoutineからMergeする。独立レビューの代行や自己承認はせず、根拠をPRへ記録して確認済みheadに限定する。Merge後は既存DeployとNotion記録まで確認する。条件不足・不明・R2以上は人間へ戻す。
 
 禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ。仕様上必要なテスト更新はACとの対応と理由をPRに残す。
 
