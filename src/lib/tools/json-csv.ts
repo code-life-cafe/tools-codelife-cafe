@@ -199,6 +199,7 @@ export function detectDelimiter(csvText: string): CsvDelimiter {
  * - 完全小文字の "true" / "false" のみ boolean
  * - "null" は文字列のまま保持
  * - 先頭ゼロ付き数値（"007"・"001.23"）は文字列のまま保持（"0" は number）
+ * - Number.MAX_SAFE_INTEGER を超える整数は桁落ちを避けるため文字列のまま保持
  * - 日付文字列は変換しない
  */
 export function inferCellValue(raw: string): string | number | boolean | null {
@@ -206,7 +207,11 @@ export function inferCellValue(raw: string): string | number | boolean | null {
 	if (raw === 'true') return true;
 	if (raw === 'false') return false;
 	if (raw === 'null') return raw;
-	if (/^-?(0|[1-9]\d*)(\.\d+)?$/.test(raw)) {
+	if (/^-?(0|[1-9]\d*)$/.test(raw)) {
+		const num = Number(raw);
+		return Number.isSafeInteger(num) ? num : raw;
+	}
+	if (/^-?(0|[1-9]\d*)\.\d+$/.test(raw)) {
 		const num = Number(raw);
 		if (Number.isFinite(num)) return num;
 	}
@@ -223,8 +228,78 @@ function jsonErrorLine(text: string, message: string): number | undefined {
 	return undefined;
 }
 
+/**
+ * Number.MAX_SAFE_INTEGER を超える整数リテラルの桁を保持するためのラッパー。
+ * JSON.parse の reviver 内でのみ生成され、CSV出力直前に digits（元の桁文字列）へ戻す。
+ */
+class BigIntLiteral {
+	readonly digits: string;
+	constructor(digits: string) {
+		this.digits = digits;
+	}
+	toString(): string {
+		return this.digits;
+	}
+}
+
+/**
+ * JSON文字列中に出現する数値リテラルを、文字列（クォート内）を除いて出現順に走査する。
+ * 整数表記（小数点・指数表記なし）は元の桁文字列を、それ以外は null を返す。
+ * 構文検証は行わない（不正なJSONの検出は JSON.parse に委ねる）。
+ */
+function scanNumberLiterals(text: string): (string | null)[] {
+	const tokens: (string | null)[] = [];
+	const len = text.length;
+	let i = 0;
+	let inString = false;
+	while (i < len) {
+		const ch = text[i];
+		if (inString) {
+			if (ch === '\\') {
+				i += 2;
+				continue;
+			}
+			if (ch === '"') inString = false;
+			i++;
+			continue;
+		}
+		if (ch === '"') {
+			inString = true;
+			i++;
+			continue;
+		}
+		if (ch === '-' || (ch >= '0' && ch <= '9')) {
+			const start = i;
+			if (ch === '-') i++;
+			if (text[i] === '0') {
+				i++;
+			} else {
+				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+			}
+			const intEnd = i;
+			let isInteger = true;
+			if (text[i] === '.') {
+				isInteger = false;
+				i++;
+				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+			}
+			if (text[i] === 'e' || text[i] === 'E') {
+				isInteger = false;
+				i++;
+				if (text[i] === '+' || text[i] === '-') i++;
+				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+			}
+			tokens.push(isInteger ? text.slice(start, intEnd) : null);
+			continue;
+		}
+		i++;
+	}
+	return tokens;
+}
+
 function cellToString(value: unknown): string {
 	if (value == null) return '';
+	if (value instanceof BigIntLiteral) return value.digits;
 	if (typeof value === 'string') return value;
 	if (typeof value === 'number' || typeof value === 'boolean') {
 		return String(value);
@@ -245,9 +320,23 @@ export function jsonToCsv(
 		return { ok: false, error: 'JSONを入力してください。' };
 	}
 
+	// 安全整数範囲外の整数を桁落ちさせずに保持するため、パース前に数値リテラルを
+	// 出現順に走査しておき、reviver 内で元の桁文字列と突き合わせる。
+	const numberLiterals = scanNumberLiterals(text);
+	let literalIndex = 0;
+
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(text);
+		parsed = JSON.parse(text, (_key, value) => {
+			if (typeof value === 'number') {
+				const digits = numberLiterals[literalIndex];
+				literalIndex++;
+				if (digits != null && !Number.isSafeInteger(value)) {
+					return new BigIntLiteral(digits);
+				}
+			}
+			return value;
+		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		const line = jsonErrorLine(text, message);
@@ -258,6 +347,16 @@ export function jsonToCsv(
 					? `${line}行目付近: JSONの構文エラーです。`
 					: 'JSONの構文エラーです。入力内容を確認してください。',
 			line,
+		};
+	}
+
+	if (literalIndex !== numberLiterals.length) {
+		// 数値リテラルの走査結果と reviver の呼び出し回数が一致しない場合、整数の
+		// 桁保持を保証できないため、破損値を成功扱いにせず変換を中止する。
+		return {
+			ok: false,
+			error:
+				'整数の桁を安全に検証できなかったため、変換を中止しました。入力内容をご確認ください。',
 		};
 	}
 
