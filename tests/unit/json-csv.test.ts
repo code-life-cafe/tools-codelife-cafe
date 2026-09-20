@@ -173,6 +173,43 @@ test('jsonToCsv: 小数・指数表記の数値は従来どおりNumber変換す
 	assert.equal(result.output, 'a,b,c\r\n1.5,1e+21,0');
 });
 
+test('jsonToCsv: flattenNested OFF でネスト内の大整数もJSON文字列セル内で桁を保持する', () => {
+	const result = expectOk(
+		jsonToCsv('[{"nested":{"id":9007199254740993}}]', {
+			...JSON_OPTS,
+			flattenNested: false,
+		}),
+	);
+	assert.equal(result.output, 'nested\r\n"{""id"":9007199254740993}"');
+});
+
+test('jsonToCsv: 配列内・複数ネストレベルの大整数もJSON文字列セルで桁を保持する', () => {
+	const result = expectOk(
+		jsonToCsv(
+			'[{"items":[{"id":9007199254740993},{"id":42}],"deep":{"a":{"id":-9007199254740993}}}]',
+			{ ...JSON_OPTS, flattenNested: false },
+		),
+	);
+	const parsedCells = result.output.split('\r\n')[1];
+	assert.ok(parsedCells.includes('9007199254740993'));
+	assert.ok(!parsedCells.includes('9007199254740992'));
+	assert.ok(parsedCells.includes('-9007199254740993'));
+});
+
+test('jsonToCsv: オブジェクトの数値様キーの列挙順に依存せず、各値の桁を正しく紐づける', () => {
+	// ネイティブJSON.parseのreviverは数値様キー（"1"・"2"等）をソース出現順ではなく
+	// 昇順で走査する（＝ヘッダーも "1,2" の昇順になるのはJSの仕様どおりで正しい）。
+	// 外部で走査した数値リテラルの出現順と突き合わせる実装だと、この列挙順のズレで
+	// キー"2"の値とキー"1"の値を取り違える回帰がある。専用パーサーは値の構築と同時に
+	// 桁を紐づけるため、列挙順が入れ替わっても各キーは元の値を保つ。
+	const result = expectOk(
+		jsonToCsv('[{"2":9007199254740993,"1":9007199254740995}]', JSON_OPTS),
+	);
+	const lines = result.output.split('\r\n');
+	assert.equal(lines[0], '1,2');
+	assert.equal(lines[1], '9007199254740995,9007199254740993');
+});
+
 // ---------------------------------------------------------------------------
 // csvToJson
 // ---------------------------------------------------------------------------

@@ -230,7 +230,7 @@ function jsonErrorLine(text: string, message: string): number | undefined {
 
 /**
  * Number.MAX_SAFE_INTEGER を超える整数リテラルの桁を保持するためのラッパー。
- * JSON.parse の reviver 内でのみ生成され、CSV出力直前に digits（元の桁文字列）へ戻す。
+ * parseJsonPreservingIntegers 内でのみ生成され、CSV出力直前に digits（元の桁文字列）へ戻す。
  */
 class BigIntLiteral {
 	readonly digits: string;
@@ -242,59 +242,231 @@ class BigIntLiteral {
 	}
 }
 
+class JsonSyntaxError extends Error {
+	constructor(message: string, position: number) {
+		super(`${message} at position ${position}`);
+	}
+}
+
 /**
- * JSON文字列中に出現する数値リテラルを、文字列（クォート内）を除いて出現順に走査する。
- * 整数表記（小数点・指数表記なし）は元の桁文字列を、それ以外は null を返す。
- * 構文検証は行わない（不正なJSONの検出は JSON.parse に委ねる）。
+ * JSON.parse 相当の再帰下降パーサー。安全整数範囲外の整数リテラルは Number ではなく
+ * BigIntLiteral として桁を保持する（小数・指数表記は従来どおり Number化）。
+ *
+ * ネイティブ JSON.parse の reviver は、オブジェクトの数値様キー（"1"・"2" 等）を
+ * ソース出現順ではなく昇順に並べ替えて呼び出すため、パース後に外部で走査した数値
+ * リテラルの出現順と突き合わせる方式では対応関係がずれて値を取り違える。値の構築
+ * と桁保持を同時に行うことでこの問題を避ける。
  */
-function scanNumberLiterals(text: string): (string | null)[] {
-	const tokens: (string | null)[] = [];
+function parseJsonPreservingIntegers(text: string): unknown {
 	const len = text.length;
 	let i = 0;
-	let inString = false;
-	while (i < len) {
+
+	const fail = (message: string): never => {
+		throw new JsonSyntaxError(message, i);
+	};
+
+	const skipWhitespace = (): void => {
+		while (i < len) {
+			const ch = text[i];
+			if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+				i++;
+			} else {
+				break;
+			}
+		}
+	};
+
+	const parseValue = (): unknown => {
+		skipWhitespace();
+		if (i >= len) fail('Unexpected end of JSON input');
 		const ch = text[i];
-		if (inString) {
+		if (ch === '{') return parseObject();
+		if (ch === '[') return parseArray();
+		if (ch === '"') return parseString();
+		if (ch === '-' || (ch >= '0' && ch <= '9')) return parseNumber();
+		if (text.startsWith('true', i)) {
+			i += 4;
+			return true;
+		}
+		if (text.startsWith('false', i)) {
+			i += 5;
+			return false;
+		}
+		if (text.startsWith('null', i)) {
+			i += 4;
+			return null;
+		}
+		return fail('Unexpected token in JSON');
+	};
+
+	const parseObject = (): Record<string, unknown> => {
+		const obj: Record<string, unknown> = {};
+		i++; // '{'
+		skipWhitespace();
+		if (text[i] === '}') {
+			i++;
+			return obj;
+		}
+		for (;;) {
+			skipWhitespace();
+			if (text[i] !== '"') fail('Expected property name in JSON');
+			const key = parseString();
+			skipWhitespace();
+			if (text[i] !== ':') fail("Expected ':' after property name in JSON");
+			i++;
+			const value = parseValue();
+			setOwnValue(obj, key, value);
+			skipWhitespace();
+			if (text[i] === ',') {
+				i++;
+				continue;
+			}
+			if (text[i] === '}') {
+				i++;
+				return obj;
+			}
+			fail("Expected ',' or '}' in JSON object");
+		}
+	};
+
+	const parseArray = (): unknown[] => {
+		const arr: unknown[] = [];
+		i++; // '['
+		skipWhitespace();
+		if (text[i] === ']') {
+			i++;
+			return arr;
+		}
+		for (;;) {
+			arr.push(parseValue());
+			skipWhitespace();
+			if (text[i] === ',') {
+				i++;
+				continue;
+			}
+			if (text[i] === ']') {
+				i++;
+				return arr;
+			}
+			fail("Expected ',' or ']' in JSON array");
+		}
+	};
+
+	const parseString = (): string => {
+		i++; // opening quote
+		let result = '';
+		while (i < len) {
+			const ch = text[i];
+			if (ch === '"') {
+				i++;
+				return result;
+			}
 			if (ch === '\\') {
+				const next = text[i + 1];
+				switch (next) {
+					case '"':
+						result += '"';
+						break;
+					case '\\':
+						result += '\\';
+						break;
+					case '/':
+						result += '/';
+						break;
+					case 'b':
+						result += '\b';
+						break;
+					case 'f':
+						result += '\f';
+						break;
+					case 'n':
+						result += '\n';
+						break;
+					case 'r':
+						result += '\r';
+						break;
+					case 't':
+						result += '\t';
+						break;
+					case 'u': {
+						const hex = text.slice(i + 2, i + 6);
+						if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+							fail('Invalid unicode escape in JSON string');
+						}
+						result += String.fromCharCode(Number.parseInt(hex, 16));
+						i += 4;
+						break;
+					}
+					default:
+						fail('Invalid escape character in JSON string');
+				}
 				i += 2;
 				continue;
 			}
-			if (ch === '"') inString = false;
+			if (ch.charCodeAt(0) < 0x20)
+				fail('Invalid control character in JSON string');
+			result += ch;
 			i++;
-			continue;
 		}
-		if (ch === '"') {
-			inString = true;
+		return fail('Unterminated JSON string');
+	};
+
+	const parseNumber = (): number | BigIntLiteral => {
+		const start = i;
+		if (text[i] === '-') i++;
+		if (text[i] === '0') {
 			i++;
-			continue;
+		} else if (text[i] >= '1' && text[i] <= '9') {
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+		} else {
+			fail('Invalid number in JSON');
 		}
-		if (ch === '-' || (ch >= '0' && ch <= '9')) {
-			const start = i;
-			if (ch === '-') i++;
-			if (text[i] === '0') {
-				i++;
-			} else {
-				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
-			}
-			const intEnd = i;
-			let isInteger = true;
-			if (text[i] === '.') {
-				isInteger = false;
-				i++;
-				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
-			}
-			if (text[i] === 'e' || text[i] === 'E') {
-				isInteger = false;
-				i++;
-				if (text[i] === '+' || text[i] === '-') i++;
-				while (i < len && text[i] >= '0' && text[i] <= '9') i++;
-			}
-			tokens.push(isInteger ? text.slice(start, intEnd) : null);
-			continue;
+		const intEnd = i;
+		let isInteger = true;
+		if (text[i] === '.') {
+			isInteger = false;
+			i++;
+			if (!(text[i] >= '0' && text[i] <= '9')) fail('Invalid number in JSON');
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
 		}
-		i++;
+		if (text[i] === 'e' || text[i] === 'E') {
+			isInteger = false;
+			i++;
+			if (text[i] === '+' || text[i] === '-') i++;
+			if (!(text[i] >= '0' && text[i] <= '9')) fail('Invalid number in JSON');
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+		}
+		if (isInteger) {
+			const digits = text.slice(start, intEnd);
+			const num = Number(digits);
+			if (!Number.isSafeInteger(num)) return new BigIntLiteral(digits);
+			return num;
+		}
+		return Number(text.slice(start, i));
+	};
+
+	const result = parseValue();
+	skipWhitespace();
+	if (i < len) fail('Unexpected non-whitespace character after JSON value');
+	return result;
+}
+
+/**
+ * JSON.stringify相当だが、ネストした BigIntLiteral を桁文字列のまま（未クォートの
+ * 数値として）出力する。flattenNested OFF でネスト値をJSON文字列セルにする際に使う。
+ */
+function stringifyWithBigInt(value: unknown): string {
+	if (value instanceof BigIntLiteral) return value.digits;
+	if (Array.isArray(value)) {
+		return `[${value.map((item) => stringifyWithBigInt(item ?? null)).join(',')}]`;
 	}
-	return tokens;
+	if (isPlainObject(value)) {
+		const entries = Object.entries(value).map(
+			([key, v]) => `${JSON.stringify(key)}:${stringifyWithBigInt(v)}`,
+		);
+		return `{${entries.join(',')}}`;
+	}
+	return JSON.stringify(value);
 }
 
 function cellToString(value: unknown): string {
@@ -304,7 +476,7 @@ function cellToString(value: unknown): string {
 	if (typeof value === 'number' || typeof value === 'boolean') {
 		return String(value);
 	}
-	return JSON.stringify(value);
+	return stringifyWithBigInt(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -320,23 +492,12 @@ export function jsonToCsv(
 		return { ok: false, error: 'JSONを入力してください。' };
 	}
 
-	// 安全整数範囲外の整数を桁落ちさせずに保持するため、パース前に数値リテラルを
-	// 出現順に走査しておき、reviver 内で元の桁文字列と突き合わせる。
-	const numberLiterals = scanNumberLiterals(text);
-	let literalIndex = 0;
-
+	// 安全整数範囲外の整数を桁落ちさせずに保持するため、専用パーサーで値の構築と
+	// 桁保持を同時に行う（ネイティブJSON.parseのreviverは数値様キーの列挙順が
+	// ソース出現順と一致しないため使えない）。
 	let parsed: unknown;
 	try {
-		parsed = JSON.parse(text, (_key, value) => {
-			if (typeof value === 'number') {
-				const digits = numberLiterals[literalIndex];
-				literalIndex++;
-				if (digits != null && !Number.isSafeInteger(value)) {
-					return new BigIntLiteral(digits);
-				}
-			}
-			return value;
-		});
+		parsed = parseJsonPreservingIntegers(text);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		const line = jsonErrorLine(text, message);
@@ -347,16 +508,6 @@ export function jsonToCsv(
 					? `${line}行目付近: JSONの構文エラーです。`
 					: 'JSONの構文エラーです。入力内容を確認してください。',
 			line,
-		};
-	}
-
-	if (literalIndex !== numberLiterals.length) {
-		// 数値リテラルの走査結果と reviver の呼び出し回数が一致しない場合、整数の
-		// 桁保持を保証できないため、破損値を成功扱いにせず変換を中止する。
-		return {
-			ok: false,
-			error:
-				'整数の桁を安全に検証できなかったため、変換を中止しました。入力内容をご確認ください。',
 		};
 	}
 
