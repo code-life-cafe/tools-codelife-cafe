@@ -1,4 +1,4 @@
-import { type ToolCatalogItem, toolCatalog } from './catalog';
+import { type ToolCatalogItem, toolCatalog } from './catalog.ts';
 
 // マッチ箇所ごとの重み（大きいほど優先）
 const SCORE_TITLE_PREFIX = 100;
@@ -8,11 +8,13 @@ const SCORE_CATEGORY_DESCRIPTION = 40;
 
 /**
  * 検索用にテキストを正規化する。
- * 小文字化に加え、ひらがなをカタカナに変換することで
- * 「かうんと」→「カウント」のような表記ゆれを吸収する。
+ * NFKCで全角英数字→半角、半角カナ（濁点付き含む）→全角カナを吸収したうえで
+ * 小文字化し、ひらがなをカタカナに変換することで
+ * 「かうんと」→「カウント」、「ＪＳＯＮ」→「json」のような表記ゆれを吸収する。
  */
 export function normalizeSearchText(text: string): string {
 	return text
+		.normalize('NFKC')
 		.toLowerCase()
 		.replace(/[ぁ-ゖ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) + 0x60));
 }

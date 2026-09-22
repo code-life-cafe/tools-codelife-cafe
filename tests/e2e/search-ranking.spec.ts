@@ -58,6 +58,59 @@ test.describe('Search result ranking', () => {
 		await expect(results.first()).toContainText('文字数カウント');
 	});
 
+	test('全角クエリ「ＪＳＯＮ」「ＣＳＶ」で半角と同じ候補がヒットする', async ({
+		page,
+	}) => {
+		await page.goto('/');
+		// React Island のハイドレーション完了を待ってから検索を開く
+		await expect(page.locator('#search-trigger')).toBeVisible();
+		await page.keyboard.press('Control+k');
+
+		const searchInput = page.getByPlaceholder(/ツールを検索/i);
+		await expect(searchInput).toBeVisible({ timeout: 5000 });
+		const results = page.getByTestId('search-result');
+
+		await searchInput.fill('csv');
+		await expect(results.first()).toBeVisible();
+		const halfwidthTitles = await results
+			.locator('span.font-medium')
+			.allTextContents();
+
+		await searchInput.fill('');
+		await searchInput.fill('ＣＳＶ');
+		await expect(results.first()).toBeVisible();
+		const fullwidthTitles = await results
+			.locator('span.font-medium')
+			.allTextContents();
+		expect(fullwidthTitles).toEqual(halfwidthTitles);
+
+		await searchInput.fill('');
+		await searchInput.fill('ＪＳＯＮ');
+		const jsonResults = page.getByTestId('search-result');
+		await expect(jsonResults.first()).toBeVisible();
+		const jsonTitles = await jsonResults
+			.locator('span.font-medium')
+			.allTextContents();
+		expect(jsonTitles).toContain('JSON ↔ CSV 変換');
+	});
+
+	test('半角カナ検索「ｶｳﾝﾄ」でカタカナタイトルのツールがヒットする', async ({
+		page,
+	}) => {
+		await page.goto('/');
+		// React Island のハイドレーション完了を待ってから検索を開く
+		await expect(page.locator('#search-trigger')).toBeVisible();
+		await page.keyboard.press('Control+k');
+
+		const searchInput = page.getByPlaceholder(/ツールを検索/i);
+		await expect(searchInput).toBeVisible({ timeout: 5000 });
+		await searchInput.fill('ｶｳﾝﾄ');
+
+		const results = page.getByTestId('search-result');
+		await expect(results.first()).toBeVisible();
+		await expect(results.first()).toContainText('文字数カウント');
+	});
+
 	test('複数語クエリ「json csv」でJSON↔CSV変換がヒットする（AND一致）', async ({
 		page,
 	}) => {
