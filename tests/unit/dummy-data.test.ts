@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
 	FIELD_LABELS,
+	formatDummyRecords,
 	generateDummyData,
+	generateDummyRecords,
 	validateDummyDataInput,
 } from '../../src/lib/tools/dummy-data.ts';
 
@@ -63,5 +65,41 @@ test('generateDummyData: CSV/TSVヘッダーは日本語ラベル、JSONキー�
 			[...fields],
 			'JSONのキーは英語IDのままfields順',
 		);
+	}
+});
+
+test('formatDummyRecords: 同じレコードをJSON/CSV/TSVへ整形しても値・順序・件数が一致する（形式切替で再抽選しない）', () => {
+	const fields = ['name', 'kana', 'email', 'number'] as const;
+	const records = generateDummyRecords([...fields], 5);
+
+	const json = formatDummyRecords(records, [...fields], 'json');
+	const csv = formatDummyRecords(records, [...fields], 'csv');
+	const tsv = formatDummyRecords(records, [...fields], 'tsv');
+
+	const parsedJson = JSON.parse(json);
+	assert.strictEqual(parsedJson.length, 5, 'JSON側の件数はレコード数と一致');
+
+	const csvBody = csv.split('\n').slice(1);
+	const tsvBody = tsv.split('\n').slice(1);
+	assert.strictEqual(csvBody.length, 5, 'CSV側の件数はレコード数と一致');
+	assert.strictEqual(tsvBody.length, 5, 'TSV側の件数はレコード数と一致');
+
+	for (let i = 0; i < records.length; i++) {
+		const record = records[i];
+		for (const field of fields) {
+			assert.strictEqual(
+				parsedJson[i][field],
+				record[field],
+				`JSON[${i}].${field} は元レコードと一致`,
+			);
+			assert.ok(
+				csvBody[i].includes(String(record[field])),
+				`CSV行${i}は元レコードの値${String(record[field])}を含む`,
+			);
+			assert.ok(
+				tsvBody[i].includes(String(record[field])),
+				`TSV行${i}は元レコードの値${String(record[field])}を含む`,
+			);
+		}
 	}
 });

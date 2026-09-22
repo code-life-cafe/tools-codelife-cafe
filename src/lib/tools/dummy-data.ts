@@ -144,18 +144,20 @@ export function validateDummyDataInput(
 	return null;
 }
 
+export type DummyRecord = Record<string, string | number>;
+
 // --- Generator ---
-export function generateDummyData(
+// ランダムなレコード生成のみを行う。整形（JSON/CSV/TSV）は formatDummyRecords が担う。
+export function generateDummyRecords(
 	fields: FieldType[],
 	count: number,
-	format: ExportFormat,
-): string {
+): DummyRecord[] {
 	const validationError = validateDummyDataInput(count, fields);
 	if (validationError) {
 		throw new Error(validationError);
 	}
 
-	const rows = [];
+	const rows: DummyRecord[] = [];
 
 	for (let i = 0; i < count; i++) {
 		const row: Record<string, string | number> = {};
@@ -213,9 +215,17 @@ export function generateDummyData(
 		rows.push(row);
 	}
 
-	// --- Formatting ---
+	return rows;
+}
+
+// 生成済みレコードをJSON/CSV/TSVへ整形するのみで、値の再抽選は行わない。
+export function formatDummyRecords(
+	records: DummyRecord[],
+	fields: FieldType[],
+	format: ExportFormat,
+): string {
 	if (format === 'json') {
-		return JSON.stringify(rows, null, 2);
+		return JSON.stringify(records, null, 2);
 	}
 
 	const separator = format === 'csv' ? ',' : '\t';
@@ -231,11 +241,24 @@ export function generateDummyData(
 
 	const header = fields.map((f) => escapeCell(FIELD_LABELS[f])).join(separator);
 
-	const body = rows
+	const body = records
 		.map((r) =>
 			fields.map((f) => escapeCell(String(r[f] ?? ''))).join(separator),
 		)
 		.join('\n');
 
 	return `${header}\n${body}`;
+}
+
+// 後方互換用の薄いラッパー。レコード生成と整形を1回で行う。
+export function generateDummyData(
+	fields: FieldType[],
+	count: number,
+	format: ExportFormat,
+): string {
+	return formatDummyRecords(
+		generateDummyRecords(fields, count),
+		fields,
+		format,
+	);
 }
