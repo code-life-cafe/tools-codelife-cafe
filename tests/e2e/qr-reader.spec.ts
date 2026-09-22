@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from './fixtures/base';
 
@@ -9,6 +10,8 @@ const FIXTURES_DIR = path.join(
 	'qr-reader',
 );
 const fixture = (name: string) => path.join(FIXTURES_DIR, name);
+const fixtureBase64 = (name: string) =>
+	fs.readFileSync(fixture(name)).toString('base64');
 
 test.describe('QRコード読み取りツール', () => {
 	test.beforeEach(async ({ page }) => {
@@ -393,5 +396,127 @@ test.describe('QRコード読み取りツール: 自動保存', () => {
 		await expect(
 			page.getByText('読み取った結果はまだありません'),
 		).toBeVisible();
+	});
+});
+
+test.describe('QRコード読み取りツール: カメラ計測（tool_run連射抑止）', () => {
+	// 本番回帰の再現: カメラのデコードループは200ms間隔で毎フレームデコードを試みるため、
+	// 同一QRをカメラに映し続けるだけで大量のtool_runが発火していた（3 visitsで587件）。
+	// canvas.captureStream() で固定QR画像を映し続ける擬似カメラを作り、実際の
+	// CameraScanner統合（video→canvas→Worker decode→計測）を通して回帰を検証する。
+	test.beforeEach(async ({ page }) => {
+		const singleQr = fixtureBase64('single-qr.png');
+		const vcardQr = fixtureBase64('vcard-qr.png');
+		await page.addInitScript(
+			({ singleQr, vcardQr }) => {
+				const loadImage = (base64: string) =>
+					new Promise<HTMLImageElement>((resolve, reject) => {
+						const img = new Image();
+						img.onload = () => resolve(img);
+						img.onerror = reject;
+						img.src = `data:image/png;base64,${base64}`;
+					});
+
+				// biome-ignore lint/suspicious/noExplicitAny: テスト用モック
+				(navigator.mediaDevices as any) ??= {};
+				navigator.mediaDevices.getUserMedia = async () => {
+					const canvas = document.createElement('canvas');
+					canvas.width = 300;
+					canvas.height = 300;
+					const ctx = canvas.getContext('2d');
+					if (!ctx) throw new Error('2d context unavailable');
+					const img = await loadImage(singleQr);
+					ctx.drawImage(img, 0, 0, 300, 300);
+
+					// biome-ignore lint/suspicious/noExplicitAny: テスト用グローバルフック
+					(window as any).__qrTestSwitchToVcard = async () => {
+						const img2 = await loadImage(vcardQr);
+						ctx.clearRect(0, 0, 300, 300);
+						ctx.drawImage(img2, 0, 0, 300, 300);
+					};
+
+					return canvas.captureStream(10) as unknown as MediaStream;
+				};
+			},
+			{ singleQr, vcardQr },
+		);
+	});
+
+	test('同一QRをカメラに映し続けても新規スキャンのtool_runは1回だけ発火する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const runEvents: unknown[] = [];
+		await page.route('**/api/event', async (route) => {
+			const body = route.request().postDataJSON() as {
+				event: string;
+				props: { tool: string };
+			};
+			if (body.event === 'tool_run' && body.props.tool === 'qr-reader') {
+				runEvents.push(body);
+			}
+			await route.fulfill({ status: 204, body: '' });
+		});
+
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		// カメラアクティブ（＝デコードループ開始）を待つ
+		await expect(page.getByTestId('qr-viewfinder')).toBeVisible({
+			timeout: 10000,
+		});
+
+		// 同一QRを検出結果一覧に反映させ、デコードループが数回まわるまで待つ
+		const list = page.getByRole('list', { name: 'QRコード読み取り結果一覧' });
+		await expect(list.getByRole('listitem')).toHaveCount(1, {
+			timeout: 10000,
+		});
+
+		// 数十フレーム相当（200ms間隔のデコードループを十分な回数）映し続けても
+		// 新規スキャンとしての計測は1回のまま増えないことを確認する
+		await page.waitForTimeout(3000);
+		expect(runEvents.length).toBe(1);
+		await expect(list.getByRole('listitem')).toHaveCount(1);
+	});
+
+	test('異なるQRを提示すると2件目のtool_runが発火する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const runEvents: unknown[] = [];
+		await page.route('**/api/event', async (route) => {
+			const body = route.request().postDataJSON() as {
+				event: string;
+				props: { tool: string };
+			};
+			if (body.event === 'tool_run' && body.props.tool === 'qr-reader') {
+				runEvents.push(body);
+			}
+			await route.fulfill({ status: 204, body: '' });
+		});
+
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		await expect(page.getByTestId('qr-viewfinder')).toBeVisible({
+			timeout: 10000,
+		});
+
+		const list = page.getByRole('list', { name: 'QRコード読み取り結果一覧' });
+		await expect(list.getByRole('listitem')).toHaveCount(1, {
+			timeout: 10000,
+		});
+		await expect.poll(() => runEvents.length, { timeout: 5000 }).toBe(1);
+
+		// 異なるQRをカメラに提示する（＝明示的に別コードへ切り替える操作）
+		await page.evaluate(async () => {
+			// biome-ignore lint/suspicious/noExplicitAny: テスト用グローバルフック
+			await (window as any).__qrTestSwitchToVcard();
+		});
+
+		await expect(list.getByRole('listitem')).toHaveCount(2, {
+			timeout: 10000,
+		});
+		await expect.poll(() => runEvents.length, { timeout: 5000 }).toBe(2);
 	});
 });
