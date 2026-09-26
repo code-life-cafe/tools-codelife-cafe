@@ -124,6 +124,49 @@ test('formatJson: 配列内の大整数も精度を保持', async () => {
 });
 
 // ============================================================
+// formatJson/minifyJson: 内部マーカー衝突回帰テスト（監査B04）
+// 旧実装は大整数プレースホルダーを固定文字列
+// __LOSSLESS_INT__<数字>__END__ にしていたため、ユーザーの文字列値・
+// キーが偶然この形になると、置換後の文字列を対象にしたグローバル置換で
+// 誤って数値化・引用符除去されていた。
+// ============================================================
+
+test('formatJson: 旧プレースホルダーと同じ文字列値は数値化されず保持される', () => {
+	const input = '{"s":"__LOSSLESS_INT__123__END__"}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__123__END__');
+});
+
+test('formatJson: 旧プレースホルダーと同じキー文字列は不正JSONにならない', () => {
+	const input = '{"__LOSSLESS_INT__123__END__":"x"}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	// 出力が構文上有効なJSONであること（キーの引用符が外れていないこと）
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.__LOSSLESS_INT__123__END__, 'x');
+});
+
+test('formatJson: 旧プレースホルダー文字列と実際の大整数が同時に存在しても両方正しく保持される', () => {
+	const bigNum = '9007199254740993';
+	const input = `{"s":"__LOSSLESS_INT__123__END__","big":${bigNum}}`;
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__123__END__');
+	assert.ok(result.output.includes(bigNum));
+});
+
+test('minifyJson: 旧プレースホルダーと同じ文字列値は数値化されず保持される', () => {
+	const input = '{"s":"__LOSSLESS_INT__-42__END__"}';
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__-42__END__');
+});
+
+// ============================================================
 // formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
 // ============================================================
 

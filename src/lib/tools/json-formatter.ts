@@ -47,14 +47,31 @@ function getIndentString(indent: IndentType): string | number {
 // 大整数精度保持: Number.MAX_SAFE_INTEGER (9007199254740991) を
 // 超える整数は JSON.parse で精度が失われるため、パース前に一時的な
 // 文字列プレースホルダーへ置換し、整形後に数値リテラルへ復元する。
+//
+// プレースホルダーは呼び出しごとに生成したnonceを埋め込み、元入力に
+// 一度も出現しないことを確認してから使用する。固定文字列を使うと、
+// ユーザー入力の文字列値・キーが偶然プレースホルダーと同じテキストに
+// なった場合に誤って数値化・引用符除去されてしまう（内部マーカー衝突）。
 // ============================================================
 
-const BIGINT_PLACEHOLDER_PREFIX = '__LOSSLESS_INT__';
-const BIGINT_PLACEHOLDER_SUFFIX = '__END__';
-const BIGINT_PLACEHOLDER_RE = new RegExp(
-	`"${BIGINT_PLACEHOLDER_PREFIX}(-?\\d+)${BIGINT_PLACEHOLDER_SUFFIX}"`,
-	'g',
-);
+const BIGINT_PLACEHOLDER_PREFIX = '__LOSSLESS_INT_';
+const BIGINT_PLACEHOLDER_SUFFIX = '__END_';
+
+/** inputに一度も出現しない乱数nonceを生成する */
+function createNonce(input: string): string {
+	let nonce: string;
+	do {
+		nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+	} while (input.includes(nonce));
+	return nonce;
+}
+
+function buildPlaceholderRegex(nonce: string): RegExp {
+	return new RegExp(
+		`"${BIGINT_PLACEHOLDER_PREFIX}${nonce}__(-?\\d+)__${BIGINT_PLACEHOLDER_SUFFIX}${nonce}__"`,
+		'g',
+	);
+}
 
 /** 文字列として与えられた整数が安全な表現範囲を超えるか判定 */
 function isUnsafeInteger(numStr: string): boolean {
@@ -72,7 +89,7 @@ function isUnsafeInteger(numStr: string): boolean {
  * JSON.parse が精度を保てるよう一時的な文字列プレースホルダーへ置換する。
  * float・指数表記は変換しない。
  */
-function replaceLargeInts(input: string): string {
+function replaceLargeInts(input: string, nonce: string): string {
 	let result = '';
 	let inString = false;
 	let i = 0;
@@ -114,7 +131,7 @@ function replaceLargeInts(input: string): string {
 			} else {
 				// 純粋な整数: 大きすぎる場合はプレースホルダーへ置換
 				result += isUnsafeInteger(numStr)
-					? `"${BIGINT_PLACEHOLDER_PREFIX}${numStr}${BIGINT_PLACEHOLDER_SUFFIX}"`
+					? `"${BIGINT_PLACEHOLDER_PREFIX}${nonce}__${numStr}__${BIGINT_PLACEHOLDER_SUFFIX}${nonce}__"`
 					: numStr;
 			}
 		} else {
@@ -127,8 +144,8 @@ function replaceLargeInts(input: string): string {
 }
 
 /** stringify 後の出力に残ったプレースホルダーを元の数値リテラルへ復元 */
-function restoreLargeInts(output: string): string {
-	return output.replace(BIGINT_PLACEHOLDER_RE, '$1');
+function restoreLargeInts(output: string, nonce: string): string {
+	return output.replace(buildPlaceholderRegex(nonce), '$1');
 }
 
 /**
@@ -155,10 +172,11 @@ export function formatJson(
 		return { success: true, output: '' };
 	}
 	try {
-		const preprocessed = replaceLargeInts(input);
+		const nonce = createNonce(input);
+		const preprocessed = replaceLargeInts(input, nonce);
 		const parsed = JSON.parse(preprocessed);
 		const formatted = JSON.stringify(parsed, null, getIndentString(indent));
-		return { success: true, output: restoreLargeInts(formatted) };
+		return { success: true, output: restoreLargeInts(formatted, nonce) };
 	} catch (e) {
 		const error = e as SyntaxError;
 		return {
@@ -175,10 +193,11 @@ export function minifyJson(input: string): FormatResult {
 		return { success: true, output: '' };
 	}
 	try {
-		const preprocessed = replaceLargeInts(input);
+		const nonce = createNonce(input);
+		const preprocessed = replaceLargeInts(input, nonce);
 		const parsed = JSON.parse(preprocessed);
 		const minified = JSON.stringify(parsed);
-		return { success: true, output: restoreLargeInts(minified) };
+		return { success: true, output: restoreLargeInts(minified, nonce) };
 	} catch (e) {
 		const error = e as SyntaxError;
 		return {
