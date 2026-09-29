@@ -487,7 +487,8 @@ export function getNextRunTimes(
 	const timeZone = options.timeZone;
 
 	const results: Date[] = [];
-	let cursorCivil = getZonedParts(from, timeZone);
+	// 現在の分の秒候補も対象にするため、探索は1分前から始める（fromより後の結果のみ採用する）
+	let cursorCivil = addMinutes(getZonedParts(from, timeZone), -1);
 	let currentMinuteCivil: CivilTime | null = null;
 	let pendingSeconds: number[] = [];
 
@@ -500,8 +501,10 @@ export function getNextRunTimes(
 		if (second === undefined || !currentMinuteCivil) break;
 
 		const resultCivil: CivilTime = { ...currentMinuteCivil, second };
-		results.push(civilToUtc(resultCivil, timeZone));
+		const resultDate = civilToUtc(resultCivil, timeZone);
 		cursorCivil = resultCivil;
+		if (resultDate.getTime() <= from.getTime()) continue;
+		results.push(resultDate);
 	}
 	return results;
 }
