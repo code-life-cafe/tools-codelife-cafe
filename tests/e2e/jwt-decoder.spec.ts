@@ -2,6 +2,7 @@ import { expect, test } from './fixtures/base';
 
 const SAMPLE_JWT =
 	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoi5bGx55Sw5aSq6YOOIiwicm9sZSI6IueuoeeQhuiAhSJ9.signature';
+const HEADER = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9';
 const UNSIGNED_JWT =
 	'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJuYW1lIjoi5bGx55Sw5aSq6YOOIiwicm9sZSI6IueuoeeQhuiAhSJ9.';
 
@@ -47,5 +48,23 @@ test.describe('JWT Decoder Tool', () => {
 
 		await expect(page.getByText('デコードできません')).toBeVisible();
 		await expect(page.getByText('3つの部分で構成')).toBeVisible();
+	});
+
+	test('should still decode when nbf is outside the valid Date range', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('jwt-decoder');
+		await toolPage.goto();
+
+		const payload = Buffer.from(
+			JSON.stringify({ name: '山田太郎', nbf: 1e13 }),
+		).toString('base64url');
+		await page.getByLabel('JWT').fill(`${HEADER}.${payload}.signature`);
+
+		await expect(page.getByText('デコードできません')).toHaveCount(0);
+		await expect(page.getByText('"name": "山田太郎"')).toBeVisible();
+		await expect(page.getByText('日時に変換できません')).toBeVisible();
+		await expect(page.getByText('Invalid time value')).toHaveCount(0);
 	});
 });
