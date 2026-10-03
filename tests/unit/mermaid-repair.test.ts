@@ -138,6 +138,26 @@ flowchart TD
 		assert.strictEqual(replaceSyntaxZenkaku('A → B'), 'A --> B');
 	});
 
+	test('インラインクラス（:::）付きノードでもラベル内の「→」を保持する', () => {
+		for (const input of [
+			'A[東京→大阪]:::accent --> B',
+			'A(東京→大阪):::accent --> B',
+			'A{東京→大阪}:::a-b_1 --> B[完了]:::x',
+			'A[東京→大阪]:::accent',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		// クラス付きノードの後ろの構文位置の「→」は従来どおり修復する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪]:::accent → B[完了]:::done'),
+			'A[東京→大阪]:::accent --> B[完了]:::done',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京]:::accent → B[大阪→京都]'),
+			'A[東京]:::accent --> B[大阪→京都]',
+		);
+	});
+
 	test('repairMermaidCode: ラベル内の「→」が修復後のコードにそのまま残る', () => {
 		const input = 'flowchart TD\n  A[東京→大阪] --> B[完了]';
 		const result = repairMermaidCode(input);

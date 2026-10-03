@@ -158,8 +158,9 @@ function withProtectedNodeLabels(
 	const labels: string[] = [];
 	// ノードID + 開き括弧 + 中身 + 閉じ括弧
 	// 例: A[ラベル], node1(ラベル), A{ラベル}, A([ラベル]), A[[ラベル]], A((ラベル))
+	// 閉じ括弧の直後は、インラインクラス（:::name）と矢印・区切り・行末のいずれかが続く場合に限る
 	const protectedLine = line.replace(
-		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=\s*(?:-->|---|==>|-\.->|--|==|→|ー+[>＞]|&|;|$))/g,
+		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=(?::::[\w-]+)?\s*(?:-->|---|==>|-\.->|--|==|→|ー+[>＞]|&|;|$))/g,
 		(_match, id, openBrackets, content, closeBrackets) => {
 			labels.push(content);
 			return `${id}${openBrackets}__MERMAID_LABEL_${labels.length - 1}__${closeBrackets}`;
