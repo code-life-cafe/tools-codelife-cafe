@@ -34,12 +34,13 @@ export function sanitizeJsonFormatterSettings(
 
 // ============================================================
 // 大整数精度保持: Number.MAX_SAFE_INTEGER (9007199254740991) を
-// 超える整数は JSON.parse で精度が失われるため、専用の再帰下降パーサーで
-// 値の構築と桁保持を同時に行う（json-csv.ts の parseJsonPreservingIntegers
-// と同じ方式）。文字列プレースホルダーへの置換・復元は、ユーザー入力の
-// 文字列値・キーが偶然プレースホルダーと同じテキストになった場合に誤って
-// 数値化・引用符除去される内部マーカー衝突を構造的に避けられないため、
-// 採用しない。
+// 超える整数は JSON.parse で精度が失われるため、専用パーサーで値の構築と
+// 桁保持を同時に行う（json-csv.ts の parseJsonPreservingIntegers と同じ
+// 方式）。文字列プレースホルダーへの置換・復元は、ユーザー入力の文字列値・
+// キーが偶然プレースホルダーと同じテキストになった場合に誤って数値化・
+// 引用符除去される内部マーカー衝突を構造的に避けられないため、採用しない。
+// パース・シリアライズとも再帰呼び出しではなく明示的なスタックで処理し、
+// ネスト段数がコールスタックの深さに影響しない（Codexレビュー指摘対応）。
 // ============================================================
 
 /** Number.MAX_SAFE_INTEGER を超える整数リテラルの桁を保持するためのラッパー */
@@ -80,9 +81,41 @@ function setOwnValue(
 }
 
 /**
- * JSON.parse 相当の再帰下降パーサー。安全整数範囲外の整数リテラルは Number ではなく
+ * parseJsonPreservingIntegers内部の「構築中のコンテナ」1個を表す。
+ * 再帰呼び出しの代わりにこれをスタックへ積むことで、ネストが深い入力でも
+ * コールスタックを消費しない（V8のスタック上限での Maximum call stack size
+ * exceeded を回避する）。
+ */
+type ParseFrame =
+	| {
+			kind: 'object';
+			obj: Record<string, unknown>;
+			// '{' 直後 or ',' 直後でまだ次のキーを読んでいない状態か
+			awaitingKey: boolean;
+			// ','の直後（空オブジェクトを許さない）かどうか
+			afterComma: boolean;
+			// コンテナ値を読んでいる間、attach先のキーを保持する
+			pendingKey: string | null;
+	  }
+	| {
+			kind: 'array';
+			arr: unknown[];
+			awaitingValue: boolean;
+			afterComma: boolean;
+	  };
+
+/** readScalarOrOpen の戻り値。コンテナ開始とスカラー値を1つの判別可能な型で表す。 */
+type ReadResult =
+	| { kind: 'open'; container: 'object' | 'array' }
+	| { kind: 'scalar'; value: unknown };
+
+/**
+ * JSON.parse 相当のパーサー。安全整数範囲外の整数リテラルは Number ではなく
  * BigIntLiteral として桁を保持する（小数・指数表記は従来どおり Number化）。
  * プレースホルダー文字列を経由しないため、エラー位置も常に元入力基準になる。
+ * ネストしたオブジェクト・配列は再帰呼び出しではなく明示的なスタック
+ * （ParseFrame[]）で処理するため、ネスト段数がコールスタックの深さに
+ * 影響しない（任意の深さのネストを安全に処理できる）。
  */
 function parseJsonPreservingIntegers(text: string): unknown {
 	const len = text.length;
@@ -103,79 +136,35 @@ function parseJsonPreservingIntegers(text: string): unknown {
 		}
 	};
 
-	const parseValue = (): unknown => {
+	/** スカラー値、またはコンテナ開始('{'/'[')を読む。コンテナの中身は読まない。 */
+	const readScalarOrOpen = (): ReadResult => {
 		skipWhitespace();
 		if (i >= len) fail('Unexpected end of JSON input');
 		const ch = text[i];
-		if (ch === '{') return parseObject();
-		if (ch === '[') return parseArray();
-		if (ch === '"') return parseString();
-		if (ch === '-' || (ch >= '0' && ch <= '9')) return parseNumber();
+		if (ch === '{') {
+			i++;
+			return { kind: 'open', container: 'object' };
+		}
+		if (ch === '[') {
+			i++;
+			return { kind: 'open', container: 'array' };
+		}
+		if (ch === '"') return { kind: 'scalar', value: parseString() };
+		if (ch === '-' || (ch >= '0' && ch <= '9'))
+			return { kind: 'scalar', value: parseNumber() };
 		if (text.startsWith('true', i)) {
 			i += 4;
-			return true;
+			return { kind: 'scalar', value: true };
 		}
 		if (text.startsWith('false', i)) {
 			i += 5;
-			return false;
+			return { kind: 'scalar', value: false };
 		}
 		if (text.startsWith('null', i)) {
 			i += 4;
-			return null;
+			return { kind: 'scalar', value: null };
 		}
 		return fail('Unexpected token in JSON');
-	};
-
-	const parseObject = (): Record<string, unknown> => {
-		const obj: Record<string, unknown> = {};
-		i++; // '{'
-		skipWhitespace();
-		if (text[i] === '}') {
-			i++;
-			return obj;
-		}
-		for (;;) {
-			skipWhitespace();
-			if (text[i] !== '"') fail('Expected property name in JSON');
-			const key = parseString();
-			skipWhitespace();
-			if (text[i] !== ':') fail("Expected ':' after property name in JSON");
-			i++;
-			setOwnValue(obj, key, parseValue());
-			skipWhitespace();
-			if (text[i] === ',') {
-				i++;
-				continue;
-			}
-			if (text[i] === '}') {
-				i++;
-				return obj;
-			}
-			fail("Expected ',' or '}' in JSON object");
-		}
-	};
-
-	const parseArray = (): unknown[] => {
-		const arr: unknown[] = [];
-		i++; // '['
-		skipWhitespace();
-		if (text[i] === ']') {
-			i++;
-			return arr;
-		}
-		for (;;) {
-			arr.push(parseValue());
-			skipWhitespace();
-			if (text[i] === ',') {
-				i++;
-				continue;
-			}
-			if (text[i] === ']') {
-				i++;
-				return arr;
-			}
-			fail("Expected ',' or ']' in JSON array");
-		}
 	};
 
 	const parseString = (): string => {
@@ -285,43 +274,281 @@ function parseJsonPreservingIntegers(text: string): unknown {
 		return Number(text.slice(start, i));
 	};
 
-	const result = parseValue();
+	// 構築中のコンテナをスタックで管理し、ネストしたオブジェクト・配列を
+	// 再帰呼び出しなしで処理する。
+	const stack: ParseFrame[] = [];
+	let result: unknown;
+	let done = false;
+
+	/** コンテナが閉じたときに、親フレーム（スタックが空ならトップレベル結果）へ値を渡す */
+	const attachContainer = (container: unknown): void => {
+		if (stack.length === 0) {
+			result = container;
+			done = true;
+			return;
+		}
+		const parent = stack[stack.length - 1];
+		if (parent.kind === 'array') {
+			parent.arr.push(container);
+		} else {
+			setOwnValue(parent.obj, parent.pendingKey as string, container);
+			parent.pendingKey = null;
+		}
+	};
+
+	{
+		const first = readScalarOrOpen();
+		if (first.kind === 'open' && first.container === 'object') {
+			stack.push({
+				obj: {},
+				kind: 'object',
+				awaitingKey: true,
+				afterComma: false,
+				pendingKey: null,
+			});
+		} else if (first.kind === 'open') {
+			stack.push({
+				arr: [],
+				kind: 'array',
+				awaitingValue: true,
+				afterComma: false,
+			});
+		} else {
+			result = first.value;
+			done = true;
+		}
+	}
+
+	while (!done) {
+		const frame = stack[stack.length - 1];
+		skipWhitespace();
+		if (frame.kind === 'object') {
+			if (frame.awaitingKey) {
+				if (!frame.afterComma && text[i] === '}') {
+					i++;
+					stack.pop();
+					attachContainer(frame.obj);
+					continue;
+				}
+				if (text[i] !== '"') fail('Expected property name in JSON');
+				const key = parseString();
+				skipWhitespace();
+				if (text[i] !== ':') fail("Expected ':' after property name in JSON");
+				i++;
+				const v = readScalarOrOpen();
+				frame.awaitingKey = false;
+				if (v.kind === 'open' && v.container === 'object') {
+					frame.pendingKey = key;
+					stack.push({
+						obj: {},
+						kind: 'object',
+						awaitingKey: true,
+						afterComma: false,
+						pendingKey: null,
+					});
+				} else if (v.kind === 'open') {
+					frame.pendingKey = key;
+					stack.push({
+						arr: [],
+						kind: 'array',
+						awaitingValue: true,
+						afterComma: false,
+					});
+				} else {
+					setOwnValue(frame.obj, key, v.value);
+				}
+				continue;
+			}
+			// 値を読み終えた直後: ',' または '}' を期待する
+			if (text[i] === ',') {
+				i++;
+				frame.awaitingKey = true;
+				frame.afterComma = true;
+				continue;
+			}
+			if (text[i] === '}') {
+				i++;
+				stack.pop();
+				attachContainer(frame.obj);
+				continue;
+			}
+			fail("Expected ',' or '}' in JSON object");
+		} else {
+			// array
+			if (frame.awaitingValue) {
+				if (!frame.afterComma && text[i] === ']') {
+					i++;
+					stack.pop();
+					attachContainer(frame.arr);
+					continue;
+				}
+				const v = readScalarOrOpen();
+				frame.awaitingValue = false;
+				if (v.kind === 'open' && v.container === 'object') {
+					stack.push({
+						obj: {},
+						kind: 'object',
+						awaitingKey: true,
+						afterComma: false,
+						pendingKey: null,
+					});
+				} else if (v.kind === 'open') {
+					stack.push({
+						arr: [],
+						kind: 'array',
+						awaitingValue: true,
+						afterComma: false,
+					});
+				} else {
+					frame.arr.push(v.value);
+				}
+				continue;
+			}
+			if (text[i] === ',') {
+				i++;
+				frame.awaitingValue = true;
+				frame.afterComma = true;
+				continue;
+			}
+			if (text[i] === ']') {
+				i++;
+				stack.pop();
+				attachContainer(frame.arr);
+				continue;
+			}
+			fail("Expected ',' or ']' in JSON array");
+		}
+	}
+
 	skipWhitespace();
 	if (i < len) fail('Unexpected non-whitespace character after JSON value');
 	return result;
 }
 
 /**
+ * stringifyPreservingIntegers内部の「レンダリング中のコンテナ」1個を表す。
+ * 再帰呼び出しの代わりにこれをスタックへ積むことで、parseJsonPreservingIntegers
+ * と同様に深いネストでもコールスタックを消費しない。
+ */
+type RenderFrame =
+	| { kind: 'array'; items: unknown[]; index: number; parts: string[] }
+	| {
+			kind: 'object';
+			entries: [string, unknown][];
+			index: number;
+			parts: string[];
+			pendingPrefix: string | null;
+	  };
+
+/**
  * JSON.stringify 相当だが、BigIntLiteral を桁文字列のまま（未クォートの数値として）
  * 出力する。indentUnit が空文字列ならminify、非空なら1階層ごとに付加して整形する。
+ * ネストしたオブジェクト・配列は再帰呼び出しではなく明示的なスタック
+ * （RenderFrame[]）で処理するため、任意の深さのネストを安全に処理できる。
  */
 function stringifyPreservingIntegers(
 	value: unknown,
 	indentUnit: string,
 ): string {
-	const render = (val: unknown, depth: number): string => {
+	const renderScalar = (val: unknown): string => {
 		if (val instanceof BigIntLiteral) return val.digits;
-		if (Array.isArray(val)) {
-			if (val.length === 0) return '[]';
-			const items = val.map((item) => render(item, depth + 1));
-			if (!indentUnit) return `[${items.join(',')}]`;
-			const pad = indentUnit.repeat(depth + 1);
-			return `[\n${items.map((s) => pad + s).join(',\n')}\n${indentUnit.repeat(depth)}]`;
-		}
-		if (val !== null && typeof val === 'object') {
-			const entries = Object.entries(val as Record<string, unknown>);
-			if (entries.length === 0) return '{}';
-			const items = entries.map(
-				([key, v]) =>
-					`${JSON.stringify(key)}${indentUnit ? ': ' : ':'}${render(v, depth + 1)}`,
-			);
-			if (!indentUnit) return `{${items.join(',')}}`;
-			const pad = indentUnit.repeat(depth + 1);
-			return `{\n${items.map((s) => pad + s).join(',\n')}\n${indentUnit.repeat(depth)}}`;
-		}
 		return JSON.stringify(val);
 	};
-	return render(value, 0);
+
+	const isContainer = (
+		val: unknown,
+	): val is unknown[] | Record<string, unknown> =>
+		Array.isArray(val) ||
+		(val !== null &&
+			typeof val === 'object' &&
+			!(val instanceof BigIntLiteral));
+
+	const pushFrame = (
+		stack: RenderFrame[],
+		val: unknown[] | Record<string, unknown>,
+	): void => {
+		if (Array.isArray(val)) {
+			stack.push({ kind: 'array', items: val, index: 0, parts: [] });
+		} else {
+			stack.push({
+				kind: 'object',
+				entries: Object.entries(val),
+				index: 0,
+				parts: [],
+				pendingPrefix: null,
+			});
+		}
+	};
+
+	const closeFrame = (frame: RenderFrame, depth: number): string => {
+		if (frame.parts.length === 0) return frame.kind === 'array' ? '[]' : '{}';
+		if (!indentUnit) {
+			return frame.kind === 'array'
+				? `[${frame.parts.join(',')}]`
+				: `{${frame.parts.join(',')}}`;
+		}
+		const pad = indentUnit.repeat(depth + 1);
+		const closePad = indentUnit.repeat(depth);
+		const body = frame.parts.map((s) => pad + s).join(',\n');
+		return frame.kind === 'array'
+			? `[\n${body}\n${closePad}]`
+			: `{\n${body}\n${closePad}}`;
+	};
+
+	if (!isContainer(value)) return renderScalar(value);
+
+	const stack: RenderFrame[] = [];
+	pushFrame(stack, value);
+	let finalResult = '';
+
+	while (stack.length > 0) {
+		const frame = stack[stack.length - 1];
+		if (frame.kind === 'array') {
+			if (frame.index >= frame.items.length) {
+				const rendered = closeFrame(frame, stack.length - 1);
+				stack.pop();
+				if (stack.length === 0) {
+					finalResult = rendered;
+				} else {
+					stack[stack.length - 1].parts.push(rendered);
+				}
+				continue;
+			}
+			const item = frame.items[frame.index++];
+			if (isContainer(item)) {
+				pushFrame(stack, item);
+			} else {
+				frame.parts.push(renderScalar(item));
+			}
+			continue;
+		}
+		// object
+		if (frame.index >= frame.entries.length) {
+			const rendered = closeFrame(frame, stack.length - 1);
+			stack.pop();
+			if (stack.length === 0) {
+				finalResult = rendered;
+			} else {
+				const parent = stack[stack.length - 1];
+				if (parent.kind === 'object' && parent.pendingPrefix !== null) {
+					parent.parts.push(parent.pendingPrefix + rendered);
+					parent.pendingPrefix = null;
+				} else {
+					parent.parts.push(rendered);
+				}
+			}
+			continue;
+		}
+		const [key, v] = frame.entries[frame.index++];
+		const keyPrefix = `${JSON.stringify(key)}${indentUnit ? ': ' : ':'}`;
+		if (isContainer(v)) {
+			frame.pendingPrefix = keyPrefix;
+			pushFrame(stack, v);
+		} else {
+			frame.parts.push(`${keyPrefix}${renderScalar(v)}`);
+		}
+	}
+	return finalResult;
 }
 
 function getIndentUnit(indent: IndentType): string {

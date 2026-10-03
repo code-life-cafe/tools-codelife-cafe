@@ -255,6 +255,39 @@ test('formatJson: 不正なUnicodeエスケープはバックスラッシュで�
 });
 
 // ============================================================
+// formatJson/minifyJson: 深いネストでのスタックオーバーフロー回帰テスト
+// 再帰下降パーサー・再帰的stringifyは、ネスト段数に比例してコールスタックを
+// 消費するため、十分深いネスト（数千段）で「Maximum call stack size exceeded」
+// となり、有効なJSONが構文エラーとして報告されてしまっていた。
+// パース・シリアライズの両方を明示的なスタックによる反復処理へ置き換え、
+// コールスタックの深さに依存しないことを確認する。
+// ============================================================
+
+test('formatJson: 数千段ネストした配列でもスタックオーバーフローせず整形できる', () => {
+	const depth = 5000;
+	const input = `${'['.repeat(depth)}1${']'.repeat(depth)}`;
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	let cursor: unknown = parsed;
+	let actualDepth = 0;
+	while (Array.isArray(cursor) && cursor.length === 1) {
+		cursor = cursor[0];
+		actualDepth++;
+	}
+	assert.equal(actualDepth, depth);
+	assert.equal(cursor, 1);
+});
+
+test('minifyJson: 数千段ネストしたオブジェクトでもスタックオーバーフローせず圧縮できる', () => {
+	const depth = 5000;
+	const input = `${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`;
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	assert.equal(result.output, input);
+});
+
+// ============================================================
 // formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
 // ============================================================
 
