@@ -204,12 +204,19 @@ export function replaceSyntaxZenkaku(line: string): string {
 			let s = nodeProtected;
 
 			// 構文位置の全角矢印・長音混入矢印（ノードラベル本文は上記で保護済み。
-			// 接続子直後のエッジラベル |...| の本文も保護して、構文部分だけを置換する）
+			// エッジラベルの本文も保護して、構文部分だけを置換する。
+			// 対象: 接続子直後の |...| と、A -- text --> B 形式の text）
 			const edgeLabels: string[] = [];
-			s = s.replace(/(?<=[-=>.ox~→＞])\|[^|\n]*\|/g, (match) => {
-				edgeLabels.push(match);
+			const protectEdgeLabel = (label: string) => {
+				edgeLabels.push(label);
 				return `__MERMAID_EDGE_${edgeLabels.length - 1}__`;
-			});
+			};
+			s = s.replace(/(?<=[-=>.ox~→＞])\|[^|\n]*\|/g, protectEdgeLabel);
+			s = s.replace(
+				/(?<![-=.>])((?:--|==|-\.)\s+)([^\n]*?)(\s+)(?=(?:-{2,}[>xo]?|={2,}[>xo]?|\.->|\.-|→|ー+[>＞]))/g,
+				(_match, open, text, space) =>
+					`${open}${protectEdgeLabel(text)}${space}`,
+			);
 			s = s.replace(/ーー＞/g, '-->');
 			s = s.replace(/ーー>>/g, '-->>');
 			s = s.replace(/ー+>/g, '-->');

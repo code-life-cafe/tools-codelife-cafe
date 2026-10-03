@@ -211,6 +211,35 @@ flowchart TD
 		);
 	});
 
+	test('A -- text --> B 形式のエッジラベル内の「→」も保持する', () => {
+		for (const input of [
+			'A -- 東京→大阪 --> B',
+			'A -- 東京→大阪 --- B',
+			'A -- 東京→大阪 --x B',
+			'A -- 東京→大阪 --o B',
+			'A == 東京→大阪 ==> B',
+			'A == 東京→大阪 === B',
+			'A -. 東京→大阪 .-> B',
+			'A -. 東京→大阪 .- B',
+			'A[x] -- 東京→大阪 --> B[y]',
+			'A -- 東京→大阪 --> B -- 大阪→京都 --> C',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		// 構文位置の全角矢印（接続子の閉じ側）は従来どおり修復する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A -- 経由 → B'),
+			'A -- 経由 --> B',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A -- 経由→乗換 ーー＞ B'),
+			'A -- 経由→乗換 --> B',
+		);
+		// 通常の矢印・連鎖は変更しない／全角矢印だけ修復する
+		assert.strictEqual(replaceSyntaxZenkaku('A --> B --> C'), 'A --> B --> C');
+		assert.strictEqual(replaceSyntaxZenkaku('A → B → C'), 'A --> B --> C');
+	});
+
 	test('repairMermaidCode: ラベル内の「→」が修復後のコードにそのまま残る', () => {
 		const input = 'flowchart TD\n  A[東京→大阪] --> B[完了]';
 		const result = repairMermaidCode(input);
