@@ -59,6 +59,27 @@ class JsonSyntaxError extends Error {
 }
 
 /**
+ * obj[key] = value ではなく own property として直接定義する。
+ * key が "__proto__" の場合、ブラケット代入は Object.prototype の
+ * アクセサ（setter）を呼び出してしまい、own property を作らずに
+ * obj 自身のプロトタイプを書き換えてしまう（値が消える・意図しない継承が
+ * 生じる）。Object.defineProperty は常に own property を作るため、
+ * どのキー文字列でも安全に値を保持できる（json-csv.ts の setOwnValue と同じ方式）。
+ */
+function setOwnValue(
+	obj: Record<string, unknown>,
+	key: string,
+	value: unknown,
+): void {
+	Object.defineProperty(obj, key, {
+		value,
+		enumerable: true,
+		configurable: true,
+		writable: true,
+	});
+}
+
+/**
  * JSON.parse 相当の再帰下降パーサー。安全整数範囲外の整数リテラルは Number ではなく
  * BigIntLiteral として桁を保持する（小数・指数表記は従来どおり Number化）。
  * プレースホルダー文字列を経由しないため、エラー位置も常に元入力基準になる。
@@ -120,7 +141,7 @@ function parseJsonPreservingIntegers(text: string): unknown {
 			skipWhitespace();
 			if (text[i] !== ':') fail("Expected ':' after property name in JSON");
 			i++;
-			obj[key] = parseValue();
+			setOwnValue(obj, key, parseValue());
 			skipWhitespace();
 			if (text[i] === ',') {
 				i++;
@@ -167,7 +188,11 @@ function parseJsonPreservingIntegers(text: string): unknown {
 				return result;
 			}
 			if (ch === '\\') {
-				const next = text[i + 1];
+				// エスケープ種別文字（バックスラッシュの次の文字）の位置。
+				// 不正なエスケープはバックスラッシュの位置ではなく、この
+				// 種別文字（または不正な16進文字）の位置で報告する。
+				const escapeIndex = i + 1;
+				const next = text[escapeIndex];
 				switch (next) {
 					case '"':
 						result += '"';
@@ -194,15 +219,25 @@ function parseJsonPreservingIntegers(text: string): unknown {
 						result += '\t';
 						break;
 					case 'u': {
-						const hex = text.slice(i + 2, i + 6);
+						const hexStart = escapeIndex + 1;
+						const hex = text.slice(hexStart, hexStart + 4);
 						if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+							let badOffset = 0;
+							while (
+								badOffset < hex.length &&
+								/[0-9a-fA-F]/.test(hex[badOffset])
+							) {
+								badOffset++;
+							}
+							i = hexStart + badOffset;
 							fail('Invalid unicode escape in JSON string');
 						}
 						result += String.fromCharCode(Number.parseInt(hex, 16));
-						i += 4;
-						break;
+						i += 6;
+						continue;
 					}
 					default:
+						i = escapeIndex;
 						fail('Invalid escape character in JSON string');
 				}
 				i += 2;

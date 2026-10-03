@@ -214,6 +214,46 @@ test('formatJson: \\u エスケープで書かれたプレースホルダー同�
 	assert.ok(result.output.includes('9007199254740993'));
 });
 
+test('formatJson: __proto__ キーを own property として保持する（プロトタイプ汚染を起こさない）', () => {
+	const input = '{"__proto__":1,"other":2}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(Object.getOwnPropertyDescriptor(parsed, '__proto__')?.value, 1);
+	assert.equal(parsed.other, 2);
+	// Object.prototype 自体は書き換わっていない
+	assert.equal(Object.getPrototypeOf({}), Object.prototype);
+});
+
+test('minifyJson: __proto__ キーを own property として保持する', () => {
+	const input = '{"__proto__":{"polluted":true}}';
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	assert.equal(result.output, '{"__proto__":{"polluted":true}}');
+	assert.equal(
+		Object.getOwnPropertyDescriptor(Object.getPrototypeOf({}), 'polluted'),
+		undefined,
+	);
+});
+
+// ============================================================
+// formatJson: 不正なエスケープシーケンスのエラー位置回帰テスト
+// ============================================================
+
+test('formatJson: 不正なエスケープ文字はバックスラッシュではなく種別文字の位置を報告する', () => {
+	// 0:" 1:\ 2:x 3:" → "x" がエスケープ種別として不正、position 2 を期待
+	const result = formatJson('"\\x"');
+	assert.equal(result.success, false);
+	assert.equal(result.errorPosition, 2);
+});
+
+test('formatJson: 不正なUnicodeエスケープはバックスラッシュではなく不正な16進文字の位置を報告する', () => {
+	// 0:" 1:\ 2:u 3:0 4:0 5:g 6:g 7:" → 'g' (position 5) が最初の不正な16進文字
+	const result = formatJson('"\\u00gg"');
+	assert.equal(result.success, false);
+	assert.equal(result.errorPosition, 5);
+});
+
 // ============================================================
 // formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
 // ============================================================
