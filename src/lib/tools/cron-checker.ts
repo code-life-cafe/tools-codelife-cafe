@@ -467,6 +467,66 @@ function getZonedParts(date: Date, timeZone: string): CivilTime {
 	};
 }
 
+// 壁時計時刻の前後でゾーンのUTCオフセットを標本化する間隔（時間）。foldの幅に依存しないよう広めに取る
+const OFFSET_SAMPLE_HOURS = [-48, -24, -12, -3, 0, 3, 12, 24, 48];
+
+/** 壁時計時刻cに一致する全ての実インスタント（昇順）を返す。 */
+function listCivilInstants(c: CivilTime, timeZone: string): Date[] {
+	const civilAsUtc = Date.UTC(
+		c.year,
+		c.month - 1,
+		c.day,
+		c.hour,
+		c.minute,
+		c.second,
+	);
+	const base = civilToUtc(c, timeZone).getTime();
+	const offsetsMs = new Set<number>();
+	for (const hours of OFFSET_SAMPLE_HOURS) {
+		const t = base + hours * 3_600_000;
+		const p = getZonedParts(new Date(t), timeZone);
+		const zonedAsUtc = Date.UTC(
+			p.year,
+			p.month - 1,
+			p.day,
+			p.hour,
+			p.minute,
+			p.second,
+		);
+		offsetsMs.add(zonedAsUtc - Math.floor(t / 1000) * 1000);
+	}
+	const instants = new Map<number, Date>();
+	for (const offsetMs of offsetsMs) {
+		const t = civilAsUtc - offsetMs;
+		const p = getZonedParts(new Date(t), timeZone);
+		if (
+			p.year === c.year &&
+			p.month === c.month &&
+			p.day === c.day &&
+			p.hour === c.hour &&
+			p.minute === c.minute &&
+			p.second === c.second
+		) {
+			instants.set(t, new Date(t));
+		}
+	}
+	return [...instants.values()].sort((x, y) => x.getTime() - y.getTime());
+}
+
+/**
+ * 壁時計時刻をUTCへ解決する。同じ壁時計時刻が複数回現れる場合（DST fall-back等）は、
+ * その分がafterより後にまだ残っている最初の出現を選ぶ。afterがその出現の分の内側にある場合は
+ * after以下の値を返し、呼び出し側が読み飛ばすことで同じ分の残り秒を時系列順に返せる。
+ */
+function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
+	const instants = listCivilInstants(c, timeZone);
+	for (const instant of instants) {
+		const minuteEnd = instant.getTime() + (60 - c.second) * 1000;
+		if (minuteEnd > after.getTime()) return instant;
+	}
+	return instants[instants.length - 1] ?? civilToUtc(c, timeZone);
+}
+
 export interface NextRunOptions {
 	count?: number;
 	from?: Date;
@@ -487,7 +547,8 @@ export function getNextRunTimes(
 	const timeZone = options.timeZone;
 
 	const results: Date[] = [];
-	let cursorCivil = getZonedParts(from, timeZone);
+	// 現在の分の秒候補も対象にするため、探索は1分前から始める（fromより後の結果のみ採用する）
+	let cursorCivil = addMinutes(getZonedParts(from, timeZone), -1);
 	let currentMinuteCivil: CivilTime | null = null;
 	let pendingSeconds: number[] = [];
 
@@ -500,8 +561,10 @@ export function getNextRunTimes(
 		if (second === undefined || !currentMinuteCivil) break;
 
 		const resultCivil: CivilTime = { ...currentMinuteCivil, second };
-		results.push(civilToUtc(resultCivil, timeZone));
+		const resultDate = resolveCivilAfter(resultCivil, timeZone, from);
 		cursorCivil = resultCivil;
+		if (resultDate.getTime() <= from.getTime()) continue;
+		results.push(resultDate);
 	}
 	return results;
 }
