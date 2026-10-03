@@ -171,7 +171,7 @@ test('秒付き6フィールド: */5 * * * * * の次回10件が5秒間隔にな
 	const next = getNextRunTimes(s, { count: 10, from, timeZone: 'UTC' });
 	assert.equal(next.length, 10);
 	const seconds = next.map((d) => d.getUTCSeconds());
-	assert.deepEqual(seconds, [0, 5, 10, 15, 20, 25, 30, 35, 40, 45]);
+	assert.deepEqual(seconds, [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]); // fromちょうど(0秒)は含まない
 	for (let i = 1; i < next.length; i++) {
 		assert.equal(next[i].getTime() - next[i - 1].getTime(), 5000);
 	}
@@ -362,4 +362,85 @@ test('AWS EventBridge形式: 曜日指定時は日が?になり曜日はAWS基�
 	const s = parseCronExpression('0 9 * * 1');
 	const result = toAwsEventBridgeCron(s);
 	assert.equal(result.value, 'cron(0 9 ? * 2 *)');
+});
+
+// --- 現在分の秒候補（取りこぼし回帰） -----------------------------------
+
+const iso = (ds: Date[]) => ds.map((d) => d.toISOString());
+
+test('6フィールド */5 秒指定: 同じ分内の次回秒候補を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-09-26T00:00:12Z');
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 3, from, timeZone: 'UTC' })),
+		[
+			'2026-09-26T00:00:15.000Z',
+			'2026-09-26T00:00:20.000Z',
+			'2026-09-26T00:00:25.000Z',
+		],
+	);
+});
+
+test('fromちょうどに一致する秒は再返却せず次の候補を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-09-26T00:00:15Z');
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'UTC' })),
+		['2026-09-26T00:00:20.000Z', '2026-09-26T00:00:25.000Z'],
+	);
+});
+
+test('ミリ秒付きfrom（15.500）でも15秒は返さず20秒から始まる', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-09-26T00:00:15.500Z');
+	const [first] = getNextRunTimes(s, { count: 1, from, timeZone: 'UTC' });
+	assert.equal(first.toISOString(), '2026-09-26T00:00:20.000Z');
+});
+
+test('分境界: 最終秒候補の後は翌分の先頭候補へ進む', () => {
+	const s = parseCronExpression('*/20 * * * * *');
+	const from = new Date('2026-09-26T00:00:41Z');
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'UTC' })),
+		['2026-09-26T00:01:00.000Z', '2026-09-26T00:01:20.000Z'],
+	);
+});
+
+test('5フィールド: 現在分の0秒を過ぎていれば翌分、fromが0秒ちょうどなら翌分', () => {
+	const s = parseCronExpression('* * * * *');
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(s, {
+				count: 2,
+				from: new Date('2026-09-26T00:00:12Z'),
+				timeZone: 'UTC',
+			}),
+		),
+		['2026-09-26T00:01:00.000Z', '2026-09-26T00:02:00.000Z'],
+	);
+	const [first] = getNextRunTimes(s, {
+		count: 1,
+		from: new Date('2026-09-26T00:00:00Z'),
+		timeZone: 'UTC',
+	});
+	assert.equal(first.toISOString(), '2026-09-26T00:01:00.000Z');
+});
+
+test('日時指定（毎時30分 0秒）: 現在分がマッチしない場合は従来どおり', () => {
+	const s = parseCronExpression('30 * * * *');
+	const [first] = getNextRunTimes(s, {
+		count: 1,
+		from: new Date('2026-09-26T00:30:10Z'),
+		timeZone: 'UTC',
+	});
+	assert.equal(first.toISOString(), '2026-09-26T01:30:00.000Z');
+});
+
+test('Asia/Tokyo: 6フィールドでも現在分の秒候補を取りこぼさない', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-09-26T00:00:12Z'); // JST 09:00:12
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'Asia/Tokyo' })),
+		['2026-09-26T00:00:15.000Z', '2026-09-26T00:00:20.000Z'],
+	);
 });
