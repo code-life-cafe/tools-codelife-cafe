@@ -159,7 +159,7 @@ function withProtectedNodeLabels(
 	// ノードID + 開き括弧 + 中身 + 閉じ括弧
 	// 例: A[ラベル], node1(ラベル), A{ラベル}, A([ラベル]), A[[ラベル]], A((ラベル))
 	const protectedLine = line.replace(
-		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
+		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=\s*(?:-->|---|==>|-\.->|--|==|→|ー+[>＞]|&|;|$))/g,
 		(_match, id, openBrackets, content, closeBrackets) => {
 			labels.push(content);
 			return `${id}${openBrackets}__MERMAID_LABEL_${labels.length - 1}__${closeBrackets}`;
@@ -189,13 +189,7 @@ export function replaceSyntaxZenkaku(line: string): string {
 			m.replace(/　/g, ' '),
 		);
 
-		// 2. 全角矢印・長音混入矢印
-		res = res.replace(/ーー＞/g, '-->');
-		res = res.replace(/ーー>>/g, '-->>');
-		res = res.replace(/ー+>/g, '-->');
-		res = res.replace(/--＞/g, '-->');
-		res = res.replace(/→/g, '-->');
-		res = res.replace(/==＞/g, '==>');
+		// 2. 全角矢印・長音混入矢印はラベル本文を保護してから置換する（下記の4.）
 
 		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧を半角化
 		res = res.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]');
@@ -203,9 +197,17 @@ export function replaceSyntaxZenkaku(line: string): string {
 		res = res.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}');
 		res = res.replace(/｛([\s\S]*?)｝/g, '{$1}');
 
-		// 4. ノードラベル本文を保護した上で、構文位置のコロン・カンマを置換
+		// 4. ノードラベル本文を保護した上で、構文位置の矢印・コロン・カンマを置換
 		res = withProtectedNodeLabels(res, (nodeProtected) => {
 			let s = nodeProtected;
+
+			// 構文位置の全角矢印・長音混入矢印（ラベル本文の「→」等は上記で保護済み）
+			s = s.replace(/ーー＞/g, '-->');
+			s = s.replace(/ーー>>/g, '-->>');
+			s = s.replace(/ー+>/g, '-->');
+			s = s.replace(/--＞/g, '-->');
+			s = s.replace(/→/g, '-->');
+			s = s.replace(/==＞/g, '==>');
 
 			// 構文位置の全角コロン（ラベル本文は上記で保護済み）
 			s = s.replace(/(>>|-->>|->|-->|--|==|--x|-x)：/g, '$1: ');
