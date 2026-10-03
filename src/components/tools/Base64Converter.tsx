@@ -96,6 +96,9 @@ export default function Base64Converter() {
 		};
 	}, []);
 
+	// 最後に選択したファイルの結果だけを反映するためのリクエストID
+	const loadIdRef = useRef(0);
+
 	const processFile = useCallback(
 		async (file: File, source: 'drop' | 'file-input') => {
 			const signature = `${file.name}:${file.size}:${file.lastModified}`;
@@ -110,17 +113,22 @@ export default function Base64Converter() {
 			}, 300);
 			lastProcessedFileRef.current = { signature, timer };
 
+			const loadId = ++loadIdRef.current;
 			setLoading(true);
 			try {
-				setFileName(file.name);
 				const rawDataUrl = await fileToBase64(file, true);
+				// 後から選ばれたファイルがある場合、古い読込結果は破棄する
+				if (loadId !== loadIdRef.current) return;
+				// ファイル名と出力は同時に更新し、常に同一ファイルのものにする
+				setFileName(file.name);
 				setFileRawDataUrl(rawDataUrl);
 				// ファイルのBase64変換が完了した時点で実行を計測
 				trackRun(source);
 			} catch (_err) {
+				if (loadId !== loadIdRef.current) return;
 				alert('ファイルの読み込みに失敗しました。');
 			} finally {
-				setLoading(false);
+				if (loadId === loadIdRef.current) setLoading(false);
 			}
 		},
 		[trackRun],
