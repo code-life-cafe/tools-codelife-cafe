@@ -467,16 +467,38 @@ function getZonedParts(date: Date, timeZone: string): CivilTime {
 	};
 }
 
-// 同じ壁時計時刻が複数回現れる場合（DST fall-back等）の、civilToUtcの解決結果からの時差候補（分）
-const WALL_CLOCK_OFFSET_CANDIDATES_MIN = [-60, -30, 0, 30, 60];
+// 壁時計時刻の前後でゾーンのUTCオフセットを標本化する間隔（時間）。foldの幅に依存しないよう広めに取る
+const OFFSET_SAMPLE_HOURS = [-48, -24, -12, -3, 0, 3, 12, 24, 48];
 
 /** 壁時計時刻cに一致する全ての実インスタント（昇順）を返す。 */
 function listCivilInstants(c: CivilTime, timeZone: string): Date[] {
+	const civilAsUtc = Date.UTC(
+		c.year,
+		c.month - 1,
+		c.day,
+		c.hour,
+		c.minute,
+		c.second,
+	);
 	const base = civilToUtc(c, timeZone).getTime();
-	const instants: Date[] = [];
-	for (const offsetMin of WALL_CLOCK_OFFSET_CANDIDATES_MIN) {
-		const t = new Date(base + offsetMin * 60_000);
-		const p = getZonedParts(t, timeZone);
+	const offsetsMs = new Set<number>();
+	for (const hours of OFFSET_SAMPLE_HOURS) {
+		const t = base + hours * 3_600_000;
+		const p = getZonedParts(new Date(t), timeZone);
+		const zonedAsUtc = Date.UTC(
+			p.year,
+			p.month - 1,
+			p.day,
+			p.hour,
+			p.minute,
+			p.second,
+		);
+		offsetsMs.add(zonedAsUtc - Math.floor(t / 1000) * 1000);
+	}
+	const instants = new Map<number, Date>();
+	for (const offsetMs of offsetsMs) {
+		const t = civilAsUtc - offsetMs;
+		const p = getZonedParts(new Date(t), timeZone);
 		if (
 			p.year === c.year &&
 			p.month === c.month &&
@@ -485,10 +507,10 @@ function listCivilInstants(c: CivilTime, timeZone: string): Date[] {
 			p.minute === c.minute &&
 			p.second === c.second
 		) {
-			instants.push(t);
+			instants.set(t, new Date(t));
 		}
 	}
-	return instants.sort((x, y) => x.getTime() - y.getTime());
+	return [...instants.values()].sort((x, y) => x.getTime() - y.getTime());
 }
 
 /**

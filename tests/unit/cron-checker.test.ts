@@ -522,3 +522,27 @@ test('Australia/Lord_Howe 30分fold: 1回目・2回目どちらのfromでも同�
 		['2026-04-04T15:00:15.000Z', '2026-04-04T15:00:20.000Z'],
 	);
 });
+
+test('Antarctica/Troll 2時間fold: 1回目・2回目どちらのfromでも同分の残り秒を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(s, {
+				count: 2,
+				from: new Date('2026-10-24T23:00:12Z'), // 01:00:12 +02:00（1回目）
+				timeZone: 'Antarctica/Troll',
+			}),
+		),
+		['2026-10-24T23:00:15.000Z', '2026-10-24T23:00:20.000Z'],
+	);
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(s, {
+				count: 2,
+				from: new Date('2026-10-25T01:00:12Z'), // 01:00:12 +00:00（2回目）
+				timeZone: 'Antarctica/Troll',
+			}),
+		),
+		['2026-10-25T01:00:15.000Z', '2026-10-25T01:00:20.000Z'],
+	);
+});
