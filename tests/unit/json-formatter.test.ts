@@ -167,6 +167,54 @@ test('minifyJson: 旧プレースホルダーと同じ文字列値は数値化�
 });
 
 // ============================================================
+// formatJson/minifyJson: Codexレビュー指摘への回帰テスト（PR #395）
+// 現実装は文字列プレースホルダーやnonceを使わず、専用の再帰下降パーサーで
+// 値の構築と大整数の桁保持を同時に行うため、ambient randomness（Math.random /
+// Date.now）に依存しない。\u エスケープで書かれた文字列も、ソース上のバイト列
+// ではなく復号後の値として扱われるため衝突しない。
+// ============================================================
+
+test('formatJson: Math.random/Date.now を上書きしても大整数の精度と文字列値を保持する（純粋性）', () => {
+	const originalRandom = Math.random;
+	const originalNow = Date.now;
+	Math.random = () => 0.5;
+	Date.now = () => 0;
+	try {
+		const bigNum = '9007199254740993';
+		const input = `{"s":"plain string","big":${bigNum}}`;
+		const result = formatJson(input);
+		assert.equal(result.success, true);
+		const parsed = JSON.parse(result.output);
+		assert.equal(parsed.s, 'plain string');
+		assert.ok(result.output.includes(bigNum));
+	} finally {
+		Math.random = originalRandom;
+		Date.now = originalNow;
+	}
+});
+
+test('formatJson: 同じ入力なら常に同じ出力を返す（乱数非依存）', () => {
+	const bigNum = '9007199254740993';
+	const input = `{"s":"__LOSSLESS_INT__123__END__","big":${bigNum}}`;
+	const first = formatJson(input);
+	const second = formatJson(input);
+	assert.equal(first.success, true);
+	assert.equal(second.success, true);
+	assert.equal(first.output, second.output);
+});
+
+test('formatJson: \\u エスケープで書かれたプレースホルダー同形文字列も数値化されない', () => {
+	// "__123__" はデコード後 "__123__" になる文字列値
+	const input =
+		'{"escaped":"\\u005f\\u005f123\\u005f\\u005f","big":9007199254740993}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.escaped, '__123__');
+	assert.ok(result.output.includes('9007199254740993'));
+});
+
+// ============================================================
 // formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
 // ============================================================
 

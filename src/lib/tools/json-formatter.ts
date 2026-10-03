@@ -32,135 +32,271 @@ export function sanitizeJsonFormatterSettings(
 	return { indent };
 }
 
-function getIndentString(indent: IndentType): string | number {
-	switch (indent) {
-		case '2':
-			return 2;
-		case '4':
-			return 4;
-		case 'tab':
-			return '\t';
+// ============================================================
+// 大整数精度保持: Number.MAX_SAFE_INTEGER (9007199254740991) を
+// 超える整数は JSON.parse で精度が失われるため、専用の再帰下降パーサーで
+// 値の構築と桁保持を同時に行う（json-csv.ts の parseJsonPreservingIntegers
+// と同じ方式）。文字列プレースホルダーへの置換・復元は、ユーザー入力の
+// 文字列値・キーが偶然プレースホルダーと同じテキストになった場合に誤って
+// 数値化・引用符除去される内部マーカー衝突を構造的に避けられないため、
+// 採用しない。
+// ============================================================
+
+/** Number.MAX_SAFE_INTEGER を超える整数リテラルの桁を保持するためのラッパー */
+class BigIntLiteral {
+	readonly digits: string;
+	constructor(digits: string) {
+		this.digits = digits;
 	}
 }
 
-// ============================================================
-// 大整数精度保持: Number.MAX_SAFE_INTEGER (9007199254740991) を
-// 超える整数は JSON.parse で精度が失われるため、パース前に一時的な
-// 文字列プレースホルダーへ置換し、整形後に数値リテラルへ復元する。
-//
-// プレースホルダーは呼び出しごとに生成したnonceを埋め込み、元入力に
-// 一度も出現しないことを確認してから使用する。固定文字列を使うと、
-// ユーザー入力の文字列値・キーが偶然プレースホルダーと同じテキストに
-// なった場合に誤って数値化・引用符除去されてしまう（内部マーカー衝突）。
-// ============================================================
-
-const BIGINT_PLACEHOLDER_PREFIX = '__LOSSLESS_INT_';
-const BIGINT_PLACEHOLDER_SUFFIX = '__END_';
-
-/** inputに一度も出現しない乱数nonceを生成する */
-function createNonce(input: string): string {
-	let nonce: string;
-	do {
-		nonce = `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
-	} while (input.includes(nonce));
-	return nonce;
-}
-
-function buildPlaceholderRegex(nonce: string): RegExp {
-	return new RegExp(
-		`"${BIGINT_PLACEHOLDER_PREFIX}${nonce}__(-?\\d+)__${BIGINT_PLACEHOLDER_SUFFIX}${nonce}__"`,
-		'g',
-	);
-}
-
-/** 文字列として与えられた整数が安全な表現範囲を超えるか判定 */
-function isUnsafeInteger(numStr: string): boolean {
-	const abs = numStr.startsWith('-') ? numStr.slice(1) : numStr;
-	// 17桁以上 → 必ず MAX_SAFE_INTEGER 超
-	if (abs.length > 16) return true;
-	// 15桁以下 → MAX_SAFE_INTEGER (16桁) 以下
-	if (abs.length < 16) return false;
-	// 16桁 → 文字列辞書順で 9007199254740992 以上なら unsafe
-	return abs >= '9007199254740992';
+class JsonSyntaxError extends Error {
+	readonly position: number;
+	constructor(message: string, position: number) {
+		super(`${message} at position ${position}`);
+		this.position = position;
+	}
 }
 
 /**
- * JSONテキスト中の文字列リテラル外に出現する大整数を、
- * JSON.parse が精度を保てるよう一時的な文字列プレースホルダーへ置換する。
- * float・指数表記は変換しない。
+ * JSON.parse 相当の再帰下降パーサー。安全整数範囲外の整数リテラルは Number ではなく
+ * BigIntLiteral として桁を保持する（小数・指数表記は従来どおり Number化）。
+ * プレースホルダー文字列を経由しないため、エラー位置も常に元入力基準になる。
  */
-function replaceLargeInts(input: string, nonce: string): string {
-	let result = '';
-	let inString = false;
+function parseJsonPreservingIntegers(text: string): unknown {
+	const len = text.length;
 	let i = 0;
 
-	while (i < input.length) {
-		const ch = input[i];
+	const fail = (message: string): never => {
+		throw new JsonSyntaxError(message, i);
+	};
 
-		if (inString) {
-			result += ch;
-			if (ch === '\\') {
-				// エスケープシーケンスをそのまま通す
+	const skipWhitespace = (): void => {
+		while (i < len) {
+			const ch = text[i];
+			if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
 				i++;
-				result += input[i] ?? '';
-			} else if (ch === '"') {
-				inString = false;
-			}
-			i++;
-		} else if (ch === '"') {
-			result += ch;
-			inString = true;
-			i++;
-		} else if (ch === '-' || (ch >= '0' && ch <= '9')) {
-			// 数値トークンを収集
-			let numStr = '';
-			if (ch === '-') {
-				numStr = '-';
-				i++;
-			}
-			while (i < input.length && input[i] >= '0' && input[i] <= '9') {
-				numStr += input[i++];
-			}
-			const nextCh = i < input.length ? input[i] : '';
-			if (nextCh === '.' || nextCh === 'e' || nextCh === 'E') {
-				// float / 指数表記 → そのまま
-				while (i < input.length && !' \t\n\r,}]'.includes(input[i])) {
-					numStr += input[i++];
-				}
-				result += numStr;
 			} else {
-				// 純粋な整数: 大きすぎる場合はプレースホルダーへ置換
-				result += isUnsafeInteger(numStr)
-					? `"${BIGINT_PLACEHOLDER_PREFIX}${nonce}__${numStr}__${BIGINT_PLACEHOLDER_SUFFIX}${nonce}__"`
-					: numStr;
+				break;
 			}
-		} else {
+		}
+	};
+
+	const parseValue = (): unknown => {
+		skipWhitespace();
+		if (i >= len) fail('Unexpected end of JSON input');
+		const ch = text[i];
+		if (ch === '{') return parseObject();
+		if (ch === '[') return parseArray();
+		if (ch === '"') return parseString();
+		if (ch === '-' || (ch >= '0' && ch <= '9')) return parseNumber();
+		if (text.startsWith('true', i)) {
+			i += 4;
+			return true;
+		}
+		if (text.startsWith('false', i)) {
+			i += 5;
+			return false;
+		}
+		if (text.startsWith('null', i)) {
+			i += 4;
+			return null;
+		}
+		return fail('Unexpected token in JSON');
+	};
+
+	const parseObject = (): Record<string, unknown> => {
+		const obj: Record<string, unknown> = {};
+		i++; // '{'
+		skipWhitespace();
+		if (text[i] === '}') {
+			i++;
+			return obj;
+		}
+		for (;;) {
+			skipWhitespace();
+			if (text[i] !== '"') fail('Expected property name in JSON');
+			const key = parseString();
+			skipWhitespace();
+			if (text[i] !== ':') fail("Expected ':' after property name in JSON");
+			i++;
+			obj[key] = parseValue();
+			skipWhitespace();
+			if (text[i] === ',') {
+				i++;
+				continue;
+			}
+			if (text[i] === '}') {
+				i++;
+				return obj;
+			}
+			fail("Expected ',' or '}' in JSON object");
+		}
+	};
+
+	const parseArray = (): unknown[] => {
+		const arr: unknown[] = [];
+		i++; // '['
+		skipWhitespace();
+		if (text[i] === ']') {
+			i++;
+			return arr;
+		}
+		for (;;) {
+			arr.push(parseValue());
+			skipWhitespace();
+			if (text[i] === ',') {
+				i++;
+				continue;
+			}
+			if (text[i] === ']') {
+				i++;
+				return arr;
+			}
+			fail("Expected ',' or ']' in JSON array");
+		}
+	};
+
+	const parseString = (): string => {
+		i++; // opening quote
+		let result = '';
+		while (i < len) {
+			const ch = text[i];
+			if (ch === '"') {
+				i++;
+				return result;
+			}
+			if (ch === '\\') {
+				const next = text[i + 1];
+				switch (next) {
+					case '"':
+						result += '"';
+						break;
+					case '\\':
+						result += '\\';
+						break;
+					case '/':
+						result += '/';
+						break;
+					case 'b':
+						result += '\b';
+						break;
+					case 'f':
+						result += '\f';
+						break;
+					case 'n':
+						result += '\n';
+						break;
+					case 'r':
+						result += '\r';
+						break;
+					case 't':
+						result += '\t';
+						break;
+					case 'u': {
+						const hex = text.slice(i + 2, i + 6);
+						if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+							fail('Invalid unicode escape in JSON string');
+						}
+						result += String.fromCharCode(Number.parseInt(hex, 16));
+						i += 4;
+						break;
+					}
+					default:
+						fail('Invalid escape character in JSON string');
+				}
+				i += 2;
+				continue;
+			}
+			if (ch.charCodeAt(0) < 0x20)
+				fail('Invalid control character in JSON string');
 			result += ch;
 			i++;
 		}
-	}
+		return fail('Unterminated JSON string');
+	};
 
+	const parseNumber = (): number | BigIntLiteral => {
+		const start = i;
+		if (text[i] === '-') i++;
+		if (text[i] === '0') {
+			i++;
+		} else if (text[i] >= '1' && text[i] <= '9') {
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+		} else {
+			fail('Invalid number in JSON');
+		}
+		const intEnd = i;
+		let isInteger = true;
+		if (text[i] === '.') {
+			isInteger = false;
+			i++;
+			if (!(text[i] >= '0' && text[i] <= '9')) fail('Invalid number in JSON');
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+		}
+		if (text[i] === 'e' || text[i] === 'E') {
+			isInteger = false;
+			i++;
+			if (text[i] === '+' || text[i] === '-') i++;
+			if (!(text[i] >= '0' && text[i] <= '9')) fail('Invalid number in JSON');
+			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
+		}
+		if (isInteger) {
+			const digits = text.slice(start, intEnd);
+			const num = Number(digits);
+			if (!Number.isSafeInteger(num)) return new BigIntLiteral(digits);
+			return num;
+		}
+		return Number(text.slice(start, i));
+	};
+
+	const result = parseValue();
+	skipWhitespace();
+	if (i < len) fail('Unexpected non-whitespace character after JSON value');
 	return result;
 }
 
-/** stringify 後の出力に残ったプレースホルダーを元の数値リテラルへ復元 */
-function restoreLargeInts(output: string, nonce: string): string {
-	return output.replace(buildPlaceholderRegex(nonce), '$1');
+/**
+ * JSON.stringify 相当だが、BigIntLiteral を桁文字列のまま（未クォートの数値として）
+ * 出力する。indentUnit が空文字列ならminify、非空なら1階層ごとに付加して整形する。
+ */
+function stringifyPreservingIntegers(
+	value: unknown,
+	indentUnit: string,
+): string {
+	const render = (val: unknown, depth: number): string => {
+		if (val instanceof BigIntLiteral) return val.digits;
+		if (Array.isArray(val)) {
+			if (val.length === 0) return '[]';
+			const items = val.map((item) => render(item, depth + 1));
+			if (!indentUnit) return `[${items.join(',')}]`;
+			const pad = indentUnit.repeat(depth + 1);
+			return `[\n${items.map((s) => pad + s).join(',\n')}\n${indentUnit.repeat(depth)}]`;
+		}
+		if (val !== null && typeof val === 'object') {
+			const entries = Object.entries(val as Record<string, unknown>);
+			if (entries.length === 0) return '{}';
+			const items = entries.map(
+				([key, v]) =>
+					`${JSON.stringify(key)}${indentUnit ? ': ' : ':'}${render(v, depth + 1)}`,
+			);
+			if (!indentUnit) return `{${items.join(',')}}`;
+			const pad = indentUnit.repeat(depth + 1);
+			return `{\n${items.map((s) => pad + s).join(',\n')}\n${indentUnit.repeat(depth)}}`;
+		}
+		return JSON.stringify(val);
+	};
+	return render(value, 0);
 }
 
-/**
- * 構文エラー発生時、置換後文字列ではなく元入力を再度 JSON.parse して
- * position を取得する。replaceLargeInts は大整数を有効なJSON文字列へ
- * 置換するだけで構文構造は変えないため、置換後parseが失敗する箇所は
- * 元入力でも同じ理由で失敗し、position が元入力のオフセットと一致する。
- */
-function getOriginalErrorPosition(input: string): number | undefined {
-	try {
-		JSON.parse(input);
-		return undefined;
-	} catch (e) {
-		const match = (e as SyntaxError).message.match(/position (\d+)/i);
-		return match ? parseInt(match[1], 10) : undefined;
+function getIndentUnit(indent: IndentType): string {
+	switch (indent) {
+		case '2':
+			return '  ';
+		case '4':
+			return '    ';
+		case 'tab':
+			return '\t';
 	}
 }
 
@@ -172,18 +308,19 @@ export function formatJson(
 		return { success: true, output: '' };
 	}
 	try {
-		const nonce = createNonce(input);
-		const preprocessed = replaceLargeInts(input, nonce);
-		const parsed = JSON.parse(preprocessed);
-		const formatted = JSON.stringify(parsed, null, getIndentString(indent));
-		return { success: true, output: restoreLargeInts(formatted, nonce) };
+		const parsed = parseJsonPreservingIntegers(input);
+		const formatted = stringifyPreservingIntegers(
+			parsed,
+			getIndentUnit(indent),
+		);
+		return { success: true, output: formatted };
 	} catch (e) {
-		const error = e as SyntaxError;
+		const error = e as JsonSyntaxError;
 		return {
 			success: false,
 			output: input,
 			error: `JSON構文エラー: ${error.message}`,
-			errorPosition: getOriginalErrorPosition(input),
+			errorPosition: error.position,
 		};
 	}
 }
@@ -193,13 +330,11 @@ export function minifyJson(input: string): FormatResult {
 		return { success: true, output: '' };
 	}
 	try {
-		const nonce = createNonce(input);
-		const preprocessed = replaceLargeInts(input, nonce);
-		const parsed = JSON.parse(preprocessed);
-		const minified = JSON.stringify(parsed);
-		return { success: true, output: restoreLargeInts(minified, nonce) };
+		const parsed = parseJsonPreservingIntegers(input);
+		const minified = stringifyPreservingIntegers(parsed, '');
+		return { success: true, output: minified };
 	} catch (e) {
-		const error = e as SyntaxError;
+		const error = e as Error;
 		return {
 			success: false,
 			output: input,
