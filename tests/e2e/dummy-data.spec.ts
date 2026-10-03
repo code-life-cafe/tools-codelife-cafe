@@ -51,6 +51,42 @@ test.describe('Dummy Data Generator Tool', () => {
 		expect(headerLine).not.toContain('name');
 	});
 
+	test('形式切替(JSON→CSV→TSV→JSON)ではレコードが再生成されない', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('dummy-data');
+		await toolPage.goto();
+
+		const previewContainer = page.locator('pre');
+		await expect(previewContainer).toBeVisible();
+		await expect(previewContainer).toContainText('"name"');
+		const jsonBefore = await previewContainer.textContent();
+		const emails = [
+			...(jsonBefore ?? '').matchAll(/[a-z]+\.[a-z]+@[a-z.]+/g),
+		].map((m) => m[0]);
+		expect(emails.length).toBeGreaterThan(0);
+
+		await page.getByRole('tab', { name: 'CSV' }).click();
+		await expect(previewContainer).toContainText('氏名');
+		const csvText = await previewContainer.textContent();
+		for (const email of emails) {
+			expect(csvText).toContain(email);
+		}
+
+		await page.getByRole('tab', { name: 'TSV' }).click();
+		await expect(previewContainer).toContainText('氏名');
+		const tsvText = await previewContainer.textContent();
+		for (const email of emails) {
+			expect(tsvText).toContain(email);
+		}
+
+		await page.getByRole('tab', { name: 'JSON' }).click();
+		await expect(previewContainer).toContainText('"name"');
+		const jsonAfter = await previewContainer.textContent();
+		expect(jsonAfter).toEqual(jsonBefore);
+	});
+
 	test('同一設定の再生成クリックで出力が変わる', async ({
 		page,
 		createToolPage,
