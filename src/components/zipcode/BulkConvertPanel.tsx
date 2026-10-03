@@ -48,17 +48,21 @@ function toCsvRow(r: BulkResult): string[] {
 export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 	const [text, setText] = useState('');
 	const [results, setResults] = useState<BulkResult[] | null>(null);
+	const [convertedText, setConvertedText] = useState<string | null>(null);
 	const [converting, setConverting] = useState(false);
 	const [progress, setProgress] = useState({ done: 0, total: 0 });
 
 	const lineCount = text === '' ? 0 : splitBulkLines(text).length;
 	const overLimit = lineCount > MAX_BULK_LINES;
+	const isStale =
+		results !== null && convertedText !== null && text !== convertedText;
 
 	const handleConvert = useCallback(async () => {
 		const lines = splitBulkLines(text);
 		if (lines.length === 0 || lines.length > MAX_BULK_LINES) return;
 		setConverting(true);
 		setResults(null);
+		setConvertedText(null);
 		setProgress({ done: 0, total: lines.length });
 		try {
 			const out = await bulkConvert(
@@ -71,6 +75,7 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 				},
 			);
 			setResults(out);
+			setConvertedText(text);
 			// 1件以上変換に成功した場合のみ計測する
 			if (out.some((r) => r.zip && !r.error)) onRun();
 		} finally {
@@ -79,10 +84,10 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 	}, [text, onRun]);
 
 	const handleDownloadCsv = useCallback(() => {
-		if (!results) return;
+		if (!results || isStale) return;
 		const csv = Papa.unparse([CSV_HEADER, ...results.map(toCsvRow)]);
 		downloadBlob(buildCsvBlob(csv, true), 'zipcode_converted.csv');
-	}, [results]);
+	}, [results, isStale]);
 
 	const successCount = results?.filter((r) => r.zip && !r.error).length ?? 0;
 
@@ -119,13 +124,23 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 					{converting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
 					<span className="ml-1">住所に変換</span>
 				</Button>
-				{results && (
+				{results && !isStale && (
 					<Button variant="outline" onClick={handleDownloadCsv}>
 						<Download className="h-4 w-4" />
 						<span className="ml-1">CSVダウンロード（BOM付きUTF-8）</span>
 					</Button>
 				)}
 			</div>
+
+			{isStale && (
+				<p
+					className="flex items-center gap-1.5 text-sm text-muted-foreground"
+					aria-live="polite"
+				>
+					<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+					入力が変更されました。再変換してください。
+				</p>
+			)}
 
 			{converting && (
 				<div className="space-y-2" aria-live="polite">
@@ -153,7 +168,7 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 				</div>
 			)}
 
-			{results && (
+			{results && !isStale && (
 				<div className="space-y-2">
 					<p className="text-sm text-muted-foreground">
 						{results.length.toLocaleString()} 行中{' '}

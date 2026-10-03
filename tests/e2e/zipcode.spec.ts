@@ -100,6 +100,56 @@ test.describe('郵便番号→住所変換', () => {
 		expect([buf[0], buf[1], buf[2]]).toEqual([0xef, 0xbb, 0xbf]);
 	});
 
+	test('一括変換: 変換後に入力を変更すると旧結果とCSVが失効し、再変換で新入力の結果になる', async ({
+		page,
+	}) => {
+		await page.getByRole('tab', { name: '一括変換' }).click();
+		const textarea = page.getByRole('textbox', {
+			name: '一括変換する郵便番号',
+		});
+		await textarea.fill('100-0001\nabc\n9999999\n0600000');
+		await page.getByRole('button', { name: '住所に変換' }).click();
+		await expect(
+			page.getByRole('cell', { name: '千代田', exact: true }),
+		).toBeVisible();
+		await expect(page.getByText('4 行中 2 件を変換しました。')).toBeVisible();
+
+		// 入力を1行に差し替える → 旧結果とCSVダウンロードが失効する
+		await textarea.fill('530-0001');
+		await expect(
+			page.getByText('入力が変更されました。再変換してください。'),
+		).toBeVisible();
+		await expect(
+			page.getByRole('cell', { name: '千代田', exact: true }),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole('button', { name: /CSVダウンロード/ }),
+		).not.toBeVisible();
+
+		// 再変換すると新しい入力に対応する結果だけが表示・出力される
+		await page.getByRole('button', { name: '住所に変換' }).click();
+		await expect(
+			page.getByText('入力が変更されました。再変換してください。'),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole('cell', { name: '大阪市北区', exact: true }),
+		).toBeVisible();
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: /CSVダウンロード/ }).click();
+		const download = await downloadPromise;
+		const buf = fs.readFileSync(await download.path());
+		const csvText = buf.toString('utf-8');
+		expect(csvText).toContain('530-0001');
+		expect(csvText).not.toContain('千代田');
+
+		// 入力の空欄化でも同様に失効する
+		await textarea.fill('');
+		await expect(
+			page.getByText('入力が変更されました。再変換してください。'),
+		).toBeVisible();
+	});
+
 	test('375px / 1440px でレスポンシブ表示される', async ({ page }) => {
 		await page.setViewportSize({ width: 375, height: 667 });
 		await expect(page.getByRole('tab', { name: '単発検索' })).toBeVisible();
