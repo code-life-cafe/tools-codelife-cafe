@@ -158,6 +158,59 @@ flowchart TD
 		);
 	});
 
+	test('どの接続子の前でもラベル内の「→」を保持する', () => {
+		for (const connector of [
+			'-->',
+			'---',
+			'-.->',
+			'-.-',
+			'==>',
+			'===',
+			'~~~',
+			'<-->',
+			'--o',
+			'--x',
+			'o--o',
+			'x--x',
+			'-- 経由 -->',
+			'---|経由|',
+		]) {
+			for (const input of [
+				`A[東京→大阪] ${connector} B`,
+				`A[東京→大阪]${connector}B`,
+				`A(東京→大阪) ${connector} B{判定→分岐}`,
+			]) {
+				assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+			}
+		}
+		// ラベル内の ] や - を含んでも、後続が接続子でなければ閉じ括弧とみなさない
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[配列[0]-1→2] --> B'),
+			'A[配列[0]-1→2] --> B',
+		);
+		// 接続子が全角の矢印でも、ラベル内の「→」は保持する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪] ~~~ B[完了] → C'),
+			'A[東京→大阪] ~~~ B[完了] --> C',
+		);
+	});
+
+	test('エッジラベル |...| 内の「→」も保持し、構文位置の「→」だけ修復する', () => {
+		for (const input of [
+			'A -->|東京→大阪| B',
+			'A[x] -->|東京→大阪| B[y]',
+			'A ==>|東京→大阪| B',
+			'A -.->|東京→大阪| B',
+			'A --o|東京→大阪| B',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪] ーー＞|経由→乗換| B → C'),
+			'A[東京→大阪] -->|経由→乗換| B --> C',
+		);
+	});
+
 	test('repairMermaidCode: ラベル内の「→」が修復後のコードにそのまま残る', () => {
 		const input = 'flowchart TD\n  A[東京→大阪] --> B[完了]';
 		const result = repairMermaidCode(input);
