@@ -467,23 +467,16 @@ function getZonedParts(date: Date, timeZone: string): CivilTime {
 	};
 }
 
-// DST fall-back等で同じ壁時計時刻が2回現れる場合の、2回目との時差候補（分）
-const REPEATED_WALL_CLOCK_OFFSETS_MIN = [60, 30];
+// 同じ壁時計時刻が複数回現れる場合（DST fall-back等）の、civilToUtcの解決結果からの時差候補（分）
+const WALL_CLOCK_OFFSET_CANDIDATES_MIN = [-60, -30, 0, 30, 60];
 
-/**
- * 壁時計時刻をUTCへ解決する。civilToUtcは曖昧な時刻を1回目に解決するため、
- * 結果がafter以下で、1回目の分がすべてafterより前なら2回目の出現（同じ壁時計時刻になる後続の実時刻）を試す。
- */
-function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
-	const first = civilToUtc(c, timeZone);
-	if (first.getTime() > after.getTime()) return first;
-	// afterがまだ1回目の同じ分の内側にある場合は、その分の残り秒を時系列順に返すため2回目を使わない
-	const firstMinuteEnd = first.getTime() + (60 - c.second) * 1000;
-	if (firstMinuteEnd > after.getTime()) return first;
-	for (const offsetMin of REPEATED_WALL_CLOCK_OFFSETS_MIN) {
-		const alt = new Date(first.getTime() + offsetMin * 60_000);
-		if (alt.getTime() <= after.getTime()) continue;
-		const p = getZonedParts(alt, timeZone);
+/** 壁時計時刻cに一致する全ての実インスタント（昇順）を返す。 */
+function listCivilInstants(c: CivilTime, timeZone: string): Date[] {
+	const base = civilToUtc(c, timeZone).getTime();
+	const instants: Date[] = [];
+	for (const offsetMin of WALL_CLOCK_OFFSET_CANDIDATES_MIN) {
+		const t = new Date(base + offsetMin * 60_000);
+		const p = getZonedParts(t, timeZone);
 		if (
 			p.year === c.year &&
 			p.month === c.month &&
@@ -492,10 +485,24 @@ function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
 			p.minute === c.minute &&
 			p.second === c.second
 		) {
-			return alt;
+			instants.push(t);
 		}
 	}
-	return first;
+	return instants.sort((x, y) => x.getTime() - y.getTime());
+}
+
+/**
+ * 壁時計時刻をUTCへ解決する。同じ壁時計時刻が複数回現れる場合（DST fall-back等）は、
+ * その分がafterより後にまだ残っている最初の出現を選ぶ。afterがその出現の分の内側にある場合は
+ * after以下の値を返し、呼び出し側が読み飛ばすことで同じ分の残り秒を時系列順に返せる。
+ */
+function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
+	const instants = listCivilInstants(c, timeZone);
+	for (const instant of instants) {
+		const minuteEnd = instant.getTime() + (60 - c.second) * 1000;
+		if (minuteEnd > after.getTime()) return instant;
+	}
+	return instants[instants.length - 1] ?? civilToUtc(c, timeZone);
 }
 
 export interface NextRunOptions {

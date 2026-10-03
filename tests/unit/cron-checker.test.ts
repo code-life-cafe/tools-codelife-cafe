@@ -480,3 +480,45 @@ test('America/New_York 秋の巻き戻し: 1回目側のfromは従来どおり1�
 	});
 	assert.equal(first.toISOString(), '2026-11-01T05:00:15.000Z');
 });
+
+test('Europe/London 秋の巻き戻し: 1回目(BST)のfromでも同分の残り秒を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-10-25T00:00:12Z'); // 01:00:12 BST（1回目）
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'Europe/London' })),
+		['2026-10-25T00:00:15.000Z', '2026-10-25T00:00:20.000Z'],
+	);
+});
+
+test('Europe/London 秋の巻き戻し: 2回目(GMT)のfromでも同分の残り秒を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-10-25T01:00:12Z'); // 01:00:12 GMT（2回目）
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'Europe/London' })),
+		['2026-10-25T01:00:15.000Z', '2026-10-25T01:00:20.000Z'],
+	);
+});
+
+test('Australia/Lord_Howe 30分fold: 1回目・2回目どちらのfromでも同分の残り秒を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(s, {
+				count: 2,
+				from: new Date('2026-04-04T14:30:12Z'), // 01:30:12 +11（1回目）
+				timeZone: 'Australia/Lord_Howe',
+			}),
+		),
+		['2026-04-04T14:30:15.000Z', '2026-04-04T14:30:20.000Z'],
+	);
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(s, {
+				count: 2,
+				from: new Date('2026-04-04T15:00:12Z'), // 01:30:12 +10:30（2回目）
+				timeZone: 'Australia/Lord_Howe',
+			}),
+		),
+		['2026-04-04T15:00:15.000Z', '2026-04-04T15:00:20.000Z'],
+	);
+});
