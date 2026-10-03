@@ -1,10 +1,14 @@
 import { AlertTriangle, ImageIcon, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { decodeFrame, terminateWorker } from '@/lib/tools/qr-reader';
+import {
+	decodeFrame,
+	evaluateCameraDetection,
+	type ScanContinuityState,
+	terminateWorker,
+} from '@/lib/tools/qr-reader';
 
 const DECODE_INTERVAL_MS = 200; // 150-250ms の範囲でスロットリング
-const SAME_VALUE_DEDUPE_MS = 1500;
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -34,7 +38,7 @@ export default function CameraScanner({
 	const decodingRef = useRef(false); // Worker への同時リクエストを1件までに制限
 	const cancelledRef = useRef(false); // getUserMedia 応答待ち中のアンマウント/停止を検知
 	const lastDecodeAtRef = useRef(0);
-	const lastValueRef = useRef<{ value: string; at: number } | null>(null);
+	const scanStateRef = useRef<ScanContinuityState>(null);
 	const onDetectedRef = useRef(onDetected);
 	onDetectedRef.current = onDetected;
 	const [flash, setFlash] = useState(false);
@@ -108,16 +112,13 @@ export default function CameraScanner({
 				.then((symbols) => {
 					if (symbols.length === 0) return;
 					const value = symbols[0].text;
-					const last = lastValueRef.current;
-					const nowMs = Date.now();
-					if (
-						last &&
-						last.value === value &&
-						nowMs - last.at < SAME_VALUE_DEDUPE_MS
-					) {
-						return;
-					}
-					lastValueRef.current = { value, at: nowMs };
+					const { isNewScan, nextState } = evaluateCameraDetection(
+						scanStateRef.current,
+						value,
+						Date.now(),
+					);
+					scanStateRef.current = nextState;
+					if (!isNewScan) return;
 					setFlash(true);
 					if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
 					flashTimeoutRef.current = setTimeout(() => setFlash(false), 250);

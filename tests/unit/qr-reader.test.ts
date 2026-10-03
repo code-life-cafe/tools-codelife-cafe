@@ -10,9 +10,12 @@ import {
 	buildCsv,
 	clearResults,
 	detectFormat,
+	evaluateCameraDetection,
 	isOpenableUrl,
 	loadAutosaveSetting,
 	loadResults,
+	SCAN_REDETECTION_GAP_MS,
+	type ScanContinuityState,
 	type ScanResult,
 	saveAutosaveSetting,
 	saveResults,
@@ -296,4 +299,86 @@ test('saveAutosaveSetting/loadAutosaveSetting: ラウンドトリップする', 
 	assert.equal(loadAutosaveSetting(), true);
 	saveAutosaveSetting(false);
 	assert.equal(loadAutosaveSetting(), false);
+});
+
+// --- evaluateCameraDetection（カメラ連続フレームの重複検出） ---
+//
+// 本番回帰の再現: QR Readerのカメラデコードループは200ms間隔で毎フレーム
+// Workerに問い合わせるため、修正前は同一QRを数十秒カメラに映し続けるだけで
+// 大量のtool_runが発火していた（3 visitsで587件）。以下は「1回の有効読み取り
+// につきイベント数が有界になる」というAcceptance Criteriaを、実際のカメラ/RAF
+// ループ抜きで決定的に検証する。
+
+test('evaluateCameraDetection: 初回検出は新規スキャンと判定される', () => {
+	const { isNewScan, nextState } = evaluateCameraDetection(null, 'A', 1000);
+	assert.equal(isNewScan, true);
+	assert.deepEqual(nextState, { value: 'A', lastSeenAt: 1000 });
+});
+
+test('evaluateCameraDetection: 同一QRを長時間映し続けても新規スキャンは1回だけ（587件回帰の再現）', () => {
+	// 200ms間隔のデコードループを60秒分（300フレーム）シミュレートする。
+	let state: ScanContinuityState = null;
+	let newScanCount = 0;
+	for (let frame = 0; frame < 300; frame++) {
+		const now = frame * 200;
+		const result = evaluateCameraDetection(
+			state,
+			'https://tools.codelife.cafe/qr-reader',
+			now,
+		);
+		state = result.nextState;
+		if (result.isNewScan) newScanCount++;
+	}
+	assert.equal(newScanCount, 1);
+});
+
+test('evaluateCameraDetection: 猶予時間未満の再検出は新規スキャンとみなさない', () => {
+	const first = evaluateCameraDetection(null, 'A', 0);
+	const second = evaluateCameraDetection(
+		first.nextState,
+		'A',
+		SCAN_REDETECTION_GAP_MS - 1,
+	);
+	assert.equal(second.isNewScan, false);
+	// 猶予は検出のたびに延長される（最終検出時刻を基準に再計算する）
+	assert.deepEqual(second.nextState, {
+		value: 'A',
+		lastSeenAt: SCAN_REDETECTION_GAP_MS - 1,
+	});
+});
+
+test('evaluateCameraDetection: 猶予時間以上経過してからの同一QR再出現は新規スキャン扱い（明示的な再スキャン）', () => {
+	const first = evaluateCameraDetection(null, 'A', 0);
+	const second = evaluateCameraDetection(
+		first.nextState,
+		'A',
+		SCAN_REDETECTION_GAP_MS,
+	);
+	assert.equal(second.isNewScan, true);
+});
+
+test('evaluateCameraDetection: 境界値ちょうど（猶予時間と同値）は新規スキャン扱い', () => {
+	const state: ScanContinuityState = { value: 'A', lastSeenAt: 5000 };
+	const result = evaluateCameraDetection(
+		state,
+		'A',
+		5000 + SCAN_REDETECTION_GAP_MS,
+	);
+	assert.equal(result.isNewScan, true);
+});
+
+test('evaluateCameraDetection: 異なるQRの連続読み取りはそれぞれ新規スキャンになる', () => {
+	let state: ScanContinuityState = null;
+	const results: boolean[] = [];
+	for (const [value, at] of [
+		['A', 0],
+		['B', 200],
+		['A', 400],
+		['C', 600],
+	] as const) {
+		const result = evaluateCameraDetection(state, value, at);
+		state = result.nextState;
+		results.push(result.isNewScan);
+	}
+	assert.deepEqual(results, [true, true, true, true]);
 });

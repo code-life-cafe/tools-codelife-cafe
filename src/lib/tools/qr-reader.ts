@@ -376,6 +376,52 @@ export function downloadCsv(blob: Blob, fileName?: string): void {
 	URL.revokeObjectURL(url);
 }
 
+// --- カメラ連続フレームの重複検出（tool_run 計測の単位を「1回の有効読み取り」に固定する） ---
+//
+// 背景（本番回帰）: カメラのデコードループは 200ms 間隔で毎フレームWorkerへ
+// 問い合わせるため、同一QRを数秒〜数十秒カメラに映し続けるだけで大量の
+// tool_run が発火していた（3 visitsで587件）。従来の重複排除は「最初に検出した
+// 時刻から一定時間以内は無視する」という時間窓方式で、時間窓を過ぎると同一QRを
+// 映したままでも再度発火していた。
+//
+// 修正方針: 同一値が SCAN_REDETECTION_GAP_MS 未満の間隔で連続して検出されている
+// 間は「視野内に留まり続けている1回の読み取り」とみなし、検出のたびに猶予を
+// 延長して以後は計測しない。値が変わった場合、または検出が
+// SCAN_REDETECTION_GAP_MS 以上途絶えてから同じ値が再出現した場合（＝一度視野から
+// 外れて再度提示された明示的な再スキャン）のみ新規スキャンとして計測する。
+
+/** 同一値の検出が途絶えてから「再出現＝新規スキャン」とみなすまでの猶予時間(ms) */
+export const SCAN_REDETECTION_GAP_MS = 2000;
+
+export type ScanContinuityState = { value: string; lastSeenAt: number } | null;
+
+export type ScanDetectionEvaluation = {
+	/** true の場合のみ tool_run を計測し、UIフィードバック（トースト等）を発火させる */
+	isNewScan: boolean;
+	nextState: ScanContinuityState;
+};
+
+/**
+ * カメラのデコードループが返した値を「新規スキャン」として計測すべきか判定する。
+ * DOM/タイマーに依存しない純粋関数のため、呼び出し側（連続フレームのシミュレーション）
+ * を node:test で直接検証できる。
+ */
+export function evaluateCameraDetection(
+	state: ScanContinuityState,
+	value: string,
+	now: number,
+): ScanDetectionEvaluation {
+	const isContinuation =
+		state !== null &&
+		state.value === value &&
+		now - state.lastSeenAt < SCAN_REDETECTION_GAP_MS;
+
+	return {
+		isNewScan: !isContinuation,
+		nextState: { value, lastSeenAt: now },
+	};
+}
+
 // --- Worker ラッパー ---
 
 export type { DecodedSymbol as DecodeSymbolResult };
