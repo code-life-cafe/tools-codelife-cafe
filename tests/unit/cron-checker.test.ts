@@ -444,3 +444,39 @@ test('Asia/Tokyo: 6フィールドでも現在分の秒候補を取りこぼさ�
 		['2026-09-26T00:00:15.000Z', '2026-09-26T00:00:20.000Z'],
 	);
 });
+
+// --- DST fall-back（同じ壁時計分が2回現れる） ---------------------------
+
+test('America/New_York 秋の巻き戻し: fromが2回目の01:00台でも同分の残り秒を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	// 2026-11-01 06:00:00Z = 01:00:00 EST（01時台の2回目）
+	const from = new Date('2026-11-01T06:00:12Z');
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 3, from, timeZone: 'America/New_York' })),
+		[
+			'2026-11-01T06:00:15.000Z',
+			'2026-11-01T06:00:20.000Z',
+			'2026-11-01T06:00:25.000Z',
+		],
+	);
+});
+
+test('America/New_York 秋の巻き戻し: 2回目の分の末尾からは翌分(2回目側)へ進む', () => {
+	const s = parseCronExpression('*/20 * * * * *');
+	const from = new Date('2026-11-01T06:00:41Z');
+	assert.deepEqual(
+		iso(getNextRunTimes(s, { count: 2, from, timeZone: 'America/New_York' })),
+		['2026-11-01T06:01:00.000Z', '2026-11-01T06:01:20.000Z'],
+	);
+});
+
+test('America/New_York 秋の巻き戻し: 1回目側のfromは従来どおり1回目の秒候補を返す', () => {
+	const s = parseCronExpression('*/5 * * * * *');
+	const from = new Date('2026-11-01T05:00:12Z'); // 01:00:12 EDT（1回目）
+	const [first] = getNextRunTimes(s, {
+		count: 1,
+		from,
+		timeZone: 'America/New_York',
+	});
+	assert.equal(first.toISOString(), '2026-11-01T05:00:15.000Z');
+});

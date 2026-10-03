@@ -467,6 +467,37 @@ function getZonedParts(date: Date, timeZone: string): CivilTime {
 	};
 }
 
+// DST fall-back等で同じ壁時計時刻が2回現れる場合の、2回目との時差候補（分）
+const REPEATED_WALL_CLOCK_OFFSETS_MIN = [60, 30];
+
+/**
+ * 壁時計時刻をUTCへ解決する。civilToUtcは曖昧な時刻を1回目に解決するため、
+ * 結果がafter以下で、1回目の分がすべてafterより前なら2回目の出現（同じ壁時計時刻になる後続の実時刻）を試す。
+ */
+function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
+	const first = civilToUtc(c, timeZone);
+	if (first.getTime() > after.getTime()) return first;
+	// afterがまだ1回目の同じ分の内側にある場合は、その分の残り秒を時系列順に返すため2回目を使わない
+	const firstMinuteEnd = first.getTime() + (60 - c.second) * 1000;
+	if (firstMinuteEnd > after.getTime()) return first;
+	for (const offsetMin of REPEATED_WALL_CLOCK_OFFSETS_MIN) {
+		const alt = new Date(first.getTime() + offsetMin * 60_000);
+		if (alt.getTime() <= after.getTime()) continue;
+		const p = getZonedParts(alt, timeZone);
+		if (
+			p.year === c.year &&
+			p.month === c.month &&
+			p.day === c.day &&
+			p.hour === c.hour &&
+			p.minute === c.minute &&
+			p.second === c.second
+		) {
+			return alt;
+		}
+	}
+	return first;
+}
+
 export interface NextRunOptions {
 	count?: number;
 	from?: Date;
@@ -501,7 +532,7 @@ export function getNextRunTimes(
 		if (second === undefined || !currentMinuteCivil) break;
 
 		const resultCivil: CivilTime = { ...currentMinuteCivil, second };
-		const resultDate = civilToUtc(resultCivil, timeZone);
+		const resultDate = resolveCivilAfter(resultCivil, timeZone, from);
 		cursorCivil = resultCivil;
 		if (resultDate.getTime() <= from.getTime()) continue;
 		results.push(resultDate);
