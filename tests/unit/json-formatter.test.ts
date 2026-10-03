@@ -124,6 +124,170 @@ test('formatJson: 配列内の大整数も精度を保持', async () => {
 });
 
 // ============================================================
+// formatJson/minifyJson: 内部マーカー衝突回帰テスト（監査B04）
+// 旧実装は大整数プレースホルダーを固定文字列
+// __LOSSLESS_INT__<数字>__END__ にしていたため、ユーザーの文字列値・
+// キーが偶然この形になると、置換後の文字列を対象にしたグローバル置換で
+// 誤って数値化・引用符除去されていた。
+// ============================================================
+
+test('formatJson: 旧プレースホルダーと同じ文字列値は数値化されず保持される', () => {
+	const input = '{"s":"__LOSSLESS_INT__123__END__"}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__123__END__');
+});
+
+test('formatJson: 旧プレースホルダーと同じキー文字列は不正JSONにならない', () => {
+	const input = '{"__LOSSLESS_INT__123__END__":"x"}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	// 出力が構文上有効なJSONであること（キーの引用符が外れていないこと）
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.__LOSSLESS_INT__123__END__, 'x');
+});
+
+test('formatJson: 旧プレースホルダー文字列と実際の大整数が同時に存在しても両方正しく保持される', () => {
+	const bigNum = '9007199254740993';
+	const input = `{"s":"__LOSSLESS_INT__123__END__","big":${bigNum}}`;
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__123__END__');
+	assert.ok(result.output.includes(bigNum));
+});
+
+test('minifyJson: 旧プレースホルダーと同じ文字列値は数値化されず保持される', () => {
+	const input = '{"s":"__LOSSLESS_INT__-42__END__"}';
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.s, '__LOSSLESS_INT__-42__END__');
+});
+
+// ============================================================
+// formatJson/minifyJson: Codexレビュー指摘への回帰テスト（PR #395）
+// 現実装は文字列プレースホルダーやnonceを使わず、専用の再帰下降パーサーで
+// 値の構築と大整数の桁保持を同時に行うため、ambient randomness（Math.random /
+// Date.now）に依存しない。\u エスケープで書かれた文字列も、ソース上のバイト列
+// ではなく復号後の値として扱われるため衝突しない。
+// ============================================================
+
+test('formatJson: Math.random/Date.now を上書きしても大整数の精度と文字列値を保持する（純粋性）', () => {
+	const originalRandom = Math.random;
+	const originalNow = Date.now;
+	Math.random = () => 0.5;
+	Date.now = () => 0;
+	try {
+		const bigNum = '9007199254740993';
+		const input = `{"s":"plain string","big":${bigNum}}`;
+		const result = formatJson(input);
+		assert.equal(result.success, true);
+		const parsed = JSON.parse(result.output);
+		assert.equal(parsed.s, 'plain string');
+		assert.ok(result.output.includes(bigNum));
+	} finally {
+		Math.random = originalRandom;
+		Date.now = originalNow;
+	}
+});
+
+test('formatJson: 同じ入力なら常に同じ出力を返す（乱数非依存）', () => {
+	const bigNum = '9007199254740993';
+	const input = `{"s":"__LOSSLESS_INT__123__END__","big":${bigNum}}`;
+	const first = formatJson(input);
+	const second = formatJson(input);
+	assert.equal(first.success, true);
+	assert.equal(second.success, true);
+	assert.equal(first.output, second.output);
+});
+
+test('formatJson: \\u エスケープで書かれたプレースホルダー同形文字列も数値化されない', () => {
+	// "__123__" はデコード後 "__123__" になる文字列値
+	const input =
+		'{"escaped":"\\u005f\\u005f123\\u005f\\u005f","big":9007199254740993}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(parsed.escaped, '__123__');
+	assert.ok(result.output.includes('9007199254740993'));
+});
+
+test('formatJson: __proto__ キーを own property として保持する（プロトタイプ汚染を起こさない）', () => {
+	const input = '{"__proto__":1,"other":2}';
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	assert.equal(Object.getOwnPropertyDescriptor(parsed, '__proto__')?.value, 1);
+	assert.equal(parsed.other, 2);
+	// Object.prototype 自体は書き換わっていない
+	assert.equal(Object.getPrototypeOf({}), Object.prototype);
+});
+
+test('minifyJson: __proto__ キーを own property として保持する', () => {
+	const input = '{"__proto__":{"polluted":true}}';
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	assert.equal(result.output, '{"__proto__":{"polluted":true}}');
+	assert.equal(
+		Object.getOwnPropertyDescriptor(Object.getPrototypeOf({}), 'polluted'),
+		undefined,
+	);
+});
+
+// ============================================================
+// formatJson: 不正なエスケープシーケンスのエラー位置回帰テスト
+// ============================================================
+
+test('formatJson: 不正なエスケープ文字はバックスラッシュではなく種別文字の位置を報告する', () => {
+	// 0:" 1:\ 2:x 3:" → "x" がエスケープ種別として不正、position 2 を期待
+	const result = formatJson('"\\x"');
+	assert.equal(result.success, false);
+	assert.equal(result.errorPosition, 2);
+});
+
+test('formatJson: 不正なUnicodeエスケープはバックスラッシュではなく不正な16進文字の位置を報告する', () => {
+	// 0:" 1:\ 2:u 3:0 4:0 5:g 6:g 7:" → 'g' (position 5) が最初の不正な16進文字
+	const result = formatJson('"\\u00gg"');
+	assert.equal(result.success, false);
+	assert.equal(result.errorPosition, 5);
+});
+
+// ============================================================
+// formatJson/minifyJson: 深いネストでのスタックオーバーフロー回帰テスト
+// 再帰下降パーサー・再帰的stringifyは、ネスト段数に比例してコールスタックを
+// 消費するため、十分深いネスト（数千段）で「Maximum call stack size exceeded」
+// となり、有効なJSONが構文エラーとして報告されてしまっていた。
+// パース・シリアライズの両方を明示的なスタックによる反復処理へ置き換え、
+// コールスタックの深さに依存しないことを確認する。
+// ============================================================
+
+test('formatJson: 数千段ネストした配列でもスタックオーバーフローせず整形できる', () => {
+	const depth = 5000;
+	const input = `${'['.repeat(depth)}1${']'.repeat(depth)}`;
+	const result = formatJson(input);
+	assert.equal(result.success, true);
+	const parsed = JSON.parse(result.output);
+	let cursor: unknown = parsed;
+	let actualDepth = 0;
+	while (Array.isArray(cursor) && cursor.length === 1) {
+		cursor = cursor[0];
+		actualDepth++;
+	}
+	assert.equal(actualDepth, depth);
+	assert.equal(cursor, 1);
+});
+
+test('minifyJson: 数千段ネストしたオブジェクトでもスタックオーバーフローせず圧縮できる', () => {
+	const depth = 5000;
+	const input = `${'{"a":'.repeat(depth)}1${'}'.repeat(depth)}`;
+	const result = minifyJson(input);
+	assert.equal(result.success, true);
+	assert.equal(result.output, input);
+});
+
+// ============================================================
 // formatJson: 大整数プレースホルダーによる errorPosition ズレ回帰テスト
 // ============================================================
 
