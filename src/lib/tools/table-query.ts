@@ -78,20 +78,33 @@ export function parseDate(val: string | number | undefined): Date | null {
 	const normalized = str.replace(/\//g, '-');
 	const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
 	if (match) {
-		const year = Number(match[1]);
-		const month = Number(match[2]) - 1;
-		const day = Number(match[3]);
-		const d = new Date(year, month, day);
-		if (
-			d.getFullYear() === year &&
-			d.getMonth() === month &&
-			d.getDate() === day
-		) {
-			return d;
-		}
+		// 存在しない暦日はDate.parseに回さずnullにする（繰り上がり防止）
+		return isValidCalendarDate(match[1], match[2], match[3])
+			? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+			: null;
+	}
+	// ISO 8601日時: 日付部分が存在しない暦日なら繰り上がりを防ぐ
+	const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ]/);
+	if (isoMatch && !isValidCalendarDate(isoMatch[1], isoMatch[2], isoMatch[3])) {
+		return null;
 	}
 	const timestamp = Date.parse(str);
 	return Number.isNaN(timestamp) ? null : new Date(timestamp);
+}
+
+function isValidCalendarDate(y: string, m: string, d: string): boolean {
+	const year = Number(y);
+	const month = Number(m);
+	const day = Number(d);
+	if (month < 1 || month > 12 || day < 1) return false;
+	// UTCで検証しタイムゾーン・1900年以前の影響を避ける
+	const probe = new Date(0);
+	probe.setUTCFullYear(year, month - 1, day);
+	return (
+		probe.getUTCFullYear() === year &&
+		probe.getUTCMonth() === month - 1 &&
+		probe.getUTCDate() === day
+	);
 }
 
 /**
