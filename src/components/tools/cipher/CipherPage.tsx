@@ -5,6 +5,8 @@ import {
 	type CipherDirection,
 	caesarCipher,
 	getMaxShift,
+	type MorseDecodeResult,
+	type MorseEncodeResult,
 	morseDecode,
 	morseEncode,
 	reverseString,
@@ -17,6 +19,24 @@ import { DirectionToggle } from './DirectionToggle';
 import { InputPanel } from './InputPanel';
 import { OutputPanel } from './OutputPanel';
 import { ShiftSlider } from './ShiftSlider';
+
+const NOTICE_CHAR_LIMIT = 10;
+
+function summarize(items: string[]): string {
+	const shown = items.slice(0, NOTICE_CHAR_LIMIT).map((c) => `「${c}」`);
+	const rest = items.length - NOTICE_CHAR_LIMIT;
+	return rest > 0 ? `${shown.join('')}ほか${rest}種類` : shown.join('');
+}
+
+function describeMorseEncodeNotice(r: MorseEncodeResult): string {
+	if (r.unsupportedCount === 0) return '';
+	return `一部の文字は変換されません（${r.unsupportedCount}件を除外）: ${summarize(r.unsupportedChars)}。結果は入力の一部を欠いた不完全なものです。`;
+}
+
+function describeMorseDecodeNotice(r: MorseDecodeResult): string {
+	if (r.unknownCount === 0) return '';
+	return `未定義の符号が${r.unknownCount}件あり「?」に置き換えました: ${summarize(r.unknownCodes)}。出力の「?」には、正規の疑問符（..--..）と未定義の符号が混在している場合があります。`;
+}
 
 export function CipherPage() {
 	const { trackRunDebounced } = useToolAnalytics('cipher');
@@ -41,30 +61,43 @@ export function CipherPage() {
 		setMorseDirection('encode');
 	};
 
-	const output = useMemo(() => {
-		if (!input) return '';
+	const { output, notice } = useMemo((): {
+		output: string;
+		notice: string;
+	} => {
+		if (!input) return { output: '', notice: '' };
 
 		try {
 			switch (activeTab) {
 				case 'caesar':
-					return caesarCipher(input, {
-						shift: caesarShift,
-						direction: caesarDirection,
-					}).output;
+					return {
+						output: caesarCipher(input, {
+							shift: caesarShift,
+							direction: caesarDirection,
+						}).output,
+						notice: '',
+					};
 				case 'rot13':
-					return rot13(input).output;
+					return { output: rot13(input).output, notice: '' };
 				case 'reverse':
-					return reverseString(input).output;
-				case 'morse':
-					return morseDirection === 'encode'
-						? morseEncode(input).output
-						: morseDecode(input).output;
+					return { output: reverseString(input).output, notice: '' };
+				case 'morse': {
+					if (morseDirection === 'encode') {
+						const r = morseEncode(input);
+						return {
+							output: r.output,
+							notice: describeMorseEncodeNotice(r),
+						};
+					}
+					const r = morseDecode(input);
+					return { output: r.output, notice: describeMorseDecodeNotice(r) };
+				}
 				default:
-					return '';
+					return { output: '', notice: '' };
 			}
 		} catch (err) {
 			console.error(err);
-			return 'エラーが発生しました';
+			return { output: 'エラーが発生しました', notice: '' };
 		}
 	}, [input, activeTab, caesarShift, caesarDirection, morseDirection]);
 
@@ -148,6 +181,16 @@ export function CipherPage() {
 					/>
 					<OutputPanel value={output} />
 				</div>
+
+				{notice && (
+					<p
+						role="status"
+						data-testid="morse-notice"
+						className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+					>
+						{notice}
+					</p>
+				)}
 
 				{activeTab === 'caesar' && (
 					<div className="mt-4">

@@ -119,6 +119,45 @@ test.describe('Cipher Tool', () => {
 		await expect(outputArea).toHaveValue('SOS');
 	});
 
+	test('Morse: 未対応文字・不明符号を通知し、状態遷移で古い通知が残らない', async ({
+		page,
+	}) => {
+		await page.getByRole('tab', { name: 'モールス信号' }).click();
+		const inputArea = page.getByPlaceholder(/「SOS」や「Hello」を入力.../);
+		const outputArea = page.getByPlaceholder('変換結果がここに表示されます');
+		const notice = page.getByTestId('morse-notice');
+
+		await inputArea.fill('SOS');
+		await expect(outputArea).toHaveValue('... --- ...');
+		await expect(notice).toHaveCount(0);
+
+		await inputArea.fill('SOS 日本語 😀');
+		await expect(outputArea).toHaveValue('... --- ...');
+		await expect(notice).toContainText('一部の文字は変換されません');
+		await expect(notice).toContainText('4件');
+		await expect(notice).toContainText('「日」');
+		await expect(notice).toContainText('「😀」');
+
+		await page.getByTitle('クリア').click();
+		await expect(notice).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'デコード（復号）' }).click();
+		await inputArea.fill('... ....... ---');
+		await expect(outputArea).toHaveValue('S?O');
+		await expect(notice).toContainText('1件');
+		await expect(notice).toContainText('「.......」');
+		await expect(notice).toContainText('正規の疑問符');
+
+		await inputArea.fill('..--..');
+		await expect(outputArea).toHaveValue('?');
+		await expect(notice).toHaveCount(0);
+
+		await inputArea.fill('... ....... ---');
+		await expect(notice).toBeVisible();
+		await page.getByRole('tab', { name: 'ROT13' }).click();
+		await expect(notice).toHaveCount(0);
+	});
+
 	test('Brute force panel functionality', async ({ page }) => {
 		await page.getByRole('tab', { name: 'シーザー暗号' }).click();
 		const inputArea = page.getByPlaceholder(
