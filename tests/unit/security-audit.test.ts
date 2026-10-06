@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { compare, findings } from '../../scripts/security-audit.mjs';
+import { resolveBaseline } from '../../scripts/security-audit-baseline.mjs';
 
 const lock = (version = '1.0.0', dev = false) => ({
 	lockfileVersion: 3,
@@ -57,4 +58,48 @@ test('new consumers of the same flattened vulnerable dependency are detected', (
 		dependencies: { example: '*' },
 	};
 	assert.equal(compare(report(), baseLock, report(), headLock).length, 1);
+});
+
+test('deployment baseline skips the current run and newer deployments', async () => {
+	const sha = 'a'.repeat(40);
+	const get = async (path: string) =>
+		path === 'actions/runs/42'
+			? { id: 42, created_at: '2026-10-06T10:00:00Z' }
+			: {
+					workflow_runs: [
+						{
+							id: 43,
+							created_at: '2026-10-06T11:00:00Z',
+							conclusion: 'success',
+							head_branch: 'main',
+							head_sha: 'b'.repeat(40),
+						},
+						{
+							id: 42,
+							created_at: '2026-10-06T10:00:00Z',
+							conclusion: 'success',
+							head_branch: 'main',
+							head_sha: 'c'.repeat(40),
+						},
+						{
+							id: 41,
+							created_at: '2026-10-05T10:00:00Z',
+							conclusion: 'success',
+							head_branch: 'main',
+							head_sha: sha,
+						},
+					],
+				};
+	assert.equal((await resolveBaseline(get, '42')).head_sha, sha);
+});
+test('deployment without a successful baseline fails closed', async () => {
+	await assert.rejects(
+		resolveBaseline(
+			async (path: string) =>
+				path === 'actions/runs/42'
+					? { id: 42, created_at: '2026-10-06T10:00:00Z' }
+					: { workflow_runs: [] },
+			'42',
+		),
+	);
 });

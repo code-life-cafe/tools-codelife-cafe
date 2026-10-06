@@ -40,7 +40,7 @@ function dependencyRoutes(lock, target) {
   return [...edges].sort();
 }
 export function findings(report, lock) {
-  if (report.error || report.auditReportVersion !== 2 || !report.vulnerabilities || !report.metadata?.vulnerabilities || lock.lockfileVersion < 2 || !lock.packages) {
+  if (report.error || report.auditReportVersion !== 2 || !report.vulnerabilities || !Number.isInteger(report.metadata?.vulnerabilities?.total) || report.metadata.vulnerabilities.total < 0 || lock.lockfileVersion < 2 || !lock.packages) {
     throw new Error('監査結果またはlockfileの形式が不正です');
   }
   const result = new Map();
