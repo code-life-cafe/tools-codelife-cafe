@@ -435,6 +435,13 @@ test.describe('QRコード読み取りツール: カメラ計測（tool_run連�
 						ctx.drawImage(img2, 0, 0, 300, 300);
 					};
 
+					Object.assign(window, {
+						__qrTestClear: () => {
+							ctx.fillStyle = 'white';
+							ctx.fillRect(0, 0, 300, 300);
+						},
+						__qrTestRestore: () => ctx.drawImage(img, 0, 0, 300, 300),
+					});
 					return canvas.captureStream(10) as unknown as MediaStream;
 				};
 			},
@@ -475,6 +482,64 @@ test.describe('QRコード読み取りツール: カメラ計測（tool_run連�
 		// 数十フレーム相当（200ms間隔のデコードループを十分な回数）映し続けても
 		// 新規スキャンとしての計測は1回のまま増えないことを確認する
 		await page.waitForTimeout(3000);
+		expect(runEvents.length).toBe(1);
+		await expect(list.getByRole('listitem')).toHaveCount(1);
+		await page.evaluate(() =>
+			(window as unknown as { __qrTestClear: () => void }).__qrTestClear(),
+		);
+		await page.waitForTimeout(3000);
+		await page.evaluate(() =>
+			(window as unknown as { __qrTestRestore: () => void }).__qrTestRestore(),
+		);
+		await expect(list.getByRole('listitem')).toHaveCount(2);
+		await expect.poll(() => runEvents.length).toBe(2);
+	});
+
+	test('Workerの処理が低速でも同じQRを重複計測しない', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(() => {
+			const original = Worker.prototype.postMessage;
+			Worker.prototype.postMessage = function (
+				message,
+				transfer: Transferable[] | StructuredSerializeOptions = [],
+			) {
+				const options = Array.isArray(transfer) ? { transfer } : transfer;
+				if (message?.type === 'decodeFrame') {
+					setTimeout(() => original.call(this, message, options), 2500);
+				} else original.call(this, message, options);
+			};
+		});
+		const runEvents: unknown[] = [];
+		await page.route('**/api/event', async (route) => {
+			const body = route.request().postDataJSON() as {
+				event: string;
+				props: { tool: string };
+			};
+			if (body.event === 'tool_run' && body.props.tool === 'qr-reader') {
+				runEvents.push(body);
+			}
+			await route.fulfill({ status: 204, body: '' });
+		});
+
+		const toolPage = createToolPage('qr-reader');
+		await toolPage.goto();
+
+		// カメラアクティブ（＝デコードループ開始）を待つ
+		await expect(page.getByTestId('qr-viewfinder')).toBeVisible({
+			timeout: 10000,
+		});
+
+		// 同一QRを検出結果一覧に反映させ、デコードループが数回まわるまで待つ
+		const list = page.getByRole('list', { name: 'QRコード読み取り結果一覧' });
+		await expect(list.getByRole('listitem')).toHaveCount(1, {
+			timeout: 10000,
+		});
+
+		// 数十フレーム相当（200ms間隔のデコードループを十分な回数）映し続けても
+		// 新規スキャンとしての計測は1回のまま増えないことを確認する
+		await page.waitForTimeout(5500);
 		expect(runEvents.length).toBe(1);
 		await expect(list.getByRole('listitem')).toHaveCount(1);
 	});

@@ -384,16 +384,17 @@ export function downloadCsv(blob: Blob, fileName?: string): void {
 // 時刻から一定時間以内は無視する」という時間窓方式で、時間窓を過ぎると同一QRを
 // 映したままでも再度発火していた。
 //
-// 修正方針: 同一値が SCAN_REDETECTION_GAP_MS 未満の間隔で連続して検出されている
-// 間は「視野内に留まり続けている1回の読み取り」とみなし、検出のたびに猶予を
-// 延長して以後は計測しない。値が変わった場合、または検出が
-// SCAN_REDETECTION_GAP_MS 以上途絶えてから同じ値が再出現した場合（＝一度視野から
-// 外れて再度提示された明示的な再スキャン）のみ新規スキャンとして計測する。
+// 同じ値は低速な処理や一時的なデコード失敗でも保持する。正常な空フレームが
+// SCAN_REDETECTION_GAP_MS 継続したときだけ視野外と判定して、同じ値の再提示を許可する。
 
-/** 同一値の検出が途絶えてから「再出現＝新規スキャン」とみなすまでの猶予時間(ms) */
+/** 正常な空フレームで視野外を確認する時間(ms) */
 export const SCAN_REDETECTION_GAP_MS = 2000;
 
-export type ScanContinuityState = { value: string; lastSeenAt: number } | null;
+export type ScanContinuityState = {
+	value: string;
+	lastSeenAt: number;
+	absenceStartedAt?: number;
+} | null;
 
 export type ScanDetectionEvaluation = {
 	/** true の場合のみ tool_run を計測し、UIフィードバック（トースト等）を発火させる */
@@ -408,13 +409,28 @@ export type ScanDetectionEvaluation = {
  */
 export function evaluateCameraDetection(
 	state: ScanContinuityState,
-	value: string,
+	value: string | null | undefined,
 	now: number,
 ): ScanDetectionEvaluation {
-	const isContinuation =
-		state !== null &&
-		state.value === value &&
-		now - state.lastSeenAt < SCAN_REDETECTION_GAP_MS;
+	// undefined はWorkerエラー。視野外の証拠として数えず、空フレームの連続も切る。
+	if (value === undefined) {
+		return {
+			isNewScan: false,
+			nextState: state && { value: state.value, lastSeenAt: state.lastSeenAt },
+		};
+	}
+	if (value === null) {
+		if (!state) return { isNewScan: false, nextState: null };
+		const absenceStartedAt = state.absenceStartedAt ?? now;
+		return {
+			isNewScan: false,
+			nextState:
+				now - absenceStartedAt >= SCAN_REDETECTION_GAP_MS
+					? null
+					: { ...state, absenceStartedAt },
+		};
+	}
+	const isContinuation = state !== null && state.value === value;
 
 	return {
 		isNewScan: !isContinuation,

@@ -110,15 +110,14 @@ export default function CameraScanner({
 			decodingRef.current = true;
 			decodeFrame(imageData)
 				.then((symbols) => {
-					if (symbols.length === 0) return;
-					const value = symbols[0].text;
+					const value = symbols[0]?.text ?? null;
 					const { isNewScan, nextState } = evaluateCameraDetection(
 						scanStateRef.current,
 						value,
 						Date.now(),
 					);
 					scanStateRef.current = nextState;
-					if (!isNewScan) return;
+					if (!isNewScan || value === null) return;
 					setFlash(true);
 					if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
 					flashTimeoutRef.current = setTimeout(() => setFlash(false), 250);
@@ -126,6 +125,11 @@ export default function CameraScanner({
 				})
 				.catch(() => {
 					// デコードエラーはフレーム単位で無視して継続
+					scanStateRef.current = evaluateCameraDetection(
+						scanStateRef.current,
+						undefined,
+						Date.now(),
+					).nextState;
 				})
 				.finally(() => {
 					decodingRef.current = false;

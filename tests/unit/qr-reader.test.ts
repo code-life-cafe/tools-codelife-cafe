@@ -347,24 +347,37 @@ test('evaluateCameraDetection: 猶予時間未満の再検出は新規スキャ�
 	});
 });
 
-test('evaluateCameraDetection: 猶予時間以上経過してからの同一QR再出現は新規スキャン扱い（明示的な再スキャン）', () => {
-	const first = evaluateCameraDetection(null, 'A', 0);
-	const second = evaluateCameraDetection(
-		first.nextState,
-		'A',
-		SCAN_REDETECTION_GAP_MS,
-	);
-	assert.equal(second.isNewScan, true);
+test('evaluateCameraDetection: 低速な同一QR検出は時間が空いても重複にしない', () => {
+	let state: ScanContinuityState = null;
+	let count = 0;
+	for (const now of [0, 2000, 5000, 60000]) {
+		const result = evaluateCameraDetection(state, 'A', now);
+		state = result.nextState;
+		if (result.isNewScan) count++;
+	}
+	assert.equal(count, 1);
 });
 
-test('evaluateCameraDetection: 境界値ちょうど（猶予時間と同値）は新規スキャン扱い', () => {
-	const state: ScanContinuityState = { value: 'A', lastSeenAt: 5000 };
-	const result = evaluateCameraDetection(
-		state,
-		'A',
-		5000 + SCAN_REDETECTION_GAP_MS,
-	);
-	assert.equal(result.isNewScan, true);
+test('evaluateCameraDetection: 正常な空フレームで視野外を確認後に同じQRを再計測する', () => {
+	const first = evaluateCameraDetection(null, 'A', 0);
+	const empty = evaluateCameraDetection(first.nextState, null, 100);
+	assert.equal(empty.isNewScan, false);
+	const short = evaluateCameraDetection(empty.nextState, null, 2099);
+	assert.notEqual(short.nextState, null);
+	const absent = evaluateCameraDetection(short.nextState, null, 2100);
+	assert.equal(absent.nextState, null);
+	const rescan = evaluateCameraDetection(absent.nextState, 'A', 2200);
+	assert.equal(rescan.isNewScan, true);
+});
+
+test('evaluateCameraDetection: 一時的な空フレームの後に同じQRが戻っても再計測しない', () => {
+	const first = evaluateCameraDetection(null, 'A', 0);
+	const empty = evaluateCameraDetection(first.nextState, null, 100);
+	const recovered = evaluateCameraDetection(empty.nextState, 'A', 10000);
+	assert.equal(recovered.isNewScan, false);
+	const emptyAgain = evaluateCameraDetection(recovered.nextState, null, 10100);
+	assert.notEqual(emptyAgain.nextState, null);
+	assert.equal(evaluateCameraDetection(null, null, 100).nextState, null);
 });
 
 test('evaluateCameraDetection: 異なるQRの連続読み取りはそれぞれ新規スキャンになる', () => {
@@ -381,4 +394,19 @@ test('evaluateCameraDetection: 異なるQRの連続読み取りはそれぞれ�
 		results.push(result.isNewScan);
 	}
 	assert.deepEqual(results, [true, true, true, true]);
+});
+
+test('evaluateCameraDetection: Workerエラーは視野外として数えない', () => {
+	const first = evaluateCameraDetection(null, 'A', 0);
+	const empty = evaluateCameraDetection(first.nextState, null, 100);
+	const failed = evaluateCameraDetection(empty.nextState, undefined, 2200);
+	assert.equal(failed.isNewScan, false);
+	assert.equal(
+		evaluateCameraDetection(failed.nextState, 'A', 5000).isNewScan,
+		false,
+	);
+	assert.notEqual(
+		evaluateCameraDetection(failed.nextState, null, 5000).nextState,
+		null,
+	);
 });
