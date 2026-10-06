@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import RandomSortTool from '../components/tools/RandomSort.tsx';
+
+const toolEntry = await getEntry('tools', 'random-sort');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: random-sort');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <RandomSortTool client:load />
+</ToolLayout>
