@@ -387,3 +387,35 @@ flowchart TD
 		);
 	});
 });
+
+test('replaceSyntaxZenkaku: sequenceメッセージとNoteの本文を保持する', () => {
+	for (const input of [
+		'Alice->>Bob: 東京→大阪',
+		'Alice-->>Bob: 東京→大阪',
+		'Note over Alice,Bob: 東京→大阪',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
+
+test('replaceSyntaxZenkaku: エッジIDと長い点線リンクのラベルを保持する', () => {
+	for (const input of [
+		'A[東京→大阪] e1@--> B',
+		'A[東京→大阪]:::accent e1@--> B',
+		'A -. 東京→大阪 -..-> B',
+		'A -. 東京→大阪 -...-> B',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
+
+test('replaceSyntaxZenkaku: 内部マーカーに似たユーザーIDを変更しない', () => {
+	for (const input of [
+		'A -- foo --> __MERMAID_EDGE_0__',
+		'A[x] --> __MERMAID_LABEL_0__',
+		'A["x"] --> __MERMAID_STR_0__',
+		'A -- __MERMAID_EDGE_0__ --> B',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
