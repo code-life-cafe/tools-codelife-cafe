@@ -48,11 +48,20 @@ const SAMPLE_CSV = [
 	'佐藤次郎,41,人事部,true',
 ].join('\r\n');
 
+// 変換結果と、その変換に使った入力・設定のスナップショット
+type ConvertedState = {
+	result: ConvertResult;
+	input: string;
+	direction: Direction;
+	jsonOpts: JsonToCsvOptions;
+	csvOpts: CsvToJsonOptions;
+};
+
 export function JsonCsvPage() {
 	const { trackRun, trackRunDebounced } = useToolAnalytics('json-csv');
 	const [direction, setDirection] = useState<Direction>('json-to-csv');
 	const [input, setInput] = useState('');
-	const [result, setResult] = useState<ConvertResult | null>(null);
+	const [converted, setConverted] = useState<ConvertedState | null>(null);
 	const [jsonOpts, setJsonOpts] = useState<JsonToCsvOptions>({
 		delimiter: ',',
 		includeHeader: true,
@@ -69,18 +78,42 @@ export function JsonCsvPage() {
 
 	const isManualMode = input.length >= MANUAL_MODE_THRESHOLD;
 
+	// 入力・変換方向・変換設定のいずれかが結果の生成時点と異なれば、結果は古い
+	const isStale =
+		converted !== null &&
+		(converted.input !== input ||
+			converted.direction !== direction ||
+			converted.jsonOpts !== jsonOpts ||
+			converted.csvOpts !== csvOpts);
+	// 手動モードでは自動再変換が走らないため、古い結果は表示もコピー・保存もさせない
+	const result = isStale && isManualMode ? null : (converted?.result ?? null);
+	const canExport = !isStale && result?.ok === true && !!result.output;
+
+	const setResult = useCallback(
+		(
+			next: ConvertResult | null,
+			source: Pick<
+				ConvertedState,
+				'input' | 'direction' | 'jsonOpts' | 'csvOpts'
+			>,
+		) => setConverted(next ? { result: next, ...source } : null),
+		[],
+	);
+
 	const convert = useCallback(() => {
+		const source = { input, direction, jsonOpts, csvOpts };
 		if (!input.trim()) {
-			setResult(null);
+			setResult(null, source);
 			return;
 		}
 		setResult(
 			direction === 'json-to-csv'
 				? jsonToCsv(input, jsonOpts)
 				: csvToJson(input, csvOpts),
+			source,
 		);
 		trackRunDebounced();
-	}, [input, direction, jsonOpts, csvOpts, trackRunDebounced]);
+	}, [input, direction, jsonOpts, csvOpts, trackRunDebounced, setResult]);
 
 	// 自動変換（300ms debounce）。1MB以上は手動実行に切り替え
 	useEffect(() => {
@@ -91,7 +124,7 @@ export function JsonCsvPage() {
 
 	const handleDirectionChange = useCallback((value: string) => {
 		setDirection(value as Direction);
-		setResult(null);
+		setConverted(null);
 	}, []);
 
 	const handleFileSelect = useCallback(
@@ -103,16 +136,19 @@ export function JsonCsvPage() {
 					direction === 'json-to-csv'
 						? jsonToCsv(text, jsonOpts)
 						: csvToJson(text, csvOpts);
-				setResult(converted);
+				setResult(converted, { input: text, direction, jsonOpts, csvOpts });
 				// 1MB以上は自動変換(debounce)が走らないため、直接変換の成功時にここで計測する
 				if (text.length >= MANUAL_MODE_THRESHOLD && converted.ok) {
 					trackRun();
 				}
 			} catch (_error) {
-				setResult({ ok: false, error: 'ファイルの読み込みに失敗しました。' });
+				setResult(
+					{ ok: false, error: 'ファイルの読み込みに失敗しました。' },
+					{ input, direction, jsonOpts, csvOpts },
+				);
 			}
 		},
-		[direction, jsonOpts, csvOpts, trackRun],
+		[direction, jsonOpts, csvOpts, trackRun, input, setResult],
 	);
 
 	const handleSample = useCallback(() => {
@@ -122,11 +158,12 @@ export function JsonCsvPage() {
 			direction === 'json-to-csv'
 				? jsonToCsv(sampleText, jsonOpts)
 				: csvToJson(sampleText, csvOpts),
+			{ input: sampleText, direction, jsonOpts, csvOpts },
 		);
-	}, [direction, jsonOpts, csvOpts]);
+	}, [direction, jsonOpts, csvOpts, setResult]);
 
 	const handleDownload = useCallback(() => {
-		if (!result?.ok || !result.output) return;
+		if (!canExport || !result?.ok) return;
 		if (direction === 'json-to-csv') {
 			// Preview = Export: 画面表示と同じ output からBlobを生成する
 			downloadBlob(buildCsvBlob(result.output, withBom), 'converted.csv');
@@ -136,7 +173,7 @@ export function JsonCsvPage() {
 				'converted.json',
 			);
 		}
-	}, [result, direction, withBom]);
+	}, [result, canExport, direction, withBom]);
 
 	const output = result?.ok ? result.output : '';
 	const inputLabel = direction === 'json-to-csv' ? 'JSON' : 'CSV';
@@ -196,7 +233,10 @@ export function JsonCsvPage() {
 						<FileDropzone
 							onFileSelect={handleFileSelect}
 							onValidationError={(message) =>
-								setResult({ ok: false, error: message })
+								setResult(
+									{ ok: false, error: message },
+									{ input, direction, jsonOpts, csvOpts },
+								)
 							}
 							accept=".json,.csv,.txt"
 							maxSizeBytes={MAX_INPUT_FILE_SIZE}
@@ -206,6 +246,15 @@ export function JsonCsvPage() {
 							inputAriaLabel="変換するファイルを選択"
 							data-testid="json-csv-file-input"
 						/>
+						{isManualMode && isStale && (
+							<p
+								className="text-xs text-amber-600 dark:text-amber-400"
+								role="status"
+								data-testid="json-csv-stale-notice"
+							>
+								入力または設定が変更されました。「変換」を押すと結果を更新します。
+							</p>
+						)}
 						{isManualMode && (
 							<div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
 								<Zap className="h-4 w-4 shrink-0 text-amber-500" />
@@ -228,7 +277,7 @@ export function JsonCsvPage() {
 						<div className="flex items-center justify-between min-h-8 gap-2">
 							<span className="text-sm font-semibold">{outputLabel} 出力</span>
 							<div className="flex items-center gap-2">
-								{result?.ok && result.output && (
+								{canExport && result?.ok && (
 									<>
 										<Badge variant="outline" className="text-xs">
 											{result.rowCount}行を変換しました
@@ -265,7 +314,7 @@ export function JsonCsvPage() {
 								aria-label={`${outputLabel}出力`}
 							/>
 						)}
-						{direction === 'json-to-csv' && result?.ok && result.output && (
+						{direction === 'json-to-csv' && canExport && (
 							<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
 								<FileJson className="h-3.5 w-3.5 shrink-0" />
 								ダウンロード時は
