@@ -15,9 +15,9 @@ export async function resolveBaseline(get, runId) {
 	)
 		throw new Error('現在のworkflow識別子が不明です');
 	let baseline;
-	for (let page = 1; page <= 10; page++) {
+	for (let page = 1; ; page++) {
 		const data = await get(
-			`actions/runs?branch=main&event=push&status=success&per_page=100&page=${page}`,
+			`actions/workflows/${current.workflow_id}/runs?per_page=100&page=${page}`,
 		);
 		if (!Array.isArray(data.workflow_runs))
 			throw new Error('workflow履歴が不正です');
@@ -26,6 +26,7 @@ export async function resolveBaseline(get, runId) {
 				run.id === current.id ||
 				run.workflow_id !== current.workflow_id ||
 				run.conclusion !== 'success' ||
+				run.event !== 'push' ||
 				run.head_branch !== 'main'
 			)
 				continue;
@@ -34,7 +35,6 @@ export async function resolveBaseline(get, runId) {
 			if (!baseline || run.updated_at > baseline.updated_at) baseline = run;
 		}
 		if (data.workflow_runs.length < 100) break;
-		if (page === 10) throw new Error('デプロイ履歴の取得上限に達しました');
 	}
 	if (!baseline || !/^[0-9a-f]{40}$/.test(baseline.head_sha))
 		throw new Error(

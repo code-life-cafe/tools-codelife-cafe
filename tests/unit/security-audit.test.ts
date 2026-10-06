@@ -85,6 +85,7 @@ test('deployment baseline uses the most recently completed deployment and skips 
 							created_at: '2026-10-06T11:00:00Z',
 							updated_at: '2026-10-06T11:05:00Z',
 							conclusion: 'success',
+							event: 'push',
 							head_branch: 'main',
 							head_sha: 'b'.repeat(40),
 						},
@@ -93,6 +94,7 @@ test('deployment baseline uses the most recently completed deployment and skips 
 							workflow_id: 7,
 							created_at: '2026-10-06T10:00:00Z',
 							conclusion: 'success',
+							event: 'push',
 							head_branch: 'main',
 							head_sha: 'c'.repeat(40),
 						},
@@ -102,6 +104,7 @@ test('deployment baseline uses the most recently completed deployment and skips 
 							created_at: '2026-10-05T10:00:00Z',
 							updated_at: '2026-10-06T12:00:00Z',
 							conclusion: 'success',
+							event: 'push',
 							head_branch: 'main',
 							head_sha: sha,
 						},
@@ -146,6 +149,7 @@ test('successful runs from other workflows cannot become the deployment baseline
 							workflow_id: 8,
 							updated_at: '2026-10-06T10:00:00Z',
 							conclusion: 'success',
+							event: 'push',
 							head_branch: 'main',
 							head_sha: 'b'.repeat(40),
 						},
@@ -154,10 +158,37 @@ test('successful runs from other workflows cannot become the deployment baseline
 							workflow_id: 7,
 							updated_at: '2026-10-05T10:00:00Z',
 							conclusion: 'success',
+							event: 'push',
 							head_branch: 'main',
 							head_sha: 'a'.repeat(40),
 						},
 					],
 				};
 	assert.equal((await resolveBaseline(get, '42')).head_sha, 'a'.repeat(40));
+});
+
+test('a full workflow history does not reject a valid baseline after ten pages', async () => {
+	const sha = 'a'.repeat(40);
+	const candidate = {
+		id: 1,
+		workflow_id: 7,
+		updated_at: '2026-10-05T10:00:00Z',
+		conclusion: 'success',
+		event: 'push',
+		head_branch: 'main',
+		head_sha: sha,
+	};
+	let pages = 0;
+	const get = async (path: string) => {
+		if (path === 'actions/runs/42') return { id: 42, workflow_id: 7 };
+		assert.match(path, /^actions\/workflows\/7\/runs\?per_page=100&page=/);
+		assert.doesNotMatch(path, /status=|branch=|event=/);
+		pages++;
+		return {
+			workflow_runs:
+				pages <= 10 ? Array.from({ length: 100 }, () => candidate) : [],
+		};
+	};
+	assert.equal((await resolveBaseline(get, '42')).head_sha, sha);
+	assert.equal(pages, 11);
 });
