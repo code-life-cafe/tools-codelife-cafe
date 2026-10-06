@@ -455,3 +455,29 @@ test('replaceSyntaxZenkaku: sequenceのセミコロン後の構文も修復し�
 		'Alice->>Bob: "東京;大阪→京都"; Bob --> Alice: 戻る',
 	);
 });
+
+test('replaceSyntaxZenkaku: Mermaid 11の全half-arrow形式でも本文を保持する', () => {
+	for (const arrow of [
+		'-|\\',
+		'-|/',
+		'-\\\\',
+		'-//',
+		'/|-',
+		'\\|-',
+		'//-',
+		'\\\\-',
+		'--|\\',
+		'--|/',
+		'--\\\\',
+		'--//',
+		'/|--',
+		'\\|--',
+		'//--',
+		'\\\\--',
+	]) {
+		for (const activation of ['', '+', '-']) {
+			const input = `Alice${arrow}${activation}Bob: 東京→大阪`;
+			assert.equal(replaceSyntaxZenkaku(input), input);
+		}
+	}
+});
