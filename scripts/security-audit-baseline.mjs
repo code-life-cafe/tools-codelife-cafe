@@ -10,20 +10,25 @@ const {
 export async function resolveBaseline(get, runId) {
 	const current = await get(`actions/runs/${runId}`);
 	let baseline;
-	for (let page = 1; page <= 10 && !baseline; page++) {
+	for (let page = 1; page <= 10; page++) {
 		const data = await get(
 			`actions/workflows/deploy.yml/runs?branch=main&event=push&status=success&per_page=100&page=${page}`,
 		);
 		if (!Array.isArray(data.workflow_runs))
 			throw new Error('workflow履歴が不正です');
-		baseline = data.workflow_runs.find(
-			(run) =>
-				run.id !== current.id &&
-				run.created_at < current.created_at &&
-				run.conclusion === 'success' &&
-				run.head_branch === 'main',
-		);
+		for (const run of data.workflow_runs) {
+			if (
+				run.id === current.id ||
+				run.conclusion !== 'success' ||
+				run.head_branch !== 'main'
+			)
+				continue;
+			if (!run.updated_at || !Number.isFinite(Date.parse(run.updated_at)))
+				throw new Error('デプロイ完了時刻が不明です');
+			if (!baseline || run.updated_at > baseline.updated_at) baseline = run;
+		}
 		if (data.workflow_runs.length < 100) break;
+		if (page === 10) throw new Error('デプロイ履歴の取得上限に達しました');
 	}
 	if (!baseline || !/^[0-9a-f]{40}$/.test(baseline.head_sha))
 		throw new Error(

@@ -72,7 +72,7 @@ test('new consumers of the same flattened vulnerable dependency are detected', (
 	assert.equal(compare(report(), baseLock, report(), headLock).length, 1);
 });
 
-test('deployment baseline skips the current run and newer deployments', async () => {
+test('deployment baseline uses the most recently completed deployment and skips itself', async () => {
 	const sha = 'a'.repeat(40);
 	const get = async (path: string) =>
 		path === 'actions/runs/42'
@@ -82,6 +82,7 @@ test('deployment baseline skips the current run and newer deployments', async ()
 						{
 							id: 43,
 							created_at: '2026-10-06T11:00:00Z',
+							updated_at: '2026-10-06T11:05:00Z',
 							conclusion: 'success',
 							head_branch: 'main',
 							head_sha: 'b'.repeat(40),
@@ -96,6 +97,7 @@ test('deployment baseline skips the current run and newer deployments', async ()
 						{
 							id: 41,
 							created_at: '2026-10-05T10:00:00Z',
+							updated_at: '2026-10-06T12:00:00Z',
 							conclusion: 'success',
 							head_branch: 'main',
 							head_sha: sha,
