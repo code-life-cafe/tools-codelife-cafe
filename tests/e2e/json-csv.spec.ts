@@ -250,6 +250,185 @@ test.describe('JSON-CSV Converter Tool', () => {
 		).toBeVisible();
 	});
 
+	// 1,048,576文字以上の有効なJSON配列（先頭行にNEWDATAの目印を含む）
+	const buildLargeJson = () =>
+		`[{"id":"NEWDATA","v":"x"},${Array.from({ length: 30000 }, () => '{"id":"row","v":"abcdefghijklmnopqrstuvwxyz"}').join(',')}]`;
+
+	test('手動モード: 小データ変換後に1MB以上を貼ると古い結果のコピー・保存が無効化され、再変換後は新しい結果だけが持ち出せること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const largeJson = buildLargeJson();
+		expect(largeJson.length).toBeGreaterThanOrEqual(1024 * 1024);
+
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await page.getByRole('button', { name: 'サンプルデータ' }).click();
+		await expect(page.getByLabel('CSV出力')).toHaveValue(SAMPLE_EXPECTED_CSV);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toBeVisible();
+
+		await page.getByLabel('JSON入力').fill(largeJson);
+
+		// 古い結果は表示・コピー・保存のいずれもできない
+		await expect(page.getByTestId('json-csv-stale-notice')).toBeVisible();
+		await expect(page.getByLabel('CSV出力')).toHaveValue('');
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'コピー', exact: true }),
+		).toHaveCount(0);
+
+		// 手動変換後は新しい入力の結果だけが得られる
+		await page.getByRole('button', { name: '変換', exact: true }).click();
+		await expect(page.getByTestId('json-csv-stale-notice')).toHaveCount(0);
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/NEWDATA/);
+		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/山田太郎/);
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'ダウンロード' }).click();
+		const download = await downloadPromise;
+		const filePath = await download.path();
+		const content = fs.readFileSync(filePath, 'utf-8');
+		expect(content).toContain('NEWDATA');
+		expect(content).not.toContain('山田太郎');
+	});
+
+	test('手動モード: 変換後に入力や変換設定を変えると再変換まで結果が無効化されること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const largeJson = buildLargeJson();
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await page.getByLabel('JSON入力').fill(largeJson);
+		await page.getByRole('button', { name: '変換', exact: true }).click();
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/NEWDATA/);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toBeVisible();
+
+		// 入力を1文字変更 → 失効
+		await page.getByLabel('JSON入力').press('End');
+		await page.getByLabel('JSON入力').pressSequentially(' ');
+		await expect(page.getByTestId('json-csv-stale-notice')).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+
+		// 再変換で復帰 → 変換設定（ヘッダー行）を変更 → 再び失効
+		await page.getByRole('button', { name: '変換', exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toBeVisible();
+		await page
+			.getByRole('switch', { name: /ヘッダー/ })
+			.first()
+			.click();
+		await expect(page.getByTestId('json-csv-stale-notice')).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+	});
+
+	// slow- で始まる名前のファイルは File.text() の完了を1.5秒遅らせる（読込完了順の逆転を再現する）
+	const delaySlowFileReads = async (page: import('@playwright/test').Page) => {
+		await page.addInitScript(() => {
+			const original = File.prototype.text;
+			File.prototype.text = function (this: File) {
+				const delay = this.name.startsWith('slow-') ? 1500 : 0;
+				return new Promise((resolve, reject) => {
+					setTimeout(() => original.call(this).then(resolve, reject), delay);
+				});
+			};
+		});
+	};
+	const dropFile = async (
+		page: import('@playwright/test').Page,
+		name: string,
+		content: string,
+	) => {
+		const dataTransfer = await page.evaluateHandle(
+			([fileName, body]) => {
+				const transfer = new DataTransfer();
+				transfer.items.add(
+					new File([body], fileName, { type: 'application/json' }),
+				);
+				return transfer;
+			},
+			[name, content],
+		);
+		await page
+			.getByRole('button', { name: /ファイルから読み込み/ })
+			.dispatchEvent('drop', { dataTransfer });
+	};
+
+	test('ファイル読込中に入力を編集すると、遅れて完了した旧ファイルの結果で上書きされないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await page.getByLabel('JSON入力').fill('[{"id":"TYPED_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/TYPED_B/);
+
+		// 旧ファイルの読込完了を待っても、入力・出力は新しい入力のまま
+		await page.waitForTimeout(2000);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('[{"id":"TYPED_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/TYPED_B/);
+		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/FILE_A/);
+	});
+
+	test('ファイルを続けて選択すると、読込完了順に関わらず最後に選んだファイルの結果だけが残ること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await dropFile(page, 'fast-b.json', '[{"id":"FILE_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/FILE_B/);
+
+		await page.waitForTimeout(2000);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('[{"id":"FILE_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/FILE_B/);
+		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/FILE_A/);
+	});
+
+	test('ファイル読込中に対応外のファイルを選ぶと、遅れて完了した旧ファイルの結果でエラーが上書きされないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await dropFile(page, 'rejected.png', 'not a json csv text file');
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'対応していないファイル形式です',
+		);
+
+		// 旧ファイルの読込完了を待っても、エラー表示のまま・入力は空のまま
+		await page.waitForTimeout(2000);
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'対応していないファイル形式です',
+		);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('');
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+	});
+
 	test('レスポンシブ表示（375px / 1440px）', async ({
 		page,
 		createToolPage,
