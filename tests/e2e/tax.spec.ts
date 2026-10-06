@@ -115,6 +115,34 @@ test.describe('消費税・税込計算ツール', () => {
 		await expect(page.getByTestId('tax-error')).toContainText('数値を入力');
 	});
 
+	test('複数明細で数量00・００はエラーになり合計に混入しないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('tax');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: '複数明細（インボイス）' }).click();
+
+		const amount = page.getByLabel('単価').first();
+		const quantity = page.getByLabel('数量').first();
+		const result = page.getByTestId('tax-invoice-result');
+
+		await amount.fill('1000');
+		await quantity.fill('2');
+		await expect(result).toContainText('2,200円');
+
+		for (const zero of ['00', '００', '0', ' 0,0 ']) {
+			await quantity.fill(zero);
+			await expect(page.getByRole('alert')).toContainText('数量は1以上');
+			await expect(result).toHaveCount(0);
+		}
+
+		await quantity.fill('999');
+		await expect(page.getByRole('alert')).toHaveCount(0);
+		await expect(result).toBeVisible();
+	});
+
 	test('レスポンシブ表示（375px / 1440px）', async ({
 		page,
 		createToolPage,
