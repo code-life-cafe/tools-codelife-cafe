@@ -474,7 +474,8 @@ test('format/minify: true/false/nullの不正文字またはEOFを指す', () =>
 	] as const) {
 		for (const result of [formatJson(input, '2'), minifyJson(input)]) {
 			assert.equal(result.success, false);
-			assert.equal(result.errorPosition, position, input);
+			assert.ok(result.error?.endsWith(`position ${position}`), input);
 		}
+		assert.equal(formatJson(input).errorPosition, position, input);
 	}
 });
