@@ -16,6 +16,7 @@ function dependencyRoutes(lock, target) {
 	for (const [parent, pkg] of Object.entries(lock.packages)) {
 		const names = new Set([
 			...Object.keys(pkg.dependencies ?? {}),
+			...Object.keys(pkg.devDependencies ?? {}),
 			...Object.keys(pkg.optionalDependencies ?? {}),
 			...Object.keys(pkg.peerDependencies ?? {}),
 		]);
