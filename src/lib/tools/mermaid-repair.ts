@@ -191,7 +191,7 @@ function withProtectedNodeLabels(
 export function replaceSyntaxZenkaku(line: string): string {
 	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
 	const sequence = line.match(
-		/^(\s*(?:[\w]+\s*[-<][-><x)]+\s*[\w]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/i,
+		/^(\s*(?:[\w]+\s*[-<][-><x)o+]+\s*[\w]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/i,
 	);
 	if (sequence) return replaceSyntaxZenkaku(sequence[1]) + sequence[2];
 	return withProtectedStrings(line, (syntaxLine) => {

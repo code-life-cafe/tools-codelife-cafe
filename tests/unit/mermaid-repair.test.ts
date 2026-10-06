@@ -419,3 +419,22 @@ test('replaceSyntaxZenkaku: 内部マーカーに似たユーザーIDを変更�
 		assert.equal(replaceSyntaxZenkaku(input), input);
 	}
 });
+
+test('replaceSyntaxZenkaku: sequenceのactivation・central・cross・circle矢印も本文を保持する', () => {
+	for (const arrow of [
+		'->>+',
+		'-->>-',
+		'<<->>',
+		'-<<',
+		'--<<',
+		'-x',
+		'--x',
+		'-o',
+		'--o',
+		'-)',
+		'--)',
+	]) {
+		const input = `Alice${arrow}Bob: 東京→大阪`;
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
