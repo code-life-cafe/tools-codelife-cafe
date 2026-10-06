@@ -67,15 +67,16 @@ export default function DummyDataGenerator() {
 		return validateDummyDataInput(count, activeFields);
 	}, [count, activeFields]);
 
-	const [records, setRecords] = useState<DummyRecord[]>([]);
+	const [records, setRecords] = useState<DummyRecord[] | null>(null);
 	const [outputData, setOutputData] = useState('');
-	const [isGenerating, setIsGenerating] = useState(false);
+	const [isGenerating, setIsGenerating] = useState(true);
 
 	// レコードの再抽選。format切替では再実行しない（activeFields/count/refreshKeyのみに反応）。
 	useEffect(() => {
 		void refreshKey;
+		setRecords(null);
 		if (validationError) {
-			setRecords([]);
+			setIsGenerating(false);
 			return;
 		}
 
@@ -85,7 +86,7 @@ export default function DummyDataGenerator() {
 				setRecords(generateDummyRecords(activeFields, count));
 				trackRunDebounced();
 			} catch (_e) {
-				setRecords([]);
+				setRecords(null);
 			}
 			setIsGenerating(false);
 		}, 50);
@@ -94,7 +95,7 @@ export default function DummyDataGenerator() {
 
 	// 生成済みレコードの整形のみ。乱数の再抽選は行わない。
 	useEffect(() => {
-		if (validationError) {
+		if (validationError || records === null) {
 			setOutputData('');
 			return;
 		}
@@ -165,7 +166,8 @@ export default function DummyDataGenerator() {
 	};
 
 	const handleDownload = () => {
-		if (!outputData || validationError) return;
+		if (!outputData || validationError || isGenerating || records === null)
+			return;
 		const blob = new Blob([outputData], { type: 'text/plain;charset=utf-8' });
 		downloadBlob(blob, `dummy-data.${format}`);
 	};
@@ -286,13 +288,23 @@ export default function DummyDataGenerator() {
 								variant="outline"
 								size="sm"
 								onClick={handleDownload}
-								disabled={!outputData || !!validationError}
+								disabled={
+									!outputData ||
+									!!validationError ||
+									isGenerating ||
+									records === null
+								}
 							>
 								<Download className="h-4 w-4 mr-1" /> 保存
 							</Button>
 							<CopyButton
 								text={outputData}
-								disabled={!outputData || !!validationError}
+								disabled={
+									!outputData ||
+									!!validationError ||
+									isGenerating ||
+									records === null
+								}
 							/>
 						</div>
 					</div>
