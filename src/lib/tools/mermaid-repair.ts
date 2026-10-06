@@ -191,9 +191,27 @@ function withProtectedNodeLabels(
 export function replaceSyntaxZenkaku(line: string): string {
 	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
 	const sequence = line.match(
-		/^(\s*(?:[\w]+\s*[-<][-><x)o+]+\s*[\w]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/i,
+		/^(\s*(?:[\w]+\s*(?:[-<][-><x)o+]+|→|ー+[>＞])\s*[\w]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/i,
 	);
-	if (sequence) return replaceSyntaxZenkaku(sequence[1]) + sequence[2];
+	if (sequence) {
+		return withProtectedStrings(sequence[2], (body) => {
+			// セミコロンは次の文の開始。Mermaidの文字参照（#59;など）の
+			// 終端とクォート内のセミコロンはメッセージ本文に残す。
+			const separators = [...body.matchAll(/#[\w]+;|;/g)].filter(
+				(match) => match[0] === ';',
+			);
+			let result = replaceSyntaxZenkaku(sequence[1]);
+			let start = 0;
+			for (let i = 0; i <= separators.length; i++) {
+				const end = separators[i]?.index ?? body.length;
+				const statement = body.slice(start, end);
+				result += i === 0 ? statement : replaceSyntaxZenkaku(statement);
+				if (i < separators.length) result += ';';
+				start = end + 1;
+			}
+			return result;
+		});
+	}
 	return withProtectedStrings(line, (syntaxLine) => {
 		let res = syntaxLine;
 
