@@ -1,5 +1,5 @@
 import { Download, FileJson, Sparkles, Zap } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Badge } from '@/components/ui/badge';
@@ -75,6 +75,8 @@ export function JsonCsvPage() {
 		unflattenDotKeys: false,
 	});
 	const [withBom, setWithBom] = useState(true);
+	// 入力操作ごとに進める版番号。読込中のファイルが後から完了しても、新しい入力を上書きさせない
+	const inputVersionRef = useRef(0);
 
 	const isManualMode = input.length >= MANUAL_MODE_THRESHOLD;
 
@@ -123,14 +125,17 @@ export function JsonCsvPage() {
 	}, [convert, isManualMode]);
 
 	const handleDirectionChange = useCallback((value: string) => {
+		inputVersionRef.current += 1;
 		setDirection(value as Direction);
 		setConverted(null);
 	}, []);
 
 	const handleFileSelect = useCallback(
 		async (file: File) => {
+			const version = ++inputVersionRef.current;
 			try {
 				const text = await file.text();
+				if (version !== inputVersionRef.current) return;
 				setInput(text);
 				const converted =
 					direction === 'json-to-csv'
@@ -142,6 +147,7 @@ export function JsonCsvPage() {
 					trackRun();
 				}
 			} catch (_error) {
+				if (version !== inputVersionRef.current) return;
 				setResult(
 					{ ok: false, error: 'ファイルの読み込みに失敗しました。' },
 					{ input, direction, jsonOpts, csvOpts },
@@ -153,6 +159,7 @@ export function JsonCsvPage() {
 
 	const handleSample = useCallback(() => {
 		const sampleText = direction === 'json-to-csv' ? SAMPLE_JSON : SAMPLE_CSV;
+		inputVersionRef.current += 1;
 		setInput(sampleText);
 		setResult(
 			direction === 'json-to-csv'
@@ -221,7 +228,10 @@ export function JsonCsvPage() {
 						</div>
 						<Textarea
 							value={input}
-							onChange={(e) => setInput(e.target.value)}
+							onChange={(e) => {
+								inputVersionRef.current += 1;
+								setInput(e.target.value);
+							}}
 							placeholder={
 								direction === 'json-to-csv'
 									? '[{"name":"山田太郎","age":30}] のようなJSON配列を入力'

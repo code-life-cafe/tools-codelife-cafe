@@ -335,6 +335,75 @@ test.describe('JSON-CSV Converter Tool', () => {
 		).toHaveCount(0);
 	});
 
+	// slow- で始まる名前のファイルは File.text() の完了を1.5秒遅らせる（読込完了順の逆転を再現する）
+	const delaySlowFileReads = async (page: import('@playwright/test').Page) => {
+		await page.addInitScript(() => {
+			const original = File.prototype.text;
+			File.prototype.text = function (this: File) {
+				const delay = this.name.startsWith('slow-') ? 1500 : 0;
+				return new Promise((resolve, reject) => {
+					setTimeout(() => original.call(this).then(resolve, reject), delay);
+				});
+			};
+		});
+	};
+	const dropFile = async (
+		page: import('@playwright/test').Page,
+		name: string,
+		content: string,
+	) => {
+		const dataTransfer = await page.evaluateHandle(
+			([fileName, body]) => {
+				const transfer = new DataTransfer();
+				transfer.items.add(
+					new File([body], fileName, { type: 'application/json' }),
+				);
+				return transfer;
+			},
+			[name, content],
+		);
+		await page
+			.getByRole('button', { name: /ファイルから読み込み/ })
+			.dispatchEvent('drop', { dataTransfer });
+	};
+
+	test('ファイル読込中に入力を編集すると、遅れて完了した旧ファイルの結果で上書きされないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await page.getByLabel('JSON入力').fill('[{"id":"TYPED_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/TYPED_B/);
+
+		// 旧ファイルの読込完了を待っても、入力・出力は新しい入力のまま
+		await page.waitForTimeout(2000);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('[{"id":"TYPED_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/TYPED_B/);
+		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/FILE_A/);
+	});
+
+	test('ファイルを続けて選択すると、読込完了順に関わらず最後に選んだファイルの結果だけが残ること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await dropFile(page, 'fast-b.json', '[{"id":"FILE_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/FILE_B/);
+
+		await page.waitForTimeout(2000);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('[{"id":"FILE_B"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(/FILE_B/);
+		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/FILE_A/);
+	});
+
 	test('レスポンシブ表示（375px / 1440px）', async ({
 		page,
 		createToolPage,
