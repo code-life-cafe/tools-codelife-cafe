@@ -424,10 +424,10 @@ function findNextCivilMatch(
  * IANAタイムゾーン上の壁時計時刻（civil time）を、対応するUTCのDateに変換する。
  * DSTのあるタイムゾーンでも収束するよう2回のオフセット補正を行う。
  */
-function civilToUtc(c: CivilTime, timeZone: string): Date {
+function civilToUtc(c: CivilTime, formatter: Intl.DateTimeFormat): Date {
 	let guess = Date.UTC(c.year, c.month - 1, c.day, c.hour, c.minute, c.second);
 	for (let i = 0; i < 2; i++) {
-		const parts = getZonedParts(new Date(guess), timeZone);
+		const parts = getZonedParts(new Date(guess), formatter);
 		const diffMs =
 			Date.UTC(c.year, c.month - 1, c.day, c.hour, c.minute, c.second) -
 			Date.UTC(
@@ -443,17 +443,7 @@ function civilToUtc(c: CivilTime, timeZone: string): Date {
 	return new Date(guess);
 }
 
-function getZonedParts(date: Date, timeZone: string): CivilTime {
-	const formatter = new Intl.DateTimeFormat('en-US', {
-		timeZone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		hourCycle: 'h23',
-	});
+function getZonedParts(date: Date, formatter: Intl.DateTimeFormat): CivilTime {
 	const parts = formatter.formatToParts(date);
 	const get = (type: string) =>
 		Number.parseInt(parts.find((p) => p.type === type)?.value ?? '0', 10);
@@ -465,66 +455,6 @@ function getZonedParts(date: Date, timeZone: string): CivilTime {
 		minute: get('minute'),
 		second: get('second'),
 	};
-}
-
-// 壁時計時刻の前後でゾーンのUTCオフセットを標本化する間隔（時間）。foldの幅に依存しないよう広めに取る
-const OFFSET_SAMPLE_HOURS = [-48, -24, -12, -3, 0, 3, 12, 24, 48];
-
-/** 壁時計時刻cに一致する全ての実インスタント（昇順）を返す。 */
-function listCivilInstants(c: CivilTime, timeZone: string): Date[] {
-	const civilAsUtc = Date.UTC(
-		c.year,
-		c.month - 1,
-		c.day,
-		c.hour,
-		c.minute,
-		c.second,
-	);
-	const base = civilToUtc(c, timeZone).getTime();
-	const offsetsMs = new Set<number>();
-	for (const hours of OFFSET_SAMPLE_HOURS) {
-		const t = base + hours * 3_600_000;
-		const p = getZonedParts(new Date(t), timeZone);
-		const zonedAsUtc = Date.UTC(
-			p.year,
-			p.month - 1,
-			p.day,
-			p.hour,
-			p.minute,
-			p.second,
-		);
-		offsetsMs.add(zonedAsUtc - Math.floor(t / 1000) * 1000);
-	}
-	const instants = new Map<number, Date>();
-	for (const offsetMs of offsetsMs) {
-		const t = civilAsUtc - offsetMs;
-		const p = getZonedParts(new Date(t), timeZone);
-		if (
-			p.year === c.year &&
-			p.month === c.month &&
-			p.day === c.day &&
-			p.hour === c.hour &&
-			p.minute === c.minute &&
-			p.second === c.second
-		) {
-			instants.set(t, new Date(t));
-		}
-	}
-	return [...instants.values()].sort((x, y) => x.getTime() - y.getTime());
-}
-
-/**
- * 壁時計時刻をUTCへ解決する。同じ壁時計時刻が複数回現れる場合（DST fall-back等）は、
- * その分がafterより後にまだ残っている最初の出現を選ぶ。afterがその出現の分の内側にある場合は
- * after以下の値を返し、呼び出し側が読み飛ばすことで同じ分の残り秒を時系列順に返せる。
- */
-function resolveCivilAfter(c: CivilTime, timeZone: string, after: Date): Date {
-	const instants = listCivilInstants(c, timeZone);
-	for (const instant of instants) {
-		const minuteEnd = instant.getTime() + (60 - c.second) * 1000;
-		if (minuteEnd > after.getTime()) return instant;
-	}
-	return instants[instants.length - 1] ?? civilToUtc(c, timeZone);
 }
 
 export interface NextRunOptions {
@@ -544,27 +474,55 @@ export function getNextRunTimes(
 ): Date[] {
 	const count = options.count ?? 10;
 	const from = options.from ?? new Date();
-	const timeZone = options.timeZone;
-
+	const formatter = new Intl.DateTimeFormat('en-US', {
+		timeZone: options.timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+	});
 	const results: Date[] = [];
-	// 現在の分の秒候補も対象にするため、探索は1分前から始める（fromより後の結果のみ採用する）
-	let cursorCivil = addMinutes(getZonedParts(from, timeZone), -1);
-	let currentMinuteCivil: CivilTime | null = null;
-	let pendingSeconds: number[] = [];
-
-	while (results.length < count) {
-		if (pendingSeconds.length === 0) {
-			currentMinuteCivil = findNextCivilMatch(schedule, cursorCivil);
-			pendingSeconds = [...schedule.seconds.values];
+	const startParts = getZonedParts(from, formatter);
+	// 実時刻の分を昇順に探索する。DSTの欠落/繰り返しを壁時計から逆算しない。
+	let minute =
+		from.getTime() - from.getUTCMilliseconds() - startParts.second * 1000;
+	let scanUntil = minute;
+	const horizon = new Date(from);
+	horizon.setUTCFullYear(horizon.getUTCFullYear() + MAX_YEARS_AHEAD);
+	const nearWindow = 48 * 3_600_000;
+	while (results.length < count && minute <= horizon.getTime()) {
+		const c = getZonedParts(new Date(minute), formatter);
+		if (
+			schedule.months.values.includes(c.month) &&
+			matchesDayField(schedule, c) &&
+			schedule.hours.values.includes(c.hour) &&
+			schedule.minutes.values.includes(c.minute)
+		) {
+			for (const second of schedule.seconds.values) {
+				const instant = minute + second * 1000;
+				if (instant > from.getTime()) results.push(new Date(instant));
+				if (results.length === count) break;
+			}
+		} else if (minute >= scanUntil) {
+			// 疎な式では次の壁時計候補の近くまで進む。補正が曖昧なDST付近は
+			// 48時間前から実時刻で走査するため、foldの2回目もgapも取りこぼさない。
+			const nextCivil = findNextCivilMatch(schedule, c);
+			const estimate = civilToUtc(nextCivil, formatter).getTime();
+			scanUntil = Math.max(minute, estimate + nearWindow);
+			if (estimate - nearWindow > minute) {
+				minute = estimate - nearWindow;
+				continue;
+			}
 		}
-		const second = pendingSeconds.shift();
-		if (second === undefined || !currentMinuteCivil) break;
-
-		const resultCivil: CivilTime = { ...currentMinuteCivil, second };
-		const resultDate = resolveCivilAfter(resultCivil, timeZone, from);
-		cursorCivil = resultCivil;
-		if (resultDate.getTime() <= from.getTime()) continue;
-		results.push(resultDate);
+		minute += 60_000;
+	}
+	if (results.length < count) {
+		throw new CronParseError(
+			`次回実行日時が見つかりませんでした（${MAX_YEARS_AHEAD}年以内）`,
+		);
 	}
 	return results;
 }

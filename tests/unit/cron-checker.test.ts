@@ -546,3 +546,69 @@ test('Antarctica/Troll 2時間fold: 1回目・2回目どちらのfromでも同�
 		['2026-10-25T01:00:15.000Z', '2026-10-25T01:00:20.000Z'],
 	);
 });
+
+test('DST spring-forward: 存在しない壁時計時刻を返さず時系列順を保つ', () => {
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(parseCronExpression('59 * * * * *'), {
+				count: 3,
+				from: new Date('2026-03-08T06:59:58Z'),
+				timeZone: 'America/New_York',
+			}),
+		),
+		[
+			'2026-03-08T06:59:59.000Z',
+			'2026-03-08T07:00:59.000Z',
+			'2026-03-08T07:01:59.000Z',
+		],
+	);
+});
+
+test('DST fall-back: 1回目の末尾から2回目の先頭へ連続して進む', () => {
+	assert.deepEqual(
+		iso(
+			getNextRunTimes(parseCronExpression('* * * * * *'), {
+				count: 3,
+				from: new Date('2026-11-01T05:59:58Z'),
+				timeZone: 'America/New_York',
+			}),
+		),
+		[
+			'2026-11-01T05:59:59.000Z',
+			'2026-11-01T06:00:00.000Z',
+			'2026-11-01T06:00:01.000Z',
+		],
+	);
+	assert.equal(
+		getNextRunTimes(parseCronExpression('0 0 1 * * *'), {
+			count: 1,
+			from: new Date('2026-11-01T05:59:58Z'),
+			timeZone: 'America/New_York',
+		})[0].toISOString(),
+		'2026-11-01T06:00:00.000Z',
+	);
+});
+
+test('高頻度スケジュール: Intl formatterを候補ごとに生成しない', () => {
+	const Original = Intl.DateTimeFormat;
+	let constructions = 0;
+	Intl.DateTimeFormat = new Proxy(Original, {
+		construct(target, args) {
+			constructions++;
+			return Reflect.construct(target, args);
+		},
+	});
+	try {
+		const dates = getNextRunTimes(parseCronExpression('* * * * * *'), {
+			count: 50,
+			from: new Date('2026-09-26T00:00:12Z'),
+			timeZone: 'Asia/Tokyo',
+		});
+		assert.equal(dates.length, 50);
+		assert.ok(constructions <= 1, `formatter creations: ${constructions}`);
+		for (let i = 1; i < dates.length; i++)
+			assert.equal(dates[i].getTime() - dates[i - 1].getTime(), 1000);
+	} finally {
+		Intl.DateTimeFormat = Original;
+	}
+});
