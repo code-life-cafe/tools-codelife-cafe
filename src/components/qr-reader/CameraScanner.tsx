@@ -178,7 +178,7 @@ export default function CameraScanner({
 				for (const track of stream.getTracks()) {
 					track.stop();
 				}
-				streamRef.current = null;
+				if (streamRef.current === stream) streamRef.current = null;
 				return;
 			}
 			setStatus('active');
