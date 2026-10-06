@@ -612,3 +612,20 @@ test('高頻度スケジュール: Intl formatterを候補ごとに生成しな�
 		Intl.DateTimeFormat = Original;
 	}
 });
+
+test('疎な式: 8年を超える結果一覧でも各次回候補を探索する', () => {
+	const annual = getNextRunTimes(parseCronExpression('0 0 1 1 *'), {
+		from: new Date('2026-01-01T00:00:00Z'),
+		timeZone: 'UTC',
+	});
+	assert.equal(annual.length, 10);
+	assert.equal(annual[9].getUTCFullYear(), 2036);
+	const leap = getNextRunTimes(parseCronExpression('0 0 29 2 *'), {
+		from: new Date('2026-01-01T00:00:00Z'),
+		timeZone: 'UTC',
+	});
+	assert.deepEqual(
+		leap.map((d) => d.getUTCFullYear()),
+		[2028, 2032, 2036, 2040, 2044, 2048, 2052, 2056, 2060, 2064],
+	);
+});

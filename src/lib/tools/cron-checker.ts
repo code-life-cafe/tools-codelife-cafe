@@ -503,7 +503,12 @@ export function getNextRunTimes(
 		) {
 			for (const second of schedule.seconds.values) {
 				const instant = minute + second * 1000;
-				if (instant > from.getTime()) results.push(new Date(instant));
+				if (instant > from.getTime()) {
+					results.push(new Date(instant));
+					// 上限は一覧全体ではなく、直近の結果から次の1件を探す期間。
+					horizon.setTime(instant);
+					horizon.setUTCFullYear(horizon.getUTCFullYear() + MAX_YEARS_AHEAD);
+				}
 				if (results.length === count) break;
 			}
 		} else if (minute >= scanUntil) {
