@@ -61,32 +61,32 @@ export type RuntimeArtifact = {
 export const MODEL_BASE_PATH = '/models/transcribe/';
 
 export const RUNTIME_ARTIFACT: RuntimeArtifact = {
-	transformersVersion: '4.2.0',
-	onnxRuntimeVersion: '1.26.0-dev.20260416-b7804b056c',
+	transformersVersion: '4.3.0',
+	onnxRuntimeVersion: '1.31.0-dev.20260914-8d85527a0',
 	files: [
 		{
 			path: 'ort-wasm-simd-threaded.asyncify.mjs',
-			bytes: 47389,
+			bytes: 53057,
 			sha256:
-				'5959c6733039619c9af710d8e1bae8d6e84402787990637be987c2b1bd6c5fa9',
+				'0966b6105cd936744498aa60df7a22cbd47af3374dbc64a9ab561c08a71e3611',
 		},
 		{
 			path: 'ort-wasm-simd-threaded.asyncify.wasm',
-			bytes: 23567050,
+			bytes: 26861777,
 			sha256:
-				'e0c0c6d3e73d43b8a249972f8358f845b08cc16fec3c80efafdf8bed40366786',
+				'49871f5a4409519797e127440868a6d1923339d9185907f301a5b2a1d90af082',
 		},
 		{
 			path: 'ort-wasm-simd-threaded.mjs',
-			bytes: 24180,
+			bytes: 24381,
 			sha256:
-				'5f2cd914554830762579c372d0211614c1e3f40ab3f6c0cfcf0900343229071d',
+				'c57ca56328877353a575e51bbca6f18450027d6c9bf2307a2cb2c41363b4de9f',
 		},
 		{
 			path: 'ort-wasm-simd-threaded.wasm',
-			bytes: 12942611,
+			bytes: 14264838,
 			sha256:
-				'f4f290847a4df02d0b93cdbf39b4b0e71acefbe80573e7e6b9342a7abd7b290a',
+				'06ba057753da3847e4c24f02d91ab133455b0817c69a44993a9a53a2146df9e3',
 		},
 	],
 };
