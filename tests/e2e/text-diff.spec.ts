@@ -17,6 +17,21 @@ test.describe('Text Diff', () => {
 		await expect(page.getByText(/削除:\s*1行/)).toBeVisible();
 	});
 
+	test('空行の追加・削除が行数に反映されること', async ({ page }) => {
+		const textboxes = page.getByRole('textbox');
+		await textboxes.first().fill('a\n');
+		await textboxes.nth(1).fill('a\n\n\n');
+
+		await expect(page.getByText(/追加:\s*2行/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*0行/)).toBeVisible();
+
+		await textboxes.first().fill('a\n\n\n');
+		await textboxes.nth(1).fill('a\n');
+
+		await expect(page.getByText(/追加:\s*0行/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*2行/)).toBeVisible();
+	});
+
 	test('both textareas allow vertical resize with min/max height on desktop', async ({
 		page,
 	}) => {

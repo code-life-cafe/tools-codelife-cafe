@@ -263,7 +263,8 @@ export function validateQuantity(raw: string): QuantityValidation {
 		};
 	}
 
-	if (normalizedInput.startsWith('-') || normalizedInput === '0') {
+	// 文字列一致ではなく数値化後に判定する（00・０・0.0 等のゼロ表記を含む）
+	if (normalizedInput.startsWith('-') || Number(normalizedInput) < 1) {
 		return {
 			ok: false,
 			message: '数量は1以上で入力してください。',
