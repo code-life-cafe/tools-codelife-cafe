@@ -282,3 +282,30 @@ test('joinIdsForCopy: 改行区切りになる', () => {
 	assert.equal(joinIdsForCopy([]), '');
 	assert.equal(joinIdsForCopy(['only']), 'only');
 });
+
+test('UUID v7: 乱数源が全ビット1ならrand_a/rand_bの全ビットが1になる', () => {
+	const gen = createUuidV7Generator();
+	const id = gen(0x0123456789ab, (n) => new Uint8Array(n).fill(0xff));
+	assert.equal(id, '01234567-89ab-7fff-bfff-ffffffffffff');
+});
+
+test('UUID v7: 乱数源が全ビット0ならrand_a/rand_bが0でversion/variantのみ立つ', () => {
+	const gen = createUuidV7Generator();
+	const id = gen(0x0123456789ab, (n) => new Uint8Array(n));
+	assert.equal(id, '01234567-89ab-7000-8000-000000000000');
+});
+
+test('UUID v7: 多数生成で17桁目は8/9/a/b、18〜20桁目は偏りなく出現する', () => {
+	const gen = createUuidV7Generator();
+	const variant = new Set<string>();
+	const digits = [new Set<string>(), new Set<string>(), new Set<string>()];
+	for (let i = 0; i < 4000; i++) {
+		// 別ミリ秒で採番し、毎回新規の乱数を使う
+		const id = gen(1_700_000_000_000 + i);
+		const group4 = id.split('-')[3];
+		variant.add(group4[0]);
+		for (let d = 0; d < 3; d++) digits[d].add(group4[d + 1]);
+	}
+	assert.deepEqual([...variant].sort(), ['8', '9', 'a', 'b']);
+	for (const set of digits) assert.equal(set.size, 16);
+});
