@@ -125,6 +125,24 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		}
 	});
 
+	test('asymmetricノードの本文も自動修復後に保持される', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('mermaid').goto();
+		await page
+			.locator('textarea')
+			.fill('```mermaid\nflowchart TD\nA>東京→大阪] --> B\n```');
+		const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+		if (await previewTab.isVisible()) await previewTab.click();
+		const svg = page
+			.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
+			.locator('svg')
+			.first();
+		await expect(svg).toContainText('東京→大阪', { timeout: 10000 });
+		await expect(svg).not.toContainText('東京-->大阪');
+	});
+
 	test('SVG保存・PNG保存ボタンが有効であること', async ({
 		page,
 		createToolPage,

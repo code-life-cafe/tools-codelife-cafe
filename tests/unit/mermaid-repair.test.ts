@@ -506,3 +506,27 @@ test('repairMermaidCode: flowchartのclass指定後の接続子をsequence本文
 		'sequenceDiagram\nAlice->>Bob::: 東京→大阪',
 	);
 });
+
+test('replaceSyntaxZenkaku: asymmetricを含む従来のflowchart全ノード形状を保持する', () => {
+	for (const [open, close] of [
+		['[', ']'],
+		['(', ')'],
+		['([', '])'],
+		['[[', ']]'],
+		['[(', ')]'],
+		['((', '))'],
+		['>', ']'],
+		['{', '}'],
+		['{{', '}}'],
+		['[/', '/]'],
+		['[\\', '\\]'],
+		['[/', '\\]'],
+		['[\\', '/]'],
+		['(((', ')))'],
+	]) {
+		for (const suffix of [' --> B', ':::accent e1@--> B', '']) {
+			const input = `A${open}東京→大阪${close}${suffix}`;
+			assert.equal(replaceSyntaxZenkaku(input), input);
+		}
+	}
+});
