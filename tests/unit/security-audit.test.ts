@@ -3,7 +3,19 @@ import { test } from 'node:test';
 import { compare, findings } from '../../scripts/security-audit.mjs';
 import { resolveBaseline } from '../../scripts/security-audit-baseline.mjs';
 
-const lock = (version = '1.0.0', dev = false) => ({
+type AuditLock = {
+	lockfileVersion: number;
+	packages: Record<
+		string,
+		{
+			version: string;
+			dev?: boolean;
+			integrity?: string;
+			dependencies?: Record<string, string>;
+		}
+	>;
+};
+const lock = (version = '1.0.0', dev = false): AuditLock => ({
 	lockfileVersion: 3,
 	packages: {
 		'node_modules/example': { version, dev, integrity: 'sha512-example' },

@@ -28,6 +28,8 @@ Routineの外部指示に一律の「自動マージ禁止」が残っている�
 
 ## Quality Gate
 
+依存検査は[依存脆弱性の運用](dependency-security.md)に従い、既存分を報告し、新規・悪化分を全重大度で停止する。監査不能も停止する。デプロイは直前の正常デプロイSHAを比較元にする。
+
 | 既存Workflow | PRでの検証 |
 | --- | --- |
 | `.github/workflows/lint.yml` / `lint` | security audit → lint → astro check → build → unit（dist依存のリンク検証を含む） |
