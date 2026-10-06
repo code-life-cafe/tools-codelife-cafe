@@ -9,16 +9,22 @@ const {
 } = process.env;
 export async function resolveBaseline(get, runId) {
 	const current = await get(`actions/runs/${runId}`);
+	if (
+		String(current.id) !== String(runId) ||
+		!Number.isInteger(current.workflow_id)
+	)
+		throw new Error('現在のworkflow識別子が不明です');
 	let baseline;
 	for (let page = 1; page <= 10; page++) {
 		const data = await get(
-			`actions/workflows/deploy.yml/runs?branch=main&event=push&status=success&per_page=100&page=${page}`,
+			`actions/runs?branch=main&event=push&status=success&per_page=100&page=${page}`,
 		);
 		if (!Array.isArray(data.workflow_runs))
 			throw new Error('workflow履歴が不正です');
 		for (const run of data.workflow_runs) {
 			if (
 				run.id === current.id ||
+				run.workflow_id !== current.workflow_id ||
 				run.conclusion !== 'success' ||
 				run.head_branch !== 'main'
 			)
@@ -66,7 +72,7 @@ if (
 		const baseline = await resolveBaseline(get, GITHUB_RUN_ID);
 		appendFileSync(GITHUB_OUTPUT, `sha=${baseline.head_sha}\n`);
 		console.log(
-			`直前の正常デプロイ: ${baseline.head_sha} (run ${baseline.id})`,
+			`直前の正常デプロイ: ${baseline.head_sha} (run ${baseline.id}, completed ${baseline.updated_at})`,
 		);
 	} catch (error) {
 		console.error(error.message);

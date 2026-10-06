@@ -76,11 +76,12 @@ test('deployment baseline uses the most recently completed deployment and skips 
 	const sha = 'a'.repeat(40);
 	const get = async (path: string) =>
 		path === 'actions/runs/42'
-			? { id: 42, created_at: '2026-10-06T10:00:00Z' }
+			? { id: 42, workflow_id: 7, created_at: '2026-10-06T10:00:00Z' }
 			: {
 					workflow_runs: [
 						{
 							id: 43,
+							workflow_id: 7,
 							created_at: '2026-10-06T11:00:00Z',
 							updated_at: '2026-10-06T11:05:00Z',
 							conclusion: 'success',
@@ -89,6 +90,7 @@ test('deployment baseline uses the most recently completed deployment and skips 
 						},
 						{
 							id: 42,
+							workflow_id: 7,
 							created_at: '2026-10-06T10:00:00Z',
 							conclusion: 'success',
 							head_branch: 'main',
@@ -96,6 +98,7 @@ test('deployment baseline uses the most recently completed deployment and skips 
 						},
 						{
 							id: 41,
+							workflow_id: 7,
 							created_at: '2026-10-05T10:00:00Z',
 							updated_at: '2026-10-06T12:00:00Z',
 							conclusion: 'success',
@@ -111,7 +114,7 @@ test('deployment without a successful baseline fails closed', async () => {
 		resolveBaseline(
 			async (path: string) =>
 				path === 'actions/runs/42'
-					? { id: 42, created_at: '2026-10-06T10:00:00Z' }
+					? { id: 42, workflow_id: 7, created_at: '2026-10-06T10:00:00Z' }
 					: { workflow_runs: [] },
 			'42',
 		),
@@ -130,4 +133,31 @@ test('upgrading only the consumer preserves an unchanged vulnerability baseline'
 		dependencies: { example: '*' },
 	};
 	assert.deepEqual(compare(report(), baseLock, report(), headLock), []);
+});
+
+test('successful runs from other workflows cannot become the deployment baseline', async () => {
+	const get = async (path: string) =>
+		path === 'actions/runs/42'
+			? { id: 42, workflow_id: 7 }
+			: {
+					workflow_runs: [
+						{
+							id: 40,
+							workflow_id: 8,
+							updated_at: '2026-10-06T10:00:00Z',
+							conclusion: 'success',
+							head_branch: 'main',
+							head_sha: 'b'.repeat(40),
+						},
+						{
+							id: 39,
+							workflow_id: 7,
+							updated_at: '2026-10-05T10:00:00Z',
+							conclusion: 'success',
+							head_branch: 'main',
+							head_sha: 'a'.repeat(40),
+						},
+					],
+				};
+	assert.equal((await resolveBaseline(get, '42')).head_sha, 'a'.repeat(40));
 });
