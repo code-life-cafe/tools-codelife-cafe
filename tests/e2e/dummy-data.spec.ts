@@ -1,6 +1,67 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('Dummy Data Generator Tool', () => {
+	test('生成待ち中はコピー・保存できず、完了後は指定件数を保存できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(() => {
+			const original = window.setTimeout.bind(window);
+			const pending: (() => void)[] = [];
+			Object.assign(window, {
+				releaseGeneration: () => {
+					for (const run of pending.splice(0)) run();
+				},
+			});
+			Object.defineProperty(window, 'setTimeout', {
+				value: (handler: TimerHandler, delay?: number, ...args: unknown[]) => {
+					if (delay !== 50 || typeof handler !== 'function') {
+						return original(handler, delay, ...args);
+					}
+					const timer = original(() => handler(...args), 60_000);
+					pending.push(() => {
+						clearTimeout(timer);
+						handler(...args);
+					});
+					return timer;
+				},
+			});
+		});
+		await createToolPage('dummy-data').goto();
+		const save = page.getByRole('button', { name: '保存', exact: true });
+		const copy = page.getByRole('button', { name: 'コピー', exact: true });
+		const release = () =>
+			page.evaluate(() => {
+				(
+					window as unknown as { releaseGeneration: () => void }
+				).releaseGeneration();
+			});
+		await expect(page.getByText('生成中...', { exact: true })).toBeVisible();
+		await expect(save).toBeDisabled();
+		await expect(copy).toBeDisabled();
+		await release();
+		await expect(save).toBeEnabled();
+
+		const count = page.locator('input[type="number"]');
+		await count.fill('0');
+		await expect(save).toBeDisabled();
+		await count.fill('5');
+		await page.getByRole('tab', { name: 'CSV', exact: true }).click();
+		await expect(page.getByText('生成中...', { exact: true })).toBeVisible();
+		await expect(save).toBeDisabled();
+		await expect(copy).toBeDisabled();
+		await release();
+		await expect(save).toBeEnabled();
+		const downloaded = page.waitForEvent('download');
+		await save.click();
+		const download = await downloaded;
+		const stream = await download.createReadStream();
+		const chunks: Buffer[] = [];
+		for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+		expect(
+			Buffer.concat(chunks).toString('utf8').trim().split('\n'),
+		).toHaveLength(6);
+	});
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('dummy-data');
 		await toolPage.goto();
@@ -49,6 +110,42 @@ test.describe('Dummy Data Generator Tool', () => {
 			?.split('\n')[0]
 			?.trim();
 		expect(headerLine).not.toContain('name');
+	});
+
+	test('形式切替(JSON→CSV→TSV→JSON)ではレコードが再生成されない', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('dummy-data');
+		await toolPage.goto();
+
+		const previewContainer = page.locator('pre');
+		await expect(previewContainer).toBeVisible();
+		await expect(previewContainer).toContainText('"name"');
+		const jsonBefore = await previewContainer.textContent();
+		const emails = [
+			...(jsonBefore ?? '').matchAll(/[a-z]+\.[a-z]+@[a-z.]+/g),
+		].map((m) => m[0]);
+		expect(emails.length).toBeGreaterThan(0);
+
+		await page.getByRole('tab', { name: 'CSV' }).click();
+		await expect(previewContainer).toContainText('氏名');
+		const csvText = await previewContainer.textContent();
+		for (const email of emails) {
+			expect(csvText).toContain(email);
+		}
+
+		await page.getByRole('tab', { name: 'TSV' }).click();
+		await expect(previewContainer).toContainText('氏名');
+		const tsvText = await previewContainer.textContent();
+		for (const email of emails) {
+			expect(tsvText).toContain(email);
+		}
+
+		await page.getByRole('tab', { name: 'JSON' }).click();
+		await expect(previewContainer).toContainText('"name"');
+		const jsonAfter = await previewContainer.textContent();
+		expect(jsonAfter).toEqual(jsonBefore);
 	});
 
 	test('同一設定の再生成クリックで出力が変わる', async ({

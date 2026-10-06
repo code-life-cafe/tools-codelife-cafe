@@ -24,10 +24,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
+	type DummyRecord,
 	type ExportFormat,
 	FIELD_LABELS,
 	type FieldType,
-	generateDummyData,
+	formatDummyRecords,
+	generateDummyRecords,
 	validateDummyDataInput,
 } from '@/lib/tools/dummy-data';
 
@@ -65,35 +67,44 @@ export default function DummyDataGenerator() {
 		return validateDummyDataInput(count, activeFields);
 	}, [count, activeFields]);
 
+	const [records, setRecords] = useState<DummyRecord[] | null>(null);
 	const [outputData, setOutputData] = useState('');
-	const [isGenerating, setIsGenerating] = useState(false);
+	const [isGenerating, setIsGenerating] = useState(true);
 
+	// レコードの再抽選。format切替では再実行しない（activeFields/count/refreshKeyのみに反応）。
 	useEffect(() => {
 		void refreshKey;
+		setRecords(null);
 		if (validationError) {
-			setOutputData('');
+			setIsGenerating(false);
 			return;
 		}
 
 		setIsGenerating(true);
 		const timer = setTimeout(() => {
 			try {
-				setOutputData(generateDummyData(activeFields, count, format));
+				setRecords(generateDummyRecords(activeFields, count));
 				trackRunDebounced();
 			} catch (_e) {
-				setOutputData('');
+				setRecords(null);
 			}
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [
-		activeFields,
-		count,
-		format,
-		refreshKey,
-		validationError,
-		trackRunDebounced,
-	]);
+	}, [activeFields, count, refreshKey, validationError, trackRunDebounced]);
+
+	// 生成済みレコードの整形のみ。乱数の再抽選は行わない。
+	useEffect(() => {
+		if (validationError || records === null) {
+			setOutputData('');
+			return;
+		}
+		try {
+			setOutputData(formatDummyRecords(records, activeFields, format));
+		} catch (_e) {
+			setOutputData('');
+		}
+	}, [records, activeFields, format, validationError]);
 
 	const previewData = useMemo(() => {
 		if (!outputData) return [];
@@ -155,7 +166,8 @@ export default function DummyDataGenerator() {
 	};
 
 	const handleDownload = () => {
-		if (!outputData || validationError) return;
+		if (!outputData || validationError || isGenerating || records === null)
+			return;
 		const blob = new Blob([outputData], { type: 'text/plain;charset=utf-8' });
 		downloadBlob(blob, `dummy-data.${format}`);
 	};
@@ -276,13 +288,23 @@ export default function DummyDataGenerator() {
 								variant="outline"
 								size="sm"
 								onClick={handleDownload}
-								disabled={!outputData || !!validationError}
+								disabled={
+									!outputData ||
+									!!validationError ||
+									isGenerating ||
+									records === null
+								}
 							>
 								<Download className="h-4 w-4 mr-1" /> 保存
 							</Button>
 							<CopyButton
 								text={outputData}
-								disabled={!outputData || !!validationError}
+								disabled={
+									!outputData ||
+									!!validationError ||
+									isGenerating ||
+									records === null
+								}
 							/>
 						</div>
 					</div>
