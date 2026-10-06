@@ -71,17 +71,20 @@ function buildClaimWarnings(
 	const formatted = formatUnixSeconds(value);
 	const unitHint =
 		'秒ではなくミリ秒・マイクロ秒で指定されていないか確認してください。';
-	if (formatted === null) {
-		return [
-			`${label}（${key}）の値 ${value} は日時に変換できません。${unitHint}`,
-		];
-	}
 	const warnings: string[] = [];
+	// 失効・未来の判定は数値比較のみで行い、日時への変換可否に依存させない
+	const shown = formatted ?? `${value}（日時に変換できません）`;
 	if (key === 'exp' && value <= nowSeconds) {
-		warnings.push(`有効期限（exp）を過ぎています: ${formatted}`);
+		warnings.push(`有効期限（exp）を過ぎています: ${shown}`);
 	}
 	if (key === 'nbf' && value > nowSeconds) {
-		warnings.push(`有効開始時刻（nbf）が未来です: ${formatted}`);
+		warnings.push(`有効開始時刻（nbf）が未来です: ${shown}`);
+	}
+	if (formatted === null) {
+		warnings.push(
+			`${label}（${key}）の値 ${value} は日時に変換できません。${unitHint}`,
+		);
+		return warnings;
 	}
 	if (Math.abs(value) >= SUSPICIOUS_SECONDS) {
 		warnings.push(

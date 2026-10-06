@@ -111,3 +111,31 @@ test('decodeJwt: nbf が現在時刻と等しい場合は有効（警告なし�
 	const after = decodeJwt(makeToken({ nbf: NOW_SEC + 1 }), NOW_MS);
 	assert.strictEqual(after.warnings.length, 1);
 });
+
+test('decodeJwt: 日時変換できない値でも失効・未来の判定は生の値で行う', () => {
+	const expired = decodeJwt(makeToken({ exp: -1e13 }), NOW_MS);
+	assert.strictEqual(expired.valid, true);
+	assert.ok(
+		expired.warnings.some((w) => w.includes('有効期限（exp）を過ぎています')),
+		expired.warnings.join('\n'),
+	);
+	assert.ok(expired.warnings.some((w) => w.includes('日時に変換できません')));
+
+	const notYet = decodeJwt(makeToken({ nbf: 1e13 }), NOW_MS);
+	assert.ok(
+		notYet.warnings.some((w) => w.includes('有効開始時刻（nbf）が未来です')),
+		notYet.warnings.join('\n'),
+	);
+	assert.ok(notYet.warnings.some((w) => w.includes('日時に変換できません')));
+
+	const farFutureExp = decodeJwt(makeToken({ exp: 1e20 }), NOW_MS);
+	assert.ok(
+		!farFutureExp.warnings.some((w) => w.includes('過ぎています')),
+		'遠い未来のexpは失効扱いにしない',
+	);
+	const farPastNbf = decodeJwt(makeToken({ nbf: -1e20 }), NOW_MS);
+	assert.ok(
+		!farPastNbf.warnings.some((w) => w.includes('未来です')),
+		'遠い過去のnbfは未来扱いにしない',
+	);
+});
