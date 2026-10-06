@@ -75,6 +75,52 @@ test.describe('JSON-CSV Converter Tool', () => {
 		await expect(output).toHaveValue(/"active": "true"/);
 	});
 
+	test('JSON → CSV: 安全整数範囲外の整数を画面表示・ダウンロードとも桁落ちさせないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await page
+			.getByLabel('JSON入力')
+			.fill('[{"id":9007199254740993,"code":"00123"}]');
+		await expect(page.getByLabel('CSV出力')).toHaveValue(
+			'id,code\n9007199254740993,00123',
+		);
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'ダウンロード' }).click();
+		const download = await downloadPromise;
+		const savePath = path.join(
+			os.tmpdir(),
+			`json-csv-bigint-${Date.now()}.csv`,
+		);
+		await download.saveAs(savePath);
+		const content = fs.readFileSync(savePath, 'utf-8');
+		expect(content).toContain('9007199254740993');
+		expect(content).not.toContain('9007199254740992');
+		fs.unlinkSync(savePath);
+	});
+
+	test('CSV → JSON: 安全整数範囲外のIDを型推論ONでも文字列として保持すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await page.getByRole('tab', { name: 'CSV → JSON' }).click();
+		await page.getByLabel('CSV入力').fill('id,code\n9007199254740993,00123');
+
+		await expect(page.getByLabel('JSON出力')).toHaveValue(
+			/"id": "9007199254740993"/,
+		);
+		await expect(page.getByLabel('JSON出力')).not.toHaveValue(
+			/9007199254740992/,
+		);
+	});
+
 	test('不正JSONで日本語エラーが表示されクラッシュしないこと', async ({
 		page,
 		createToolPage,
