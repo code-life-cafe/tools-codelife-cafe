@@ -636,13 +636,26 @@ export function csvToJson(
 		dataRows = rawRows;
 	}
 
+	const headerSet = new Set(headers);
+
 	const objects = dataRows.map((row) => {
 		const record: Record<string, unknown> = {};
-		// 列数不足は空文字として扱い、超過分は extra_1, extra_2 ... に格納する
+		// 列数不足は空文字として扱い、超過分は既存ヘッダーと衝突しない extra_N を採番する
 		const colCount = Math.max(headers.length, row.length);
+		let extraIndex = 1;
 		for (let i = 0; i < colCount; i++) {
-			const key =
-				i < headers.length ? headers[i] : `extra_${i - headers.length + 1}`;
+			let key: string;
+			if (i < headers.length) {
+				key = headers[i];
+			} else {
+				let candidate = `extra_${extraIndex}`;
+				while (headerSet.has(candidate)) {
+					extraIndex++;
+					candidate = `extra_${extraIndex}`;
+				}
+				key = candidate;
+				extraIndex++;
+			}
 			const raw = i < row.length ? row[i] : '';
 			setOwnValue(record, key, options.inferTypes ? inferCellValue(raw) : raw);
 		}
