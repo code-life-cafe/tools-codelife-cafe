@@ -81,3 +81,93 @@ test('buildSplitPairs: 変更なしの場合は左右とも同一内容のペア
 		assert.strictEqual(p.left?.content, p.right?.content);
 	}
 });
+
+test('computeDiff: 空行の追加が追加行数に数えられる', () => {
+	const result = computeDiff('a\n', 'a\n\n', 'lines');
+	assert.strictEqual(result.addedLines, 1);
+	assert.strictEqual(result.removedLines, 0);
+});
+
+test('computeDiff: 空行の削除が削除行数に数えられる', () => {
+	const result = computeDiff('a\n\n', 'a\n', 'lines');
+	assert.strictEqual(result.addedLines, 0);
+	assert.strictEqual(result.removedLines, 1);
+});
+
+test('computeDiff: 空文字から改行のみへの変更は追加1行', () => {
+	const result = computeDiff('', '\n', 'lines');
+	assert.strictEqual(result.addedLines, 1);
+	assert.strictEqual(result.removedLines, 0);
+});
+
+test('computeDiff: 連続する複数の空行がそれぞれ数えられる', () => {
+	const added = computeDiff('a\n', 'a\n\n\n\n', 'lines');
+	assert.strictEqual(added.addedLines, 3);
+	assert.strictEqual(added.removedLines, 0);
+
+	const removed = computeDiff('a\n\n\n\n', 'a\n', 'lines');
+	assert.strictEqual(removed.addedLines, 0);
+	assert.strictEqual(removed.removedLines, 3);
+});
+
+test('computeDiff: 空白だけの行の追加・削除が1行として数えられる', () => {
+	const added = computeDiff('a\n', 'a\n  \n', 'lines');
+	assert.strictEqual(added.addedLines, 1);
+	assert.strictEqual(added.removedLines, 0);
+
+	const removed = computeDiff('a\n\t\n', 'a\n', 'lines');
+	assert.strictEqual(removed.addedLines, 0);
+	assert.strictEqual(removed.removedLines, 1);
+});
+
+test('computeDiff: CRLFの空行も追加・削除として1行ずつ数えられる', () => {
+	const added = computeDiff('a\r\n', 'a\r\n\r\n', 'lines');
+	assert.strictEqual(added.addedLines, 1);
+	assert.strictEqual(added.removedLines, 0);
+
+	const removed = computeDiff('a\r\n\r\n', 'a\r\n', 'lines');
+	assert.strictEqual(removed.addedLines, 0);
+	assert.strictEqual(removed.removedLines, 1);
+});
+
+test('computeDiff: 末尾改行の有無だけの差から架空の1行を作らない', () => {
+	for (const [a, b] of [
+		['a', 'a\n'],
+		['a\n', 'a'],
+		['a\nb', 'a\nb\n'],
+	]) {
+		const result = computeDiff(a, b, 'lines');
+		assert.strictEqual(result.addedLines, 0, `${JSON.stringify([a, b])}`);
+		assert.strictEqual(result.removedLines, 0, `${JSON.stringify([a, b])}`);
+	}
+});
+
+test('computeDiff: 末尾改行なしテキストへの空行追加は追加1行', () => {
+	const result = computeDiff('a', 'a\n\n', 'lines');
+	assert.strictEqual(result.addedLines, 1);
+	assert.strictEqual(result.removedLines, 0);
+});
+
+test('computeDiff: 既存の行追加・削除の行数は空行を含まない通常ケースで変わらない', () => {
+	const result = computeDiff('a\nb\nc\n', 'a\nx\nc\n', 'lines');
+	assert.strictEqual(result.addedLines, 1);
+	assert.strictEqual(result.removedLines, 1);
+});
+
+test('computeDiff: charsモードの行数は差分断片に含まれる行区切りの区間数（空行も1行）', () => {
+	// 改行1文字だけの追加は1行、空文字断片は行にならない
+	const nl = computeDiff('a', 'a\n', 'chars');
+	assert.strictEqual(nl.addedChars, 1);
+	assert.strictEqual(nl.addedLines, 1);
+
+	// 文字の挿入は従来どおり1行として数える
+	const ins = computeDiff('abc', 'abXc', 'chars');
+	assert.strictEqual(ins.addedChars, 1);
+	assert.strictEqual(ins.addedLines, 1);
+	assert.strictEqual(ins.removedLines, 0);
+
+	// 差分なしは0
+	const same = computeDiff('abc', 'abc', 'chars');
+	assert.strictEqual(same.addedLines, 0);
+	assert.strictEqual(same.removedLines, 0);
+});
