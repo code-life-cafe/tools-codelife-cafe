@@ -107,6 +107,10 @@ test.describe('郵便番号→住所変換', () => {
 		const textarea = page.getByRole('textbox', {
 			name: '一括変換する郵便番号',
 		});
+		const notice = page.getByRole('status');
+		await expect(notice).toBeAttached();
+		await expect(notice).toHaveText('');
+		const originalNotice = await notice.elementHandle();
 		await textarea.fill('100-0001\nabc\n9999999\n0600000');
 		await page.getByRole('button', { name: '住所に変換' }).click();
 		await expect(
@@ -116,6 +120,12 @@ test.describe('郵便番号→住所変換', () => {
 
 		// 入力を1行に差し替える → 旧結果とCSVダウンロードが失効する
 		await textarea.fill('530-0001');
+		expect(await originalNotice?.evaluate((node) => node.isConnected)).toBe(
+			true,
+		);
+		await expect(notice).toHaveText(
+			'入力が変更されました。再変換してください。',
+		);
 		await expect(
 			page.getByText('入力が変更されました。再変換してください。'),
 		).toBeVisible();
@@ -131,6 +141,7 @@ test.describe('郵便番号→住所変換', () => {
 		await expect(
 			page.getByText('入力が変更されました。再変換してください。'),
 		).not.toBeVisible();
+		await expect(notice).toHaveText('');
 		await expect(
 			page.getByRole('cell', { name: '大阪市北区', exact: true }),
 		).toBeVisible();

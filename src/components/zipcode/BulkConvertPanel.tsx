@@ -132,15 +132,22 @@ export function BulkConvertPanel({ onRun }: { onRun: () => void }) {
 				)}
 			</div>
 
-			{isStale && (
-				<p
-					className="flex items-center gap-1.5 text-sm text-muted-foreground"
-					aria-live="polite"
-				>
-					<AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-					入力が変更されました。再変換してください。
-				</p>
-			)}
+			<p
+				className="flex items-center gap-1.5 text-sm text-muted-foreground"
+				role="status"
+				aria-live="polite"
+				aria-atomic="true"
+			>
+				{isStale && (
+					<>
+						<AlertTriangle
+							aria-hidden="true"
+							className="h-3.5 w-3.5 shrink-0"
+						/>
+						入力が変更されました。再変換してください。
+					</>
+				)}
+			</p>
 
 			{converting && (
 				<div className="space-y-2" aria-live="polite">
