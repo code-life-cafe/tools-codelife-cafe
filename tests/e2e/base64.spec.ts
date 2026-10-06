@@ -67,4 +67,48 @@ test.describe('Base64 Converter Tool', () => {
 			page.getByRole('tab', { name: 'テキスト変換' }),
 		).toHaveAttribute('data-state', 'active');
 	});
+	test('file tab: 先に選んだ遅いファイルの読込完了が後から選んだファイルの結果を上書きしない', async ({
+		page,
+		createToolPage,
+	}) => {
+		// 名前が slow- で始まるファイルは読込完了通知を遅らせ、完了順序を入れ替える
+		await page.addInitScript(() => {
+			const original = FileReader.prototype.readAsDataURL;
+			FileReader.prototype.readAsDataURL = function (this: FileReader, blob) {
+				const delay = blob instanceof File && blob.name.startsWith('slow-');
+				if (!delay) return original.call(this, blob);
+				const probe = new FileReader();
+				probe.onload = () => {
+					setTimeout(() => original.call(this, blob), 1500);
+				};
+				probe.readAsArrayBuffer(blob);
+			};
+		});
+		const toolPage = createToolPage('base64');
+		await toolPage.goto();
+		await page.getByRole('tab', { name: 'ファイル変換' }).click();
+
+		const fileInput = page.locator('input[type="file"]');
+		await fileInput.setInputFiles({
+			name: 'slow-A.txt',
+			mimeType: 'text/plain',
+			buffer: Buffer.from('AAAAAA'),
+		});
+		await fileInput.setInputFiles({
+			name: 'B.txt',
+			mimeType: 'text/plain',
+			buffer: Buffer.from('BBBBBB'),
+		});
+
+		const output = page.getByRole('textbox').last();
+		await expect(output).toContainText('QkJCQkJC');
+		await expect(page.getByText('B.txt')).toBeVisible();
+
+		// Aの読込完了後も、B の結果が維持されること
+		await page.waitForTimeout(2200);
+		await expect(output).toContainText('QkJCQkJC');
+		await expect(output).not.toContainText('QUFBQUFB');
+		await expect(page.getByText('B.txt')).toBeVisible();
+		await expect(page.getByText('slow-A.txt')).toHaveCount(0);
+	});
 });

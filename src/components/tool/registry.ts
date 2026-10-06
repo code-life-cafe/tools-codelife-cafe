@@ -1,5 +1,8 @@
 import type { ComponentType } from 'react';
 import CsvFixerTool from '../tools/CsvFixer';
+import LogTimeAnalyzer from '../tools/LogTimeAnalyzer';
+import RandomSort from '../tools/RandomSort';
+import UrlParser from '../tools/UrlParser';
 
 /**
  * ツールスラッグからツール本体コンポーネント（React Island）への静的マッピングレジストリ
@@ -7,6 +10,9 @@ import CsvFixerTool from '../tools/CsvFixer';
 export const toolRegistry: Record<string, ComponentType<unknown>> = {
 	'csv-mojibake': CsvFixerTool,
 	'csv-fixer': CsvFixerTool,
+	'url-parser': UrlParser,
+	'random-sort': RandomSort,
+	'log-time-analyzer': LogTimeAnalyzer,
 };
 
 /**
