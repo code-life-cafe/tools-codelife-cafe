@@ -13,17 +13,19 @@ test.describe('Dummy Data Generator Tool', () => {
 					for (const run of pending.splice(0)) run();
 				},
 			});
-			window.setTimeout = (handler, delay, ...args) => {
-				if (delay !== 50 || typeof handler !== 'function') {
-					return original(handler, delay, ...args);
-				}
-				const timer = original(() => handler(...args), 60_000);
-				pending.push(() => {
-					clearTimeout(timer);
-					handler(...args);
-				});
-				return timer;
-			};
+			Object.defineProperty(window, 'setTimeout', {
+				value: (handler: TimerHandler, delay?: number, ...args: unknown[]) => {
+					if (delay !== 50 || typeof handler !== 'function') {
+						return original(handler, delay, ...args);
+					}
+					const timer = original(() => handler(...args), 60_000);
+					pending.push(() => {
+						clearTimeout(timer);
+						handler(...args);
+					});
+					return timer;
+				},
+			});
 		});
 		await createToolPage('dummy-data').goto();
 		const save = page.getByRole('button', { name: '保存', exact: true });
@@ -31,7 +33,7 @@ test.describe('Dummy Data Generator Tool', () => {
 		const release = () =>
 			page.evaluate(() => {
 				(
-					window as Window & { releaseGeneration: () => void }
+					window as unknown as { releaseGeneration: () => void }
 				).releaseGeneration();
 			});
 		await expect(page.getByText('生成中...', { exact: true })).toBeVisible();
