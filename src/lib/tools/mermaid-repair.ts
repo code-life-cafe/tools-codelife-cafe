@@ -190,25 +190,31 @@ function withProtectedNodeLabels(
  */
 export function replaceSyntaxZenkaku(
 	line: string,
-	preserveSequenceMessages = true,
+	diagramKind?: 'sequence' | 'other',
 ): string {
 	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
-	const sequence = line.match(
-		/^(\s*(?:[\p{L}\p{N}\p{M}_.-]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_.-]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
-	);
-	if (preserveSequenceMessages && sequence) {
+	// 図種がsequenceと確定していれば、actor IDや矢印の許容リストは不要。
+	// Lexerと同様、コロンから本文を切り出す。図種不明の単一行だけは推測する。
+	const sequence =
+		diagramKind === 'sequence'
+			? line.match(/^([^:：\n]*[:：])([\s\S]+)$/)
+			: line.match(
+					/^(\s*(?:[\p{L}\p{N}\p{M}_. -]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_. -]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
+				);
+	if (diagramKind !== 'other' && sequence) {
 		return withProtectedStrings(sequence[2], (body) => {
 			// セミコロンは次の文の開始。Mermaidの文字参照（#59;など）の
 			// 終端とクォート内のセミコロンはメッセージ本文に残す。
 			const separators = [...body.matchAll(/#[\w]+;|;/g)].filter(
 				(match) => match[0] === ';',
 			);
-			let result = replaceSyntaxZenkaku(sequence[1]);
+			let result = replaceSyntaxZenkaku(sequence[1], 'other');
 			let start = 0;
 			for (let i = 0; i <= separators.length; i++) {
 				const end = separators[i]?.index ?? body.length;
 				const statement = body.slice(start, end);
-				result += i === 0 ? statement : replaceSyntaxZenkaku(statement);
+				result +=
+					i === 0 ? statement : replaceSyntaxZenkaku(statement, diagramKind);
 				if (i < separators.length) result += ';';
 				start = end + 1;
 			}
@@ -462,9 +468,12 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 	);
 	// 同じ「actor arrow actor:」形でも、flowchartではclass指定等の構文。
 	// 実際の図種が分かる場合はsequenceの本文保護を他の文法へ適用しない。
-	const preserveSequenceMessages =
-		diagramHeader === undefined ||
-		/^sequenceDiagram\b/i.test(diagramHeader.trim());
+	const diagramKind =
+		diagramHeader === undefined
+			? undefined
+			: /^sequenceDiagram\b/i.test(diagramHeader.trim())
+				? 'sequence'
+				: 'other';
 	const processedLines: string[] = [];
 
 	for (let i = 0; i < rawLines.length; i++) {
@@ -486,10 +495,7 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 		}
 
 		// Step 3: 全角記号の置換（構文位置のみ）
-		const syntaxNormalized = replaceSyntaxZenkaku(
-			curLine,
-			preserveSequenceMessages,
-		);
+		const syntaxNormalized = replaceSyntaxZenkaku(curLine, diagramKind);
 		if (syntaxNormalized !== curLine) {
 			changes.push({
 				lineNumber: i + 1,

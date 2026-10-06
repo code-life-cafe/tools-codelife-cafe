@@ -530,3 +530,21 @@ test('replaceSyntaxZenkaku: asymmetricを含む従来のflowchart全ノード形
 		}
 	}
 });
+
+test('sequence: actor IDの空白・Unicode記号で本文保護を迂回しない', () => {
+	assert.equal(
+		replaceSyntaxZenkaku('Alice Smith->>Bob Jones: 東京→大阪'),
+		'Alice Smith->>Bob Jones: 東京→大阪',
+	);
+	for (const message of [
+		'Alice Smith->>Bob Jones: 東京→大阪',
+		'Alice 🦊->>Bob 🐱: 東京→大阪',
+		'Alice Smith->>Bob Jones: 東京→大阪; Bob 🐱 → Alice 🦊: 大阪→東京',
+	]) {
+		const input = `sequenceDiagram\n${message}`;
+		assert.equal(
+			repairMermaidCode(input).repairedCode,
+			input.replace('Bob 🐱 → Alice 🦊:', 'Bob 🐱 --> Alice 🦊:'),
+		);
+	}
+});
