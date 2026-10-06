@@ -165,6 +165,34 @@ test('parseDate - 有効な日付は従来どおり解釈する', () => {
 	assert.equal(parseDate('2024-02-29T23:59:59Z')?.getUTCDate(), 29);
 });
 
+test('parseDate - 0000〜0099年を1900年代に補正しない', () => {
+	for (const [input, year, month, day] of [
+		['0001-01-01', 1, 0, 1],
+		['0099/12/31', 99, 11, 31],
+		['0000-02-29', 0, 1, 29],
+	] as const) {
+		const date = parseDate(input);
+		assert.equal(date?.getFullYear(), year);
+		assert.equal(date?.getMonth(), month);
+		assert.equal(date?.getDate(), day);
+	}
+});
+
+test('parseDate - タイムゾーンで存在しない暦日も別の日へ繰り上げない', () => {
+	const previous = process.env.TZ;
+	try {
+		process.env.TZ = 'Pacific/Apia';
+		const skipped = parseDate('2011-12-30');
+		const next = parseDate('2011-12-31');
+		assert.equal(skipped?.toISOString(), '2011-12-30T00:00:00.000Z');
+		assert.notEqual(skipped?.getTime(), next?.getTime());
+		assert.equal(parseDate('2011/12/30')?.getTime(), skipped?.getTime());
+	} finally {
+		if (previous === undefined) delete process.env.TZ;
+		else process.env.TZ = previous;
+	}
+});
+
 test('inferColumnType - 存在しない日付はdateと推定しない', () => {
 	assert.equal(
 		inferColumnType(['2026-02-29', '2026-02-30', '2026-04-31']),

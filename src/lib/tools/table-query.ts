@@ -79,9 +79,23 @@ export function parseDate(val: string | number | undefined): Date | null {
 	const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
 	if (match) {
 		// 存在しない暦日はDate.parseに回さずnullにする（繰り上がり防止）
-		return isValidCalendarDate(match[1], match[2], match[3])
-			? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-			: null;
+		if (!isValidCalendarDate(match[1], match[2], match[3])) return null;
+		const year = Number(match[1]);
+		const month = Number(match[2]) - 1;
+		const day = Number(match[3]);
+		const date = new Date(0);
+		date.setHours(0, 0, 0, 0);
+		date.setFullYear(year, month, day);
+		if (
+			date.getFullYear() === year &&
+			date.getMonth() === month &&
+			date.getDate() === day
+		)
+			return date;
+		// 歴史的な日付スキップでは従来のISO日付解釈（UTC）へ戻す。
+		return new Date(
+			`${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}T00:00:00Z`,
+		);
 	}
 	// ISO 8601日時: 日付部分が存在しない暦日なら繰り上がりを防ぐ
 	const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})[T ]/);
