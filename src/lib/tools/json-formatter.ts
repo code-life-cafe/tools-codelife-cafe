@@ -152,17 +152,17 @@ function parseJsonPreservingIntegers(text: string): unknown {
 		if (ch === '"') return { kind: 'scalar', value: parseString() };
 		if (ch === '-' || (ch >= '0' && ch <= '9'))
 			return { kind: 'scalar', value: parseNumber() };
-		if (text.startsWith('true', i)) {
-			i += 4;
-			return { kind: 'scalar', value: true };
-		}
-		if (text.startsWith('false', i)) {
-			i += 5;
-			return { kind: 'scalar', value: false };
-		}
-		if (text.startsWith('null', i)) {
-			i += 4;
-			return { kind: 'scalar', value: null };
+		if (ch === 't' || ch === 'f' || ch === 'n') {
+			const literal = ch === 't' ? 'true' : ch === 'f' ? 'false' : 'null';
+			for (const expected of literal) {
+				if (i >= len) fail('Unexpected end of JSON input');
+				if (text[i] !== expected) fail('Unexpected token in JSON');
+				i++;
+			}
+			return {
+				kind: 'scalar',
+				value: ch === 't' ? true : ch === 'f' ? false : null,
+			};
 		}
 		return fail('Unexpected token in JSON');
 	};
@@ -510,7 +510,13 @@ function stringifyPreservingIntegers(
 				if (stack.length === 0) {
 					finalResult = rendered;
 				} else {
-					stack[stack.length - 1].parts.push(rendered);
+					const parent = stack[stack.length - 1];
+					if (parent.kind === 'object' && parent.pendingPrefix !== null) {
+						parent.parts.push(parent.pendingPrefix + rendered);
+						parent.pendingPrefix = null;
+					} else {
+						parent.parts.push(rendered);
+					}
 				}
 				continue;
 			}

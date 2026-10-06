@@ -444,3 +444,37 @@ test('highlightJson: エスケープはハイライト用span挿入より前に�
 	assert.ok(!/<script>/.test(html));
 	assert.ok(html.includes('&lt;script&gt;'));
 });
+
+test('format/minify: 配列を値に持つキーと混合ネストを保持する', () => {
+	for (const input of [
+		'{"items":[1]}',
+		'{"items":[]}',
+		'{"a":[{"b":[1,2]}],"c":{"d":[]}}',
+	]) {
+		const expected = JSON.parse(input);
+		for (const result of [formatJson(input, '2'), minifyJson(input)]) {
+			assert.equal(result.success, true);
+			assert.deepEqual(JSON.parse(result.output), expected);
+		}
+	}
+	assert.equal(
+		minifyJson('{"items":[9007199254740993]}').output,
+		'{"items":[9007199254740993]}',
+	);
+});
+
+test('format/minify: true/false/nullの不正文字またはEOFを指す', () => {
+	for (const [input, position] of [
+		['{"a":truX}', 8],
+		['{"a":falsX}', 9],
+		['{"a":nulX}', 8],
+		['{"a":tru', 8],
+		['{"a":fal', 8],
+		['{"a":nu', 7],
+	] as const) {
+		for (const result of [formatJson(input, '2'), minifyJson(input)]) {
+			assert.equal(result.success, false);
+			assert.equal(result.errorPosition, position, input);
+		}
+	}
+});
