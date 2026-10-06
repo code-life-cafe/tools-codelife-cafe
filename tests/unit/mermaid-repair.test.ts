@@ -438,3 +438,20 @@ test('replaceSyntaxZenkaku: sequenceのactivation・central・cross・circle矢�
 		assert.equal(replaceSyntaxZenkaku(input), input);
 	}
 });
+
+test('replaceSyntaxZenkaku: sequenceのセミコロン後の構文も修復して各本文を保持する', () => {
+	assert.equal(
+		replaceSyntaxZenkaku('Alice->>Bob: 東京→大阪; Bob → Alice: 大阪→東京'),
+		'Alice->>Bob: 東京→大阪; Bob --> Alice: 大阪→東京',
+	);
+	assert.equal(
+		replaceSyntaxZenkaku(
+			'Note over Alice,Bob: 東京#59;大阪→京都; Alice → Bob: 京都→東京',
+		),
+		'Note over Alice,Bob: 東京#59;大阪→京都; Alice --> Bob: 京都→東京',
+	);
+	assert.equal(
+		replaceSyntaxZenkaku('Alice->>Bob: "東京;大阪→京都"; Bob → Alice: 戻る'),
+		'Alice->>Bob: "東京;大阪→京都"; Bob --> Alice: 戻る',
+	);
+});

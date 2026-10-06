@@ -37,6 +37,7 @@ export default function CameraScanner({
 	const rafRef = useRef<number | null>(null);
 	const decodingRef = useRef(false); // Worker への同時リクエストを1件までに制限
 	const cancelledRef = useRef(false); // getUserMedia 応答待ち中のアンマウント/停止を検知
+	const sessionRef = useRef(0);
 	const lastDecodeAtRef = useRef(0);
 	const scanStateRef = useRef<ScanContinuityState>(null);
 	const onDetectedRef = useRef(onDetected);
@@ -51,6 +52,8 @@ export default function CameraScanner({
 
 	// --- カメラ停止（トラック停止 + Worker 終了） ---
 	const stopCamera = useCallback(() => {
+		sessionRef.current++;
+		scanStateRef.current = null;
 		if (rafRef.current !== null) {
 			cancelAnimationFrame(rafRef.current);
 			rafRef.current = null;
@@ -108,8 +111,10 @@ export default function CameraScanner({
 			}
 
 			decodingRef.current = true;
+			const session = sessionRef.current;
 			decodeFrame(imageData)
 				.then((symbols) => {
+					if (session !== sessionRef.current) return;
 					const value = symbols[0]?.text ?? null;
 					const { isNewScan, nextState } = evaluateCameraDetection(
 						scanStateRef.current,
@@ -124,6 +129,7 @@ export default function CameraScanner({
 					onDetectedRef.current(value);
 				})
 				.catch(() => {
+					if (session !== sessionRef.current) return;
 					// デコードエラーはフレーム単位で無視して継続
 					scanStateRef.current = evaluateCameraDetection(
 						scanStateRef.current,
@@ -132,7 +138,7 @@ export default function CameraScanner({
 					).nextState;
 				})
 				.finally(() => {
-					decodingRef.current = false;
+					if (session === sessionRef.current) decodingRef.current = false;
 				});
 		};
 		rafRef.current = requestAnimationFrame(loop);
@@ -145,6 +151,8 @@ export default function CameraScanner({
 		}
 		setStatus('starting');
 		cancelledRef.current = false;
+		const session = ++sessionRef.current;
+		scanStateRef.current = null;
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: { facingMode: { ideal: 'environment' } },
@@ -153,7 +161,7 @@ export default function CameraScanner({
 			// 許可待ちの間にアンマウント/モード切替/非表示でstopCameraが
 			// 先に呼ばれている場合、このストリームをバックグラウンドで
 			// 動かし続けないよう即座に破棄する
-			if (cancelledRef.current) {
+			if (cancelledRef.current || session !== sessionRef.current) {
 				for (const track of stream.getTracks()) {
 					track.stop();
 				}
@@ -166,7 +174,7 @@ export default function CameraScanner({
 					// 一部ブラウザは play() を Promise 拒否するが再生自体は継続する
 				});
 			}
-			if (cancelledRef.current) {
+			if (cancelledRef.current || session !== sessionRef.current) {
 				for (const track of stream.getTracks()) {
 					track.stop();
 				}
@@ -176,6 +184,7 @@ export default function CameraScanner({
 			setStatus('active');
 			captureAndDecodeLoop();
 		} catch (err) {
+			if (session !== sessionRef.current) return;
 			if (
 				err instanceof DOMException &&
 				(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')

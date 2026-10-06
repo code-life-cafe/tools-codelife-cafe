@@ -495,6 +495,46 @@ test.describe('QRコード読み取りツール: カメラ計測（tool_run連�
 		await expect.poll(() => runEvents.length).toBe(2);
 	});
 
+	test('非表示からカメラを再開すると同じQRを新しいスキャンとして計測する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const runEvents: unknown[] = [];
+		await page.route('**/api/event', async (route) => {
+			const body = route.request().postDataJSON() as {
+				event: string;
+				props: { tool: string };
+			};
+			if (body.event === 'tool_run' && body.props.tool === 'qr-reader')
+				runEvents.push(body);
+			await route.fulfill({ status: 204, body: '' });
+		});
+		await createToolPage('qr-reader').goto();
+		const list = page.getByRole('list', { name: 'QRコード読み取り結果一覧' });
+		await expect(list.getByRole('listitem')).toHaveCount(1);
+		await expect.poll(() => runEvents.length).toBe(1);
+		await page.evaluate(() => {
+			Object.defineProperty(document, 'hidden', {
+				configurable: true,
+				value: true,
+			});
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		await expect(page.getByTestId('qr-viewfinder')).toHaveCount(0);
+		await page.evaluate(() => {
+			Object.defineProperty(document, 'hidden', {
+				configurable: true,
+				value: false,
+			});
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		await expect(page.getByTestId('qr-viewfinder')).toBeVisible();
+		await expect(list.getByRole('listitem')).toHaveCount(2);
+		await expect.poll(() => runEvents.length).toBe(2);
+		await page.waitForTimeout(3000);
+		expect(runEvents.length).toBe(2);
+	});
+
 	test('Workerの処理が低速でも同じQRを重複計測しない', async ({
 		page,
 		createToolPage,
