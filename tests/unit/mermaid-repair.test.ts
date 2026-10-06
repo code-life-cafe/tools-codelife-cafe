@@ -495,3 +495,14 @@ test('replaceSyntaxZenkaku: sender/receiver/両側のcentral connectionとUnicod
 		}
 	}
 });
+
+test('repairMermaidCode: flowchartのclass指定後の接続子をsequence本文として保護しない', () => {
+	assert.equal(
+		repairMermaidCode('flowchart LR\nA --> B:::accent → C').repairedCode,
+		'flowchart LR\nA --> B:::accent --> C',
+	);
+	assert.equal(
+		repairMermaidCode('sequenceDiagram\nAlice->>Bob::: 東京→大阪').repairedCode,
+		'sequenceDiagram\nAlice->>Bob::: 東京→大阪',
+	);
+});

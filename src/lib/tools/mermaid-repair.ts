@@ -188,12 +188,15 @@ function withProtectedNodeLabels(
  * 構文位置にある全角記号を半角に置換する。
  * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
  */
-export function replaceSyntaxZenkaku(line: string): string {
+export function replaceSyntaxZenkaku(
+	line: string,
+	preserveSequenceMessages = true,
+): string {
 	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
 	const sequence = line.match(
 		/^(\s*(?:[\p{L}\p{N}\p{M}_.-]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_.-]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
 	);
-	if (sequence) {
+	if (preserveSequenceMessages && sequence) {
 		return withProtectedStrings(sequence[2], (body) => {
 			// セミコロンは次の文の開始。Mermaidの文字参照（#59;など）の
 			// 終端とクォート内のセミコロンはメッセージ本文に残す。
@@ -454,6 +457,14 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 	}
 
 	const rawLines = extractedCode.split(/\r?\n/);
+	const diagramHeader = rawLines.find((line) =>
+		DIAGRAM_HEADER_REGEX.test(line.trim()),
+	);
+	// 同じ「actor arrow actor:」形でも、flowchartではclass指定等の構文。
+	// 実際の図種が分かる場合はsequenceの本文保護を他の文法へ適用しない。
+	const preserveSequenceMessages =
+		diagramHeader === undefined ||
+		/^sequenceDiagram\b/i.test(diagramHeader.trim());
 	const processedLines: string[] = [];
 
 	for (let i = 0; i < rawLines.length; i++) {
@@ -475,7 +486,10 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 		}
 
 		// Step 3: 全角記号の置換（構文位置のみ）
-		const syntaxNormalized = replaceSyntaxZenkaku(curLine);
+		const syntaxNormalized = replaceSyntaxZenkaku(
+			curLine,
+			preserveSequenceMessages,
+		);
 		if (syntaxNormalized !== curLine) {
 			changes.push({
 				lineNumber: i + 1,
