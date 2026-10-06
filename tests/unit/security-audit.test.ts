@@ -115,3 +115,17 @@ test('deployment without a successful baseline fails closed', async () => {
 		),
 	);
 });
+
+test('upgrading only the consumer preserves an unchanged vulnerability baseline', () => {
+	const baseLock = lock();
+	const headLock = lock();
+	baseLock.packages['node_modules/consumer'] = {
+		version: '1.0.0',
+		dependencies: { example: '*' },
+	};
+	headLock.packages['node_modules/consumer'] = {
+		version: '1.1.0',
+		dependencies: { example: '*' },
+	};
+	assert.deepEqual(compare(report(), baseLock, report(), headLock), []);
+});

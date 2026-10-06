@@ -46,7 +46,6 @@ function dependencyRoutes(lock, target) {
 			edges.add(
 				JSON.stringify([
 					parent,
-					pkg.version ?? null,
 					Boolean(pkg.dev),
 					Boolean(pkg.optional),
 					child,
@@ -124,10 +123,14 @@ export function compare(baseReport, baseLock, headReport, headLock) {
 		.map(([, value]) => value);
 }
 function git(...args) {
-	const result = spawnSync('git', args, {
-		encoding: 'utf8',
-		maxBuffer: 32 * 1024 * 1024,
-	});
+	const result = spawnSync(
+		'git',
+		['-c', `safe.directory=${process.cwd()}`, ...args],
+		{
+			encoding: 'utf8',
+			maxBuffer: 32 * 1024 * 1024,
+		},
+	);
 	if (result.status !== 0) throw new Error(`git ${args[0]} に失敗しました`);
 	return result.stdout;
 }
