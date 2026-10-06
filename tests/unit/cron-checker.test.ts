@@ -652,3 +652,43 @@ test('疎な年次式: UI/MCPの一覧で毎分のタイムゾーン変換をし
 		Intl.DateTimeFormat.prototype.formatToParts = original;
 	}
 });
+
+test('疎な週次・年次式: 1回目の一致直後にもfoldの2回目を返す', () => {
+	for (const [expression, timeZone, first, repeated] of [
+		[
+			'0 1 * * 0',
+			'America/New_York',
+			'2026-11-01T05:00:00Z',
+			'2026-11-01T06:00:00.000Z',
+		],
+		[
+			'0 1 1 11 *',
+			'America/New_York',
+			'2026-11-01T05:00:00Z',
+			'2026-11-01T06:00:00.000Z',
+		],
+		[
+			'30 1 * * 0',
+			'Australia/Lord_Howe',
+			'2026-04-04T14:30:00Z',
+			'2026-04-04T15:00:00.000Z',
+		],
+		[
+			'0 1 * * 0',
+			'Antarctica/Troll',
+			'2026-10-24T23:00:00Z',
+			'2026-10-25T01:00:00.000Z',
+		],
+	]) {
+		for (const delay of [0, 12_000, 60_000]) {
+			assert.equal(
+				getNextRunTimes(parseCronExpression(expression), {
+					timeZone,
+					from: new Date(Date.parse(first) + delay),
+					count: 1,
+				})[0].toISOString(),
+				repeated,
+			);
+		}
+	}
+});

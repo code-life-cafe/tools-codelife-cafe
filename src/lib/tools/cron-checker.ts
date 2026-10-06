@@ -489,10 +489,11 @@ export function getNextRunTimes(
 	// 実時刻の分を昇順に探索する。DSTの欠落/繰り返しを壁時計から逆算しない。
 	let minute =
 		from.getTime() - from.getUTCMilliseconds() - startParts.second * 1000;
-	let scanUntil = minute;
+	const nearWindow = 48 * 3_600_000;
+	// 現在の壁時計より前の分がfoldで再登場する可能性も先に検証する。
+	let scanUntil = minute + nearWindow;
 	const horizon = new Date(from);
 	horizon.setUTCFullYear(horizon.getUTCFullYear() + MAX_YEARS_AHEAD);
-	const nearWindow = 48 * 3_600_000;
 	while (results.length < count && minute <= horizon.getTime()) {
 		const c = getZonedParts(new Date(minute), formatter);
 		if (
@@ -501,6 +502,9 @@ export function getNextRunTimes(
 			schedule.hours.values.includes(c.hour) &&
 			schedule.minutes.values.includes(c.minute)
 		) {
+			// 疎な式も、一致した分の直後に遠方のcivil候補へ飛ばさない。
+			// 先に近傍のoffset遷移を検証して同じ分の2回目を返す。
+			scanUntil = Math.max(scanUntil, minute + nearWindow);
 			for (const second of schedule.seconds.values) {
 				const instant = minute + second * 1000;
 				if (instant > from.getTime()) {
