@@ -107,6 +107,8 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 			'Alice()->>John: 東京→大阪',
 			'Alice()->>()John: 東京→大阪',
 			'Alice-|/John: 東京→大阪',
+			'Alice Smith->>Bob Jones: 東京→大阪',
+			'Alice 🦊->>Bob 🐱: 東京→大阪',
 			'Alice->>John: 東京→大阪; John → Alice: 大阪→東京',
 		]) {
 			await createToolPage('mermaid').goto();
