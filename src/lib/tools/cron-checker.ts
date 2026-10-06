@@ -511,15 +511,34 @@ export function getNextRunTimes(
 				}
 				if (results.length === count) break;
 			}
-		} else if (minute >= scanUntil) {
-			// 疎な式では次の壁時計候補の近くまで進む。補正が曖昧なDST付近は
-			// 48時間前から実時刻で走査するため、foldの2回目もgapも取りこぼさない。
+		} else {
 			const nextCivil = findNextCivilMatch(schedule, c);
-			const estimate = civilToUtc(nextCivil, formatter).getTime();
-			scanUntil = Math.max(minute, estimate + nearWindow);
-			if (estimate - nearWindow > minute) {
-				minute = estimate - nearWindow;
-				continue;
+			if (minute >= scanUntil) {
+				// 疎な式では次の壁時計候補の近くまで進む。補正が曖昧なDST付近は
+				// 48時間前から実時刻で走査するため、foldの2回目もgapも取りこぼさない。
+				const estimate = civilToUtc(nextCivil, formatter).getTime();
+				scanUntil = Math.max(minute, estimate + nearWindow);
+				if (estimate - nearWindow > minute) {
+					minute = estimate - nearWindow;
+					continue;
+				}
+			}
+			// 同じオフセットが続く区間は、壁時計の次の候補または1時間先まで進む。
+			// IANAの遷移は1時間以内に往復しない。終点のオフセットが変わる区間は
+			// 分単位に戻し、fold/gapを実時刻順に処理する。
+			const civilStamp = (p: CivilTime) =>
+				Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+			const jump = Math.min(
+				minute + 3_600_000,
+				minute + civilStamp(nextCivil) - civilStamp(c),
+				scanUntil,
+			);
+			if (jump > minute + 60_000) {
+				const end = getZonedParts(new Date(jump), formatter);
+				if (civilStamp(end) - jump === civilStamp(c) - minute) {
+					minute = jump;
+					continue;
+				}
 			}
 		}
 		minute += 60_000;

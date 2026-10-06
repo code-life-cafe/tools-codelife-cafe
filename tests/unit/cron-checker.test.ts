@@ -629,3 +629,26 @@ test('疎な式: 8年を超える結果一覧でも各次回候補を探索す�
 		[2028, 2032, 2036, 2040, 2044, 2048, 2052, 2056, 2060, 2064],
 	);
 });
+
+test('疎な年次式: UI/MCPの一覧で毎分のタイムゾーン変換をしない', () => {
+	const original = Intl.DateTimeFormat.prototype.formatToParts;
+	let calls = 0;
+	Intl.DateTimeFormat.prototype.formatToParts = function (...args) {
+		calls++;
+		return original.apply(this, args);
+	};
+	try {
+		for (const timeZone of ['UTC', 'Asia/Tokyo', 'America/New_York']) {
+			calls = 0;
+			const dates = getNextRunTimes(parseCronExpression('0 0 1 1 *'), {
+				count: 50,
+				from: new Date('2026-01-01T00:00:00Z'),
+				timeZone,
+			});
+			assert.equal(dates.length, 50);
+			assert.ok(calls < 12_000, `${timeZone}: ${calls} timezone conversions`);
+		}
+	} finally {
+		Intl.DateTimeFormat.prototype.formatToParts = original;
+	}
+});
