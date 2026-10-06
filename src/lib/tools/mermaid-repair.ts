@@ -127,23 +127,30 @@ export function normalizeSmartQuotes(line: string): string {
 /**
  * 文字列リテラル（"..." / '...'）を一時保護し、構文位置のみを処理するヘルパー
  */
+function markerPrefix(line: string, kind: string): string {
+	let prefix = `__MERMAID_${kind}_`;
+	while (line.includes(prefix)) prefix = `_${prefix}`;
+	return prefix;
+}
+
 function withProtectedStrings(
 	line: string,
 	transformSyntax: (syntaxOnlyLine: string) => string,
 ): string {
 	const literals: string[] = [];
+	const prefix = markerPrefix(line, 'STR');
 	const protectedLine = line.replace(
 		/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
 		(match) => {
 			literals.push(match);
-			return `__MERMAID_STR_${literals.length - 1}__`;
+			return `${prefix}${literals.length - 1}__`;
 		},
 	);
 
 	const transformed = transformSyntax(protectedLine);
 
 	return transformed.replace(
-		/__MERMAID_STR_(\d+)__/g,
+		new RegExp(`${prefix}(\\d+)__`, 'g'),
 		(_match, index) => literals[Number(index)] ?? '',
 	);
 }
@@ -156,20 +163,23 @@ function withProtectedNodeLabels(
 	transformSyntax: (syntaxOnlyLine: string) => string,
 ): string {
 	const labels: string[] = [];
+	const prefix = markerPrefix(line, 'LABEL');
 	// ノードID + 開き括弧 + 中身 + 閉じ括弧
 	// 例: A[ラベル], node1(ラベル), A{ラベル}, A([ラベル]), A[[ラベル]], A((ラベル))
+	// 閉じ括弧の直後は、インラインクラス（:::name）に続いて接続子・区切り・行末のいずれかが続く場合に限る。
+	// 接続子: -- / -. / == / ~~~（不可視リンク）/ <- <=（双方向）/ o-- x--（丸・バツ端）/ 全角矢印
 	const protectedLine = line.replace(
-		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
+		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<])([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=(?::::[\w-]+)?\s*(?:[\w-]+@\s*)?(?:-{2}|-\.|={2}|~{3}|<[-=]|[ox](?:-{2}|={2})|→|ー+[>＞]|&|;|$))/g,
 		(_match, id, openBrackets, content, closeBrackets) => {
 			labels.push(content);
-			return `${id}${openBrackets}__MERMAID_LABEL_${labels.length - 1}__${closeBrackets}`;
+			return `${id}${openBrackets}${prefix}${labels.length - 1}__${closeBrackets}`;
 		},
 	);
 
 	const transformed = transformSyntax(protectedLine);
 
 	return transformed.replace(
-		/__MERMAID_LABEL_(\d+)__/g,
+		new RegExp(`${prefix}(\\d+)__`, 'g'),
 		(_match, index) => labels[Number(index)] ?? '',
 	);
 }
@@ -179,6 +189,11 @@ function withProtectedNodeLabels(
  * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
  */
 export function replaceSyntaxZenkaku(line: string): string {
+	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
+	const sequence = line.match(
+		/^(\s*(?:[\w]+\s*[-<][-><x)o+]+\s*[\w]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/i,
+	);
+	if (sequence) return replaceSyntaxZenkaku(sequence[1]) + sequence[2];
 	return withProtectedStrings(line, (syntaxLine) => {
 		let res = syntaxLine;
 
@@ -189,13 +204,7 @@ export function replaceSyntaxZenkaku(line: string): string {
 			m.replace(/　/g, ' '),
 		);
 
-		// 2. 全角矢印・長音混入矢印
-		res = res.replace(/ーー＞/g, '-->');
-		res = res.replace(/ーー>>/g, '-->>');
-		res = res.replace(/ー+>/g, '-->');
-		res = res.replace(/--＞/g, '-->');
-		res = res.replace(/→/g, '-->');
-		res = res.replace(/==＞/g, '==>');
+		// 2. 全角矢印・長音混入矢印はラベル本文を保護してから置換する（下記の4.）
 
 		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧を半角化
 		res = res.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]');
@@ -203,9 +212,35 @@ export function replaceSyntaxZenkaku(line: string): string {
 		res = res.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}');
 		res = res.replace(/｛([\s\S]*?)｝/g, '{$1}');
 
-		// 4. ノードラベル本文を保護した上で、構文位置のコロン・カンマを置換
+		// 4. ノードラベル本文を保護した上で、構文位置の矢印・コロン・カンマを置換
 		res = withProtectedNodeLabels(res, (nodeProtected) => {
 			let s = nodeProtected;
+
+			// 構文位置の全角矢印・長音混入矢印（ノードラベル本文は上記で保護済み。
+			// エッジラベルの本文も保護して、構文部分だけを置換する。
+			// 対象: 接続子直後の |...| と、A -- text --> B 形式の text）
+			const edgeLabels: string[] = [];
+			const edgePrefix = markerPrefix(s, 'EDGE');
+			const protectEdgeLabel = (label: string) => {
+				edgeLabels.push(label);
+				return `${edgePrefix}${edgeLabels.length - 1}__`;
+			};
+			s = s.replace(/(?<=[-=>.ox~→＞])\|[^|\n]*\|/g, protectEdgeLabel);
+			s = s.replace(
+				/(?<![-=.>])((?:--|==|-\.)\s+)([^\n]*?)(\s+)(?=(?:-{2,}[>xo]?|={2,}[>xo]?|-?\.+->[xo]?|\.-|→|ー+[>＞]))/g,
+				(_match, open, text, space) =>
+					`${open}${protectEdgeLabel(text)}${space}`,
+			);
+			s = s.replace(/ーー＞/g, '-->');
+			s = s.replace(/ーー>>/g, '-->>');
+			s = s.replace(/ー+>/g, '-->');
+			s = s.replace(/--＞/g, '-->');
+			s = s.replace(/→/g, '-->');
+			s = s.replace(/==＞/g, '==>');
+			s = s.replace(
+				new RegExp(`${edgePrefix}(\\d+)__`, 'g'),
+				(_match, index) => edgeLabels[Number(index)] ?? '',
+			);
 
 			// 構文位置の全角コロン（ラベル本文は上記で保護済み）
 			s = s.replace(/(>>|-->>|->|-->|--|==|--x|-x)：/g, '$1: ');

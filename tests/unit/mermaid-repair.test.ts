@@ -102,6 +102,158 @@ flowchart TD
 		assert.ok(result.includes('node_マイページ["マイページ(本会員)"]'));
 	});
 
+	test('ラベル内の「→」は保持し、構文位置の「→」だけを「-->」に修復する', () => {
+		// 未クォートラベル（角括弧・丸括弧・波括弧）内の「→」は変更しない
+		for (const input of [
+			'A[東京→大阪] --> B[完了]',
+			'A(東京→大阪) --> B{はい→いいえ}',
+			'A[東京→大阪]-->B[完了]',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		// クォート付きラベル内の「→」も変更しない
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A["東京→大阪"] --> B[完了]'),
+			'A["東京→大阪"] --> B[完了]',
+		);
+		// 構文位置の「→」は従来どおり修復する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京] → B[大阪]'),
+			'A[東京] --> B[大阪]',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪] → B[完了→確認]'),
+			'A[東京→大阪] --> B[完了→確認]',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[申請]→B[承認]'),
+			'A[申請]-->B[承認]',
+		);
+		// 全角括弧・全角矢印が混在しても、ラベル内の「→」は保持する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A［東京→大阪］ ーー＞ B［完了］'),
+			'A[東京→大阪] --> B[完了]',
+		);
+		// ラベルなしのノード間の「→」は修復する
+		assert.strictEqual(replaceSyntaxZenkaku('A → B'), 'A --> B');
+	});
+
+	test('インラインクラス（:::）付きノードでもラベル内の「→」を保持する', () => {
+		for (const input of [
+			'A[東京→大阪]:::accent --> B',
+			'A(東京→大阪):::accent --> B',
+			'A{東京→大阪}:::a-b_1 --> B[完了]:::x',
+			'A[東京→大阪]:::accent',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		// クラス付きノードの後ろの構文位置の「→」は従来どおり修復する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪]:::accent → B[完了]:::done'),
+			'A[東京→大阪]:::accent --> B[完了]:::done',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京]:::accent → B[大阪→京都]'),
+			'A[東京]:::accent --> B[大阪→京都]',
+		);
+	});
+
+	test('どの接続子の前でもラベル内の「→」を保持する', () => {
+		for (const connector of [
+			'-->',
+			'---',
+			'-.->',
+			'-.-',
+			'==>',
+			'===',
+			'~~~',
+			'<-->',
+			'--o',
+			'--x',
+			'o--o',
+			'x--x',
+			'-- 経由 -->',
+			'---|経由|',
+		]) {
+			for (const input of [
+				`A[東京→大阪] ${connector} B`,
+				`A[東京→大阪]${connector}B`,
+				`A(東京→大阪) ${connector} B{判定→分岐}`,
+			]) {
+				assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+			}
+		}
+		// ラベル内の ] や - を含んでも、後続が接続子でなければ閉じ括弧とみなさない
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[配列[0]-1→2] --> B'),
+			'A[配列[0]-1→2] --> B',
+		);
+		// 接続子が全角の矢印でも、ラベル内の「→」は保持する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪] ~~~ B[完了] → C'),
+			'A[東京→大阪] ~~~ B[完了] --> C',
+		);
+	});
+
+	test('エッジラベル |...| 内の「→」も保持し、構文位置の「→」だけ修復する', () => {
+		for (const input of [
+			'A -->|東京→大阪| B',
+			'A[x] -->|東京→大阪| B[y]',
+			'A ==>|東京→大阪| B',
+			'A -.->|東京→大阪| B',
+			'A --o|東京→大阪| B',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A[東京→大阪] ーー＞|経由→乗換| B → C'),
+			'A[東京→大阪] -->|経由→乗換| B --> C',
+		);
+	});
+
+	test('A -- text --> B 形式のエッジラベル内の「→」も保持する', () => {
+		for (const input of [
+			'A -- 東京→大阪 --> B',
+			'A -- 東京→大阪 --- B',
+			'A -- 東京→大阪 --x B',
+			'A -- 東京→大阪 --o B',
+			'A == 東京→大阪 ==> B',
+			'A == 東京→大阪 === B',
+			'A -. 東京→大阪 .-> B',
+			'A -. 東京→大阪 .- B',
+			'A[x] -- 東京→大阪 --> B[y]',
+			'A -- 東京→大阪 --> B -- 大阪→京都 --> C',
+		]) {
+			assert.strictEqual(replaceSyntaxZenkaku(input), input, input);
+		}
+		// 構文位置の全角矢印（接続子の閉じ側）は従来どおり修復する
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A -- 経由 → B'),
+			'A -- 経由 --> B',
+		);
+		assert.strictEqual(
+			replaceSyntaxZenkaku('A -- 経由→乗換 ーー＞ B'),
+			'A -- 経由→乗換 --> B',
+		);
+		// 通常の矢印・連鎖は変更しない／全角矢印だけ修復する
+		assert.strictEqual(replaceSyntaxZenkaku('A --> B --> C'), 'A --> B --> C');
+		assert.strictEqual(replaceSyntaxZenkaku('A → B → C'), 'A --> B --> C');
+	});
+
+	test('repairMermaidCode: ラベル内の「→」が修復後のコードにそのまま残る', () => {
+		const input = 'flowchart TD\n  A[東京→大阪] --> B[完了]';
+		const result = repairMermaidCode(input);
+		assert.strictEqual(result.repairedCode, input);
+		assert.strictEqual(result.isModified, false);
+		assert.strictEqual(result.changes.length, 0);
+
+		const mixed = repairMermaidCode('flowchart TD\n  A[東京→大阪] → B[完了]');
+		assert.strictEqual(
+			mixed.repairedCode,
+			'flowchart TD\n  A[東京→大阪] --> B[完了]',
+		);
+	});
+
 	test('Claude Review Case 4: クォート内日本語ラベルのコロン保持（制約遵守）', () => {
 		const input = 'A["重要：注意点をご確認ください"] --> B["結果：成功"]';
 		const result = replaceSyntaxZenkaku(input);
@@ -234,4 +386,55 @@ flowchart TD
 			'すべてのケースで日本語ラベルが保持されていること',
 		);
 	});
+});
+
+test('replaceSyntaxZenkaku: sequenceメッセージとNoteの本文を保持する', () => {
+	for (const input of [
+		'Alice->>Bob: 東京→大阪',
+		'Alice-->>Bob: 東京→大阪',
+		'Note over Alice,Bob: 東京→大阪',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
+
+test('replaceSyntaxZenkaku: エッジIDと長い点線リンクのラベルを保持する', () => {
+	for (const input of [
+		'A[東京→大阪] e1@--> B',
+		'A[東京→大阪]:::accent e1@--> B',
+		'A -. 東京→大阪 -..-> B',
+		'A -. 東京→大阪 -...-> B',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
+
+test('replaceSyntaxZenkaku: 内部マーカーに似たユーザーIDを変更しない', () => {
+	for (const input of [
+		'A -- foo --> __MERMAID_EDGE_0__',
+		'A[x] --> __MERMAID_LABEL_0__',
+		'A["x"] --> __MERMAID_STR_0__',
+		'A -- __MERMAID_EDGE_0__ --> B',
+	]) {
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
+});
+
+test('replaceSyntaxZenkaku: sequenceのactivation・central・cross・circle矢印も本文を保持する', () => {
+	for (const arrow of [
+		'->>+',
+		'-->>-',
+		'<<->>',
+		'-<<',
+		'--<<',
+		'-x',
+		'--x',
+		'-o',
+		'--o',
+		'-)',
+		'--)',
+	]) {
+		const input = `Alice${arrow}Bob: 東京→大阪`;
+		assert.equal(replaceSyntaxZenkaku(input), input);
+	}
 });
