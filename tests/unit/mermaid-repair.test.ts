@@ -481,3 +481,17 @@ test('replaceSyntaxZenkaku: Mermaid 11の全half-arrow形式でも本文を保�
 		}
 	}
 });
+
+test('replaceSyntaxZenkaku: sender/receiver/両側のcentral connectionとUnicode actorを保持する', () => {
+	for (const arrow of ['->>', '-->>', '-|/', '/|-']) {
+		for (const [sender, receiver] of [
+			['Alice()', 'John'],
+			['Alice', '()John'],
+			['Alice()', '()John'],
+			['送信者()', '()受信者'],
+		]) {
+			const input = `${sender}${arrow}${receiver}: 東京→大阪`;
+			assert.equal(replaceSyntaxZenkaku(input), input);
+		}
+	}
+});
