@@ -98,6 +98,28 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svg).toContainText('完了');
 	});
 
+	test('sequenceのcentral・half-arrow・複数文でも修復後の日本語本文を保持する', async ({
+		page,
+		createToolPage,
+	}) => {
+		for (const message of [
+			'Alice->>()John: 東京→大阪',
+			'Alice()->>John: 東京→大阪',
+			'Alice()->>()John: 東京→大阪',
+			'Alice-|/John: 東京→大阪',
+			'Alice->>John: 東京→大阪; John → Alice: 大阪→東京',
+		]) {
+			await createToolPage('mermaid').goto();
+			await page.locator('textarea').fill(````mermaid\nsequenceDiagram\n${message}\n````);
+			const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+			if (await previewTab.isVisible()) await previewTab.click();
+			const svg = page.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ }).locator('svg').first();
+			await expect(svg).toContainText('東京→大阪', { timeout: 10000 });
+			await expect(svg).not.toContainText('東京-->大阪');
+			if (message.includes(';')) await expect(svg).toContainText('大阪→東京');
+		}
+	});
+
 	test('SVG保存・PNG保存ボタンが有効であること', async ({
 		page,
 		createToolPage,
