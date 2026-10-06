@@ -242,12 +242,14 @@ export function JsonCsvPage() {
 						/>
 						<FileDropzone
 							onFileSelect={handleFileSelect}
-							onValidationError={(message) =>
+							onValidationError={(message) => {
+								// 読込中のファイルより後に選ばれた拒否ファイルのエラーを、遅れて完了した読込で上書きさせない
+								inputVersionRef.current += 1;
 								setResult(
 									{ ok: false, error: message },
 									{ input, direction, jsonOpts, csvOpts },
-								)
-							}
+								);
+							}}
 							accept=".json,.csv,.txt"
 							maxSizeBytes={MAX_INPUT_FILE_SIZE}
 							validationMessage="ファイルサイズは10MB以下にしてください。"

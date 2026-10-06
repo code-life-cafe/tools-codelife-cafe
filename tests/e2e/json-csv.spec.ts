@@ -404,6 +404,31 @@ test.describe('JSON-CSV Converter Tool', () => {
 		await expect(page.getByLabel('CSV出力')).not.toHaveValue(/FILE_A/);
 	});
 
+	test('ファイル読込中に対応外のファイルを選ぶと、遅れて完了した旧ファイルの結果でエラーが上書きされないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await delaySlowFileReads(page);
+		const toolPage = createToolPage('json-csv');
+		await toolPage.goto();
+
+		await dropFile(page, 'slow-a.json', '[{"id":"FILE_A"}]');
+		await dropFile(page, 'rejected.png', 'not a json csv text file');
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'対応していないファイル形式です',
+		);
+
+		// 旧ファイルの読込完了を待っても、エラー表示のまま・入力は空のまま
+		await page.waitForTimeout(2000);
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'対応していないファイル形式です',
+		);
+		await expect(page.getByLabel('JSON入力')).toHaveValue('');
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+	});
+
 	test('レスポンシブ表示（375px / 1440px）', async ({
 		page,
 		createToolPage,
