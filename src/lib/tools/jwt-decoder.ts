@@ -50,11 +50,48 @@ function readNumericDate(payload: unknown, key: string): number | null {
 	return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-export function formatUnixSeconds(seconds: number): string {
+// 秒として解釈すると約5138年以降になる値。ミリ秒・マイクロ秒の取り違えを疑う閾値
+const SUSPICIOUS_SECONDS = 1e11;
+
+export function formatUnixSeconds(seconds: number): string | null {
+	const date = new Date(seconds * 1000);
+	if (!Number.isFinite(date.getTime())) return null;
 	return new Intl.DateTimeFormat('ja-JP', {
 		dateStyle: 'medium',
 		timeStyle: 'medium',
-	}).format(new Date(seconds * 1000));
+	}).format(date);
+}
+
+function buildClaimWarnings(
+	key: 'exp' | 'nbf',
+	label: string,
+	value: number,
+	nowSeconds: number,
+): string[] {
+	const formatted = formatUnixSeconds(value);
+	const unitHint =
+		'秒ではなくミリ秒・マイクロ秒で指定されていないか確認してください。';
+	const warnings: string[] = [];
+	// 失効・未来の判定は数値比較のみで行い、日時への変換可否に依存させない
+	const shown = formatted ?? `${value}（日時に変換できません）`;
+	if (key === 'exp' && value <= nowSeconds) {
+		warnings.push(`有効期限（exp）を過ぎています: ${shown}`);
+	}
+	if (key === 'nbf' && value > nowSeconds) {
+		warnings.push(`有効開始時刻（nbf）が未来です: ${shown}`);
+	}
+	if (formatted === null) {
+		warnings.push(
+			`${label}（${key}）の値 ${value} は日時に変換できません。${unitHint}`,
+		);
+		return warnings;
+	}
+	if (Math.abs(value) >= SUSPICIOUS_SECONDS) {
+		warnings.push(
+			`${label}（${key}）の値 ${value} は秒として非常に大きい値です。${unitHint}`,
+		);
+	}
+	return warnings;
 }
 
 export function decodeJwt(input: string, now = Date.now()): JwtDecodeResult {
@@ -91,11 +128,13 @@ export function decodeJwt(input: string, now = Date.now()): JwtDecodeResult {
 		const nbf = readNumericDate(payload.json, 'nbf');
 		const nowSeconds = Math.floor(now / 1000);
 
-		if (exp !== null && exp < nowSeconds) {
-			warnings.push(`有効期限（exp）を過ぎています: ${formatUnixSeconds(exp)}`);
+		if (exp !== null) {
+			warnings.push(...buildClaimWarnings('exp', '有効期限', exp, nowSeconds));
 		}
-		if (nbf !== null && nbf > nowSeconds) {
-			warnings.push(`有効開始時刻（nbf）が未来です: ${formatUnixSeconds(nbf)}`);
+		if (nbf !== null) {
+			warnings.push(
+				...buildClaimWarnings('nbf', '有効開始時刻', nbf, nowSeconds),
+			);
 		}
 
 		return {
