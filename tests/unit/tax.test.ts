@@ -383,6 +383,46 @@ test('validateQuantity: 0・小数・上限超過はエラー', () => {
 	assert.equal(overMax.ok, false);
 });
 
+test('validateQuantity: 先頭ゼロ・全角・空白・カンマを含むゼロ表記は数量1未満として拒否する', () => {
+	for (const raw of [
+		'0',
+		'00',
+		'000',
+		'００',
+		'０',
+		' 0 0 ',
+		'0,0',
+		'-0',
+		'-00',
+		'0.0',
+		'0.5',
+	]) {
+		const result = validateQuantity(raw);
+		assert.equal(result.ok, false, `${JSON.stringify(raw)} は拒否される`);
+		if (!result.ok) {
+			assert.match(
+				result.message,
+				/1以上/,
+				`${JSON.stringify(raw)} のメッセージ`,
+			);
+		}
+	}
+});
+
+test('validateQuantity: 1と上限999（先頭ゼロ付き含む）は受理し、負数・小数・1000以上は拒否する', () => {
+	assert.deepEqual(validateQuantity('1'), {
+		ok: true,
+		quantity: 1,
+		normalizedInput: '1',
+	});
+	assert.equal(validateQuantity('999').ok, true);
+	assert.equal(validateQuantity('０１').ok, true);
+	assert.equal(validateQuantity('001').ok, true);
+	for (const raw of ['-1', '1.5', '1000', '１，０００']) {
+		assert.equal(validateQuantity(raw).ok, false, `${raw} は拒否される`);
+	}
+});
+
 // ---------------------------------------------------------------------------
 // hasInvoiceLineInput
 // ---------------------------------------------------------------------------

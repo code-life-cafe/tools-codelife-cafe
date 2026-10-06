@@ -28,6 +28,16 @@ function mapChanges(changes: Change[]): DiffPart[] {
 	}));
 }
 
+// 差分断片に含まれる行数を数える。空行・空白だけの行も1行として数え、
+// 末尾の改行で終端された分の空セグメントだけを除外する（終端から架空の行を作らない）。
+// charsモードの断片にも同じ定義を使う（断片内の行区切りで分かれた区間数）。
+function countLines(value: string): number {
+	if (value === '') return 0;
+	const segments = value.split('\n');
+	if (value.endsWith('\n')) segments.pop();
+	return segments.length;
+}
+
 export function computeDiff(
 	textA: string,
 	textB: string,
@@ -49,7 +59,7 @@ export function computeDiff(
 	let removedChars = 0;
 
 	for (const part of parts) {
-		const lineCount = part.value.split('\n').filter((l) => l !== '').length;
+		const lineCount = countLines(part.value);
 		const charCount = [...part.value].length;
 
 		if (part.type === 'added') {

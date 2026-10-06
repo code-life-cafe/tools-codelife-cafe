@@ -287,6 +287,24 @@ test('csvToJson: 列数不足は空文字（型推論でnull）・超過は extr
 	assert.deepEqual(JSON.parse(noInfer.output), [{ a: '1', b: '' }]);
 });
 
+test('csvToJson: 超過列の生成キーが既存の extra_1 ヘッダーと衝突しない', () => {
+	const result = expectOk(
+		csvToJson('extra_1,name\r\nKEEP,Alice,OVERWRITE', CSV_OPTS),
+	);
+	assert.deepEqual(JSON.parse(result.output), [
+		{ extra_1: 'KEEP', name: 'Alice', extra_2: 'OVERWRITE' },
+	]);
+});
+
+test('csvToJson: 複数の超過列でも既存ヘッダーを飛ばして一意な extra_N を採番する', () => {
+	const result = expectOk(
+		csvToJson('extra_1,extra_2,name\r\nA,B,C,D,E', CSV_OPTS),
+	);
+	assert.deepEqual(JSON.parse(result.output), [
+		{ extra_1: 'A', extra_2: 'B', name: 'C', extra_3: 'D', extra_4: 'E' },
+	]);
+});
+
 test('csvToJson: クォート未閉じは行番号付き日本語エラー', () => {
 	const result = expectError(csvToJson('a,b\r\n1,"未閉じ\r\n2,3', CSV_OPTS));
 	assert.match(result.error, /引用符/);
