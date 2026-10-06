@@ -137,7 +137,7 @@ export function createUuidV7Generator(): MonotonicGenerator {
 		lastMs = ms;
 
 		const randA = (lastRand >> 62n) & 0xfffn;
-		const randB = lastRand & 0x3fffffffffffffn;
+		const randB = lastRand & 0x3fffffffffffffffn;
 
 		const bytes = new Uint8Array(16);
 		const tsBig = BigInt(ms) & 0xffffffffffffn;

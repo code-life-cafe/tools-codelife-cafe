@@ -1166,6 +1166,90 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'url-parser',
+		title: 'URLパラメータ解析・編集',
+		description:
+			'URLをプロトコル・ホスト・パス・クエリ・ハッシュに分解し、パラメータを編集してURLを再生成。日本語・重複キーにも対応。',
+		href: '/url-parser',
+		icon: 'Link',
+		categories: ['開発ツール'],
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'URL解析',
+			'クエリパラメータ',
+			'パラメータ編集',
+			'URLパーサー',
+			'クエリ文字列',
+			'UTMパラメータ',
+		],
+		related: ['url-encoder', 'qr-generator', 'jwt-decoder'],
+		llmsFull: {
+			useCase:
+				'http/httpsのURLを分解して表示し、クエリパラメータの追加・編集・削除を行って元のパスとハッシュを保ったURLを再生成',
+			inputs: 'url（http/httpsの絶対URL）',
+			outputs:
+				'プロトコル・ホスト・パス・ハッシュ、クエリパラメータの一覧、編集後のURL',
+			options: 'パラメータ行の追加・編集・削除',
+		},
+	},
+	{
+		id: 'random-sort',
+		title: 'ランダム並べ替え・グループ分け',
+		description:
+			'改行区切りのリストをランダムに並べ替え、指定数のグループへ均等に振り分け。順番決めやチーム分けに。',
+		href: '/random-sort',
+		icon: 'Shuffle',
+		categories: ['ユーティリティ'],
+		categoryColor: 'border-l-chart-2',
+		keywords: [
+			'ランダム',
+			'並べ替え',
+			'シャッフル',
+			'グループ分け',
+			'チーム分け',
+			'順番決め',
+			'席順',
+		],
+		related: ['dummy-data', 'char-count', 'text-diff'],
+		llmsFull: {
+			useCase:
+				'1行1項目のリストを暗号論的乱数でシャッフルし、必要に応じて人数差が最大1となるグループに分割',
+			inputs:
+				'text（改行区切りの項目。最大10,000項目・1MiB）, groupCount（1〜項目数）',
+			outputs: '並べ替え後のリスト、またはグループごとの項目一覧',
+			options: 'グループ数、結果のコピー・テキスト保存',
+		},
+	},
+	{
+		id: 'log-time-analyzer',
+		title: 'ログ時間差分析',
+		description:
+			'ログ各行の先頭の時刻から行間の時間差を計算し、間隔の大きい箇所と順序逆転を表示。CSV保存にも対応。',
+		href: '/log-time-analyzer',
+		icon: 'CalendarClock',
+		categories: ['開発ツール'],
+		categoryColor: 'border-l-chart-1',
+		keywords: [
+			'ログ',
+			'時間差',
+			'タイムスタンプ',
+			'ログ解析',
+			'ISO 8601',
+			'UNIX時間',
+			'間隔',
+		],
+		related: ['unix-time', 'cron-checker', 'regex-tester'],
+		llmsFull: {
+			useCase:
+				'ログ各行の先頭にあるタイムスタンプ（ISO 8601・UNIX秒・UNIXミリ秒）から、解析可能な前の行との時間差と順序逆転を算出',
+			inputs:
+				'log（改行区切りのログ。最大10,000行・1MiB）, format（iso | unix-s | unix-ms）',
+			outputs:
+				'間隔の大きい上位10件、順序逆転の一覧、解析できない行の行番号、全間隔のCSV',
+			options: '時刻形式の選択、CSV保存',
+		},
+	},
+	{
 		id: 'drip-coffee-guide',
 		title: 'ドリップコーヒー抽出ガイド',
 		description:

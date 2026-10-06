@@ -21,6 +21,16 @@ function hasUniqueFlags(flags: string): boolean {
 	return new Set(flags).size === flags.length;
 }
 
+// u/v の排他性や実行環境の対応状況は RegExp コンストラクタで判定する（文字数上限は使わない）
+function isSupportedFlags(flags: string): boolean {
+	try {
+		new RegExp('', flags);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export interface RegexTesterSettings {
 	pattern: string;
 	flags: string;
@@ -43,9 +53,9 @@ export function sanitizeRegexTesterSettings(
 			: defaults.pattern;
 	const flags =
 		typeof v.flags === 'string' &&
-		v.flags.length <= 6 &&
 		VALID_FLAGS_PATTERN.test(v.flags) &&
-		hasUniqueFlags(v.flags)
+		hasUniqueFlags(v.flags) &&
+		isSupportedFlags(v.flags)
 			? v.flags
 			: defaults.flags;
 	const showReplace =
