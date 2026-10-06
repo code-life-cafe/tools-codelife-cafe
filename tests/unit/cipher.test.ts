@@ -101,6 +101,20 @@ test('morseEncode: 未対応文字のみなら出力は空で件数を返す', (
 	assert.strictEqual(r.unsupportedCount, 3);
 });
 
+test('morseEncode: 非ASCII文字を大文字化せず元の文字で通知する', () => {
+	const r = morseEncode('café ıſßﬃ');
+	assert.equal(r.output, '-.-. .- ..-.');
+	assert.deepEqual(r.unsupportedChars, ['é', 'ı', 'ſ', 'ß', 'ﬃ']);
+	assert.equal(r.unsupportedCount, 5);
+});
+
+test('morseDecode: 継承プロパティ名も不明符号として扱う', () => {
+	const r = morseDecode('constructor toString __proto__ / ...');
+	assert.equal(r.output, '??? S');
+	assert.deepEqual(r.unknownCodes, ['constructor', 'toString', '__proto__']);
+	assert.equal(r.unknownCount, 3);
+});
+
 test('morseDecode: 正常な符号は通知対象なし', () => {
 	const r = morseDecode('... --- ... / .... .. ');
 	assert.strictEqual(r.output, 'SOS HI');

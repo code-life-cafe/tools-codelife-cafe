@@ -65,13 +65,16 @@ const REVERSE_MORSE_TABLE: Record<string, string> = Object.fromEntries(
 );
 
 export function morseEncode(input: string): MorseEncodeResult {
-	const words = input.toUpperCase().split(/\s+/);
+	const words = input.split(/\s+/);
 	const unsupported: string[] = [];
 
 	const encodedWords = words.map((word) =>
 		Array.from(word)
 			.map((char) => {
-				const code = MORSE_TABLE[char];
+				const key = /^[a-z]$/.test(char) ? char.toUpperCase() : char;
+				const code = Object.hasOwn(MORSE_TABLE, key)
+					? MORSE_TABLE[key]
+					: undefined;
 				if (!code) unsupported.push(char);
 				return code;
 			})
@@ -102,7 +105,9 @@ export function morseDecode(input: string): MorseDecodeResult {
 			.split(/\s+/)
 			.map((morseChar) => {
 				if (!morseChar) return '';
-				const char = REVERSE_MORSE_TABLE[morseChar];
+				const char = Object.hasOwn(REVERSE_MORSE_TABLE, morseChar)
+					? REVERSE_MORSE_TABLE[morseChar]
+					: undefined;
 				if (char === undefined) {
 					unknown.push(morseChar);
 					return '?';
