@@ -132,6 +132,84 @@ test('jsonToCsv: 入力先頭のBOMを自動除去する', () => {
 	assert.equal(result.output, 'a\r\n1');
 });
 
+test('jsonToCsv: 安全整数範囲外の整数は桁落ちさせず文字列として出力する', () => {
+	const result = expectOk(
+		jsonToCsv('[{"id":9007199254740993,"code":"00123"}]', JSON_OPTS),
+	);
+	assert.equal(result.output, 'id,code\r\n9007199254740993,00123');
+});
+
+test('jsonToCsv: 安全整数境界の前後・正負・ネストで桁を保持する', () => {
+	// 9007199254740993 等はJSソースの数値リテラルとして書くと解析時点で丸められるため、
+	// 生のJSONテキストとして与える（JSON.stringifyを経由しない）。
+	const input =
+		'[{"maxSafe":9007199254740991,"overMaxSafe":9007199254740992,' +
+		'"minSafe":-9007199254740991,"underMinSafe":-9007199254740992,' +
+		'"normal":42,"nested":{"big":9007199254740993}}]';
+	const result = expectOk(jsonToCsv(input, JSON_OPTS));
+	const lines = result.output.split('\r\n');
+	assert.equal(
+		lines[0],
+		'maxSafe,overMaxSafe,minSafe,underMinSafe,normal,nested.big',
+	);
+	assert.equal(
+		lines[1],
+		'9007199254740991,9007199254740992,-9007199254740991,-9007199254740992,42,9007199254740993',
+	);
+});
+
+test('jsonToCsv: flattenNested OFF でも大整数の桁を保持する', () => {
+	const result = expectOk(
+		jsonToCsv('[{"id":9007199254740993}]', {
+			...JSON_OPTS,
+			flattenNested: false,
+		}),
+	);
+	assert.equal(result.output, 'id\r\n9007199254740993');
+});
+
+test('jsonToCsv: 小数・指数表記の数値は従来どおりNumber変換する（桁保持対象外）', () => {
+	const result = expectOk(jsonToCsv('[{"a":1.5,"b":1e21,"c":-0}]', JSON_OPTS));
+	assert.equal(result.output, 'a,b,c\r\n1.5,1e+21,0');
+});
+
+test('jsonToCsv: flattenNested OFF でネスト内の大整数もJSON文字列セル内で桁を保持する', () => {
+	const result = expectOk(
+		jsonToCsv('[{"nested":{"id":9007199254740993}}]', {
+			...JSON_OPTS,
+			flattenNested: false,
+		}),
+	);
+	assert.equal(result.output, 'nested\r\n"{""id"":9007199254740993}"');
+});
+
+test('jsonToCsv: 配列内・複数ネストレベルの大整数もJSON文字列セルで桁を保持する', () => {
+	const result = expectOk(
+		jsonToCsv(
+			'[{"items":[{"id":9007199254740993},{"id":42}],"deep":{"a":{"id":-9007199254740993}}}]',
+			{ ...JSON_OPTS, flattenNested: false },
+		),
+	);
+	const parsedCells = result.output.split('\r\n')[1];
+	assert.ok(parsedCells.includes('9007199254740993'));
+	assert.ok(!parsedCells.includes('9007199254740992'));
+	assert.ok(parsedCells.includes('-9007199254740993'));
+});
+
+test('jsonToCsv: オブジェクトの数値様キーの列挙順に依存せず、各値の桁を正しく紐づける', () => {
+	// ネイティブJSON.parseのreviverは数値様キー（"1"・"2"等）をソース出現順ではなく
+	// 昇順で走査する（＝ヘッダーも "1,2" の昇順になるのはJSの仕様どおりで正しい）。
+	// 外部で走査した数値リテラルの出現順と突き合わせる実装だと、この列挙順のズレで
+	// キー"2"の値とキー"1"の値を取り違える回帰がある。専用パーサーは値の構築と同時に
+	// 桁を紐づけるため、列挙順が入れ替わっても各キーは元の値を保つ。
+	const result = expectOk(
+		jsonToCsv('[{"2":9007199254740993,"1":9007199254740995}]', JSON_OPTS),
+	);
+	const lines = result.output.split('\r\n');
+	assert.equal(lines[0], '1,2');
+	assert.equal(lines[1], '9007199254740995,9007199254740993');
+});
+
 // ---------------------------------------------------------------------------
 // csvToJson
 // ---------------------------------------------------------------------------
@@ -316,6 +394,45 @@ test('inferCellValue: 型推論の規則', () => {
 		'2026-06-11',
 		'日付は文字列のまま',
 	);
+});
+
+test('inferCellValue: 安全整数範囲（±Number.MAX_SAFE_INTEGER）は文字列保持、範囲内は数値化', () => {
+	assert.equal(
+		inferCellValue('9007199254740993'),
+		'9007199254740993',
+		'安全整数上限超過は桁落ちさせず文字列保持',
+	);
+	assert.equal(
+		inferCellValue(String(Number.MAX_SAFE_INTEGER)),
+		Number.MAX_SAFE_INTEGER,
+		'安全整数上限そのものは数値化',
+	);
+	assert.equal(
+		inferCellValue(String(Number.MIN_SAFE_INTEGER)),
+		Number.MIN_SAFE_INTEGER,
+		'安全整数下限そのものは数値化',
+	);
+	assert.equal(
+		inferCellValue('-9007199254740993'),
+		'-9007199254740993',
+		'負の安全整数下限超過も文字列保持',
+	);
+});
+
+test('csvToJson: 型推論ON/OFFいずれも安全整数範囲外のIDを桁落ちさせない', () => {
+	const on = expectOk(csvToJson('id,code\r\n9007199254740993,00123', CSV_OPTS));
+	assert.deepEqual(JSON.parse(on.output), [
+		{ id: '9007199254740993', code: '00123' },
+	]);
+	const off = expectOk(
+		csvToJson('id,code\r\n9007199254740993,00123', {
+			...CSV_OPTS,
+			inferTypes: false,
+		}),
+	);
+	assert.deepEqual(JSON.parse(off.output), [
+		{ id: '9007199254740993', code: '00123' },
+	]);
 });
 
 test('flattenObject / unflattenObject: ネスト+配列の往復', () => {
