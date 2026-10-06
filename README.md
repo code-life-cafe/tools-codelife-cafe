@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全57種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全54種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（50種）
+## 📦 収録ツール（54種）
 
 ### テキスト処理
 
@@ -65,6 +65,8 @@
 | [QRコード読み取り](https://tools.codelife.cafe/qr-reader) | カメラや画像ファイルからQRコードを読み取り。URL・Wi-Fi・連絡先も自動判定しCSV出力（完全ローカル実行） |
 | [Base64エンコード/デコード](https://tools.codelife.cafe/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](https://tools.codelife.cafe/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
+| [URLパラメータ解析・編集](https://tools.codelife.cafe/url-parser) | URLをプロトコル・ホスト・パス・クエリ・ハッシュに分解し、パラメータを編集してURLを再生成（入力URLへの通信なし） |
+| [ランダム並べ替え・グループ分け](https://tools.codelife.cafe/random-sort) | 改行区切りのリストをランダムに並べ替え、人数差が最大1になるよう均等にグループ分け（完全ローカル実行） |
 | [和暦⇔西暦変換](https://tools.codelife.cafe/wareki-converter) | 和暦（令和・平成等）と西暦のリアルタイム相互変換 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
@@ -88,6 +90,7 @@
 | [ファビコン生成](https://tools.codelife.cafe/favicon) | 画像から favicon.ico・各サイズPNG・apple-touch-icon・site.webmanifest を一括生成。アップロード不要・HTMLタグ出力対応（完全ローカル実行） |
 | [画像Base64変換](https://tools.codelife.cafe/image-base64) | 画像をBase64/Data URIへ相互変換。`<img>`タグ・CSS `url()` スニペット出力。逆変換対応 |
 | [UNIXタイムスタンプ⇔日時変換](https://tools.codelife.cafe/unix-time) | 秒/ミリ秒/マイクロ秒/ナノ秒/Slack TSを自動判定し日時と相互変換。ISO 8601・RFC 3339・和暦・Discord形式も同時出力 |
+| [ログ時間差分析](https://tools.codelife.cafe/log-time-analyzer) | ログ各行の先頭の時刻（ISO 8601・UNIX秒・ミリ秒）から行間の時間差を計算。間隔の大きい上位10件・順序逆転・CSV保存に対応（完全ローカル実行） |
 | [cron式チェッカー](https://tools.codelife.cafe/cron-checker) | cron式を日本語解説・次回実行10件（JST/UTC）で確認。日本語→cron式の逆引き生成、危険パターンの警告、GitHub Actions/AWS EventBridge形式変換にも対応 |
 | [UUID / ULID 生成ツール](https://tools.codelife.cafe/uuid) | UUID v4/v7・ULID・nanoidを一括生成。表示形式変換・種類判定・時刻抽出に対応 |
 | [YAML ⇔ JSON ⇔ TOML 変換](https://tools.codelife.cafe/yaml-json-toml) | YAML・JSON・TOMLを相互変換。構文エラーは行・列付きの日本語で表示 |

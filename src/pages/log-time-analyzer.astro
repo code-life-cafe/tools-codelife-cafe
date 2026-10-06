@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import LogTimeAnalyzerTool from '../components/tools/LogTimeAnalyzer.tsx';
+
+const toolEntry = await getEntry('tools', 'log-time-analyzer');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: log-time-analyzer');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <LogTimeAnalyzerTool client:load />
+</ToolLayout>
