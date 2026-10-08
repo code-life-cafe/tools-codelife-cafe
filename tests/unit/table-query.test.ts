@@ -6,6 +6,7 @@ import {
 	type Column,
 	type FilterGroup,
 	inferColumnType,
+	parseDate,
 	queryRows,
 	type SortKey,
 	validateFilterCondition,
@@ -132,4 +133,80 @@ test('queryRows - パイプライン統合', () => {
 	// 価格 >= 100 は りんご(100), バナナ(120), ぶどう(200)
 	// 価格 desc: ぶどう(index 3) -> バナナ(index 2) -> りんご(index 0)
 	assert.deepEqual(res, [3, 2, 0]);
+});
+
+test('parseDate - 存在しない暦日はnullにする', () => {
+	for (const v of [
+		'2026-02-29',
+		'2026-02-30',
+		'2026-04-31',
+		'2026/02/29',
+		'2026/2/30',
+		'2026/4/31',
+		'2026-02-30T10:00:00',
+		'2026-04-31T00:00:00Z',
+	]) {
+		assert.equal(parseDate(v), null, v);
+	}
+});
+
+test('parseDate - 有効な日付は従来どおり解釈する', () => {
+	const leap = parseDate('2024-02-29');
+	assert.equal(leap?.getMonth(), 1);
+	assert.equal(leap?.getDate(), 29);
+	const slash = parseDate('2026/6/28');
+	assert.equal(slash?.getMonth(), 5);
+	assert.equal(slash?.getDate(), 28);
+	assert.equal(parseDate('2026-12-31')?.getDate(), 31);
+	assert.equal(
+		parseDate('2026-01-15T10:30:00Z')?.toISOString(),
+		'2026-01-15T10:30:00.000Z',
+	);
+	assert.equal(parseDate('2024-02-29T23:59:59Z')?.getUTCDate(), 29);
+});
+
+test('parseDate - 0000〜0099年を1900年代に補正しない', () => {
+	for (const [input, year, month, day] of [
+		['0001-01-01', 1, 0, 1],
+		['0099/12/31', 99, 11, 31],
+		['0000-02-29', 0, 1, 29],
+	] as const) {
+		const date = parseDate(input);
+		assert.equal(date?.getFullYear(), year);
+		assert.equal(date?.getMonth(), month);
+		assert.equal(date?.getDate(), day);
+	}
+});
+
+test('parseDate - タイムゾーンで存在しない暦日も別の日へ繰り上げない', () => {
+	const previous = process.env.TZ;
+	try {
+		process.env.TZ = 'Pacific/Apia';
+		const skipped = parseDate('2011-12-30');
+		const next = parseDate('2011-12-31');
+		assert.equal(skipped?.toISOString(), '2011-12-30T00:00:00.000Z');
+		assert.notEqual(skipped?.getTime(), next?.getTime());
+		assert.equal(parseDate('2011/12/30')?.getTime(), skipped?.getTime());
+	} finally {
+		if (previous === undefined) delete process.env.TZ;
+		else process.env.TZ = previous;
+	}
+});
+
+test('inferColumnType - 存在しない日付はdateと推定しない', () => {
+	assert.equal(
+		inferColumnType(['2026-02-29', '2026-02-30', '2026-04-31']),
+		'text',
+	);
+	assert.equal(inferColumnType(['2026-01-01', '2024-02-29']), 'date');
+});
+
+test('applyFilter - 存在しない日付は日付比較に含めない', () => {
+	const columns: Column[] = [{ id: 'c0', name: 'd', type: 'date' }];
+	const rows = [['2026-02-28'], ['2026-02-30'], ['2026-03-01']];
+	const g: FilterGroup = {
+		combinator: 'and',
+		conditions: [{ columnId: 'c0', operator: 'neq', value: '2026-02-28' }],
+	};
+	assert.deepEqual(applyFilter(rows, g, columns), [2]);
 });

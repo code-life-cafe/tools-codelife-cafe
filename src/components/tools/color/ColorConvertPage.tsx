@@ -162,16 +162,26 @@ function ResultRow({
 }) {
 	return (
 		<div
-			className="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+			className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
 			data-testid={testId}
 		>
-			<div className="flex items-center gap-3 min-w-0">
+			<div className="flex min-w-0 flex-1 items-baseline gap-3">
 				<span className="w-14 shrink-0 text-sm font-semibold text-muted-foreground">
 					{label}
 				</span>
-				<span className="truncate font-mono text-sm">{value}</span>
+				<span
+					className="min-w-0 break-all font-mono text-sm"
+					data-testid={`${testId}-value`}
+				>
+					{value}
+				</span>
 			</div>
-			<CopyButton text={value} size="sm" />
+			<CopyButton
+				text={value}
+				size="sm"
+				label={`${label}をコピー`}
+				className="self-end sm:self-auto"
+			/>
 		</div>
 	);
 }
