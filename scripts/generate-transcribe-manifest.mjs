@@ -13,6 +13,8 @@
 //
 // 実行はビルド時ではなく手動（モデル・ランタイムを更新するときだけ）:
 //   node scripts/generate-transcribe-manifest.mjs
+//   node scripts/generate-transcribe-manifest.mjs --runtime-only
+//     モデルrevision・配信ファイルを維持して、インストール済みランタイムだけ再生成する。
 //
 // 生成物はコミットする。モデル実体（数百MB）はコミットしない。
 
@@ -242,10 +244,16 @@ function ts(value, depth = 0) {
 	return String(value);
 }
 
+const runtimeOnly = process.argv.includes('--runtime-only');
 const models = [];
-for (const m of MODELS) {
-	console.log(`=== ${m.sourceRepository} @ ${m.revision} ===`);
-	models.push(await buildModel(m));
+if (runtimeOnly) {
+	const { MODEL_ARTIFACTS } = await import('../src/lib/transcribe/model-manifest.ts');
+	models.push(...MODEL_ARTIFACTS);
+} else {
+	for (const m of MODELS) {
+		console.log(`=== ${m.sourceRepository} @ ${m.revision} ===`);
+		models.push(await buildModel(m));
+	}
 }
 console.log('=== onnx runtime wasm ===');
 const runtime = await buildRuntime();
