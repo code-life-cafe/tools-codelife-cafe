@@ -517,6 +517,102 @@ function withProtectedNodeLabels(
 	return restoreMarkers(transformed, prefix, labels);
 }
 
+const ACTOR_CHAR = /^[\p{L}\p{N}\p{M}_. -]$/u;
+const WS_CHAR = /^\s$/;
+const NOTE_PREFIX = /Note\s+(?:left of|right of|over)/iuy;
+
+/**
+ * 図種不明の単一行から、sequenceのメッセージ/Note行を推測して [全体, 見出し, 本文] を返す。
+ * 以前の正規表現
+ *   ^(\s*(?:ACT\s*ARROW\s*ACT|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$   (iu)
+ * と同じ結果を、バックトラックなしの線形時間で返す。
+ *   - 見出しに使える文字(空白・actor文字・矢印・Note句)はコロンを含まないため、
+ *     見出しの終端は常に「最初のコロン」で、本文は1文字以上必要。
+ *   - 見出し部分が `ACT \s* ARROW \s* ACT` または `Note ...` の言語に属するかは、
+ *     コードポイントを1回走査するNFA(状態集合)で判定する。
+ */
+export function matchHeaderlessSequence(
+	line: string,
+): [string, string, string] | null {
+	let colon = -1;
+	for (let i = 0; i < line.length; i++) {
+		const c = line[i];
+		if (c === ':' || c === '：') {
+			colon = i;
+			break;
+		}
+	}
+	if (colon === -1 || colon === line.length - 1) return null;
+	const head = line.slice(0, colon);
+
+	// Note (left of|right of|over) の直後は空白1文字以上 + 1文字以上(コロン以外)
+	let lead = 0;
+	while (lead < head.length && WS_CHAR.test(head[lead])) lead++;
+	NOTE_PREFIX.lastIndex = lead;
+	const note = NOTE_PREFIX.exec(head);
+	let matched = false;
+	if (note) {
+		const end = note.index + note[0].length;
+		matched = end + 2 <= head.length && WS_CHAR.test(head[end]);
+	}
+
+	if (!matched) {
+		// 状態: 0 先頭の空白 / 1 ACT1 / 2 ACT1後の空白 / 3 矢印の1文字目後
+		// 4 矢印の2文字目以降(R+) / 5 ー+ / 6 矢印後の空白 / 7 ACT2 / 8 末尾の空白
+		const Q0 = 1;
+		const Q1 = 2;
+		const Q2 = 4;
+		const A1 = 8;
+		const A2 = 16;
+		const D1 = 32;
+		const E = 64;
+		const T = 128;
+		const U = 256;
+		let state = Q0;
+		for (const ch of head) {
+			const ws = WS_CHAR.test(ch);
+			const act = ACTOR_CHAR.test(ch);
+			const gt = ch === '>' || ch === '＞';
+			let next = 0;
+			if (state & Q0) {
+				if (ws) next |= Q0;
+				if (act) next |= Q1;
+			}
+			if (state & Q1) {
+				if (act) next |= Q1;
+				if (ws) next |= Q2;
+			}
+			if (state & (Q1 | Q2)) {
+				if (ws) next |= Q2;
+				if ('-<\\/('.includes(ch)) next |= A1;
+				if (ch === '→') next |= E;
+				if (ch === 'ー') next |= D1;
+			}
+			if (state & (A1 | A2)) {
+				if ('-><xX)oO+(|/\\'.includes(ch)) next |= A2;
+			}
+			if (state & D1) {
+				if (ch === 'ー') next |= D1;
+				if (gt) next |= E;
+			}
+			if (state & (E | A2)) {
+				if (ws) next |= E;
+				if (act) next |= T;
+			}
+			if (state & T) {
+				if (act) next |= T;
+				if (ws) next |= U;
+			}
+			if (state & U && ws) next |= U;
+			state = next;
+			if (state === 0) break;
+		}
+		matched = (state & (T | U)) !== 0;
+	}
+	if (!matched) return null;
+	return [line, line.slice(0, colon + 1), line.slice(colon + 1)];
+}
+
 /**
  * 構文位置にある全角記号を半角に置換する。
  * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
@@ -529,14 +625,13 @@ export function replaceSyntaxZenkaku(
 	// 図種がsequenceと確定していれば、actor IDや矢印の許容リストは不要。
 	// Lexerと同様、コロンから本文を切り出す。図種不明の単一行だけは推測する。
 	// 図種が 'other' と確定している場合、結果は下の分岐で必ず捨てられるため推測regexは実行しない
-	const sequence =
-		diagramKind === 'other'
-			? null
-			: diagramKind === 'sequence'
-				? line.match(/^([^:：\n]*[:：])([\s\S]+)$/)
-				: line.match(
-						/^(\s*(?:[\p{L}\p{N}\p{M}_. -]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_. -]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
-					);
+	let sequence: [string, string, string] | null = null;
+	if (diagramKind === 'sequence') {
+		const m = line.match(/^([^:：\n]*[:：])([\s\S]+)$/);
+		sequence = m ? [m[0], m[1], m[2]] : null;
+	} else if (diagramKind !== 'other') {
+		sequence = matchHeaderlessSequence(line);
+	}
 	if (diagramKind !== 'other' && sequence) {
 		return withProtectedStrings(sequence[2], (body) => {
 			// セミコロンは次の文の開始。Mermaidの文字参照（#59;など）の

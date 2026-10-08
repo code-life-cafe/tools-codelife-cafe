@@ -6,6 +6,7 @@ import {
 	autoCloseBlocks,
 	extractMermaidCode,
 	MAX_REPAIR_INPUT_LENGTH,
+	matchHeaderlessSequence,
 	normalizeSmartQuotes,
 	protectDashedEdgeLabels,
 	protectNodeLabelBodies,
@@ -999,6 +1000,229 @@ test('safeQuoteNodeLabels: 未対応の ID[ / ID( を大量に繰り返しても
 		const repaired = repairMermaidCode(input);
 		assert.equal(repaired.error, undefined);
 		assert.equal(repaired.repairedCode, input, unit);
+	}
+});
+
+// ============================================================
+// 回帰: 図種不明の単一行に対するsequence推測の線形化
+// ============================================================
+
+// 置換前の実装(正規表現)。matchHeaderlessSequence が同じ結果を返すことの仕様参照にする
+function referenceHeaderlessSequence(
+	line: string,
+): [string, string, string] | null {
+	const m = line.match(
+		/^(\s*(?:[\p{L}\p{N}\p{M}_. -]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_. -]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
+	);
+	return m ? [m[0], m[1], m[2]] : null;
+}
+
+test('matchHeaderlessSequence: 従来の正規表現と同一の結果(決定的ランダム入力)', () => {
+	const tokens = [
+		'A',
+		'Bob',
+		'x',
+		'X',
+		'o',
+		'O',
+		'日本語',
+		'é',
+		'é',
+		'𝒜',
+		'😀',
+		'\ud800',
+		'1',
+		'_',
+		'.',
+		'-',
+		' ',
+		'  ',
+		'\t',
+		'\n',
+		'　',
+		' ',
+		'->',
+		'-->',
+		'->>',
+		'-->>',
+		'-)',
+		'--)',
+		'-x',
+		'--x',
+		'<<-',
+		'<',
+		'/',
+		'\\',
+		'(',
+		'()',
+		')',
+		'+',
+		'|',
+		'>',
+		'＞',
+		'→',
+		'ー',
+		'ーー>',
+		'ー＞',
+		'Note',
+		'NOTE',
+		'Note over',
+		'note left of',
+		'Note right of',
+		'left of',
+		'over',
+		':',
+		'：',
+		'"',
+		';',
+		'本文',
+	];
+	let seed = 777;
+	const rand = () => {
+		seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+		return seed;
+	};
+	let matches = 0;
+	for (let n = 0; n < 20000; n++) {
+		let s = '';
+		const len = 1 + (rand() % 9);
+		for (let k = 0; k < len; k++) s += tokens[rand() % tokens.length];
+		const expected = referenceHeaderlessSequence(s);
+		if (expected) matches++;
+		assert.deepEqual(matchHeaderlessSequence(s), expected, JSON.stringify(s));
+	}
+	// 一致しやすい構造(actor 矢印 actor コロン 本文 / Note句)に1トークンの変異を加えた入力も比較する
+	const actors = ['A', 'Bob ', ' 日本', 'é', '𝒜', 'x o', 'a-b', 'Z.1'];
+	const arrows = [
+		'->',
+		'-->>',
+		'-x',
+		'--)',
+		'→',
+		'ー>',
+		'ーー＞',
+		'<<-',
+		'-(',
+		'/',
+	];
+	const spaces = ['', ' ', '  ', '\t', '　'];
+	const notes = ['Note left of ', 'note RIGHT of\t', 'Note over  '];
+	let structured = 0;
+	for (let n = 0; n < 8000; n++) {
+		const pick = <T>(xs: T[]): T => xs[rand() % xs.length];
+		const head =
+			rand() % 4 === 0
+				? `${pick(spaces)}${pick(notes)}${pick(actors)}`
+				: `${pick(spaces)}${pick(actors)}${pick(spaces)}${pick(arrows)}${pick(spaces)}${pick(actors)}`;
+		const colon = pick([':', '：', ' :', '']);
+		let s = `${head}${pick(spaces)}${colon}${pick(['', '本文', ' x：y'])}`;
+		if (rand() % 3 === 0) {
+			const at = rand() % (s.length + 1);
+			s = s.slice(0, at) + pick(tokens) + s.slice(at);
+		}
+		const expected = referenceHeaderlessSequence(s);
+		if (expected) structured++;
+		assert.deepEqual(matchHeaderlessSequence(s), expected, JSON.stringify(s));
+	}
+	// 一致と不一致の両方を十分に含む入力生成であること
+	assert.ok(matches > 50 && matches < 19_900, `matches=${matches}`);
+	assert.ok(
+		structured > 1_000 && structured < 7_900,
+		`structured=${structured}`,
+	);
+});
+
+test('matchHeaderlessSequence: 代表的な形式(Unicode actor・矢印・Note・空本文・コロン位置)', () => {
+	const cases = [
+		'Alice->>Bob: こんにちは',
+		'Alice->>Bob：こんにちは',
+		'日本 太郎 --> 東京: メッセージ',
+		'école -x 𝒜: 本文',
+		'A ー> B: 本文',
+		'A ーー＞ B: 本文',
+		'A → B: 本文',
+		'Note left of Alice: メモ',
+		'note OVER Alice,Bob: メモ',
+		'Note right of  Alice : メモ',
+		'Note over: メモ',
+		'Note over A:',
+		'Alice->>Bob:',
+		'Alice->>Bob: ',
+		'Alice->>Bob',
+		': 本文',
+		'  A->B  :本文: さらに: 続く',
+		'A->B;C->D: 本文',
+		'A -> B ->',
+		'A  \t -> \n B: 本文',
+		'A->B: "引用: 内部"; C-->D: 本文',
+		'graph TD: x',
+		'A-->B[ラベル]: x',
+	];
+	for (const line of cases) {
+		assert.deepEqual(
+			matchHeaderlessSequence(line),
+			referenceHeaderlessSequence(line),
+			JSON.stringify(line),
+		);
+	}
+	assert.deepEqual(matchHeaderlessSequence('Alice->>Bob: こんにちは'), [
+		'Alice->>Bob: こんにちは',
+		'Alice->>Bob:',
+		' こんにちは',
+	]);
+	assert.equal(matchHeaderlessSequence('Alice->>Bob:'), null);
+});
+
+test('matchHeaderlessSequence/replaceSyntaxZenkaku: 巨大actor・矢印なし・Note・不正形式でも結果が従来と同じ', () => {
+	const big = 80_000;
+	const inputs = [
+		// actorのみ(矢印なし)で最後に別文字
+		`A${'_'.repeat(big)}MERMAID_STR_ --> B["a：b"]`,
+		`${'A'.repeat(big)}:`,
+		`${'A'.repeat(big)}: 本文`,
+		`${'A '.repeat(big / 2)}-> B: 本文`,
+		`${'日'.repeat(big)} -> ${'b'.repeat(big)}: 本文`,
+		`${'-'.repeat(big)}: 本文`,
+		`${'-'.repeat(big)}>${'x'.repeat(big)}: 本文`,
+		`Note over ${'A'.repeat(big)}: 本文`,
+		`Note over${' '.repeat(big)}`,
+		`Note${' '.repeat(big)}over${' '.repeat(big)}A: 本文`,
+		`${' '.repeat(big)}A->B: 本文`,
+		`A->${'B'.repeat(big)}`,
+		`${'ー'.repeat(big)}`,
+		`${'A'.repeat(big)} ->`,
+	];
+	for (const line of inputs) {
+		// 旧実装は巨大入力で非常に遅くなる場合があるため、比較は途中で打ち切れる小さな縮小版でも行う
+		const result = matchHeaderlessSequence(line);
+		// 戻り値の形だけを検証する(巨大入力の旧実装との比較は下の縮小版で行う)
+		assert.ok(result === null || result[0] === line);
+	}
+	// 本文保護の結果(headerless推測): 矢印が無い巨大actorでは本文を変更しない
+	const noArrow = `${'A'.repeat(big)}: x：y`;
+	assert.equal(matchHeaderlessSequence(noArrow), null);
+	assert.equal(
+		replaceSyntaxZenkaku(noArrow),
+		replaceSyntaxZenkaku(noArrow, 'other'),
+	);
+	const msg = `${'A'.repeat(1_000)}->B: x：y`;
+	assert.equal(replaceSyntaxZenkaku(msg), msg);
+	const underscores = `A${'_'.repeat(big)}MERMAID_STR_ --> B["a：b"]`;
+	assert.equal(replaceSyntaxZenkaku(underscores), underscores);
+	assert.equal(replaceSyntaxZenkaku(underscores, 'other'), underscores);
+	// 縮小版では旧実装と同じ結果になる
+	for (const line of [
+		`A${'_'.repeat(300)}MERMAID_STR_ --> B["a：b"]`,
+		`${'A '.repeat(150)}-> B: 本文`,
+		`Note over ${'A'.repeat(300)}: 本文`,
+		`Note${' '.repeat(300)}over${' '.repeat(300)}A: 本文`,
+		`${'ー'.repeat(300)}>B: 本文`,
+	]) {
+		assert.deepEqual(
+			matchHeaderlessSequence(line),
+			referenceHeaderlessSequence(line),
+			line.slice(0, 40),
+		);
 	}
 });
 
