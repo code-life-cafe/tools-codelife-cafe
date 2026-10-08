@@ -3,6 +3,7 @@
 import { createHash } from 'crypto';
 import { readdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
+import { listAllowedRuntimePaths } from '../src/lib/transcribe/model-manifest.ts';
 
 const DIST = './dist';
 
@@ -10,10 +11,9 @@ const DIST = './dist';
 // `data` は静的データ配信用（/data/zipcode/*.json 等）、`og` は OGP 画像
 // （generate-og-images.mjs が生成）、`models` は AI モデル（/upscale の超解像 ~5MB と
 // /transcribe の Whisper ONNX。後者は実行時に取得）、`vendor` は /transcribe が使う
-// ONNX Runtime Web の WASM 一式（~35MB）、ドットディレクトリ（/.well-known/ 等の
-// メタデータ配信）はいずれもページではないため除外。これらはプリキャッシュせず、
-// Service Worker のランタイム cache-first で扱う
-// （モデルはブラウザ Cache に乗るが precache には含めない）。
+// ONNX Runtime Web、ドットディレクトリ（/.well-known/ 等のメタデータ配信）は
+// ページではないため除外。runtimeは下のassetURLsで明示的にprecacheへ追加する。
+// モデルはブラウザ Cache に乗るが precache には含めない。
 const entries = await readdir(DIST, { withFileTypes: true });
 const pageURLs = [
 	'/',
@@ -46,7 +46,7 @@ try {
 // precache 対象に含める。OfflineBadge の「全ツールをオフラインで利用可能にする」という
 // 前提に合わせ、オフライン化前に一度も /qr-reader を開いていなくても初回デコードが
 // WASM取得失敗で落ちないようにする。
-const assetURLs = assetFiles.map((f) => `/_astro/${f}`);
+const assetURLs = [...assetFiles.map((f) => `/_astro/${f}`), ...listAllowedRuntimePaths()];
 
 // ページHTML内容 + アセットURLからキャッシュバージョンハッシュを計算（内容変更時に自動失効）
 const pageContents = await Promise.all(
