@@ -7,6 +7,7 @@ import {
 	extractMermaidCode,
 	MAX_REPAIR_INPUT_LENGTH,
 	normalizeSmartQuotes,
+	protectDashedEdgeLabels,
 	repairMermaidCode,
 	replaceSyntaxZenkaku,
 	safeQuoteNodeLabels,
@@ -586,6 +587,142 @@ test('replaceSyntaxZenkaku: マーカー風テキストと実リテラルが衝�
 			`A["本文：1"] --> ${fake} --> "x：y"`,
 		);
 	}
+});
+
+// ============================================================
+// 回帰: エッジラベル保護の単一パス化（未対応の開始 `--` ごとの後続再走査を廃止）
+// ============================================================
+
+// 置換前の実装(正規表現)。単一パス版と同じ結果を返すことの基準にする
+function referenceProtect(s: string, protect: (l: string) => string): string {
+	return s.replace(
+		/(?<![-=.>])((?:--|==|-\.)\s+)([^\n]*?)(\s+)(?=(?:-{2,}[>xo]?|={2,}[>xo]?|-?\.+->[xo]?|\.-|→|ー+[>＞]))/g,
+		(_m, open, text, space) => `${open}${protect(text)}${space}`,
+	);
+}
+
+function runProtect(
+	fn: typeof referenceProtect,
+	s: string,
+): { out: string; labels: string[] } {
+	const labels: string[] = [];
+	const out = fn(s, (l) => {
+		labels.push(l);
+		return `<${labels.length - 1}>`;
+	});
+	return { out, labels };
+}
+
+test('protectDashedEdgeLabels: 従来の正規表現と同一の結果を返す(決定的ランダム入力)', () => {
+	const tokens = [
+		'--',
+		'==',
+		'-.',
+		'-->',
+		'==>',
+		'-.->',
+		'.-',
+		'→',
+		'ーー>',
+		'ー＞',
+		'---',
+		'--x',
+		' ',
+		'  ',
+		'\t',
+		'\n',
+		'A',
+		'x',
+		'日本語',
+		'.',
+		'-',
+		'=',
+		'>',
+		'|',
+	];
+	let seed = 12345;
+	const rand = () => {
+		seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+		return seed;
+	};
+	for (let n = 0; n < 4000; n++) {
+		let s = '';
+		const len = 1 + (rand() % 14);
+		for (let k = 0; k < len; k++) s += tokens[rand() % tokens.length];
+		assert.deepEqual(
+			runProtect(protectDashedEdgeLabels, s),
+			runProtect(referenceProtect, s),
+			JSON.stringify(s),
+		);
+	}
+});
+
+test('protectDashedEdgeLabels: 対応する終端で本文を保護し、前後の空白を保持する', () => {
+	const cases: [string, string, string[]][] = [
+		['A --  日本語→文字  --> B', 'A --  <0>  --> B', ['日本語→文字']],
+		['A == yes ==> B', 'A == <0> ==> B', ['yes']],
+		['A -. maybe -.-> B', 'A -. <0> -.-> B', ['maybe']],
+		['A -- x --> B -- y --> C', 'A -- <0> --> B -- <1> --> C', ['x', 'y']],
+		['A -- x ==> B', 'A -- <0> ==> B', ['x']],
+	];
+	for (const [input, expected, labels] of cases) {
+		assert.deepEqual(runProtect(protectDashedEdgeLabels, input), {
+			out: expected,
+			labels,
+		});
+		assert.deepEqual(runProtect(referenceProtect, input), {
+			out: expected,
+			labels,
+		});
+	}
+});
+
+test('replaceSyntaxZenkaku/repairMermaidCode: 対応する終端が無い `A -- x` の大量繰り返しでも本文不変', () => {
+	for (const count of [40_000, 80_000]) {
+		// `-.` は開始にはなるが終端コネクタではないため、どの開始も対応する終端を持たない
+		const body = 'A -. x '.repeat(count).trimEnd();
+		assert.ok(body.length <= MAX_REPAIR_INPUT_LENGTH * 6);
+		const result = runProtect(protectDashedEdgeLabels, body);
+		assert.equal(result.out, body);
+		assert.deepEqual(result.labels, []);
+	}
+	const input = `flowchart TD\n${'A -. x '.repeat(14_000).trimEnd()}`;
+	assert.ok(input.length <= MAX_REPAIR_INPUT_LENGTH);
+	const repaired = repairMermaidCode(input);
+	assert.equal(repaired.repairedCode, input);
+	assert.equal(repaired.error, undefined);
+});
+
+test('repairMermaidCode: flowchartの `A -- x` 40k/80k回の繰り返しでも本文を保持する', () => {
+	for (const count of [40_000, 80_000]) {
+		const body = 'A -- x '.repeat(count).trimEnd();
+		const result = replaceSyntaxZenkaku(body, 'other');
+		assert.equal(result, body);
+	}
+	// repairMermaidCode は100k文字の入力上限内(14,000回)で本文を保持する
+	const input = `flowchart TD\n${'A -- x '.repeat(14_000).trimEnd()}`;
+	assert.ok(input.length <= MAX_REPAIR_INPUT_LENGTH);
+	const repaired = repairMermaidCode(input);
+	assert.equal(repaired.error, undefined);
+	assert.equal(repaired.repairedCode, input);
+	// 上限超過(80k回)は修復せず本文をそのまま返す
+	const huge = `flowchart TD\n${'A -- x '.repeat(80_000).trimEnd()}`;
+	const rejected = repairMermaidCode(huge);
+	assert.equal(rejected.repairedCode, huge);
+	assert.match(rejected.error ?? '', /入力が大きすぎる/);
+});
+
+test('protectDashedEdgeLabels: `A -- x` の連鎖は隣り合う開始/終端で対にして従来結果と一致する', () => {
+	const chain = 'A -- x '.repeat(2_000).trimEnd();
+	assert.deepEqual(
+		runProtect(protectDashedEdgeLabels, chain),
+		runProtect(referenceProtect, chain),
+	);
+	const mixed = 'A -- x --> B == y ==> C -. z -.-> D .- w → E ';
+	assert.deepEqual(
+		runProtect(protectDashedEdgeLabels, mixed),
+		runProtect(referenceProtect, mixed),
+	);
 });
 
 test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', () => {

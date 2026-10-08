@@ -130,6 +130,114 @@ export function normalizeSmartQuotes(line: string): string {
 }
 
 /**
+ * `A -- text --> B` 形式のエッジラベル本文を protect で置換する。
+ * 以前の正規表現
+ *   (?<![-=.>])((?:--|==|-\.)\s+)([^\n]*?)(\s+)(?=<終端コネクタ>)
+ * と同じ結果を、単一パスで返す。未対応の開始 `--` ごとに後続を再走査すると
+ * 二乗時間になるため、終端コネクタ位置を先に1回だけ収集し、開始位置の
+ * 単調増加に合わせて cursor で消費する。
+ *   終端コネクタ: -{2,}[>xo]? / ={2,}[>xo]? / -?\.+->[xo]? / \.- / → / ー+[>＞]
+ */
+export function protectDashedEdgeLabels(
+	s: string,
+	protect: (label: string) => string,
+): string {
+	const n = s.length;
+	const isWs = (i: number): boolean => /\s/.test(s[i]);
+
+	// '.' / 'ー' の連続の直後が "->" / ">＞" かを後ろから1回で求める（連続長に依存しない）
+	const dotOk = new Uint8Array(n + 1);
+	const dashOk = new Uint8Array(n + 1);
+	for (let i = n - 1; i >= 0; i--) {
+		if (s[i] === '.') {
+			dotOk[i] =
+				s[i + 1] === '.' ? dotOk[i + 1] : s.startsWith('->', i + 1) ? 1 : 0;
+		} else if (s[i] === 'ー') {
+			dashOk[i] =
+				s[i + 1] === 'ー'
+					? dashOk[i + 1]
+					: s[i + 1] === '>' || s[i + 1] === '＞'
+						? 1
+						: 0;
+		}
+	}
+	const isConnector = (c: number): boolean => {
+		switch (s[c]) {
+			case '-':
+				return s[c + 1] === '-' || (s[c + 1] === '.' && dotOk[c + 1] === 1);
+			case '=':
+				return s[c + 1] === '=';
+			case '.':
+				return dotOk[c] === 1 || s[c + 1] === '-';
+			case '→':
+				return true;
+			case 'ー':
+				return dashOk[c] === 1;
+			default:
+				return false;
+		}
+	};
+
+	// 直前が空白で始まる終端コネクタ位置、空白連続の開始位置、次の改行位置
+	const closers: number[] = [];
+	const wsStart = new Int32Array(n);
+	for (let i = 0; i < n; i++) {
+		wsStart[i] = isWs(i) ? (i > 0 && isWs(i - 1) ? wsStart[i - 1] : i) : i;
+		if (i > 0 && isWs(i - 1) && isConnector(i)) closers.push(i);
+	}
+	const nextNewline = new Int32Array(n + 1);
+	nextNewline[n] = n;
+	for (let i = n - 1; i >= 0; i--) {
+		nextNewline[i] = s[i] === '\n' ? i : nextNewline[i + 1];
+	}
+
+	let out = '';
+	let last = 0;
+	let cursor = 0;
+	let i = 0;
+	while (i < n - 2) {
+		const isOpen =
+			(s.startsWith('--', i) ||
+				s.startsWith('==', i) ||
+				s.startsWith('-.', i)) &&
+			(i === 0 || !'-=.>'.includes(s[i - 1]));
+		if (!isOpen || !isWs(i + 2)) {
+			i++;
+			continue;
+		}
+		let w = i + 2;
+		while (w < n && isWs(w)) w++;
+		while (cursor < closers.length && closers[cursor] <= w) cursor++;
+
+		let textEnd = -1;
+		let closer = -1;
+		let textStart = w;
+		if (cursor < closers.length) {
+			const c = closers[cursor];
+			const t = wsStart[c - 1];
+			if (nextNewline[w] >= t) {
+				textEnd = t;
+				closer = c;
+			}
+		}
+		if (closer === -1 && w < n && w - (i + 2) >= 2 && isConnector(w)) {
+			// 開始直後の空白を1文字だけ後ろへ譲り、本文が空のラベルとして扱う
+			textStart = w - 1;
+			textEnd = w - 1;
+			closer = w;
+		}
+		if (closer === -1) {
+			i++;
+			continue;
+		}
+		out += s.slice(last, textStart) + protect(s.slice(textStart, textEnd));
+		last = textEnd;
+		i = closer;
+	}
+	return out + s.slice(last);
+}
+
+/**
  * 文字列リテラル（"..." / '...'）を一時保護し、構文位置のみを処理するヘルパー
  */
 function markerPrefix(line: string, kind: string): string {
@@ -236,12 +344,15 @@ export function replaceSyntaxZenkaku(
 	// Sequenceのメッセージ/Noteはコロン以降が本文。構文修復はその手前だけに適用する。
 	// 図種がsequenceと確定していれば、actor IDや矢印の許容リストは不要。
 	// Lexerと同様、コロンから本文を切り出す。図種不明の単一行だけは推測する。
+	// 図種が 'other' と確定している場合、結果は下の分岐で必ず捨てられるため推測regexは実行しない
 	const sequence =
-		diagramKind === 'sequence'
-			? line.match(/^([^:：\n]*[:：])([\s\S]+)$/)
-			: line.match(
-					/^(\s*(?:[\p{L}\p{N}\p{M}_. -]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_. -]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
-				);
+		diagramKind === 'other'
+			? null
+			: diagramKind === 'sequence'
+				? line.match(/^([^:：\n]*[:：])([\s\S]+)$/)
+				: line.match(
+						/^(\s*(?:[\p{L}\p{N}\p{M}_. -]+\s*(?:[-</\\(][-><x)o+(|/\\]+|→|ー+[>＞])\s*[\p{L}\p{N}\p{M}_. -]+|Note\s+(?:left of|right of|over)\s+[^:：]+)\s*[:：])([\s\S]+)$/iu,
+					);
 	if (diagramKind !== 'other' && sequence) {
 		return withProtectedStrings(sequence[2], (body) => {
 			// セミコロンは次の文の開始。Mermaidの文字参照（#59;など）の
@@ -294,11 +405,7 @@ export function replaceSyntaxZenkaku(
 				return `${edgePrefix}${edgeLabels.length - 1}__`;
 			};
 			s = s.replace(/(?<=[-=>.ox~→＞])\|[^|\n]*\|/g, protectEdgeLabel);
-			s = s.replace(
-				/(?<![-=.>])((?:--|==|-\.)\s+)([^\n]*?)(\s+)(?=(?:-{2,}[>xo]?|={2,}[>xo]?|-?\.+->[xo]?|\.-|→|ー+[>＞]))/g,
-				(_match, open, text, space) =>
-					`${open}${protectEdgeLabel(text)}${space}`,
-			);
+			s = protectDashedEdgeLabels(s, protectEdgeLabel);
 			s = s.replace(/ーー＞/g, '-->');
 			s = s.replace(/ーー>>/g, '-->>');
 			s = s.replace(/ー+>/g, '-->');
