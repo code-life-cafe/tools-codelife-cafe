@@ -263,8 +263,9 @@ test('formatJson: 不正なUnicodeエスケープはバックスラッシュで�
 // コールスタックの深さに依存しないことを確認する。
 // ============================================================
 
-test('formatJson: 数千段ネストした配列でもスタックオーバーフローせず整形できる', () => {
-	const depth = 5000;
+test('formatJson: 数百段ネストした配列でもスタックオーバーフローせず整形できる', () => {
+	// 5000段の整形は約50M文字を生成するため、安全上限(2Mi文字)内の200段で検証する
+	const depth = 200;
 	const input = `${'['.repeat(depth)}1${']'.repeat(depth)}`;
 	const result = formatJson(input);
 	assert.equal(result.success, true);
@@ -478,4 +479,116 @@ test('format/minify: true/false/nullの不正文字またはEOFを指す', () =>
 		}
 		assert.equal(formatJson(input).errorPosition, position, input);
 	}
+});
+
+// ============================================================
+// 安全上限: 7500段の配列は15001byteから112M文字に展開されるため、
+// ネスト段数と推定出力サイズを出力生成前に上限化する
+// ============================================================
+
+const nestedArray = (d: number) => `${'['.repeat(d)}1${']'.repeat(d)}`;
+
+test('formatJson/minifyJson: 5001段以上は構文エラーと区別した日本語エラーで失敗する', () => {
+	for (const result of [
+		formatJson(nestedArray(5001)),
+		minifyJson(nestedArray(5001)),
+	]) {
+		assert.equal(result.success, false);
+		assert.match(result.error ?? '', /ネストが深すぎます/);
+		assert.ok(!(result.error ?? '').includes('構文エラー'));
+		assert.equal(result.errorPosition, undefined);
+	}
+});
+
+test('formatJson: 5000/7500段はtab/2/4いずれも巨大出力を作らず短時間で失敗する', () => {
+	for (const depth of [5000, 7500]) {
+		for (const indent of ['tab', '2', '4'] as const) {
+			const result = formatJson(nestedArray(depth), indent);
+			assert.equal(result.success, false, `${depth}/${indent}`);
+			assert.match(result.error ?? '', /ネストが深すぎます|出力が大きすぎます/);
+			assert.equal(result.output, nestedArray(depth));
+		}
+	}
+});
+
+test('minifyJson: 5000段は引き続き成功する', () => {
+	assert.equal(minifyJson(nestedArray(5000)).success, true);
+});
+
+test('formatJson: 巨大スカラー・多数キーでも推定出力上限を迂回できない', () => {
+	const bigString = JSON.stringify(['x'.repeat(3 * 1024 * 1024)]);
+	const r1 = formatJson(bigString);
+	assert.equal(r1.success, false);
+	assert.match(r1.error ?? '', /出力が大きすぎます/);
+	assert.match(minifyJson(bigString).error ?? '', /出力が大きすぎます/);
+
+	const wide = JSON.stringify(
+		Object.fromEntries(Array.from({ length: 200_000 }, (_, i) => [`k${i}`, i])),
+	);
+	assert.match(formatJson(wide, '4').error ?? '', /出力が大きすぎます/);
+
+	// 浅く小さい入力は従来どおり成功する
+	assert.equal(formatJson('{"a":[1,2,{"b":null}]}').success, true);
+});
+
+const LIMIT = 2 * 1024 * 1024;
+
+test('format/minify: ルート文字列は出力長ちょうど2Miで成功し、+1で拒否される', () => {
+	const exact = JSON.stringify('x'.repeat(LIMIT - 2));
+	assert.equal(exact.length, LIMIT);
+	for (const fn of [formatJson, minifyJson]) {
+		const ok = fn(exact);
+		assert.equal(ok.success, true);
+		assert.equal(ok.output.length, LIMIT);
+		const over = fn(JSON.stringify('x'.repeat(LIMIT - 1)));
+		assert.equal(over.success, false);
+		assert.match(over.error ?? '', /出力が大きすぎます/);
+	}
+});
+
+test('format/minify: 制御文字のエスケープ展開(6倍)をルート値・オブジェクト値・キーで数える', () => {
+	// 400000個の \u0000 は入力2.4M文字、出力も2.4M文字
+	const root = JSON.stringify('\u0000'.repeat(400_000));
+	const value = JSON.stringify({ a: '\u0000'.repeat(400_000) });
+	const key = JSON.stringify({ ['\u0000'.repeat(400_000)]: 1 });
+	for (const input of [root, value, key]) {
+		for (const fn of [formatJson, minifyJson]) {
+			const r = fn(input);
+			assert.equal(r.success, false);
+			assert.match(r.error ?? '', /出力が大きすぎます/);
+		}
+	}
+	// 2.2M文字の通常文字列も迂回できない
+	assert.equal(
+		formatJson(JSON.stringify('x'.repeat(2_200_000))).success,
+		false,
+	);
+});
+
+test('format/minify: 出力長の見積もりはJSON.stringifyと一致する(サロゲート・各種エスケープ)', () => {
+	// 見積もりが正確なら、見積もり上限ちょうどの入力が成功し+1が拒否される。
+	// \n(2)・\u0001(6)・"(2)・正しいペア😀(2)・孤立サロゲート(6)を混在させて検証する。
+	const unit = '\n\u0001"😀𐀀x';
+	const perUnit = JSON.stringify(unit).length - 2;
+	const count = Math.floor((LIMIT - 2) / perUnit);
+	const body = unit.repeat(count);
+	const rest = LIMIT - 2 - count * perUnit;
+	const pad = 'y'.repeat(rest);
+	const exact = JSON.stringify(body + pad);
+	assert.equal(exact.length, LIMIT);
+	assert.equal(minifyJson(exact).success, true);
+	assert.equal(minifyJson(JSON.stringify(`${body}${pad}y`)).success, false);
+	// 孤立サロゲートはJSON.stringifyと同様に6文字として数える
+	const lone = JSON.stringify(['\ud800'.repeat(LIMIT / 6)]);
+	assert.equal(minifyJson(lone).success, false);
+});
+
+test('minifyJson: 構造の区切り(カンマ・コロン)を正確に数える', () => {
+	// m要素の配列 [1,1,...,10] は 括弧2 + カンマ(m-1) + 数字(m+1) = 2m+2 文字
+	const m = LIMIT / 2 - 1;
+	const ones = new Array(m - 1).fill('1').join(',');
+	const exact = `[${ones},10]`;
+	assert.equal(exact.length, LIMIT);
+	assert.equal(minifyJson(exact).success, true);
+	assert.equal(minifyJson(`[${ones},100]`).success, false);
 });

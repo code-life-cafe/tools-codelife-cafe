@@ -17,7 +17,12 @@ export interface MermaidRepairResult {
 	repairedCode: string;
 	isModified: boolean;
 	changes: RepairChange[];
+	/** 入力が上限を超えた等で修復を実行しなかった場合の理由 */
+	error?: string;
 }
+
+/** 修復を受け付ける入力の最大文字数（超える入力は修復せずそのまま返す） */
+export const MAX_REPAIR_INPUT_LENGTH = 100_000;
 
 /**
  * サポートするMermaidダイアグラム宣言の先頭パターン
@@ -128,9 +133,51 @@ export function normalizeSmartQuotes(line: string): string {
  * 文字列リテラル（"..." / '...'）を一時保護し、構文位置のみを処理するヘルパー
  */
 function markerPrefix(line: string, kind: string): string {
-	let prefix = `__MERMAID_${kind}_`;
-	while (line.includes(prefix)) prefix = `_${prefix}`;
-	return prefix;
+	// 行内の `__MERMAID_<kind>_<n>_` 形式の nonce を1回の線形走査で集め、
+	// 最小の未使用 nonce を接頭辞に使う。接頭辞は行内に現れないため衝突せず、
+	// 長さは出現数の桁数程度（入力サイズの対数）で、アンダースコア列の長さに依存しない。
+	const used = new Set<string>();
+	for (const m of line.matchAll(new RegExp(`__MERMAID_${kind}_(\\d+)_`, 'g'))) {
+		used.add(m[1]);
+	}
+	let nonce = 0;
+	while (used.has(String(nonce))) nonce++;
+	return `__MERMAID_${kind}_${nonce}_`;
+}
+
+/**
+ * `${prefix}<数字>__` 形式のマーカーを values の値へ戻す。
+ * 接頭辞長に比例する巨大なRegExpをコンパイルせず、indexOfで線形に走査する。
+ */
+function restoreMarkers(
+	text: string,
+	prefix: string,
+	values: readonly string[],
+): string {
+	let out = '';
+	let pos = 0;
+	while (pos < text.length) {
+		const at = text.indexOf(prefix, pos);
+		if (at === -1) break;
+		const digitsStart = at + prefix.length;
+		let end = digitsStart;
+		while (
+			end < text.length &&
+			text.charCodeAt(end) >= 48 &&
+			text.charCodeAt(end) <= 57
+		) {
+			end++;
+		}
+		if (end > digitsStart && text.startsWith('__', end)) {
+			out += text.slice(pos, at);
+			out += values[Number(text.slice(digitsStart, end))] ?? '';
+			pos = end + 2;
+		} else {
+			out += text.slice(pos, at + 1);
+			pos = at + 1;
+		}
+	}
+	return out + text.slice(pos);
 }
 
 function withProtectedStrings(
@@ -149,10 +196,7 @@ function withProtectedStrings(
 
 	const transformed = transformSyntax(protectedLine);
 
-	return transformed.replace(
-		new RegExp(`${prefix}(\\d+)__`, 'g'),
-		(_match, index) => literals[Number(index)] ?? '',
-	);
+	return restoreMarkers(transformed, prefix, literals);
 }
 
 /**
@@ -178,10 +222,7 @@ function withProtectedNodeLabels(
 
 	const transformed = transformSyntax(protectedLine);
 
-	return transformed.replace(
-		new RegExp(`${prefix}(\\d+)__`, 'g'),
-		(_match, index) => labels[Number(index)] ?? '',
-	);
+	return restoreMarkers(transformed, prefix, labels);
 }
 
 /**
@@ -264,10 +305,7 @@ export function replaceSyntaxZenkaku(
 			s = s.replace(/--＞/g, '-->');
 			s = s.replace(/→/g, '-->');
 			s = s.replace(/==＞/g, '==>');
-			s = s.replace(
-				new RegExp(`${edgePrefix}(\\d+)__`, 'g'),
-				(_match, index) => edgeLabels[Number(index)] ?? '',
-			);
+			s = restoreMarkers(s, edgePrefix, edgeLabels);
 
 			// 構文位置の全角コロン（ラベル本文は上記で保護済み）
 			s = s.replace(/(>>|-->>|->|-->|--|==|--x|-x)：/g, '$1: ');
@@ -443,6 +481,15 @@ export function autoCloseBlocks(lines: string[]): {
  * Mermaidコード全体の自動修復を実行するメイン純粋関数
  */
 export function repairMermaidCode(rawInput: string): MermaidRepairResult {
+	if (rawInput.length > MAX_REPAIR_INPUT_LENGTH) {
+		return {
+			originalCode: rawInput,
+			repairedCode: rawInput,
+			isModified: false,
+			changes: [],
+			error: `入力が大きすぎるため自動修復を行いませんでした（上限${MAX_REPAIR_INPUT_LENGTH.toLocaleString('ja-JP')}文字）`,
+		};
+	}
 	const changes: RepairChange[] = [];
 
 	// Step 1: フェンス・会話文の抽出

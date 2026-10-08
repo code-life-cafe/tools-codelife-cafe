@@ -5,6 +5,7 @@ import test, { describe } from 'node:test';
 import {
 	autoCloseBlocks,
 	extractMermaidCode,
+	MAX_REPAIR_INPUT_LENGTH,
 	normalizeSmartQuotes,
 	repairMermaidCode,
 	replaceSyntaxZenkaku,
@@ -547,4 +548,53 @@ test('sequence: actor IDの空白・Unicode記号で本文保護を迂回しな�
 			input.replace('Bob 🐱 → Alice 🦊:', 'Bob 🐱 --> Alice 🦊:'),
 		);
 	}
+});
+
+// ============================================================
+// 回帰: 長いアンダースコア列でのマーカー再走査・巨大RegExp生成
+// ============================================================
+
+test('replaceSyntaxZenkaku: 4万個のアンダースコア+文字列リテラルでも例外なく本文を保持する', () => {
+	const line = `A${'_'.repeat(40_000)}MERMAID_STR_ --> B["a：b"]`;
+	const result = replaceSyntaxZenkaku(line);
+	assert.equal(result, line);
+	const quoted = `${'_'.repeat(40_000)}MERMAID_STR_ "x：y" → B`;
+	assert.equal(replaceSyntaxZenkaku(quoted), quoted.replace('→', '-->'));
+});
+
+test('replaceSyntaxZenkaku: 4万アンダースコア+1万個の引用リテラルでも例外なく完了し出力が膨張しない', () => {
+	const literals = Array.from({ length: 10_000 }, (_, i) => `"a：${i}"`).join(
+		' ',
+	);
+	const line = `${'_'.repeat(40_000)}MERMAID_STR_ ${literals} → B`;
+	const result = replaceSyntaxZenkaku(line);
+	assert.equal(result, line.replace('→', '-->'));
+	assert.ok(result.length < line.length + 10);
+});
+
+test('replaceSyntaxZenkaku: マーカー風テキストと実リテラルが衝突しても復元を取り違えない', () => {
+	const nonceFakes = '__MERMAID_STR_0_0__ __MERMAID_STR_1_0__ __MERMAID_STR_2_';
+	assert.equal(
+		replaceSyntaxZenkaku(`A["本文：1"] --> ${nonceFakes} → "x：y"`),
+		`A["本文：1"] --> ${nonceFakes} --> "x：y"`,
+	);
+	for (const n of [1, 2, 3, 10]) {
+		const fake = `${'_'.repeat(n)}MERMAID_STR_0__`;
+		const line = `A["本文：1"] --> ${fake} → "x：y"`;
+		assert.equal(
+			replaceSyntaxZenkaku(line),
+			`A["本文：1"] --> ${fake} --> "x：y"`,
+		);
+	}
+});
+
+test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', () => {
+	const input = `flowchart TD\n${'A --> B\n'.repeat(15_000)}`;
+	assert.ok(input.length > MAX_REPAIR_INPUT_LENGTH);
+	const result = repairMermaidCode(input);
+	assert.equal(result.isModified, false);
+	assert.equal(result.repairedCode, input);
+	assert.deepEqual(result.changes, []);
+	assert.match(result.error ?? '', /入力が大きすぎる/);
+	assert.equal(repairMermaidCode('flowchart TD\nA --> B').error, undefined);
 });

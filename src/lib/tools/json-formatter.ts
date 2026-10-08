@@ -51,6 +51,17 @@ class BigIntLiteral {
 	}
 }
 
+/**
+ * ネスト段数の上限。既存の回帰テスト（5000段）を許容しつつ、
+ * 数千段超の入力が整形時にインデントで二乗オーダーに膨張するのを防ぐ。
+ */
+const MAX_NESTING_DEPTH = 5000;
+/** 整形後の推定出力文字数の上限（2Mi文字）。文字列を組み立てる前に失敗させる */
+const MAX_PROJECTED_OUTPUT_LENGTH = 2 * 1024 * 1024;
+
+/** 構文エラーではなく、安全上限（ネスト深さ・出力サイズ）超過を表すエラー */
+class JsonLimitError extends Error {}
+
 class JsonSyntaxError extends Error {
 	readonly position: number;
 	constructor(message: string, position: number) {
@@ -320,6 +331,11 @@ function parseJsonPreservingIntegers(text: string): unknown {
 	}
 
 	while (!done) {
+		if (stack.length > MAX_NESTING_DEPTH) {
+			throw new JsonLimitError(
+				`JSONのネストが深すぎます（上限${MAX_NESTING_DEPTH}段）`,
+			);
+		}
 		const frame = stack[stack.length - 1];
 		skipWhitespace();
 		if (frame.kind === 'object') {
@@ -426,6 +442,96 @@ function parseJsonPreservingIntegers(text: string): unknown {
 }
 
 /**
+ * 整形後の出力文字数を、文字列を1文字も組み立てる前に反復走査で見積もり、
+ * 上限を超えるなら JsonLimitError を投げる。スカラー・キー・区切り・インデントの
+ * 全てを含み、超過した時点で走査を打ち切る（巨大スカラーでも迂回できない）。
+ */
+function assertProjectedOutputWithinLimit(
+	root: unknown,
+	indentLength: number,
+): void {
+	const tooLarge = (): never => {
+		throw new JsonLimitError(
+			'整形後の出力が大きすぎます。ネストを浅くするか、インデントを小さくするか、圧縮を使用してください',
+		);
+	};
+	let total = 0;
+	const add = (n: number): void => {
+		total += n;
+		if (total > MAX_PROJECTED_OUTPUT_LENGTH) tooLarge();
+	};
+	/** JSON.stringify(s).length を一時文字列を作らずに数える（引用符込み） */
+	const stringLength = (s: string): number => {
+		let n = 2;
+		for (let i = 0; i < s.length; i++) {
+			const c = s.charCodeAt(i);
+			if (c === 0x22 || c === 0x5c) {
+				n += 2;
+			} else if (c < 0x20) {
+				// \b \t \n \f \r は2文字、それ以外の制御文字は \u00XX の6文字
+				n += c === 8 || c === 9 || c === 10 || c === 12 || c === 13 ? 2 : 6;
+			} else if (c >= 0xd800 && c <= 0xdbff) {
+				const next = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+				if (next >= 0xdc00 && next <= 0xdfff) {
+					n += 2; // 正しいサロゲートペアはそのまま出力される
+					i++;
+				} else {
+					n += 6; // 孤立した上位サロゲートは \udXXX
+				}
+			} else if (c >= 0xdc00 && c <= 0xdfff) {
+				n += 6; // 孤立した下位サロゲート
+			} else {
+				n += 1;
+			}
+			// 巨大文字列でも走査中に打ち切る
+			if (total + n > MAX_PROJECTED_OUTPUT_LENGTH) tooLarge();
+		}
+		return n;
+	};
+
+	const work: [unknown, number][] = [[root, 0]];
+	while (work.length > 0) {
+		const [val, depth] = work.pop() as [unknown, number];
+		if (val instanceof BigIntLiteral) {
+			add(val.digits.length);
+		} else if (typeof val === 'string') {
+			add(stringLength(val));
+		} else if (typeof val === 'number') {
+			add(JSON.stringify(val).length);
+		} else if (val === null || typeof val === 'boolean') {
+			add(val === false ? 5 : 4);
+		} else if (typeof val === 'object') {
+			const isArr = Array.isArray(val);
+			const keys = isArr ? null : Object.keys(val);
+			const n = isArr ? val.length : (keys as string[]).length;
+			if (n === 0) {
+				add(2);
+				continue;
+			}
+			if (indentLength) {
+				// "[\n" + 各要素のインデント + 要素間",\n" + "\n" + 閉じインデント + "]"
+				add(
+					4 +
+						2 * (n - 1) +
+						n * indentLength * (depth + 1) +
+						indentLength * depth,
+				);
+			} else {
+				add(2 + (n - 1)); // 括弧 + カンマ
+			}
+			if (keys) {
+				for (const k of keys) {
+					add(stringLength(k) + (indentLength ? 2 : 1)); // ": " / ":"
+					work.push([(val as Record<string, unknown>)[k], depth + 1]);
+				}
+			} else {
+				for (const item of val as unknown[]) work.push([item, depth + 1]);
+			}
+		}
+	}
+}
+
+/**
  * stringifyPreservingIntegers内部の「レンダリング中のコンテナ」1個を表す。
  * 再帰呼び出しの代わりにこれをスタックへ積むことで、parseJsonPreservingIntegers
  * と同様に深いネストでもコールスタックを消費しない。
@@ -479,6 +585,8 @@ function stringifyPreservingIntegers(
 			});
 		}
 	};
+
+	assertProjectedOutputWithinLimit(value, indentUnit.length);
 
 	const closeFrame = (frame: RenderFrame, depth: number): string => {
 		if (frame.parts.length === 0) return frame.kind === 'array' ? '[]' : '{}';
@@ -583,6 +691,9 @@ export function formatJson(
 		);
 		return { success: true, output: formatted };
 	} catch (e) {
+		if (e instanceof JsonLimitError) {
+			return { success: false, output: input, error: e.message };
+		}
 		const error = e as JsonSyntaxError;
 		return {
 			success: false,
@@ -602,6 +713,9 @@ export function minifyJson(input: string): FormatResult {
 		const minified = stringifyPreservingIntegers(parsed, '');
 		return { success: true, output: minified };
 	} catch (e) {
+		if (e instanceof JsonLimitError) {
+			return { success: false, output: input, error: e.message };
+		}
 		const error = e as Error;
 		return {
 			success: false,
