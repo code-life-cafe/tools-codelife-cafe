@@ -107,4 +107,69 @@ test.describe('カラーコード変換ツール', () => {
 		await expect(page.getByLabel('カラーピッカー')).toBeVisible();
 		await expect(page.getByTestId('color-results')).toBeVisible();
 	});
+	for (const width of [320, 375, 390, 1440]) {
+		test(`${width}px幅で長いRGBA/HSLA/CMYKの全文が省略されず横はみ出しもないこと`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize({ width, height: 800 });
+			const toolPage = createToolPage('color');
+			await toolPage.goto();
+
+			const input = page.getByLabel('カラーコード入力');
+			await input.fill('');
+			await input.fill('rgba(255, 0, 0, 0.5)');
+
+			for (const key of ['rgb', 'hsl', 'cmyk']) {
+				const value = page.getByTestId(`color-result-${key}-value`);
+				await expect(value).toBeVisible();
+				// 省略(truncate)されず、全文が収まっていること
+				const clipped = await value.evaluate(
+					(el) => el.scrollWidth > el.clientWidth,
+				);
+				expect(clipped).toBe(false);
+				const style = await value.evaluate((el) => {
+					const s = getComputedStyle(el);
+					return { overflow: s.overflow, textOverflow: s.textOverflow };
+				});
+				expect(style.textOverflow).not.toBe('ellipsis');
+			}
+
+			const noPageOverflow = await page.evaluate(
+				() =>
+					document.documentElement.scrollWidth <=
+					document.documentElement.clientWidth,
+			);
+			expect(noPageOverflow).toBe(true);
+		});
+	}
+
+	test('RGBA入力の全文がコピーされ、コピーボタンが形式名で識別できること', async ({
+		page,
+		createToolPage,
+		context,
+	}) => {
+		await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+		const toolPage = createToolPage('color');
+		await toolPage.goto();
+
+		const input = page.getByLabel('カラーコード入力');
+		await input.fill('');
+		await input.fill('rgba(255, 0, 0, 0.5)');
+
+		const rgbText = (
+			await page.getByTestId('color-result-rgb-value').innerText()
+		).trim();
+		expect(rgbText).toContain('0.5');
+
+		for (const name of ['HEX', 'RGB', 'HSL', 'CMYK']) {
+			await expect(
+				page.getByRole('button', { name: `${name}をコピー` }),
+			).toBeVisible();
+		}
+
+		await page.getByRole('button', { name: 'RGBをコピー' }).click();
+		const clip = await page.evaluate(() => navigator.clipboard.readText());
+		expect(clip).toBe(rgbText);
+	});
 });
