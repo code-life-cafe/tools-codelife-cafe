@@ -1,10 +1,14 @@
 import { AlertTriangle, ImageIcon, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { decodeFrame, terminateWorker } from '@/lib/tools/qr-reader';
+import {
+	decodeFrame,
+	evaluateCameraDetection,
+	type ScanContinuityState,
+	terminateWorker,
+} from '@/lib/tools/qr-reader';
 
 const DECODE_INTERVAL_MS = 200; // 150-250ms の範囲でスロットリング
-const SAME_VALUE_DEDUPE_MS = 1500;
 
 type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
@@ -33,8 +37,9 @@ export default function CameraScanner({
 	const rafRef = useRef<number | null>(null);
 	const decodingRef = useRef(false); // Worker への同時リクエストを1件までに制限
 	const cancelledRef = useRef(false); // getUserMedia 応答待ち中のアンマウント/停止を検知
+	const sessionRef = useRef(0);
 	const lastDecodeAtRef = useRef(0);
-	const lastValueRef = useRef<{ value: string; at: number } | null>(null);
+	const scanStateRef = useRef<ScanContinuityState>(null);
 	const onDetectedRef = useRef(onDetected);
 	onDetectedRef.current = onDetected;
 	const [flash, setFlash] = useState(false);
@@ -47,6 +52,8 @@ export default function CameraScanner({
 
 	// --- カメラ停止（トラック停止 + Worker 終了） ---
 	const stopCamera = useCallback(() => {
+		sessionRef.current++;
+		scanStateRef.current = null;
 		if (rafRef.current !== null) {
 			cancelAnimationFrame(rafRef.current);
 			rafRef.current = null;
@@ -104,30 +111,34 @@ export default function CameraScanner({
 			}
 
 			decodingRef.current = true;
+			const session = sessionRef.current;
 			decodeFrame(imageData)
 				.then((symbols) => {
-					if (symbols.length === 0) return;
-					const value = symbols[0].text;
-					const last = lastValueRef.current;
-					const nowMs = Date.now();
-					if (
-						last &&
-						last.value === value &&
-						nowMs - last.at < SAME_VALUE_DEDUPE_MS
-					) {
-						return;
-					}
-					lastValueRef.current = { value, at: nowMs };
+					if (session !== sessionRef.current) return;
+					const value = symbols[0]?.text ?? null;
+					const { isNewScan, nextState } = evaluateCameraDetection(
+						scanStateRef.current,
+						value,
+						Date.now(),
+					);
+					scanStateRef.current = nextState;
+					if (!isNewScan || value === null) return;
 					setFlash(true);
 					if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
 					flashTimeoutRef.current = setTimeout(() => setFlash(false), 250);
 					onDetectedRef.current(value);
 				})
 				.catch(() => {
+					if (session !== sessionRef.current) return;
 					// デコードエラーはフレーム単位で無視して継続
+					scanStateRef.current = evaluateCameraDetection(
+						scanStateRef.current,
+						undefined,
+						Date.now(),
+					).nextState;
 				})
 				.finally(() => {
-					decodingRef.current = false;
+					if (session === sessionRef.current) decodingRef.current = false;
 				});
 		};
 		rafRef.current = requestAnimationFrame(loop);
@@ -140,6 +151,8 @@ export default function CameraScanner({
 		}
 		setStatus('starting');
 		cancelledRef.current = false;
+		const session = ++sessionRef.current;
+		scanStateRef.current = null;
 		try {
 			const stream = await navigator.mediaDevices.getUserMedia({
 				video: { facingMode: { ideal: 'environment' } },
@@ -148,7 +161,7 @@ export default function CameraScanner({
 			// 許可待ちの間にアンマウント/モード切替/非表示でstopCameraが
 			// 先に呼ばれている場合、このストリームをバックグラウンドで
 			// 動かし続けないよう即座に破棄する
-			if (cancelledRef.current) {
+			if (cancelledRef.current || session !== sessionRef.current) {
 				for (const track of stream.getTracks()) {
 					track.stop();
 				}
@@ -161,16 +174,17 @@ export default function CameraScanner({
 					// 一部ブラウザは play() を Promise 拒否するが再生自体は継続する
 				});
 			}
-			if (cancelledRef.current) {
+			if (cancelledRef.current || session !== sessionRef.current) {
 				for (const track of stream.getTracks()) {
 					track.stop();
 				}
-				streamRef.current = null;
+				if (streamRef.current === stream) streamRef.current = null;
 				return;
 			}
 			setStatus('active');
 			captureAndDecodeLoop();
 		} catch (err) {
+			if (session !== sessionRef.current) return;
 			if (
 				err instanceof DOMException &&
 				(err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
