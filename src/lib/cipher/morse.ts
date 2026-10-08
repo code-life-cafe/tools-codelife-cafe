@@ -1,4 +1,4 @@
-import type { CipherResult } from './types.ts';
+import type { MorseDecodeResult, MorseEncodeResult } from './types.ts';
 
 const MORSE_TABLE: Record<string, string> = {
 	// Letters
@@ -64,18 +64,23 @@ const REVERSE_MORSE_TABLE: Record<string, string> = Object.fromEntries(
 	Object.entries(MORSE_TABLE).map(([char, morse]) => [morse, char]),
 );
 
-export function morseEncode(input: string): CipherResult {
-	const words = input.toUpperCase().split(/\s+/);
+export function morseEncode(input: string): MorseEncodeResult {
+	const words = input.split(/\s+/);
+	const unsupported: string[] = [];
 
-	const encodedWords = words.map((word) => {
-		return (
-			Array.from(word)
-				.map((char) => MORSE_TABLE[char] || '') // skip unknown silently if we just return ''
-				// Let's filter out empty strings to avoid extra spaces
-				.filter(Boolean)
-				.join(' ')
-		);
-	});
+	const encodedWords = words.map((word) =>
+		Array.from(word)
+			.map((char) => {
+				const key = /^[a-z]$/.test(char) ? char.toUpperCase() : char;
+				const code = Object.hasOwn(MORSE_TABLE, key)
+					? MORSE_TABLE[key]
+					: undefined;
+				if (!code) unsupported.push(char);
+				return code;
+			})
+			.filter(Boolean)
+			.join(' '),
+	);
 
 	// Filter out empty words and join with ' / '
 	const output = encodedWords.filter(Boolean).join(' / ');
@@ -85,22 +90,32 @@ export function morseEncode(input: string): CipherResult {
 		algorithm: 'morse',
 		inputLength: input.length,
 		outputLength: output.length,
+		unsupportedChars: [...new Set(unsupported)],
+		unsupportedCount: unsupported.length,
 	};
 }
 
-export function morseDecode(input: string): CipherResult {
+export function morseDecode(input: string): MorseDecodeResult {
 	// Morse decoder needs to handle words split by ' / ' and letters split by ' '
 	const words = input.split('/').map((w) => w.trim());
+	const unknown: string[] = [];
 
-	const decodedWords = words.map((word) => {
-		const letters = word.split(/\s+/);
-		return letters
+	const decodedWords = words.map((word) =>
+		word
+			.split(/\s+/)
 			.map((morseChar) => {
 				if (!morseChar) return '';
-				return REVERSE_MORSE_TABLE[morseChar] || '?';
+				const char = Object.hasOwn(REVERSE_MORSE_TABLE, morseChar)
+					? REVERSE_MORSE_TABLE[morseChar]
+					: undefined;
+				if (char === undefined) {
+					unknown.push(morseChar);
+					return '?';
+				}
+				return char;
 			})
-			.join('');
-	});
+			.join(''),
+	);
 
 	const output = decodedWords.filter(Boolean).join(' ');
 
@@ -109,5 +124,7 @@ export function morseDecode(input: string): CipherResult {
 		algorithm: 'morse',
 		inputLength: input.length,
 		outputLength: output.length,
+		unknownCodes: [...new Set(unknown)],
+		unknownCount: unknown.length,
 	};
 }
