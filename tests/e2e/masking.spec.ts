@@ -90,3 +90,27 @@ test.describe('Personal Info Masking Tool', () => {
 		expect(heightAfter).toBe(heightBefore);
 	});
 });
+
+test.describe('Personal Info Masking Tool - FAQとUIの整合', () => {
+	test('FAQの記号の説明が実際のマスク文字の選択肢と一致する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('masking');
+		await toolPage.goto();
+
+		// 実UIの選択肢は * と ● の2つだけ
+		await page.getByRole('combobox').first().click();
+		const options = page.getByRole('option');
+		await expect(options).toHaveCount(2);
+		await expect(options.nth(0)).toContainText('*');
+		await expect(options.nth(1)).toContainText('●');
+		await page.keyboard.press('Escape');
+
+		// FAQは任意の文字列を指定できるとは説明しない
+		const body = page.locator('body');
+		await expect(body).toContainText('アスタリスク');
+		await expect(body).toContainText('黒丸');
+		await expect(body).not.toContainText('お好みの伏字記号や文字列を指定可能');
+	});
+});
