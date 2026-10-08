@@ -308,6 +308,193 @@ function withProtectedStrings(
 }
 
 /**
+ * ノード定義 `ID<開き括弧>本文<閉じ括弧>` の本文を protect の戻り値へ置換する。
+ * 以前の正規表現
+ *   (\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<]|>)([\s\S]*?)
+ *   (\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=<後続>)
+ * と同じ結果を線形時間で返す。旧実装は未対応の開き括弧ごとに後続全体を再走査し、
+ * 長いID連続でも開始位置ごとに短いIDへバックトラックしていた。
+ *   - 閉じ括弧の候補（括弧種別 + 後続lookahead成立）は開き側と無関係なので、
+ *     位置ごとに1回だけ求め、各開き括弧は「oEnd以降で最初の候補」をO(1)で引く。
+ *   - IDは開き括弧の直前まで続く連続(最大長)以外は必ず失敗するため、
+ *     各開始位置の候補は高々2つ(ASCII語連続 / 除外文字を含まない連続)で、
+ *     開き括弧位置ごとの結果はメモ化する。
+ */
+export function protectNodeLabelBodies(
+	s: string,
+	protect: (content: string) => string,
+): string {
+	const n = s.length;
+	const code = (i: number): number => s.charCodeAt(i);
+	const isAsciiWord = (i: number): boolean => {
+		const c = code(i);
+		return (
+			(c >= 48 && c <= 57) ||
+			(c >= 65 && c <= 90) ||
+			(c >= 97 && c <= 122) ||
+			c === 95
+		);
+	};
+	const wsTest = /\s/;
+	const isWs = new Uint8Array(n + 1);
+	for (let i = 0; i < n; i++) isWs[i] = wsTest.test(s[i]) ? 1 : 0;
+
+	// 後ろ向きに各種連続の終端を求める
+	const wsEnd = new Int32Array(n + 2);
+	const wordEnd = new Int32Array(n + 2); // [\w-] の連続
+	const idEnd = new Int32Array(n + 2); // [A-Za-z0-9_] の連続
+	const classEnd = new Int32Array(n + 2); // [^\s\->|;:[({] の連続
+	const dashOk = new Uint8Array(n + 2); // ー+ の直後が > / ＞
+	wsEnd[n] = wsEnd[n + 1] = wordEnd[n] = wordEnd[n + 1] = n;
+	idEnd[n] = idEnd[n + 1] = classEnd[n] = classEnd[n + 1] = n;
+	const excluded = '->|;:[({';
+	for (let i = n - 1; i >= 0; i--) {
+		wsEnd[i] = isWs[i] ? wsEnd[i + 1] : i;
+		wordEnd[i] = isAsciiWord(i) || s[i] === '-' ? wordEnd[i + 1] : i;
+		idEnd[i] = isAsciiWord(i) ? idEnd[i + 1] : i;
+		classEnd[i] = isWs[i] || excluded.includes(s[i]) ? i : classEnd[i + 1];
+		if (s[i] === 'ー') {
+			dashOk[i] =
+				s[i + 1] === 'ー'
+					? dashOk[i + 1]
+					: s[i + 1] === '>' || s[i + 1] === '＞'
+						? 1
+						: 0;
+		}
+	}
+
+	// 後続lookahead: (?::::[\w-]+)?\s*(?:[\w-]+@\s*)?(?:接続子|区切り|行末)
+	const altAt = new Uint8Array(n + 1);
+	const altPrefix = new Int32Array(n + 2);
+	for (let z = 0; z <= n; z++) {
+		let ok = z === n;
+		if (!ok) {
+			const c = s[z];
+			const c1 = s[z + 1];
+			ok =
+				(c === '-' && (c1 === '-' || c1 === '.')) ||
+				(c === '=' && c1 === '=') ||
+				(c === '~' && c1 === '~' && s[z + 2] === '~') ||
+				(c === '<' && (c1 === '-' || c1 === '=')) ||
+				((c === 'o' || c === 'x') &&
+					((c1 === '-' && s[z + 2] === '-') ||
+						(c1 === '=' && s[z + 2] === '='))) ||
+				c === '→' ||
+				c === '&' ||
+				c === ';' ||
+				(c === 'ー' && dashOk[z] === 1);
+		}
+		altAt[z] = ok ? 1 : 0;
+		altPrefix[z + 1] = altPrefix[z] + altAt[z];
+	}
+	/** クラス名の後: \s*(?:[\w-]+@\s*)?ALT */
+	const afterClass = (y: number): boolean => {
+		const w = wsEnd[y];
+		if (altAt[w]) return true;
+		if (w < n) {
+			const we = wordEnd[w];
+			if (we > w && we < n && s[we] === '@') return altAt[wsEnd[we + 1]] === 1;
+		}
+		return false;
+	};
+	const lookaheadOk = (x: number): boolean => {
+		if (afterClass(x)) return true;
+		if (s.startsWith(':::', x)) {
+			const y0 = x + 3;
+			const we0 = wordEnd[y0];
+			if (we0 > y0) {
+				// クラス名 = y0 から k(>=1) 文字。名前の途中(y<we0)では語連続が we0 まで続く
+				const lo = y0 + 1;
+				const hi = we0 - 1;
+				if (hi >= lo) {
+					const atSign =
+						we0 < n && s[we0] === '@' && altAt[wsEnd[we0 + 1]] === 1;
+					if (atSign || altPrefix[hi + 1] - altPrefix[lo] > 0) return true;
+				}
+				if (afterClass(we0)) return true;
+			}
+		}
+		return false;
+	};
+
+	// 閉じ括弧の候補長(0=候補なし)と、位置以降で最初の候補位置
+	const closeLen = new Uint8Array(n + 1);
+	const nextClose = new Int32Array(n + 2).fill(-1);
+	for (let e = n - 1; e >= 0; e--) {
+		const c = s[e];
+		let len = 0;
+		if (c === ']' || c === ')' || c === '}') {
+			if (s[e + 1] === c && lookaheadOk(e + 2)) len = 2;
+			else if (lookaheadOk(e + 1)) len = 1;
+		} else if (
+			(c === '/' || c === '\\' || c === '>') &&
+			s[e + 1] === ')' &&
+			s[e + 2] === ']' &&
+			lookaheadOk(e + 3)
+		) {
+			len = 3;
+		}
+		closeLen[e] = len;
+		nextClose[e] = len > 0 ? e : nextClose[e + 1];
+	}
+
+	// 開き括弧位置ごとの結果(メモ化): [oEnd, closeStart] / null
+	const memo = new Map<number, [number, number] | null>();
+	const openAt = (q: number): [number, number] | null => {
+		const cached = memo.get(q);
+		if (cached !== undefined) return cached;
+		const c = s[q];
+		const ends: number[] = [];
+		if (c === '[' || c === '(' || c === '{') {
+			if (s[q + 1] === c) ends.push(q + 2);
+			ends.push(q + 1);
+			if (c === '[' && s[q + 1] === '(' && '/\\<'.includes(s[q + 2] ?? '')) {
+				ends.push(q + 3);
+			}
+		} else if (c === '>') {
+			ends.push(q + 1);
+		}
+		let result: [number, number] | null = null;
+		for (const oEnd of ends) {
+			const e = oEnd <= n ? nextClose[oEnd] : -1;
+			if (e !== -1) {
+				result = [oEnd, e];
+				break;
+			}
+		}
+		memo.set(q, result);
+		return result;
+	};
+
+	let out = '';
+	let last = 0;
+	let p = 0;
+	while (p < n) {
+		const q1 =
+			isAsciiWord(p) && (p === 0 || !isAsciiWord(p - 1)) ? idEnd[p] : -1;
+		const q2 = classEnd[p] > p ? classEnd[p] : -1;
+		let q = q1;
+		let m = q1 > p && q1 < n ? openAt(q1) : null;
+		if (!m && q2 > p && q2 < n && q2 !== q1) {
+			q = q2;
+			m = openAt(q2);
+		}
+		if (!m) {
+			p++;
+			continue;
+		}
+		const [oEnd, e] = m;
+		const len = closeLen[e];
+		out += s.slice(last, q) + s.slice(q, oEnd);
+		out += protect(s.slice(oEnd, e));
+		out += s.slice(e, e + len);
+		last = e + len;
+		p = last;
+	}
+	return out + s.slice(last);
+}
+
+/**
  * 未クォートのノード定義（[...]、(...)、{...}等）のラベル本文を一時保護するヘルパー
  */
 function withProtectedNodeLabels(
@@ -320,13 +507,10 @@ function withProtectedNodeLabels(
 	// 例: A[ラベル], node1(ラベル), A{ラベル}, A([ラベル]), A[[ラベル]], A((ラベル))
 	// 閉じ括弧の直後は、インラインクラス（:::name）に続いて接続子・区切り・行末のいずれかが続く場合に限る。
 	// 接続子: -- / -. / == / ~~~（不可視リンク）/ <- <=（双方向）/ o-- x--（丸・バツ端）/ 全角矢印
-	const protectedLine = line.replace(
-		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<]|>)([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=(?::::[\w-]+)?\s*(?:[\w-]+@\s*)?(?:-{2}|-\.|={2}|~{3}|<[-=]|[ox](?:-{2}|={2})|→|ー+[>＞]|&|;|$))/g,
-		(_match, id, openBrackets, content, closeBrackets) => {
-			labels.push(content);
-			return `${id}${openBrackets}${prefix}${labels.length - 1}__${closeBrackets}`;
-		},
-	);
+	const protectedLine = protectNodeLabelBodies(line, (content) => {
+		labels.push(content);
+		return `${prefix}${labels.length - 1}__`;
+	});
 
 	const transformed = transformSyntax(protectedLine);
 
@@ -429,6 +613,78 @@ export function replaceSyntaxZenkaku(
 }
 
 /**
+ * `ID<open>本文<close>` を fn(id, 本文) の戻り値へ置換する。以前の正規表現
+ *   (\b[A-Za-z0-9_]+)<open>([\s\S]*?)<close>(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))
+ * と同じ結果を線形時間で返す。
+ *   - IDは語連続の先頭(\b)から連続の終端までで、直後が open のときだけ成立する
+ *     （語連続の途中や短いIDは必ず失敗するため試さない）。
+ *   - 閉じ括弧の候補（後続lookahead成立）を位置ごとに1回だけ求め、
+ *     各開き括弧は「本文開始以降で最初の候補」を事前計算から引く。
+ */
+function replaceBracketedNodes(
+	s: string,
+	open: string,
+	close: string,
+	fn: (id: string, content: string) => string,
+): string {
+	const n = s.length;
+	const isWord = (i: number): boolean => {
+		const c = s.charCodeAt(i);
+		return (
+			(c >= 48 && c <= 57) ||
+			(c >= 65 && c <= 90) ||
+			(c >= 97 && c <= 122) ||
+			c === 95
+		);
+	};
+	const wsTest = /\s/;
+	const wsEnd = new Int32Array(n + 2);
+	wsEnd[n] = wsEnd[n + 1] = n;
+	const idEnd = new Int32Array(n + 2);
+	idEnd[n] = idEnd[n + 1] = n;
+	for (let i = n - 1; i >= 0; i--) {
+		wsEnd[i] = wsTest.test(s[i]) ? wsEnd[i + 1] : i;
+		idEnd[i] = isWord(i) ? idEnd[i + 1] : i;
+	}
+	// \s*(?:--|==|-\.->|&|;|$) （-->, ---, ==> は -- / == に含まれる）
+	const followOk = (x: number): boolean => {
+		const z = wsEnd[x];
+		return (
+			z === n ||
+			s[z] === '&' ||
+			s[z] === ';' ||
+			s.startsWith('--', z) ||
+			s.startsWith('==', z) ||
+			s.startsWith('-.->', z)
+		);
+	};
+	const nextClose = new Int32Array(n + 2).fill(-1);
+	for (let e = n - 1; e >= 0; e--) {
+		nextClose[e] = s[e] === close && followOk(e + 1) ? e : nextClose[e + 1];
+	}
+
+	let out = '';
+	let last = 0;
+	let p = 0;
+	while (p < n) {
+		if (!isWord(p) || (p > 0 && isWord(p - 1))) {
+			p++;
+			continue;
+		}
+		const re = idEnd[p];
+		if (s[re] === open && re + 1 <= n && nextClose[re + 1] !== -1) {
+			const e = nextClose[re + 1];
+			out += s.slice(last, p) + fn(s.slice(p, re), s.slice(re + 1, e));
+			last = e + 1;
+			p = last;
+		} else {
+			p = re;
+		}
+	}
+	return out + s.slice(last);
+}
+
+/**
  * ノードラベル内に未クォートの丸括弧・角括弧・セミコロン・スラッシュ等が含まれている場合、
  * ラベル全体を安全に ["..."] で囲む
  */
@@ -436,34 +692,28 @@ export function safeQuoteNodeLabels(line: string): string {
 	let res = line;
 
 	// 1. 角括弧ノード: ID[...] を安全にクォート
-	res = res.replace(
-		/(\b[A-Za-z0-9_]+)\[([\s\S]*?)\](?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
-		(_match, id, content) => {
-			const trimmed = content.trim();
-			if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-				return `${id}[${content}]`;
-			}
-			if (/[();/:,\s[\]]/.test(trimmed)) {
-				return `${id}["${trimmed.replace(/"/g, "'")}"]`;
-			}
+	res = replaceBracketedNodes(res, '[', ']', (id, content) => {
+		const trimmed = content.trim();
+		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}[${content}]`;
-		},
-	);
+		}
+		if (/[();/:,\s[\]]/.test(trimmed)) {
+			return `${id}["${trimmed.replace(/"/g, "'")}"]`;
+		}
+		return `${id}[${content}]`;
+	});
 
 	// 2. 丸括弧ノード（角丸ノード）: ID(...)
-	res = res.replace(
-		/(\b[A-Za-z0-9_]+)\(([\s\S]*?)\)(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
-		(_match, id, content) => {
-			const trimmed = content.trim();
-			if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-				return `${id}(${content})`;
-			}
-			if (/[();/:,\s]/.test(trimmed)) {
-				return `${id}("${trimmed.replace(/"/g, "'")}")`;
-			}
+	res = replaceBracketedNodes(res, '(', ')', (id, content) => {
+		const trimmed = content.trim();
+		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}(${content})`;
-		},
-	);
+		}
+		if (/[();/:,\s]/.test(trimmed)) {
+			return `${id}("${trimmed.replace(/"/g, "'")}")`;
+		}
+		return `${id}(${content})`;
+	});
 
 	// 3. ER図の未クォート日本語リレーション名
 	res = res.replace(

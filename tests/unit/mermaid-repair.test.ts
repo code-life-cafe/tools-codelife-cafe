@@ -8,6 +8,7 @@ import {
 	MAX_REPAIR_INPUT_LENGTH,
 	normalizeSmartQuotes,
 	protectDashedEdgeLabels,
+	protectNodeLabelBodies,
 	repairMermaidCode,
 	replaceSyntaxZenkaku,
 	safeQuoteNodeLabels,
@@ -723,6 +724,282 @@ test('protectDashedEdgeLabels: `A -- x` の連鎖は隣り合う開始/終端で
 		runProtect(protectDashedEdgeLabels, mixed),
 		runProtect(referenceProtect, mixed),
 	);
+});
+
+// ============================================================
+// 回帰: ノード定義ラベル保護の単一パス化（未対応の開き括弧ごとの後続再走査を廃止）
+// ============================================================
+
+// 置換前の実装(正規表現)。単一パス版が同じ結果を返すことの仕様参照にする
+function referenceNodeLabels(
+	s: string,
+	protect: (content: string) => string,
+): string {
+	return s.replace(
+		/(\b[A-Za-z0-9_]+|[^\s\->|;:[({]+)(\[{1,2}|\({1,2}|\{{1,2}|\[\([/\\<]|>)([\s\S]*?)(\]{1,2}|\){1,2}|\}{1,2}|[/\\>]\)\])(?=(?::::[\w-]+)?\s*(?:[\w-]+@\s*)?(?:-{2}|-\.|={2}|~{3}|<[-=]|[ox](?:-{2}|={2})|→|ー+[>＞]|&|;|$))/g,
+		(_m, id, open, content, close) => `${id}${open}${protect(content)}${close}`,
+	);
+}
+
+function runNodeLabels(
+	fn: typeof referenceNodeLabels,
+	s: string,
+): { out: string; labels: string[] } {
+	const labels: string[] = [];
+	const out = fn(s, (c) => {
+		labels.push(c);
+		return `<${labels.length - 1}>`;
+	});
+	return { out, labels };
+}
+
+test('protectNodeLabelBodies: 従来の正規表現と同一の結果を返す(決定的ランダム入力)', () => {
+	const tokens = [
+		'A',
+		'node1',
+		'日本語',
+		'_',
+		'[',
+		'[[',
+		'(',
+		'((',
+		'{',
+		'{{',
+		'>',
+		'[(',
+		'[(/',
+		']',
+		']]',
+		')',
+		'))',
+		'}',
+		'}}',
+		'/)]',
+		'\\)]',
+		'>)]',
+		'/',
+		' ',
+		'  ',
+		'\n',
+		'-->',
+		'--',
+		'-.',
+		'==',
+		'~~~',
+		'<-',
+		'<=',
+		'o--',
+		'x==',
+		'→',
+		'ー>',
+		'ーー＞',
+		'&',
+		';',
+		':::cls',
+		':::c-1',
+		':::',
+		'id@',
+		'e1@',
+		'-',
+		':',
+		'|',
+		'ラベル',
+		'#',
+	];
+	let seed = 424242;
+	const rand = () => {
+		seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+		return seed;
+	};
+	for (let n = 0; n < 6000; n++) {
+		let s = '';
+		const len = 1 + (rand() % 12);
+		for (let k = 0; k < len; k++) s += tokens[rand() % tokens.length];
+		assert.deepEqual(
+			runNodeLabels(protectNodeLabelBodies, s),
+			runNodeLabels(referenceNodeLabels, s),
+			JSON.stringify(s),
+		);
+	}
+});
+
+test('protectNodeLabelBodies: 各ノード形状・日本語ラベル・クラス・エッジIDを従来どおり保護する', () => {
+	const cases: [string, string, string[]][] = [
+		['A[日本語ラベル] --> B', 'A[<0>] --> B', ['日本語ラベル']],
+		[
+			'A((円：ラベル)) --> B(丸) --> C{判断}',
+			'A((<0>)) --> B(<1>) --> C{<2>}',
+			['円：ラベル', '丸', '判断'],
+		],
+		['A>非対称] --> B', 'A>[<0>] --> B', ['非対称']],
+		[
+			'A[(DB)] --> B[/平行/] --> C[\\逆\\]',
+			'A[(<0>)] --> B[/<1>/] --> C[\\<2>\\]',
+			['DB', '平行', '逆'],
+		],
+		['A[ラベル]:::cls e1@--> B', 'A[<0>]:::cls e1@--> B', ['ラベル']],
+		['A{{六角形}}  ==> B', 'A{{<0>}}  ==> B', ['六角形']],
+	];
+	for (const [input, , labels] of cases) {
+		const actual = runNodeLabels(protectNodeLabelBodies, input);
+		const expected = runNodeLabels(referenceNodeLabels, input);
+		assert.deepEqual(actual, expected, input);
+		assert.ok(actual.labels.length > 0, input);
+		assert.ok(actual.labels.join('').includes(labels[0]), input);
+	}
+});
+
+test('replaceSyntaxZenkaku/repairMermaidCode: 閉じ括弧の無い A> / A[ / A( を大量に繰り返しても本文不変', () => {
+	for (const unit of ['A>', 'A[', 'A(', 'A{', 'A[(']) {
+		for (const count of [40_000, 80_000]) {
+			const body = unit.repeat(count);
+			const result = runNodeLabels(protectNodeLabelBodies, body);
+			assert.equal(result.out, body, unit);
+			assert.deepEqual(result.labels, [], unit);
+			assert.equal(replaceSyntaxZenkaku(body, 'other'), body, unit);
+		}
+	}
+	// 長いID連続(開き括弧なし)でも二乗にならず本文不変
+	const longId = 'A'.repeat(80_000);
+	assert.equal(replaceSyntaxZenkaku(longId, 'other'), longId);
+	assert.equal(
+		replaceSyntaxZenkaku('日'.repeat(80_000), 'other'),
+		'日'.repeat(80_000),
+	);
+	// repairMermaidCode は100k文字の入力上限内(80013文字)で本文を保持する
+	const input = `flowchart TD\n${'A>'.repeat(40_000)}`;
+	assert.ok(input.length <= MAX_REPAIR_INPUT_LENGTH);
+	const repaired = repairMermaidCode(input);
+	assert.equal(repaired.error, undefined);
+	assert.equal(repaired.repairedCode, input);
+});
+
+test('protectNodeLabelBodies: 未対応の開き括弧が大量にあっても後方の対応する閉じ括弧を保護する', () => {
+	const prefix = 'A>'.repeat(20_000);
+	const input = `${prefix} B[日本語：ラベル] --> C`;
+	const actual = runNodeLabels(protectNodeLabelBodies, input);
+	// 最初の `>` から対応する閉じ括弧まで(日本語ラベル含む)を1つの本文として保護する
+	assert.deepEqual(actual, runNodeLabels(referenceNodeLabels, input));
+	assert.equal(actual.labels.length, 1);
+	assert.ok(actual.labels[0].endsWith('日本語：ラベル'));
+});
+
+// ============================================================
+// 回帰: safeQuoteNodeLabels の ID[...] / ID(...) 照合の単一パス化
+// ============================================================
+
+// 置換前の実装(正規表現)。単一パス版が同じ結果を返すことの仕様参照にする
+function referenceSafeQuoteNodeLabels(line: string): string {
+	let res = line;
+	res = res.replace(
+		/(\b[A-Za-z0-9_]+)\[([\s\S]*?)\](?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
+		(_match, id, content) => {
+			const trimmed = content.trim();
+			if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+				return `${id}[${content}]`;
+			}
+			if (/[();/:,\s[\]]/.test(trimmed)) {
+				return `${id}["${trimmed.replace(/"/g, "'")}"]`;
+			}
+			return `${id}[${content}]`;
+		},
+	);
+	res = res.replace(
+		/(\b[A-Za-z0-9_]+)\(([\s\S]*?)\)(?=\s*(?:-->|---|==>|-\.->|--|==|&|;|$))/g,
+		(_match, id, content) => {
+			const trimmed = content.trim();
+			if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+				return `${id}(${content})`;
+			}
+			if (/[();/:,\s]/.test(trimmed)) {
+				return `${id}("${trimmed.replace(/"/g, "'")}")`;
+			}
+			return `${id}(${content})`;
+		},
+	);
+	// 3〜5 は未変更のため、ID[...] / ID(...) を含まない入力でのみ比較に使う
+	return res;
+}
+
+test('safeQuoteNodeLabels: ID[...] / ID(...) の引用は従来の正規表現と同一(決定的ランダム入力)', () => {
+	const tokens = [
+		'A',
+		'node1',
+		'_x',
+		'日本語',
+		'[',
+		']',
+		'(',
+		')',
+		'"',
+		"'",
+		' ',
+		'  ',
+		'\n',
+		'\t',
+		';',
+		'/',
+		':',
+		',',
+		'&',
+		'-->',
+		'---',
+		'==>',
+		'-.->',
+		'--',
+		'==',
+		'->',
+		'ラベル',
+		'#',
+	];
+	let seed = 20260101;
+	const rand = () => {
+		seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+		return seed;
+	};
+	for (let n = 0; n < 8000; n++) {
+		let s = '';
+		const len = 1 + (rand() % 12);
+		for (let k = 0; k < len; k++) s += tokens[rand() % tokens.length];
+		// ルール3〜5の対象外(日本語曜日・ER記号・日本語括弧ID)に当たらない入力のみを比較する
+		const expected = referenceSafeQuoteNodeLabels(s);
+		const actual = safeQuoteNodeLabels(s);
+		if (/[|}{]|\d{4}-\d{2}-\d{2}/.test(s)) continue;
+		// ルール5は ASCII/underscore 以外のID + (...) を補正するため、その形を含む入力は除外する
+		if (/[^\s\->[({;]*[^\sA-Za-z0-9_\->[({;]\(/.test(s)) continue;
+		assert.equal(actual, expected, JSON.stringify(s));
+	}
+});
+
+test('safeQuoteNodeLabels: 未対応の ID[ / ID( を大量に繰り返しても本文不変で、後方の対応する括弧は引用する', () => {
+	for (const unit of ['A[', 'A(', 'A[(']) {
+		for (const count of [40_000, 80_000]) {
+			const body = unit.repeat(count);
+			assert.equal(safeQuoteNodeLabels(body), body, unit);
+		}
+	}
+	const longId = 'A'.repeat(80_000);
+	assert.equal(safeQuoteNodeLabels(longId), longId);
+	const manyOpeners = `${'A['.repeat(2_000)} B[日本語 ラベル] --> C`;
+	assert.equal(
+		safeQuoteNodeLabels(manyOpeners),
+		referenceSafeQuoteNodeLabels(manyOpeners),
+	);
+	// 先頭の `A[` が最初の対応する `]` まで1つの本文になる(従来と同じ最左・最短の照合)
+	const input = `${'A['.repeat(5)} B[a b] --> C`;
+	assert.equal(safeQuoteNodeLabels(input), referenceSafeQuoteNodeLabels(input));
+	assert.equal(
+		safeQuoteNodeLabels('X[日本語 ラベル] --> Y(a b) --> Z'),
+		'X["日本語 ラベル"] --> Y("a b") --> Z',
+	);
+	// repairMermaidCode は100k文字の入力上限内で本文を保持する
+	for (const unit of ['A[', 'A(', 'A[(']) {
+		const input = `flowchart TD\n${unit.repeat(Math.floor(80_000 / unit.length))}`;
+		assert.ok(input.length <= MAX_REPAIR_INPUT_LENGTH);
+		const repaired = repairMermaidCode(input);
+		assert.equal(repaired.error, undefined);
+		assert.equal(repaired.repairedCode, input, unit);
+	}
 });
 
 test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', () => {
