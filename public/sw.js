@@ -160,6 +160,7 @@ self.addEventListener('fetch', (event) => {
 	// 静的アセット: Cache First
 	if (
 		url.pathname.startsWith('/_astro/') ||
+		url.pathname.startsWith('/vendor/onnx-wasm/') ||
 		url.pathname.match(
 			/\.(svg|png|jpg|jpeg|gif|woff|woff2|css|js|json|webmanifest)$/,
 		)

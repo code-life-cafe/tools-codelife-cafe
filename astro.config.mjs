@@ -4,6 +4,9 @@ import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
+import { runtimeAssetsPlugin } from './scripts/lib/onnx-runtime-assets.mjs';
+
+const runtimePlugin = await runtimeAssetsPlugin(process.cwd());
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,12 +20,13 @@ export default defineConfig({
 		}),
 	],
 	vite: {
-		plugins: [tailwindcss()],
+		plugins: [tailwindcss(), runtimePlugin],
 		// @jsquash/avif のマルチスレッド版 worker（avif_enc_mt.worker）は code-splitting を
 		// 伴うため、既定の iife worker 形式ではビルドできない。既存 worker（bg-remove /
 		// regex）はいずれも { type: 'module' } のため、ES 形式へ統一しても整合する。
 		worker: {
 			format: 'es',
+			plugins: () => [runtimePlugin],
 		},
 	},
 });
