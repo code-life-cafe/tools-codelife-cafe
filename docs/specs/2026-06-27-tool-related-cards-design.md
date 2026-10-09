@@ -49,7 +49,7 @@ export function getRelatedTools(toolId: string, limit = 3): ToolCatalogItem[]
 - なお補完してもなお 0 件なら空配列を返す（呼び出し側はセクションを描画しない）
 - 返り値は `ToolCatalogItem[]`（カード描画にそのまま渡せる）
 
-### 2. 表示（`src/components/common/ToolLayout.astro`）
+### 2. 表示（`src/components/tool/ToolLayout.astro`）
 
 - 既に `path` から `tool` を解決済み（`toolCatalog.find((t) => t.href === path)`）。
 - `tool` が解決でき、かつ `getRelatedTools(tool.id)` が 1 件以上を返す場合のみ、

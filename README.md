@@ -62,10 +62,12 @@
 | [画像のクロップ・回転・反転](https://tools.codelife.cafe/image-edit) | アスペクト比固定の切り抜き・任意角度回転・反転・一括ZIP出力（完全ローカル実行） |
 | [画像連結・結合](https://tools.codelife.cafe/image-merge) | 複数画像を縦・横・グリッドで1枚に結合。コンタクトシート作成・余白/背景色/並び替え対応（完全ローカル実行） |
 | [QRコード生成](https://tools.codelife.cafe/qr-generator) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
+| [暗号化QR生成・復号](https://tools.codelife.cafe/qr-encrypt) | テキストをパスフレーズでAES-256-GCM暗号化しQRコード化。QR読み取り＋パスフレーズで復号も可能（データは外部送信なし） |
 | [QRコード読み取り](https://tools.codelife.cafe/qr-reader) | カメラや画像ファイルからQRコードを読み取り。URL・Wi-Fi・連絡先も自動判定しCSV出力（完全ローカル実行） |
 | [Base64エンコード/デコード](https://tools.codelife.cafe/base64) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](https://tools.codelife.cafe/url-encoder) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
 | [URLパラメータ解析・編集](https://tools.codelife.cafe/url-parser) | URLをプロトコル・ホスト・パス・クエリ・ハッシュに分解し、パラメータを編集してURLを再生成（入力URLへの通信なし） |
+| [ドリップコーヒー抽出ガイド](https://tools.codelife.cafe/drip-coffee-guide) | V60・カリタなどドリップの注湯タイマー付きガイドと抽出記録。プリセット5種＋マイレシピ対応（ログイン不要・ブラウザ内保存） |
 | [ランダム並べ替え・グループ分け](https://tools.codelife.cafe/random-sort) | 改行区切りのリストをランダムに並べ替え、人数差が最大1になるよう均等にグループ分け（完全ローカル実行） |
 | [和暦⇔西暦変換](https://tools.codelife.cafe/wareki-converter) | 和暦（令和・平成等）と西暦のリアルタイム相互変換 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率（3%/5%/8%）・端数処理（切り捨て/四捨五入/切り上げ）対応 |
@@ -120,7 +122,7 @@
 |----------|------|
 | `npm install` | 依存パッケージをインストール |
 | `npm run dev` | 開発サーバーを起動（`localhost:4321`） |
-| `npm run build` | 本番用に静的ビルド＋SW生成（`dist/`） |
+| `npm run build` | 本番用に静的ビルド＋OGP画像・SW生成＋Pagesアセット検査（`dist/`） |
 | `npm run preview` | ビルド結果をローカルプレビュー |
 | `npm run check` | Astroの型チェックとBiome静的解析を実行 |
 | `npm run lint` | Biomeによるコードの静的解析（チェックのみ） |
