@@ -1253,7 +1253,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		id: 'drip-coffee-guide',
 		title: 'ドリップコーヒー抽出ガイド',
 		description:
-			'V60・カリタなどドリップの注湯タイマー付きガイドと抽出記録。プリセット3種＋マイレシピ対応。',
+			'V60・カリタなどドリップの注湯タイマー付きガイドと抽出記録。プリセット5種＋マイレシピ対応。',
 		href: '/drip-coffee-guide',
 		icon: 'Coffee',
 		categories: ['ユーティリティ'],
@@ -1277,7 +1277,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			inputs: 'レシピ選択、実際の豆量(g)、抽出記録（豆名・湯温・時間・TDS等）',
 			outputs: '注湯ステップごとのタイマーガイド、保存された抽出記録一覧',
 			options:
-				'プリセット3種（4:6メソッド／Hoffmann 1-Cup／ベーシック3投）またはマイレシピ',
+				'プリセット5種（4:6メソッド／Hoffmann 1-Cup／ベーシック3投／THE NEO BREW（V60 NEO）／Switch 新ハイブリッド）またはマイレシピ',
 		},
 	},
 	{
