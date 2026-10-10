@@ -792,7 +792,9 @@ function splitCompoundShape(
 	const close = pairs[open];
 	if (!close || !content.endsWith(close) || content.length < 2) return null;
 	const inner = content.slice(1, -1);
-	if (inner.includes(open) || inner.includes(close)) return null;
+	// 引用符で囲まれた本文は括弧を含んでいても曖昧さがない
+	const quoted = /^\s*"[^"]*"\s*$/.test(inner);
+	if (!quoted && (inner.includes(open) || inner.includes(close))) return null;
 	return { inner, open, close };
 }
 

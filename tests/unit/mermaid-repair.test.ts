@@ -1261,6 +1261,11 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels(quoted), quoted);
 	});
 
+	test('引用符付き本文が形状と同種の括弧を含んでも複合形状を保持する', () => {
+		const input = 'A(("a (b)")) --> B[["x[y]"]] --> C(["p (q)"]) --> D[("r [s]")]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
 	test('従来の単一括弧の修復は維持される', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
