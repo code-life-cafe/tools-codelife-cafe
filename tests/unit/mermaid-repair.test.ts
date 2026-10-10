@@ -1236,3 +1236,35 @@ test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', ()
 	assert.match(result.error ?? '', /入力が大きすぎる/);
 	assert.equal(repairMermaidCode('flowchart TD\nA --> B').error, undefined);
 });
+
+describe('複合括弧の形状（円・サブルーチン等）の保持', () => {
+	test('正常な円 ((開始)) とサブルーチン [[処理]] は修復で変化しない', () => {
+		const input = 'A((開始)) --> B[[処理]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+		const result = repairMermaidCode(`flowchart TD\n${input}`);
+		assert.ok(result.repairedCode.includes(input));
+		assert.ok(!result.repairedCode.includes('"(開始)"'));
+		assert.ok(!result.repairedCode.includes('"[処理]"'));
+	});
+
+	test('スタジアム ([x]) と円柱 [(x)] の形状も保持する', () => {
+		const input = 'A([開始]) --> B[(DB)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('複合括弧でも内側の特殊記号は本文だけを二重引用符で囲む', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A((a b)) --> B[[c; d]]'),
+			'A(("a b")) --> B[["c; d"]]',
+		);
+		const quoted = 'A(("a b")) --> B[["c d"]]';
+		assert.equal(safeQuoteNodeLabels(quoted), quoted);
+	});
+
+	test('従来の単一括弧の修復は維持される', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
+			'A["a (b)"] --> B("c d")',
+		);
+	});
+});

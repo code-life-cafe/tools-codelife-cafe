@@ -158,4 +158,33 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svgBtn).toBeEnabled({ timeout: 10000 });
 		await expect(pngBtn).toBeEnabled();
 	});
+
+	test('修復ONでも円・サブルーチン形状のラベルに余計な括弧が付かないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('mermaid');
+		await toolPage.goto();
+
+		const textarea = page.locator('textarea');
+		await textarea.fill('flowchart TD\nA((開始)) --> B[[処理]]');
+
+		const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+		if (await previewTab.isVisible()) {
+			await previewTab.click();
+		}
+
+		const svg = page
+			.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
+			.locator('svg')
+			.first();
+		await expect(svg).toBeVisible({ timeout: 10000 });
+		await expect(svg).toContainText('開始');
+		await expect(svg).toContainText('処理');
+		await expect(svg).not.toContainText('(開始)');
+		await expect(svg).not.toContainText('[処理]');
+		await expect(
+			page.getByText('AI構文・日本語全角記号エラーを自動修復しました'),
+		).toHaveCount(0);
+	});
 });

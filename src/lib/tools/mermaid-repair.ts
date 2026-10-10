@@ -780,6 +780,34 @@ function replaceBracketedNodes(
 }
 
 /**
+ * 複合括弧の形状（円 ((x)) / サブルーチン [[x]] / スタジアム ([x]) / 円柱 [(x)]）の
+ * 内側括弧を取り除いた本文を返す。形状でなければ null。
+ * 本文側に同種の括弧が残る場合はネストの判別ができないため形状とみなさない。
+ */
+function splitCompoundShape(
+	content: string,
+): { inner: string; open: string; close: string } | null {
+	const pairs: Record<string, string> = { '(': ')', '[': ']' };
+	const open = content[0];
+	const close = pairs[open];
+	if (!close || !content.endsWith(close) || content.length < 2) return null;
+	const inner = content.slice(1, -1);
+	if (inner.includes(open) || inner.includes(close)) return null;
+	return { inner, open, close };
+}
+
+const NEEDS_QUOTE_IN_SHAPE = /[();/:,\s[\]]/;
+
+function quoteShapeInner(inner: string): string {
+	const trimmed = inner.trim();
+	if (trimmed.startsWith('"') && trimmed.endsWith('"')) return inner;
+	if (NEEDS_QUOTE_IN_SHAPE.test(trimmed)) {
+		return `"${trimmed.replace(/"/g, "'")}"`;
+	}
+	return inner;
+}
+
+/**
  * ノードラベル内に未クォートの丸括弧・角括弧・セミコロン・スラッシュ等が含まれている場合、
  * ラベル全体を安全に ["..."] で囲む
  */
@@ -788,6 +816,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 1. 角括弧ノード: ID[...] を安全にクォート
 	res = replaceBracketedNodes(res, '[', ']', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}[${shape.open}${body}${shape.close}]`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}[${content}]`;
@@ -800,6 +833,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 2. 丸括弧ノード（角丸ノード）: ID(...)
 	res = replaceBracketedNodes(res, '(', ')', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}(${shape.open}${body}${shape.close})`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}(${content})`;
