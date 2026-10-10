@@ -1267,6 +1267,13 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels(input), input);
 	});
 
+	test('内部に生の引用符を含む不正な複合ラベルは引用符を正規化する', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A(("He said "hello"")) --> B[["x "y" z"]]'),
+			'A(("He said \'hello\'")) --> B[["x \'y\' z"]]',
+		);
+	});
+
 	test('従来の単一括弧の修復は維持される', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),

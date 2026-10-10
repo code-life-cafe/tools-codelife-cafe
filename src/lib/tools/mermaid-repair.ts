@@ -802,7 +802,12 @@ const NEEDS_QUOTE_IN_SHAPE = /[();/:,\s[\]]/;
 
 function quoteShapeInner(inner: string): string {
 	const trimmed = inner.trim();
-	if (trimmed.startsWith('"') && trimmed.endsWith('"')) return inner;
+	// 単一の正しい引用符文字列だけをそのまま保持する
+	if (/^"[^"]*"$/.test(trimmed)) return inner;
+	// 内部に生の引用符を含む不正なラベルは、外側を残して内部を正規化する
+	if (/^".*"$/s.test(trimmed)) {
+		return `"${trimmed.slice(1, -1).replace(/"/g, "'")}"`;
+	}
 	if (NEEDS_QUOTE_IN_SHAPE.test(trimmed)) {
 		return `"${trimmed.replace(/"/g, "'")}"`;
 	}
