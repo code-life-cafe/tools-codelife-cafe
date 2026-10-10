@@ -111,4 +111,49 @@ test.describe('Base64 Converter Tool', () => {
 		await expect(page.getByText('B.txt')).toBeVisible();
 		await expect(page.getByText('slow-A.txt')).toHaveCount(0);
 	});
+
+	test('a11y: 入力・出力・モード切替が日本語のアクセシブルネームで識別できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('base64');
+		await toolPage.goto();
+
+		const dirSwitch = page.getByRole('switch', { name: 'テキスト → Base64' });
+		const input = page.getByRole('textbox', {
+			name: /^入力 \(プレーンテキスト\)/,
+		});
+		const output = page.getByRole('textbox', { name: '変換結果' });
+		await expect(dirSwitch).toBeVisible();
+		await expect(input).toBeVisible();
+		await expect(output).toBeVisible();
+
+		// ラベルクリックで対象にフォーカス / 切替
+		await page.getByText('入力 (プレーンテキスト)').click();
+		await expect(input).toBeFocused();
+		await input.fill('こんにちは世界');
+		await expect(output).toHaveValue('44GT44KT44Gr44Gh44Gv5LiW55WM');
+
+		// キーボードでモード切替（名前は現在の方向に追従する）
+		await dirSwitch.focus();
+		await page.keyboard.press('Space');
+		await expect(
+			page.getByRole('switch', { name: 'Base64 → テキスト' }),
+		).toBeChecked();
+		await expect(
+			page.getByRole('textbox', { name: /^入力 \(Base64\)/ }),
+		).toBeVisible();
+
+		// ファイルタブ
+		await page.getByRole('tab', { name: 'ファイル変換' }).click();
+		await expect(page.getByLabel('ファイル入力')).toHaveCount(1);
+		const fileOutput = page.getByRole('textbox', { name: 'Base64 出力' });
+		await expect(fileOutput).toBeVisible();
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'a.txt',
+			mimeType: 'text/plain',
+			buffer: Buffer.from('hi'),
+		});
+		await expect(fileOutput).toHaveValue('data:text/plain;base64,aGk=');
+	});
 });
