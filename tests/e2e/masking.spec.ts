@@ -90,3 +90,35 @@ test.describe('Personal Info Masking Tool', () => {
 		expect(heightAfter).toBe(heightBefore);
 	});
 });
+
+test.describe('Personal Info Masking Tool - FAQとUIの整合', () => {
+	test('FAQの記号の説明が実際のマスク文字の選択肢と一致する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('masking');
+		await toolPage.goto();
+
+		// 実UIの選択肢は * と ● の2つだけ
+		await page.getByRole('combobox').first().click();
+		const options = page.getByRole('option');
+		await expect(options).toHaveCount(2);
+		await expect(options.nth(0)).toContainText('*');
+		await expect(options.nth(1)).toContainText('●');
+		await page.keyboard.press('Escape');
+
+		// 対象のFAQ回答が2択と任意文字列の指定不可を明示する
+		const faqAnswer = page
+			.locator('section[aria-labelledby="faq-heading"] dl > div')
+			.filter({
+				has: page.locator('dt', {
+					hasText: 'マスキングに使用する記号を変更できますか？',
+				}),
+			})
+			.locator('dd');
+		await expect(faqAnswer).toHaveCount(1);
+		await expect(faqAnswer).toHaveText(
+			'はい。「マスク文字」の設定から * （アスタリスク）と ●（黒丸）のいずれかを選べます。それ以外の記号や [MASK] のような任意の文字列は、現在は指定できません。',
+		);
+	});
+});
