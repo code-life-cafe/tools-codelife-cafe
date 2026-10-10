@@ -107,10 +107,18 @@ test.describe('Personal Info Masking Tool - FAQとUIの整合', () => {
 		await expect(options.nth(1)).toContainText('●');
 		await page.keyboard.press('Escape');
 
-		// FAQは任意の文字列を指定できるとは説明しない
-		const body = page.locator('body');
-		await expect(body).toContainText('アスタリスク');
-		await expect(body).toContainText('黒丸');
-		await expect(body).not.toContainText('お好みの伏字記号や文字列を指定可能');
+		// 対象のFAQ回答が2択と任意文字列の指定不可を明示する
+		const faqAnswer = page
+			.locator('section[aria-labelledby="faq-heading"] dl > div')
+			.filter({
+				has: page.locator('dt', {
+					hasText: 'マスキングに使用する記号を変更できますか？',
+				}),
+			})
+			.locator('dd');
+		await expect(faqAnswer).toHaveCount(1);
+		await expect(faqAnswer).toHaveText(
+			'はい。「マスク文字」の設定から * （アスタリスク）と ●（黒丸）のいずれかを選べます。それ以外の記号や [MASK] のような任意の文字列は、現在は指定できません。',
+		);
 	});
 });
