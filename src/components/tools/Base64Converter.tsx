@@ -180,12 +180,16 @@ export default function Base64Converter() {
 				{/* Text Tab */}
 				<TabsContent value="text" className="space-y-6 mt-0">
 					<div className="flex items-center gap-3 mb-4">
-						<Label className="text-sm font-medium whitespace-nowrap">
+						<Label
+							htmlFor="base64-direction"
+							className="text-sm font-medium whitespace-nowrap"
+						>
 							{direction === 'encode'
 								? 'テキスト → Base64'
 								: 'Base64 → テキスト'}
 						</Label>
 						<Switch
+							id="base64-direction"
 							checked={direction === 'decode'}
 							onCheckedChange={(checked) =>
 								setDirection(checked ? 'decode' : 'encode')
@@ -197,7 +201,10 @@ export default function Base64Converter() {
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<div className="flex justify-between items-center mb-2 min-h-9">
-								<Label className="text-sm font-medium block">
+								<Label
+									htmlFor="base64-text-input"
+									className="text-sm font-medium block"
+								>
 									入力 ({direction === 'encode' ? 'プレーンテキスト' : 'Base64'}
 									)
 								</Label>
@@ -208,6 +215,7 @@ export default function Base64Converter() {
 								)}
 							</div>
 							<Textarea
+								id="base64-text-input"
 								value={textInput}
 								onChange={(e) => setTextInput(e.target.value)}
 								placeholder={
@@ -221,7 +229,12 @@ export default function Base64Converter() {
 
 						<div>
 							<div className="flex items-center justify-between mb-2 min-h-9">
-								<Label className="text-sm font-medium">変換結果</Label>
+								<Label
+									htmlFor="base64-text-output"
+									className="text-sm font-medium"
+								>
+									変換結果
+								</Label>
 								<div className="flex gap-2">
 									{direction === 'decode' &&
 										textResult.output &&
@@ -248,6 +261,7 @@ export default function Base64Converter() {
 								</div>
 							</div>
 							<Textarea
+								id="base64-text-output"
 								value={textResult.error ? textResult.error : textResult.output}
 								readOnly
 								className={`min-h-[240px] font-mono-tool rounded-xl bg-muted/50 ${
@@ -276,7 +290,10 @@ export default function Base64Converter() {
 					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 						<div>
 							<div className="flex items-center mb-2 min-h-9">
-								<Label className="text-sm font-medium block">
+								<Label
+									htmlFor="base64-file-input"
+									className="text-sm font-medium block"
+								>
 									ファイル入力
 								</Label>
 							</div>
@@ -324,6 +341,7 @@ export default function Base64Converter() {
 									</div>
 								)}
 								<input
+									id="base64-file-input"
 									type="file"
 									className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
 									onChange={async (e) => {
@@ -339,7 +357,12 @@ export default function Base64Converter() {
 
 						<div>
 							<div className="flex items-center justify-between mb-2 min-h-9">
-								<Label className="text-sm font-medium">Base64 出力</Label>
+								<Label
+									htmlFor="base64-file-output"
+									className="text-sm font-medium"
+								>
+									Base64 出力
+								</Label>
 								<div className="flex gap-2">
 									<CopyButton text={fileOutput} />
 									<Button
@@ -357,6 +380,7 @@ export default function Base64Converter() {
 								</div>
 							</div>
 							<Textarea
+								id="base64-file-output"
 								value={fileOutput}
 								readOnly
 								placeholder="ファイルを選択するとBase64文字列が表示されます..."

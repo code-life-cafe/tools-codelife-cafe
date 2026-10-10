@@ -56,7 +56,7 @@ export function getRawStoreString(): string | null {
 }
 
 /**
- * ストアを読み込む。未保存なら初期値（プリセット3種のみ）で初期化して永続化する。
+ * ストアを読み込む。未保存なら初期値（プリセットのみ）で初期化して永続化する。
  * 破損JSONは初期化せず CorruptedStoreError を投げる。
  */
 export function loadStore(): BrewLogStore {

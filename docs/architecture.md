@@ -119,19 +119,23 @@ flowchart TD
     A1 --> A2[scripts/generate-webmcp-manifest.ts でWebMCPディスクリプタを生成]
     A2 --> B[astro build]
     B --> C[dist/ に静的HTML・JS・CSS・画像を出力]
-    C --> D[scripts/generate-og-images.mjs で OGP 画像を生成]
+    C --> C1[scripts/prepare-pages-runtime.mjs でONNX runtimeの静的コピーを除外]
+    C1 --> D[scripts/generate-og-images.mjs で OGP 画像を生成]
     D --> E[scripts/generate-sw.mjs]
     E --> F[public/sw.js のプレースホルダーを置換]
     F --> G[dist/sw.js を生成]
-    G --> H[Cloudflare Pages へデプロイ]
+    G --> G1[scripts/check-pages-assets.mjs で25MiB上限を検査]
+    G1 --> H[Cloudflare Pages へデプロイ]
     H --> I[ブラウザが静的アセットとして取得]
 ```
 
 - `npm run build` は、まず `scripts/copy-onnx-wasm.mjs` がAI推論用ONNX/WASMアセットを配置し、続いて `scripts/generate-webmcp-manifest.ts` が `src/lib/webmcp/registry.ts` の定義から `public/.well-known/webmcp/tools.generated.json` を生成します（development-guide.md §9.3 参照）。
 - その後 `astro build` が `dist/` へ静的HTML、Astro が生成した `/_astro/` 配下の JS/CSS/画像、各ページの成果物を出力します。
+- 続いて `scripts/prepare-pages-runtime.mjs` が、`dist/` 内のONNX runtime静的コピーをmanifest（サイズ・SHA-256）と照合したうえで削除します（runtimeは同一オリジンのR2配信ルートから提供するため）。
 - 続いて `scripts/generate-og-images.mjs` が `src/lib/tools/catalog.ts` のツール情報をもとに OGP 画像を生成します。
-- 最後に `scripts/generate-sw.mjs` が `dist/` を走査し、ページURLと `dist/_astro/` 配下の静的アセットURLを収集します。
+- 続いて `scripts/generate-sw.mjs` が `dist/` を走査し、ページURLと `dist/_astro/` 配下の静的アセットURLを収集します。
 - `scripts/generate-sw.mjs` は `public/sw.js` をテンプレートとして読み込み、`__HASH__`、`/* __ALL_PAGES__ */`、`/* __ALL_ASSETS__ */` をビルド結果に合わせて置換します。
+- 最後に `scripts/check-pages-assets.mjs` が、`dist/` 内のファイルがCloudflare Pagesの1ファイル25MiB上限を超えていないことを検査し、超過があればビルドを失敗させます。
 - 置換後の Service Worker は `dist/sw.js` として出力され、Cloudflare Pages では他の静的ファイルと同じく配信対象になります。
 - ブラウザ側では `src/layouts/BaseLayout.astro` から Service Worker 登録が行われ、`dist/sw.js` が静的アセット・ページのキャッシュ制御を担当します。
 
