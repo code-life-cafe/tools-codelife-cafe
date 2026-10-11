@@ -1294,6 +1294,18 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels(input), input);
 	});
 
+	test('複合ラベルの対にならないバッククォートは実体参照にして形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((`))'), 'A(("#96;"))');
+		assert.equal(safeQuoteNodeLabels('B[[`]]'), 'B[["#96;"]]');
+		assert.equal(safeQuoteNodeLabels('C([a`b])'), 'C(["a#96;b"])');
+		assert.equal(safeQuoteNodeLabels('D[("`")]'), 'D[("#96;")]');
+	});
+
+	test('複合ラベルのMarkdown文字列（対になる``）は保持する', () => {
+		const input = 'A(("`bold`")) --> B[["`x`"]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
 	test('従来の単一括弧の修復は維持される', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
