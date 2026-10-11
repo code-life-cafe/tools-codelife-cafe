@@ -811,10 +811,7 @@ function quoteShapeInner(inner: string): string {
 	// 先頭と末尾だけが ` の本文は Mermaid の Markdown 文字列として有効
 	const isMarkdownString = /^`[^`]+`$/.test(body);
 	// 単一の正しい引用符文字列だけをそのまま保持する（対にならない ` を含む場合を除く）
-	if (
-		/^"[^"]*"$/.test(trimmed) &&
-		(isMarkdownString || !body.includes('`'))
-	) {
+	if (/^"[^"]*"$/.test(trimmed) && (isMarkdownString || !body.includes('`'))) {
 		return inner;
 	}
 	// 許可リスト方式: 文字・数字・アンダースコアのみで予約語でない本文だけ素通しし、
