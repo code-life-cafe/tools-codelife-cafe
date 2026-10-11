@@ -808,7 +808,12 @@ function quoteShapeInner(inner: string): string {
 	if (/^".*"$/s.test(trimmed)) {
 		return `"${trimmed.slice(1, -1).replace(/"/g, "'")}"`;
 	}
-	if (NEEDS_QUOTE_IN_SHAPE.test(trimmed)) {
+	// 対になっていない生の引用符・先頭ハイフンも Mermaid が拒否するためクォートする
+	if (
+		NEEDS_QUOTE_IN_SHAPE.test(trimmed) ||
+		trimmed.includes('"') ||
+		trimmed.startsWith('-')
+	) {
 		return `"${trimmed.replace(/"/g, "'")}"`;
 	}
 	return inner;

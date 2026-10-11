@@ -1274,6 +1274,13 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		);
 	});
 
+	test('複合ラベルの対になっていない引用符・先頭ハイフンは本文ごとクォートする', () => {
+		assert.equal(safeQuoteNodeLabels('A((a"b))'), 'A(("a\'b"))');
+		assert.equal(safeQuoteNodeLabels('B[[a"b]]'), 'B[["a\'b"]]');
+		assert.equal(safeQuoteNodeLabels('A((-a))'), 'A(("-a"))');
+		assert.equal(safeQuoteNodeLabels('B[[-x]]'), 'B[["-x"]]');
+	});
+
 	test('従来の単一括弧の修復は維持される', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
