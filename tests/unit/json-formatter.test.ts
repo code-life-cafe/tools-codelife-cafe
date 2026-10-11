@@ -592,3 +592,52 @@ test('minifyJson: 構造の区切り(カンマ・コロン)を正確に数える
 	assert.equal(minifyJson(exact).success, true);
 	assert.equal(minifyJson(`[${ones},100]`).success, false);
 });
+
+// 監査B05: 先頭ゼロ付きの不正な数値は、整形・圧縮・構文検証のすべてで拒否する
+for (const input of [
+	'{"n":00000000000000001}',
+	'{"n":01}',
+	'[1,00]',
+	'{"n":-01}',
+]) {
+	test(`先頭ゼロ付き数値 ${input} は整形・圧縮・構文検証のすべてで拒否される`, () => {
+		const formatted = formatJson(input);
+		assert.equal(formatted.success, false);
+		assert.equal(formatted.output, input);
+		const minified = minifyJson(input);
+		assert.equal(minified.success, false);
+		assert.equal(minified.output, input);
+		assert.equal(validateJson(input).success, false);
+	});
+}
+
+test('formatJson: 先頭ゼロ付き数値のエラー位置は元入力の位置を指す', () => {
+	const input = '{"n":00000000000000001}';
+	const result = formatJson(input);
+	assert.equal(result.success, false);
+	// "0" の直後（2文字目のゼロ）で構文エラーとなる
+	assert.equal(result.errorPosition, input.indexOf('0') + 1);
+	assert.equal(
+		formatJson('[1,\n  00]').errorPosition,
+		'[1,\n  00]'.indexOf('00') + 1,
+	);
+});
+
+test('formatJson/minifyJson: 有効な 0・-0・大整数・負数・小数は誤って拒否しない', () => {
+	for (const input of [
+		'{"n":0}',
+		'{"n":-0}',
+		'{"n":0.5}',
+		'{"n":-1}',
+		'{"n":9007199254740993}',
+		'{"n":-9007199254740993}',
+	]) {
+		assert.equal(formatJson(input).success, true, input);
+		assert.equal(minifyJson(input).success, true, input);
+		assert.equal(validateJson(input).success, true, input);
+	}
+	assert.equal(
+		minifyJson('{"n":-9007199254740993}').output,
+		'{"n":-9007199254740993}',
+	);
+});
