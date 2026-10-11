@@ -1281,6 +1281,19 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels('B[[-x]]'), 'B[["-x"]]');
 	});
 
+	test('複合ラベルの予約語・先頭記号は本文ごとクォートし形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((end))'), 'A(("end"))');
+		assert.equal(safeQuoteNodeLabels('B[[End]]'), 'B[["End"]]');
+		assert.equal(safeQuoteNodeLabels('C([subgraph])'), 'C(["subgraph"])');
+		assert.equal(safeQuoteNodeLabels('D[(class)]'), 'D[("class")]');
+		assert.equal(safeQuoteNodeLabels('E((.x))'), 'E((".x"))');
+	});
+
+	test('複合ラベルの安全な本文（日本語・英数字）は素通しする', () => {
+		const input = 'A((開始)) --> B[[処理_1]] --> C([ok]) --> D[(DB2)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
 	test('従来の単一括弧の修復は維持される', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),

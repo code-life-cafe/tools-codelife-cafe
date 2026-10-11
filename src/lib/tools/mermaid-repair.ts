@@ -798,25 +798,26 @@ function splitCompoundShape(
 	return { inner, open, close };
 }
 
-const NEEDS_QUOTE_IN_SHAPE = /[();/:,\s[\]]/;
+const SAFE_SHAPE_INNER = /^[\p{L}\p{N}_]+$/u;
+// フローチャートの予約語。引用符なしでは構文エラーになり得る
+const RESERVED_SHAPE_WORDS =
+	/^(end|graph|flowchart|subgraph|direction|class|classDef|click|style|linkStyle|default|call|href|interpolate)$/i;
 
 function quoteShapeInner(inner: string): string {
 	const trimmed = inner.trim();
+	if (trimmed === '') return inner;
 	// 単一の正しい引用符文字列だけをそのまま保持する
 	if (/^"[^"]*"$/.test(trimmed)) return inner;
 	// 内部に生の引用符を含む不正なラベルは、外側を残して内部を正規化する
 	if (/^".*"$/s.test(trimmed)) {
 		return `"${trimmed.slice(1, -1).replace(/"/g, "'")}"`;
 	}
-	// 対になっていない生の引用符・先頭ハイフンも Mermaid が拒否するためクォートする
-	if (
-		NEEDS_QUOTE_IN_SHAPE.test(trimmed) ||
-		trimmed.includes('"') ||
-		trimmed.startsWith('-')
-	) {
-		return `"${trimmed.replace(/"/g, "'")}"`;
+	// 許可リスト方式: 文字・数字・アンダースコアのみで予約語でない本文だけ素通しし、
+	// それ以外（生の引用符・先頭記号・予約語など）は本文全体をクォートする
+	if (SAFE_SHAPE_INNER.test(trimmed) && !RESERVED_SHAPE_WORDS.test(trimmed)) {
+		return inner;
 	}
-	return inner;
+	return `"${trimmed.replace(/"/g, "'")}"`;
 }
 
 /**
