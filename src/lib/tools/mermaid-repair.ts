@@ -780,6 +780,55 @@ function replaceBracketedNodes(
 }
 
 /**
+ * 複合括弧の形状（円 ((x)) / サブルーチン [[x]] / スタジアム ([x]) / 円柱 [(x)]）の
+ * 内側括弧を取り除いた本文を返す。形状でなければ null。
+ * 本文側に同種の括弧が残る場合はネストの判別ができないため形状とみなさない。
+ */
+function splitCompoundShape(
+	content: string,
+): { inner: string; open: string; close: string } | null {
+	const pairs: Record<string, string> = { '(': ')', '[': ']' };
+	const open = content[0];
+	const close = pairs[open];
+	if (!close || !content.endsWith(close) || content.length < 2) return null;
+	const inner = content.slice(1, -1);
+	// 引用符で囲まれた本文は括弧を含んでいても曖昧さがない
+	const quoted = /^\s*"[^"]*"\s*$/.test(inner);
+	if (!quoted && (inner.includes(open) || inner.includes(close))) return null;
+	return { inner, open, close };
+}
+
+const SAFE_SHAPE_INNER = /^[\p{L}\p{N}_]+$/u;
+// フローチャートの予約語。引用符なしでは構文エラーになり得る
+const RESERVED_SHAPE_WORDS =
+	/^(end|graph|flowchart|subgraph|direction|class|classDef|click|style|linkStyle|default|call|href|interpolate)$/i;
+
+function quoteShapeInner(inner: string): string {
+	const trimmed = inner.trim();
+	if (trimmed === '') return inner;
+	const isQuoted = trimmed.length >= 2 && /^".*"$/s.test(trimmed);
+	const body = isQuoted ? trimmed.slice(1, -1) : trimmed;
+	// 先頭と末尾だけが ` の本文は Mermaid の Markdown 文字列として有効
+	const isMarkdownString = /^`[^`]+`$/.test(body);
+	// 単一の正しい引用符文字列だけをそのまま保持する（対にならない ` を含む場合を除く）
+	if (/^"[^"]*"$/.test(trimmed) && (isMarkdownString || !body.includes('`'))) {
+		return inner;
+	}
+	// 許可リスト方式: 文字・数字・アンダースコアのみで予約語でない本文だけ素通しし、
+	// それ以外（生の引用符・先頭記号・予約語など）は本文全体をクォートする
+	if (
+		!isQuoted &&
+		SAFE_SHAPE_INNER.test(trimmed) &&
+		!RESERVED_SHAPE_WORDS.test(trimmed)
+	) {
+		return inner;
+	}
+	const safe = body.replace(/"/g, "'");
+	// 対にならない ` は Markdown 文字列の開始と解釈されるため実体参照にする
+	return `"${isMarkdownString ? safe : safe.replace(/`/g, '#96;')}"`;
+}
+
+/**
  * ノードラベル内に未クォートの丸括弧・角括弧・セミコロン・スラッシュ等が含まれている場合、
  * ラベル全体を安全に ["..."] で囲む
  */
@@ -788,6 +837,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 1. 角括弧ノード: ID[...] を安全にクォート
 	res = replaceBracketedNodes(res, '[', ']', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}[${shape.open}${body}${shape.close}]`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}[${content}]`;
@@ -800,6 +854,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 2. 丸括弧ノード（角丸ノード）: ID(...)
 	res = replaceBracketedNodes(res, '(', ')', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}(${shape.open}${body}${shape.close})`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}(${content})`;
