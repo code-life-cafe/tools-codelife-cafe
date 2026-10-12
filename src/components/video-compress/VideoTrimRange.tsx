@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
 	trimFieldBounds,
+	trimFieldDecimals,
 	trimStep,
 	type VideoInfo,
 } from '@/lib/tools/video-compress';
@@ -12,6 +13,7 @@ function SecondsField({
 	value,
 	min,
 	max,
+	decimals,
 	disabled,
 	onCommit,
 }: {
@@ -19,6 +21,7 @@ function SecondsField({
 	value: number;
 	min: number;
 	max: number;
+	decimals: number;
 	disabled: boolean;
 	onCommit: (value: number) => void;
 }) {
@@ -39,9 +42,9 @@ function SecondsField({
 				inputMode="decimal"
 				min={min}
 				max={max}
-				step="0.01"
+				step={1 / 10 ** decimals}
 				disabled={disabled}
-				value={draft ?? String(Number(value.toFixed(2)))}
+				value={draft ?? String(Number(value.toFixed(decimals)))}
 				onChange={(event) => setDraft(event.target.value)}
 				onBlur={commit}
 				onKeyDown={(event) => {
@@ -109,6 +112,7 @@ export function VideoTrimRange({
 	}, [file, duration, startTimestamp]);
 	const step = trimStep(info.duration);
 	const bounds = trimFieldBounds(info.duration, start, end);
+	const decimals = trimFieldDecimals(info.duration);
 	return (
 		<div className="space-y-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
@@ -181,6 +185,7 @@ export function VideoTrimRange({
 					value={start}
 					min={bounds.start.min}
 					max={bounds.start.max}
+					decimals={decimals}
 					disabled={disabled}
 					onCommit={(value) => onChange(value, end)}
 				/>
@@ -189,6 +194,7 @@ export function VideoTrimRange({
 					value={end}
 					min={bounds.end.min}
 					max={bounds.end.max}
+					decimals={decimals}
 					disabled={disabled}
 					onCommit={(value) => onChange(start, value)}
 				/>

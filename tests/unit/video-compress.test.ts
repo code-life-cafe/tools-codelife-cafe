@@ -10,6 +10,7 @@ import {
 	reductionPercent,
 	thumbnailTimes,
 	trimFieldBounds,
+	trimFieldDecimals,
 	trimGap,
 	trimStep,
 	validateVideoSettings,
@@ -218,4 +219,23 @@ test('600秒超でも数値入力は1秒未満の範囲を許し、境界で交�
 	const full = trimFieldBounds(3600, 0, 3600);
 	assert.equal(full.start.max, 3599.99);
 	assert.equal(full.end.min, 0.01);
+});
+
+test('数値入力の桁数は最小間隔を表現でき、短い動画で位置が丸めで潰れない', () => {
+	assert.equal(trimFieldDecimals(30), 2);
+	assert.equal(trimFieldDecimals(3600), 2);
+	assert.equal(trimFieldDecimals(0.5), 3);
+	assert.equal(trimFieldDecimals(0.05), 4);
+	assert.equal(trimFieldDecimals(0), 2);
+	assert.equal(trimFieldDecimals(Number.NaN), 2);
+	for (const duration of [0.05, 0.5, 0.9, 1, 30]) {
+		const decimals = trimFieldDecimals(duration);
+		const gap = trimGap(duration);
+		// 最小間隔ぶん離れた2点は、表示桁で丸めても別の値になる
+		assert.notEqual(Number(gap.toFixed(decimals)), 0);
+		assert.notEqual(
+			Number((0.1 + gap).toFixed(decimals)),
+			Number((0.1).toFixed(decimals)),
+		);
+	}
 });

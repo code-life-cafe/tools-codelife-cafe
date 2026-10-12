@@ -199,6 +199,12 @@ export function trimGap(duration: number): number {
 	return Math.min(0.01, duration / 100);
 }
 
+/** 数値入力の表示桁数。最小間隔（trimGap）を表現できる桁数を確保し、短い動画でも位置が丸めで潰れないようにする */
+export function trimFieldDecimals(duration: number): number {
+	if (!Number.isFinite(duration) || duration <= 0) return 2;
+	return Math.max(2, Math.ceil(-Math.log10(trimGap(duration))));
+}
+
 /** 長尺でもキーボード・タッチで現実的に操作できるよう、スライダーの刻みを尺に応じて粗くする */
 export function trimStep(duration: number): number {
 	if (duration <= 60) return trimGap(duration);
