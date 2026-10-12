@@ -74,7 +74,9 @@ for (const sample of samples) {
 			events.filter((event) => event.event === 'tool_engage'),
 		).toHaveLength(1);
 		// 短い数値が既存UUID/timestampへ偶然含まれる場合を入力漏洩と誤判定しない。
-		expect(JSON.stringify(events.map((event) => event.props))).not.toContain('合成');
+		expect(JSON.stringify(events.map((event) => event.props))).not.toContain(
+			'合成',
+		);
 	});
 }
 
@@ -191,6 +193,13 @@ for (const pathname of [
 	}) => {
 		const events = await collectEvents(page);
 		await page.goto(pathname);
+		if (pathname === '/tools/video-compress/') {
+			// 旧Astroの静的meta転送はgotoの後に完了するため移動先のhydrationまで待つ。
+			await page.waitForURL(/\/video-compress\/?$/);
+			await expect(
+				page.locator('astro-island[ssr][client="load"]'),
+			).toHaveCount(0);
+		}
 		expect(
 			await page.evaluate(
 				() =>
