@@ -7,6 +7,46 @@ export const MERMAID_RENDER_MAX_EDGES = 50;
 export const MERMAID_RENDER_MAX_STATEMENT_CHARACTERS = 200;
 export const MERMAID_RENDER_MAX_SVG_BYTES = 1024 * 1024;
 
+/** flowchartのラベル・引用文字列内の区切りを文として数えない。 */
+function splitFlowchartStatements(code: string): string[] {
+	const statements: string[] = [];
+	let start = 0;
+	let quote = '';
+	let escaped = false;
+	let depth = 0;
+	let pipe = false;
+	for (let index = 0; index < code.length; index++) {
+		const char = code[index];
+		if (quote) {
+			if (escaped) escaped = false;
+			else if (char === '\\') escaped = true;
+			else if (char === quote) quote = '';
+			continue;
+		}
+		if (depth === 0 && !pipe && char === '%' && code[index + 1] === '%') {
+			const statement = code.slice(start, index).trim();
+			if (statement) statements.push(statement);
+			const newline = code.indexOf('\n', index);
+			if (newline === -1) return statements;
+			index = newline;
+			start = newline + 1;
+			continue;
+		}
+		if (char === '"') quote = char;
+		else if ('[({'.includes(char)) depth++;
+		else if ('])}'.includes(char)) depth = Math.max(0, depth - 1);
+		else if (char === '|' && depth === 0) pipe = !pipe;
+		else if (depth === 0 && !pipe && /[;\r\n]/.test(char)) {
+			const statement = code.slice(start, index).trim();
+			if (statement) statements.push(statement);
+			start = index + 1;
+		}
+	}
+	const last = code.slice(start).trim();
+	if (last) statements.push(last);
+	return statements;
+}
+
 /** DOM描画に入る前に、小型図に限定する。Promiseのタイマーでは同期描画を中断できない。 */
 export function assertMermaidRenderBudget(code: string): void {
 	if (exceedsMaxCharacters(code, MERMAID_RENDER_MAX_CHARACTERS))
@@ -22,12 +62,21 @@ export function assertMermaidRenderBudget(code: string): void {
 		throw new Error(
 			'SVG描画はフローチャート（flowchart/graph）とシーケンス図のみ対応しています。他の図種は修復または通常UIを利用してください。',
 		);
-	const statements = code.split(/[;\r\n]+/).filter((part) => part.trim());
+	const isSequence = /^sequenceDiagram\b/i.test(extracted);
+	const flowStatements = isSequence ? [] : splitFlowchartStatements(extracted);
+	const checkedCode = isSequence
+		? extracted.replace(/^\s*%%[^\r\n]*/gm, '')
+		: flowStatements.join('\n');
+	const statements = isSequence
+		? checkedCode.split(/[;\r\n]+/).filter((part) => part.trim())
+		: flowStatements;
 	if (statements.length > MERMAID_RENDER_MAX_STATEMENTS)
 		throw new Error('SVG描画は改行・セミコロン区切りで50文までです。');
 	// 描画器の共有設定だけに頼らず、矢印記法も入口で保守的に数える。
-	const syntax = code.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '');
-	const isSequence = /^sequenceDiagram\b/i.test(extracted);
+	const syntax = checkedCode.replace(
+		/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
+		'',
+	);
 	const structuralSyntax = isSequence
 		? syntax.replace(/:[^\r\n]*|\s+as\s+[^;\r\n]*|^\s*box\s+[^;\r\n]*/gm, '')
 		: syntax
@@ -51,7 +100,7 @@ export function assertMermaidRenderBudget(code: string): void {
 		)
 	)
 		throw new Error('SVG描画の各文は200文字までです。');
-	if (extracted.includes('`'))
+	if (checkedCode.includes('`'))
 		throw new Error('SVG描画ではMarkdownラベルは利用できません。');
 	if (code.includes('%%{') || code.trimStart().startsWith('---'))
 		throw new Error(
@@ -62,10 +111,10 @@ export function assertMermaidRenderBudget(code: string): void {
 
 	if (
 		(!isSequence && structuralSyntax.includes('&')) ||
-		code.includes('@{') ||
-		code.includes('![') ||
+		checkedCode.includes('@{') ||
+		checkedCode.includes('![') ||
 		/<\s*\/?\s*[A-Za-z][\w:-]*(?:\s+[A-Za-z_:][\w:.-]*(?:\s*=\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s<>[\]{}]+))?)*\s*\/?>/.test(
-			code,
+			checkedCode,
 		)
 	)
 		throw new Error(
