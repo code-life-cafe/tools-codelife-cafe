@@ -30,7 +30,6 @@ const Z = '[0０]';
 const M_PRE = '[0０][7７8８9９][0０]';
 
 const PATTERNS = {
-	email: /([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g,
 	phone: new RegExp(
 		`(?:${M_PRE}${H}${D}{4}${H}${D}{4}|${Z}${D}{1,4}${H}${D}{1,4}${H}${D}{4}|${Z}${D}{9,10}(?![0-9０-９]))`,
 		'g',
@@ -52,6 +51,47 @@ const PATTERNS = {
 	),
 };
 
+/** 従来のメール正規表現と同じ範囲を、@を起点に線形走査する。 */
+function replaceEmails(
+	text: string,
+	replace: (
+		match: string,
+		local: string,
+		domain: string,
+		offset: number,
+	) => string,
+): string {
+	const parts: string[] = [];
+	let last = 0;
+	let cursor = 0;
+	while (cursor < text.length) {
+		const at = text.indexOf('@', cursor);
+		if (at === -1) break;
+		cursor = at + 1;
+		let start = at;
+		while (start > last && /[a-zA-Z0-9_.+-]/.test(text[start - 1])) start--;
+		if (start === at) continue;
+		let dot = at + 1;
+		while (dot < text.length && /[a-zA-Z0-9-]/.test(text[dot])) dot++;
+		if (dot === at + 1 || text[dot] !== '.') continue;
+		let end = dot + 1;
+		while (end < text.length && /[a-zA-Z0-9-.]/.test(text[end])) end++;
+		if (end === dot + 1) continue;
+		parts.push(
+			text.slice(last, start),
+			replace(
+				text.slice(start, end),
+				text.slice(start, at),
+				text.slice(at + 1, end),
+				start,
+			),
+		);
+		last = end;
+		cursor = end;
+	}
+	return parts.join('') + text.slice(last);
+}
+
 export function maskText(text: string, options: MaskOptions): MaskResult {
 	let masked = text;
 	const counts: Record<MaskTarget, number> = {
@@ -67,7 +107,7 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 	const { maskChar, strength } = options;
 
 	if (options.targets.has('email')) {
-		masked = masked.replace(PATTERNS.email, (match, local, domain, offset) => {
+		masked = replaceEmails(masked, (match, local, domain, offset) => {
 			counts.email++;
 			ranges.push({ start: offset, end: offset + match.length, type: 'email' });
 			if (strength === 'full') return maskChar.repeat(match.length);

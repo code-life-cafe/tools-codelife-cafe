@@ -11,6 +11,8 @@ export type Indent = 2 | 4 | 0;
 export interface ConvertOptions {
 	indent: Indent;
 	sortKeys: boolean;
+	/** WebMCPで未信頼データを扱う場合の展開・出力制限。通常UIは既存挙動を維持。 */
+	safeMode?: boolean;
 }
 
 export type ConvertResult =
@@ -49,7 +51,12 @@ export function sortKeysDeep(value: unknown): unknown {
 	if (isPlainObject(value)) {
 		const out: Record<string, unknown> = {};
 		for (const key of Object.keys(value).sort()) {
-			out[key] = sortKeysDeep(value[key]);
+			Object.defineProperty(out, key, {
+				value: sortKeysDeep(value[key]),
+				enumerable: true,
+				writable: true,
+				configurable: true,
+			});
 		}
 		return out;
 	}
@@ -66,7 +73,12 @@ function normalizeTomlDates(value: unknown): unknown {
 	if (isPlainObject(value)) {
 		const out: Record<string, unknown> = {};
 		for (const [key, child] of Object.entries(value)) {
-			out[key] = normalizeTomlDates(child);
+			Object.defineProperty(out, key, {
+				value: normalizeTomlDates(child),
+				enumerable: true,
+				writable: true,
+				configurable: true,
+			});
 		}
 		return out;
 	}
@@ -178,7 +190,11 @@ type ParseValueResult =
 	| { ok: true; value: unknown }
 	| ({ ok: false } & ParseError);
 
-function parseValue(format: Format, text: string): ParseValueResult {
+function parseValue(
+	format: Format,
+	text: string,
+	safeMode = false,
+): ParseValueResult {
 	if (!text.trim()) {
 		return { ok: false, error: `${FORMAT_LABEL[format]}を入力してください。` };
 	}
@@ -187,7 +203,15 @@ function parseValue(format: Format, text: string): ParseValueResult {
 			return { ok: true, value: JSON.parse(text) };
 		}
 		if (format === 'yaml') {
-			return { ok: true, value: yaml.load(text) ?? null };
+			return {
+				ok: true,
+				value:
+					yaml.load(
+						text,
+						// パーサの2フレーム分を許可し、実データは下の50段検査で制限する。
+						safeMode ? { maxAliases: 0, maxDepth: 52 } : undefined,
+					) ?? null,
+			};
 		}
 		return { ok: true, value: normalizeTomlDates(parseToml(text)) };
 	} catch (err) {
@@ -270,6 +294,54 @@ function serializeValue(
 // 変換エントリポイント
 // ---------------------------------------------------------------------------
 
+/** 展開後のグラフをシリアライズ前に制限し、巨大出力や再帰を防ぐ。 */
+function checkSafeStructure(value: unknown): string | null {
+	const stack: { value: unknown; depth: number; pathUnits: number }[] = [
+		{ value, depth: 0, pathUnits: 0 },
+	];
+	const seen = new WeakSet<object>();
+	// ルート容器は要素に含めず、配列の10000要素をそのまま受理する。
+	let nodes = -1;
+	let stringUnits = 0;
+	let estimatedBytes = 0;
+	while (stack.length) {
+		const current = stack.pop();
+		if (!current) break;
+		if (++nodes > 10_000) return '安全上限（10000要素）を超えています。';
+		if (current.depth > 50) return '安全上限（ネスト50段）を超えています。';
+		estimatedBytes += 64 + current.pathUnits * 6 + (current.depth + 2) * 8;
+		if (typeof current.value === 'string') {
+			stringUnits += current.value.length;
+			estimatedBytes += current.value.length * 6;
+			// YAMLのブロック文字列は各改行にネスト分のインデントを追加する。
+			for (const character of current.value) {
+				if (character === '\n') estimatedBytes += (current.depth + 2) * 4;
+			}
+		}
+		if (current.value !== null && typeof current.value === 'object') {
+			if (seen.has(current.value))
+				return '循環または共有参照には対応していません。';
+			seen.add(current.value);
+			const entries = Object.entries(current.value);
+			if (nodes + stack.length + entries.length > 10_000)
+				return '安全上限（10000要素）を超えています。';
+			for (const [key, child] of entries) {
+				stringUnits += key.length;
+				stack.push({
+					value: child,
+					depth: current.depth + 1,
+					pathUnits: current.pathUnits + key.length + 2,
+				});
+			}
+		}
+		if (estimatedBytes > 4 * 1024 * 1024)
+			return '出力見積もりが安全上限（4MiB）を超えています。';
+		if (stringUnits > 1_000_000)
+			return '展開後の文字列が安全上限を超えています。';
+	}
+	return null;
+}
+
 /**
  * from形式のテキストをto形式へ変換する。from===toの場合は整形のみ（indent/キーソート適用）。
  * parse → （keySort） → serialize の3段。例外はすべて日本語メッセージへ正規化して返す。
@@ -280,7 +352,7 @@ export function convertFormats(
 	text: string,
 	options: ConvertOptions,
 ): ConvertResult {
-	const parsed = parseValue(from, text);
+	const parsed = parseValue(from, text, options.safeMode);
 	if (!parsed.ok) {
 		return {
 			ok: false,
@@ -291,6 +363,11 @@ export function convertFormats(
 		};
 	}
 
+	if (options.safeMode) {
+		const error = checkSafeStructure(parsed.value);
+		if (error) return { ok: false, error };
+	}
+
 	const value = options.sortKeys ? sortKeysDeep(parsed.value) : parsed.value;
 
 	const serialized = serializeValue(to, value, options);
@@ -298,5 +375,10 @@ export function convertFormats(
 		return { ok: false, error: serialized.error };
 	}
 
+	if (
+		options.safeMode &&
+		new TextEncoder().encode(serialized.output).byteLength > 4 * 1024 * 1024
+	)
+		return { ok: false, error: '出力の安全上限（4MiB）を超えています。' };
 	return { ok: true, output: serialized.output, note: serialized.note };
 }
