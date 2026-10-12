@@ -9,6 +9,9 @@ import {
 	qualityEstimate,
 	reductionPercent,
 	thumbnailTimes,
+	trimFieldBounds,
+	trimGap,
+	trimStep,
 	validateVideoSettings,
 } from '../../src/lib/tools/video-compress.ts';
 
@@ -193,4 +196,26 @@ test('短い動画も8フレームを実長内で等間隔に抽出する', () =
 	}
 	assert.deepEqual(thumbnailTimes(0), []);
 	assert.deepEqual(thumbnailTimes(Infinity), []);
+});
+
+test('スライダー刻みは尺で粗くなるが数値入力の最小間隔は常に細かい', () => {
+	assert.equal(trimStep(30), 0.01);
+	assert.equal(trimStep(600), 0.1);
+	assert.equal(trimStep(600.5), 1);
+	assert.equal(trimGap(3600), 0.01);
+	assert.equal(trimGap(0.5), 0.005);
+});
+
+test('600秒超でも数値入力は1秒未満の範囲を許し、境界で交差しない', () => {
+	for (const duration of [600.5, 3600]) {
+		assert.notEqual(trimStep(duration), trimGap(duration));
+		const bounds = trimFieldBounds(duration, 100, 100.5);
+		assert.equal(bounds.start.max, 100.49);
+		assert.equal(bounds.end.min, 100.01);
+		assert.equal(bounds.end.max, duration);
+		assert.ok(bounds.end.min - 100 < 1);
+	}
+	const full = trimFieldBounds(3600, 0, 3600);
+	assert.equal(full.start.max, 3599.99);
+	assert.equal(full.end.min, 0.01);
 });

@@ -193,3 +193,27 @@ export function qualityEstimate(
 		return '推定不可';
 	}
 }
+
+/** 数値入力で許す開始・終了の最小間隔（スライダーの刻みとは独立） */
+export function trimGap(duration: number): number {
+	return Math.min(0.01, duration / 100);
+}
+
+/** 長尺でもキーボード・タッチで現実的に操作できるよう、スライダーの刻みを尺に応じて粗くする */
+export function trimStep(duration: number): number {
+	if (duration <= 60) return trimGap(duration);
+	return duration <= 600 ? 0.1 : 1;
+}
+
+/** 開始秒・終了秒の数値入力が取りうる範囲。最小間隔はスライダー刻みではなく trimGap を使う */
+export function trimFieldBounds(
+	duration: number,
+	start: number,
+	end: number,
+): { start: { min: number; max: number }; end: { min: number; max: number } } {
+	const gap = trimGap(duration);
+	return {
+		start: { min: 0, max: Math.max(0, end - gap) },
+		end: { min: Math.min(duration, start + gap), max: duration },
+	};
+}

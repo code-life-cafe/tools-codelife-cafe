@@ -1,7 +1,56 @@
 import { Slider } from 'radix-ui';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import type { VideoInfo } from '@/lib/tools/video-compress';
+import {
+	trimFieldBounds,
+	trimStep,
+	type VideoInfo,
+} from '@/lib/tools/video-compress';
+
+function SecondsField({
+	label,
+	value,
+	min,
+	max,
+	disabled,
+	onCommit,
+}: {
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+	disabled: boolean;
+	onCommit: (value: number) => void;
+}) {
+	const [draft, setDraft] = useState<string | null>(null);
+	const commit = () => {
+		if (draft === null) return;
+		const next = Number(draft);
+		setDraft(null);
+		if (draft.trim() !== '' && Number.isFinite(next))
+			onCommit(Math.min(max, Math.max(min, next)));
+	};
+	return (
+		<label className="space-y-1 text-sm">
+			{label}
+			<input
+				className="w-full rounded-md border border-input bg-background p-2 tabular-nums"
+				type="number"
+				inputMode="decimal"
+				min={min}
+				max={max}
+				step="0.01"
+				disabled={disabled}
+				value={draft ?? String(Number(value.toFixed(2)))}
+				onChange={(event) => setDraft(event.target.value)}
+				onBlur={commit}
+				onKeyDown={(event) => {
+					if (event.key === 'Enter') commit();
+				}}
+			/>
+		</label>
+	);
+}
 
 export function VideoTrimRange({
 	file,
@@ -18,6 +67,7 @@ export function VideoTrimRange({
 	disabled: boolean;
 	onChange: (start: number, end: number) => void;
 }) {
+	const { duration, startTimestamp } = info;
 	const [frames, setFrames] = useState<string[]>([]);
 	const [failed, setFailed] = useState(false);
 	useEffect(() => {
@@ -44,7 +94,10 @@ export function VideoTrimRange({
 				setFailed(true);
 				worker.terminate();
 			};
-			worker.postMessage({ file, info });
+			worker.postMessage({
+				file,
+				info: { duration, startTimestamp },
+			});
 		} catch {
 			setFailed(true);
 		}
@@ -53,8 +106,9 @@ export function VideoTrimRange({
 			worker?.terminate();
 			for (const url of urls) URL.revokeObjectURL(url);
 		};
-	}, [file, info]);
-	const step = Math.min(0.01, info.duration / 100);
+	}, [file, duration, startTimestamp]);
+	const step = trimStep(info.duration);
+	const bounds = trimFieldBounds(info.duration, start, end);
 	return (
 		<div className="space-y-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
@@ -112,7 +166,7 @@ export function VideoTrimRange({
 						key={label}
 						aria-label={label}
 						aria-valuetext={`${(label === '開始位置' ? start : end).toFixed(2)}秒`}
-						className="block h-20 w-5 rounded border-2 border-background bg-primary shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+						className="relative block h-20 w-5 rounded after:absolute after:inset-y-0 after:-inset-x-2 after:content-['']  border-2 border-background bg-primary shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 					/>
 				))}
 			</Slider.Root>
@@ -120,6 +174,24 @@ export function VideoTrimRange({
 				<span>開始 {start.toFixed(2)}秒</span>
 				<span>書き出し {(end - start).toFixed(2)}秒</span>
 				<span>終了 {end.toFixed(2)}秒</span>
+			</div>
+			<div className="grid grid-cols-2 gap-3">
+				<SecondsField
+					label="開始秒"
+					value={start}
+					min={bounds.start.min}
+					max={bounds.start.max}
+					disabled={disabled}
+					onCommit={(value) => onChange(value, end)}
+				/>
+				<SecondsField
+					label="終了秒"
+					value={end}
+					min={bounds.end.min}
+					max={bounds.end.max}
+					disabled={disabled}
+					onCommit={(value) => onChange(start, value)}
+				/>
 			</div>
 			{frames.length === 0 && (
 				<p className="text-xs text-muted-foreground">

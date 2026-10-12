@@ -433,3 +433,33 @@ test('フレーム抽出の失敗でも範囲選択・圧縮できる', async ({
 		result.dispose();
 	}
 });
+
+test('開始秒・終了秒の数値入力で範囲を指定でき、範囲外は丸められる', async ({
+	page,
+}) => {
+	await open(page);
+	await load(page);
+	const start = page.getByLabel('開始秒');
+	const end = page.getByLabel('終了秒');
+	await start.fill('1.5');
+	await start.press('Enter');
+	await end.fill('2.5');
+	await end.blur();
+	await expect(page.getByRole('slider', { name: '開始位置' })).toHaveAttribute(
+		'aria-valuenow',
+		'1.5',
+	);
+	await expect(page.getByRole('slider', { name: '終了位置' })).toHaveAttribute(
+		'aria-valuenow',
+		'2.5',
+	);
+	await start.fill('99');
+	await start.blur();
+	const clamped = Number(
+		await page
+			.getByRole('slider', { name: '開始位置' })
+			.getAttribute('aria-valuenow'),
+	);
+	expect(clamped).toBeLessThan(2.5);
+	expect(clamped).toBeGreaterThan(2.4);
+});
