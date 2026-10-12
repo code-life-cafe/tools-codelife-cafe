@@ -336,3 +336,14 @@ test('Mermaid: 50文を超えるインライン図と予算回避の設定・並
 		assert.equal((await renderer.run({ text })).ok, false);
 	}
 });
+
+test('Mermaid: 1文内のエッジ過多も描画器に入る前に拒否', async () => {
+	const chain = Array.from({ length: 52 }, (_, index) => `A${index}`).join(
+		'-->',
+	);
+	const result = await generateWebMcpDescriptor(mermaidRenderMcpTool).run({
+		text: `graph TD\n${chain}`,
+	});
+	assert.equal(result.ok, false);
+	if (!result.ok) assert.match(result.error, /50エッジ/);
+});

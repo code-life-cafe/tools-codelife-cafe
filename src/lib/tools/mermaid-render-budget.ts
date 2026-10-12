@@ -14,6 +14,12 @@ export function assertMermaidRenderBudget(code: string): void {
 	const statements = code.split(/[;\r\n]+/).filter((part) => part.trim());
 	if (statements.length > MERMAID_RENDER_MAX_STATEMENTS)
 		throw new Error('SVG描画は改行・セミコロン区切りで50文までです。');
+	// 描画器の共有設定だけに頼らず、矢印記法も入口で保守的に数える。
+	const syntax = code.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '');
+	const arrows = syntax.match(/[-=~.]{2,}[<>|ox]?|->|<-|=>|<=/g) ?? [];
+	if (arrows.length > MERMAID_RENDER_MAX_EDGES)
+		throw new Error('SVG描画は50エッジまでです。');
+
 	if (code.includes('%%{') || code.trimStart().startsWith('---'))
 		throw new Error(
 			'SVG描画では設定ディレクティブ・frontmatterは利用できません。',
