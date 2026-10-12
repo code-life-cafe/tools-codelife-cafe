@@ -1,7 +1,11 @@
 import { Slider } from 'radix-ui';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { trimGap, trimStep, type VideoInfo } from '@/lib/tools/video-compress';
+import {
+	trimFieldBounds,
+	trimStep,
+	type VideoInfo,
+} from '@/lib/tools/video-compress';
 
 function SecondsField({
 	label,
