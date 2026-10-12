@@ -289,19 +289,58 @@ function restoreMarkers(
 	return out + text.slice(pos);
 }
 
+/** 従来の引用文字列regexと同じマッチ範囲を、未閉じ入力も線形で求める。 */
+export function protectQuotedStrings(
+	line: string,
+	protect: (literal: string) => string,
+): string {
+	const n = line.length;
+	const doubleEnds = new Int32Array(n + 1).fill(-1);
+	const singleEnds = new Int32Array(n + 1).fill(-1);
+	const barriers = new Int32Array(n + 1).fill(-1);
+	let backslashes = 0;
+	for (let i = 0; i < n; i++) {
+		const char = line[i];
+		if (char === '\\') {
+			backslashes++;
+			continue;
+		}
+		if (backslashes % 2 === 0) {
+			if (char === '"') doubleEnds[i] = i;
+			if (char === "'") singleEnds[i] = i;
+		} else if ('\r\n\u2028\u2029'.includes(char)) barriers[i] = i;
+		backslashes = 0;
+	}
+	for (let i = n - 1; i >= 0; i--) {
+		if (doubleEnds[i] < 0) doubleEnds[i] = doubleEnds[i + 1];
+		if (singleEnds[i] < 0) singleEnds[i] = singleEnds[i + 1];
+		if (barriers[i] < 0) barriers[i] = barriers[i + 1];
+	}
+	const parts: string[] = [];
+	let start = 0;
+	for (let i = 0; i < n; i++) {
+		if (line[i] !== '"' && line[i] !== "'") continue;
+		const end = (line[i] === '"' ? doubleEnds : singleEnds)[i + 1];
+		const barrier = barriers[i + 1];
+		if (end < 0 || (barrier >= 0 && barrier < end)) continue;
+		parts.push(line.slice(start, i), protect(line.slice(i, end + 1)));
+		start = end + 1;
+		i = end;
+	}
+	parts.push(line.slice(start));
+	return parts.join('');
+}
+
 function withProtectedStrings(
 	line: string,
 	transformSyntax: (syntaxOnlyLine: string) => string,
 ): string {
 	const literals: string[] = [];
 	const prefix = markerPrefix(line, 'STR');
-	const protectedLine = line.replace(
-		/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
-		(match) => {
-			literals.push(match);
-			return `${prefix}${literals.length - 1}__`;
-		},
-	);
+	const protectedLine = protectQuotedStrings(line, (match) => {
+		literals.push(match);
+		return `${prefix}${literals.length - 1}__`;
+	});
 
 	const transformed = transformSyntax(protectedLine);
 
@@ -692,7 +731,14 @@ export function replaceSyntaxZenkaku(
 
 		// 1. 全角スペース（インデント・矢印周辺）
 		res = res.replace(/^[　]+/g, (m) => '  '.repeat(m.length));
-		res = res.replace(/　+(?=(?:-->|---|==>|-\.->|--|==))/g, ' ');
+		res = res.replace(/　+/g, (spaces, offset, source) => {
+			const after = offset + spaces.length;
+			return source.startsWith('--', after) ||
+				source.startsWith('==', after) ||
+				source.startsWith('-.->', after)
+				? ' '
+				: spaces;
+		});
 		res = res.replace(/(?:-->|---|==>|-\.->|--|==)　+/g, (m) =>
 			m.replace(/　/g, ' '),
 		);
@@ -722,7 +768,9 @@ export function replaceSyntaxZenkaku(
 			s = protectDashedEdgeLabels(s, protectEdgeLabel);
 			s = s.replace(/ーー＞/g, '-->');
 			s = s.replace(/ーー>>/g, '-->>');
-			s = s.replace(/ー+>/g, '-->');
+			s = s.replace(/ー+/g, (marks, offset, source) =>
+				source[offset + marks.length] === '>' ? '--' : marks,
+			);
 			s = s.replace(/--＞/g, '-->');
 			s = s.replace(/→/g, '-->');
 			s = s.replace(/==＞/g, '==>');

@@ -1,5 +1,5 @@
 import { exceedsMaxCharacters } from '../string-length.ts';
-import { extractMermaidCode } from './mermaid-repair.ts';
+import { extractMermaidCode, protectQuotedStrings } from './mermaid-repair.ts';
 
 export const MERMAID_RENDER_MAX_CHARACTERS = 5_000;
 export const MERMAID_RENDER_MAX_STATEMENTS = 50;
@@ -86,10 +86,7 @@ export function assertMermaidRenderBudget(code: string): void {
 	if (statements.length > MERMAID_RENDER_MAX_STATEMENTS)
 		throw new Error('SVG描画は改行・セミコロン区切りで50文までです。');
 	// 描画器の共有設定だけに頼らず、矢印記法も入口で保守的に数える。
-	const syntax = checkedCode.replace(
-		/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
-		'',
-	);
+	const syntax = protectQuotedStrings(checkedCode, () => '');
 	const structuralSyntax = isSequence
 		? syntax.replace(/:[^\r\n]*|\s+as\s+[^;\r\n]*|^\s*box\s+[^;\r\n]*/gm, '')
 		: syntax

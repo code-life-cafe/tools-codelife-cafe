@@ -10,6 +10,7 @@ import {
 	normalizeSmartQuotes,
 	protectDashedEdgeLabels,
 	protectNodeLabelBodies,
+	protectQuotedStrings,
 	repairMermaidCode,
 	replaceSyntaxZenkaku,
 	safeQuoteNodeLabels,
@@ -1329,5 +1330,49 @@ test('全角括弧の線形修復は短い乱数入力400件で従来のマッ�
 			.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}')
 			.replace(/｛([\s\S]*?)｝/g, '{$1}');
 		assert.equal(replaceSyntaxZenkaku(input, 'other'), expected);
+	}
+});
+
+test('長い全角空白・長音の線形修復は矢印直前だけを従来どおり置換する', () => {
+	for (const run of ['　', '　'.repeat(40)]) {
+		assert.equal(replaceSyntaxZenkaku(`A${run}B`, 'other'), `A${run}B`);
+		for (const arrow of ['-->', '---', '==>', '-.->', '--', '==']) {
+			assert.equal(
+				replaceSyntaxZenkaku(`A${run}${arrow} B`, 'other'),
+				`A ${arrow} B`,
+			);
+		}
+	}
+	for (let n = 1; n <= 40; n++) {
+		const input = `A ${'ー'.repeat(n)}> B`;
+		const expected = input
+			.replace(/ーー＞/g, '-->')
+			.replace(/ーー>>/g, '-->>')
+			.replace(/ー+>/g, '-->');
+		assert.equal(replaceSyntaxZenkaku(input, 'other'), expected);
+		const plain = `A ${'ー'.repeat(n)} B`;
+		assert.equal(replaceSyntaxZenkaku(plain, 'other'), plain);
+	}
+});
+
+test('引用文字列の線形保護は乱数1000件で従来のregexと一致する', () => {
+	let seed = 19;
+	const alphabet = [65, 0x6587, 34, 39, 92, 10, 13, 0x2028, 0x2029].map(
+		(code) => String.fromCharCode(code),
+	);
+	for (let sample = 0; sample < 1000; sample++) {
+		let input = '';
+		for (let i = 0; i < 80; i++) {
+			seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+			input += alphabet[seed % alphabet.length];
+		}
+		let oldIndex = 0;
+		let newIndex = 0;
+		const expected = input.replace(
+			/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
+			() => `L${oldIndex++}`,
+		);
+		const actual = protectQuotedStrings(input, () => `L${newIndex++}`);
+		assert.equal(actual, expected, `sample ${sample}`);
 	}
 });
