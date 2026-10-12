@@ -167,3 +167,61 @@ export function assertTracksPreserved(
 			'必要な映像または音声を変換できません。音声を削除するか、対応ブラウザー・動画を変更してください。',
 		);
 }
+
+export function thumbnailTimes(duration: number): number[] {
+	if (!Number.isFinite(duration) || duration <= 0) return [];
+	return Array.from(
+		{ length: 8 },
+		(_, index) => (duration * (index + 0.5)) / 8,
+	);
+}
+
+export function qualityEstimate(
+	info: VideoInfo,
+	job: VideoJob,
+	originalBytes: number,
+	quality: VideoSettings['quality'],
+): string {
+	try {
+		const plan = compressionPlan(info, {
+			...job,
+			settings: { ...job.settings, mode: 'quality', quality },
+		});
+		const percent = reductionPercent(originalBytes, plan.estimatedBytes);
+		// 丸め後は増加が -0 になり得るため、増加かどうかは丸め前の容量で判定する
+		const grew = plan.estimatedBytes > originalBytes;
+		return `約${Math.abs(percent)}%${grew ? '増加' : '削減'}`;
+	} catch {
+		return '推定不可';
+	}
+}
+
+/** 数値入力で許す開始・終了の最小間隔（スライダーの刻みとは独立） */
+export function trimGap(duration: number): number {
+	return Math.min(0.01, duration / 100);
+}
+
+/** 数値入力の表示桁数。最小間隔（trimGap）を表現できる桁数を確保し、短い動画でも位置が丸めで潰れないようにする */
+export function trimFieldDecimals(duration: number): number {
+	if (!Number.isFinite(duration) || duration <= 0) return 2;
+	return Math.max(2, Math.ceil(-Math.log10(trimGap(duration))));
+}
+
+/** 長尺でもキーボード・タッチで現実的に操作できるよう、スライダーの刻みを尺に応じて粗くする */
+export function trimStep(duration: number): number {
+	if (duration <= 60) return trimGap(duration);
+	return duration <= 600 ? 0.1 : 1;
+}
+
+/** 開始秒・終了秒の数値入力が取りうる範囲。最小間隔はスライダー刻みではなく trimGap を使う */
+export function trimFieldBounds(
+	duration: number,
+	start: number,
+	end: number,
+): { start: { min: number; max: number }; end: { min: number; max: number } } {
+	const gap = trimGap(duration);
+	return {
+		start: { min: 0, max: Math.max(0, end - gap) },
+		end: { min: Math.min(duration, start + gap), max: duration },
+	};
+}

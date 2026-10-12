@@ -48,11 +48,13 @@ test('Mermaid: ラベルの&と比較文字は許可し並列リンクとHTMLは
 		'flowchart TD\nA --> B %% R&D <img src="x"> @{ ![ `',
 		'flowchart TD\nA["%% R&D"] --> B',
 		'flowchart TD\nA>研究開発 R&D] --> B',
+		'flowchart TD\nA["user@{home} ![literal]"] --> B',
 	])
 		assert.doesNotThrow(() => assertMermaidRenderBudget(text));
 	for (const text of [
 		'flowchart TD\nA & B --> C',
 		'flowchart TD\nA[<img src="x">]',
+		'flowchart TD\nA@{shape: rect}',
 	])
 		assert.throws(() => assertMermaidRenderBudget(text));
 });

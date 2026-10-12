@@ -98,7 +98,7 @@ export function assertMermaidRenderBudget(code: string): void {
 					'',
 				)
 				.replace(
-					/\[[^\]\r\n]*\]|\([^)\r\n]*\)|\{[^}\r\n]*\}|\|[^|\r\n]*\|/g,
+					/\[[^\]\r\n]*\]|\([^)\r\n]*\)|(?<!@)\{[^}\r\n]*\}|\|[^|\r\n]*\|/g,
 					'',
 				)
 				.replace(/[-=.]{2}\s+[^;\r\n]*?\s+[-=.]{2}>/g, '-->')
@@ -128,8 +128,8 @@ export function assertMermaidRenderBudget(code: string): void {
 
 	if (
 		(!isSequence && structuralSyntax.includes('&')) ||
-		checkedCode.includes('@{') ||
-		checkedCode.includes('![') ||
+		structuralSyntax.includes('@{') ||
+		structuralSyntax.includes('![') ||
 		/<\s*\/?\s*[A-Za-z][\w:-]*(?:\s+[A-Za-z_:][\w:.-]*(?:\s*=\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s<>[\]{}]+))?)*\s*\/?>/.test(
 			checkedCode,
 		)

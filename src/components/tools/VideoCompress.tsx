@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { VideoTrimRange } from '@/components/video-compress/VideoTrimRange';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	compressionPlan,
 	DEFAULT_VIDEO_SETTINGS,
 	formatVideoBytes,
 	MAX_VIDEO_BYTES,
+	qualityEstimate,
 	reductionPercent,
 	type VideoInfo,
 	type VideoReply,
@@ -25,6 +28,7 @@ export default function VideoCompress() {
 		url: string;
 		size: number;
 		target: number | null;
+		jobKey: string;
 	} | null>(null);
 	const [status, setStatus] = useState<
 		'empty' | 'loading' | 'ready' | 'compressing' | 'done' | 'error'
@@ -37,7 +41,17 @@ export default function VideoCompress() {
 	const worker = useRef<Worker | null>(null);
 	const resultUrl = useRef('');
 	const runTarget = useRef<number | null>(null);
-	const input = useRef<HTMLInputElement>(null);
+	const runJobKey = useRef('');
+	const jobKey = JSON.stringify([
+		settings.mode,
+		settings.quality,
+		settings.targetMB,
+		settings.maxEdge,
+		settings.removeAudio,
+		start,
+		end,
+	]);
+	const resultIsStale = result !== null && result.jobKey !== jobKey;
 	const processing = status === 'loading' || status === 'compressing';
 
 	useEffect(() => {
@@ -104,7 +118,12 @@ export default function VideoCompress() {
 					const blob = new Blob([message.buffer], { type: 'video/mp4' });
 					const url = URL.createObjectURL(blob);
 					resultUrl.current = url;
-					setResult({ url, size: blob.size, target: runTarget.current });
+					setResult({
+						url,
+						size: blob.size,
+						target: runTarget.current,
+						jobKey: runJobKey.current,
+					});
 					setProgress(100);
 					setStatus('done');
 				} else {
@@ -147,6 +166,7 @@ export default function VideoCompress() {
 		setStatus('compressing');
 		runTarget.current =
 			settings.mode === 'size' ? settings.targetMB * 1_000_000 : null;
+		runJobKey.current = jobKey;
 		worker.current.postMessage({
 			type: 'compress',
 			job: { settings, start, end },
@@ -167,36 +187,21 @@ export default function VideoCompress() {
 			<p className="text-sm text-muted-foreground">
 				動画は端末のブラウザー内だけで処理します。アップロード・外部送信はありません。入力上限256MiB、出力上限128MiB。長い動画はPCをおすすめします。
 			</p>
-			<section
-				aria-label="動画を選択"
-				className="rounded-xl border-2 border-dashed p-6 text-center space-y-3"
-				onDragOver={(event) => event.preventDefault()}
-				onDrop={(event) => {
-					event.preventDefault();
-					if (!processing && event.dataTransfer.files[0])
-						load(event.dataTransfer.files[0]);
-				}}
-			>
-				<label htmlFor="video-file" className="block font-semibold">
-					動画を選択、またはここにドロップ
-				</label>
-				<input
-					ref={input}
-					id="video-file"
-					type="file"
-					accept=".mp4,.mov,.webm,.mkv"
-					disabled={processing}
-					className="max-w-full text-sm"
-					onChange={(event) => {
-						const selected = event.target.files?.[0];
-						if (selected) load(selected);
-						event.target.value = '';
-					}}
-				/>
-				<p className="text-sm text-muted-foreground">
-					MP4 / MOV / WebM / MKV（コーデックによって非対応の場合があります）
-				</p>
-			</section>
+			<FileDropzone
+				onFileSelect={load}
+				onValidationError={setError}
+				accept=".mp4,.mov,.webm,.mkv"
+				maxSizeBytes={MAX_VIDEO_BYTES}
+				validationMessage="MP4・MOV・WebM・MKVの、空でない256MiB以下の動画を選択してください。"
+				validate={(selected) =>
+					selected.size ? null : '空の動画は読み込めません。'
+				}
+				label="動画をドラッグ＆ドロップ"
+				description="またはクリックして動画を選択（MP4 / MOV / WebM / MKV・256MiB以下）"
+				privacyNote="動画は端末内だけで処理され、外部へ送信されません"
+				inputAriaLabel="動画を選択、またはここにドロップ"
+				disabled={processing}
+			/>
 			{file && (
 				<p className="break-all text-sm">
 					{file.name} · {formatVideoBytes(file.size)}
@@ -254,9 +259,36 @@ export default function VideoCompress() {
 										})
 									}
 								>
-									<option value="high">高品質</option>
-									<option value="medium">標準</option>
-									<option value="low">低品質・小容量</option>
+									<option value="high">
+										高品質（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'high',
+										)}
+										）
+									</option>
+									<option value="medium">
+										標準（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'medium',
+										)}
+										）
+									</option>
+									<option value="low">
+										低品質・小容量（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'low',
+										)}
+										）
+									</option>
 								</select>
 							</label>
 						) : (
@@ -314,34 +346,24 @@ export default function VideoCompress() {
 							/>
 							音声を削除
 						</label>
-						<label className="space-y-1">
-							開始秒
-							<input
-								className={fieldClass}
-								type="number"
-								min="0"
-								max={info.duration}
-								step="0.01"
-								value={start}
-								onChange={(event) => setStart(Number(event.target.value))}
-							/>
-						</label>
-						<label className="space-y-1">
-							終了秒
-							<input
-								className={fieldClass}
-								type="number"
-								min="0"
-								max={info.duration}
-								step="0.01"
-								value={end}
-								onChange={(event) => setEnd(Number(event.target.value))}
-							/>
-						</label>
 					</div>
+					{file && (
+						<VideoTrimRange
+							file={file}
+							info={info}
+							start={start}
+							end={end}
+							disabled={processing}
+							onChange={(nextStart, nextEnd) => {
+								setStart(nextStart);
+								setEnd(nextEnd);
+							}}
+						/>
+					)}
 					<p className="text-sm text-muted-foreground">
 						縦横比を維持し、拡大しません。映像は最大30fps、AAC音声は元の品質を保持し、その他の音声はAAC（最大2チャンネル・48kHz）に変換します。切り出しの音声境界にはサンプル単位の誤差があります。MB
-						= 1,000,000バイト。目標容量・推定容量は目安です。
+						=
+						1,000,000バイト。目標容量・推定容量・削減率は目安です。削減率は元のファイル全体との比較です。
 					</p>
 					{plan && (
 						<p className="text-sm">
@@ -380,7 +402,9 @@ export default function VideoCompress() {
 					: status === 'compressing'
 						? `圧縮中… ${progress}%`
 						: status === 'done'
-							? '圧縮が完了しました。'
+							? resultIsStale
+								? '設定が変更されています。現在の設定で再圧縮してください。'
+								: '圧縮が完了しました。'
 							: notice}
 			</div>
 			{status === 'compressing' && (
@@ -401,7 +425,14 @@ export default function VideoCompress() {
 					className="space-y-4 rounded-xl border p-4"
 					aria-label="圧縮結果"
 				>
-					<h2 className="font-semibold">圧縮結果</h2>
+					<h2 className="font-semibold">
+						{resultIsStale ? '前回の圧縮結果' : '圧縮結果'}
+					</h2>
+					{resultIsStale && (
+						<p>
+							この動画は変更前の設定で作成された結果です。現在の設定は反映されていません。
+						</p>
+					)}
 					<p>
 						元 {formatVideoBytes(file.size)} → 圧縮後{' '}
 						{formatVideoBytes(result.size)} / 削減率{' '}
@@ -431,7 +462,7 @@ export default function VideoCompress() {
 							href={result.url}
 							download={`${file.name.replace(/\.[^.]+$/, '')}-compressed.mp4`}
 						>
-							MP4をダウンロード
+							{resultIsStale ? '前回のMP4をダウンロード' : 'MP4をダウンロード'}
 						</a>
 					</Button>
 				</section>

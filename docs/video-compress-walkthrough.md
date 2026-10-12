@@ -52,3 +52,12 @@ E2Eは共通の通信遮断fixtureを使用せず、実Worker・実WebCodecsで�
 正式GitHub Code Review（aeb0330）のP2指摘2件を修正: 読み込み中キャンセルはWorkerを終了してファイル選択可能な状態へ戻し、再読み込みを開始しない。正の開始タイムスタンプは実長へ正規化し、UIの相対切り出し秒を元の時刻へ変換する。遅延loadと開始5秒・実長3秒の合成動画をE2Eに追加した。
 
 最終修正のローカル結果: lint/build/astro check/tsc成功、全1,432unit（新規8件）・PC/mobile20E2E成功、失敗・skipなし。修正周回は3/3。独立再レビューで追加blocking findingなし。最新コミットの正式Code/Security Review・CI成功を確認してからMerge・Deployする。
+
+## UI改善（2026-10-12）
+- 品質選択に元ファイル全体と比較した推定削減率を表示。解像度・音声・書き出し範囲に追従し、増加時も明示。
+- 書き出し範囲を左右ハンドルのスライダーに変更。矢印・PageUp/Down・Home/Endに対応し、全範囲に戻せる。
+- 動画から8フレームを専用Workerでローカル抽出（スマホでは4枚表示）。rotation・正の開始時刻を考慮し、ファイル変更時にWorker/Object URLを解放。抽出失敗時も圧縮できる。
+- image-compressと同じFileDropzoneを使用。領域全体のクリックとD&Dに対応。
+- build・TypeScript・lint成功（既存警告15件）。unit 1,434件成功。PC/モバイルの対象E2E 24件でオフライン圧縮、実フレーム、D&D、キーボード範囲変更、AAC保持、キャンセル回復、抽出失敗時の継続を検証。
+- Codexサブエージェントがproduction/test差分を独立レビューし、actionable findingなし。
+- モックは認識合わせ資料のため今回のPRには含めない。完全ローカル処理と既存CSPを維持。
