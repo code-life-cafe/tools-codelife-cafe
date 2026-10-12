@@ -155,7 +155,10 @@ export default function VideoCompress() {
 	function cancel() {
 		worker.current?.terminate();
 		worker.current = null;
-		if (file) load(file, info !== null);
+		if (status === 'loading') {
+			setInfo(null);
+			setStatus('empty');
+		} else if (file) load(file, info !== null);
 		setNotice('処理をキャンセルしました。再実行できます。');
 	}
 	const fieldClass = 'w-full rounded-md border border-input bg-background p-2';

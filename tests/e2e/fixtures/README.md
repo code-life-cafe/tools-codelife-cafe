@@ -58,3 +58,9 @@ ffmpeg -f lavfi -i testsrc2=size=320x180:rate=24 -f lavfi -i sine=frequency=440:
 ffmpeg -f lavfi -i testsrc2=size=640x360:rate=24 -t 2 -c:v libx264 -preset ultrafast -crf 12 -pix_fmt yuv420p -y /tmp/video-rotation-source.mp4
 ffmpeg -display_rotation:v:0 90 -i /tmp/video-rotation-source.mp4 -c copy -y tests/e2e/fixtures/video-compress-rotated.mp4
 ```
+
+`video-compress-offset.mp4` は縦動画に開始タイムスタンプ5秒を付けた3秒のH.264動画。正の開始時刻を実長として扱わない回帰テスト用。
+
+```bash
+ffmpeg -i tests/e2e/fixtures/video-compress-portrait.mp4 -c copy -output_ts_offset 5 -y tests/e2e/fixtures/video-compress-offset.mp4
+```

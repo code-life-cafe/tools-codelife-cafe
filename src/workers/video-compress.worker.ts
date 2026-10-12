@@ -16,6 +16,7 @@ import {
 	compressionPlan,
 	MAX_OUTPUT_BYTES,
 	MAX_VIDEO_BYTES,
+	sourceTimeline,
 	type VideoInfo,
 	type VideoJob,
 	type VideoReply,
@@ -57,11 +58,13 @@ self.onmessage = async (
 				throw new Error(
 					'この動画の映像を読み込めません。コーデックが非対応の可能性があります。',
 				);
-			const duration = await input.computeDuration();
-			if (!Number.isFinite(duration) || duration <= 0)
-				throw new Error('動画の長さを読み取れません。');
-			const stats = await video.computePacketStats(100);
 			const audioTracks = await input.getAudioTracks();
+			const timelineTracks = [video, ...audioTracks];
+			const { duration, startTimestamp } = sourceTimeline(
+				await input.getFirstTimestamp(timelineTracks),
+				await input.computeDuration(timelineTracks),
+			);
+			const stats = await video.computePacketStats(100);
 			let audioBitrate = 0;
 			for (const track of audioTracks) {
 				if (track.codec === 'aac') {
@@ -78,6 +81,7 @@ self.onmessage = async (
 				width: video.displayWidth,
 				height: video.displayHeight,
 				duration,
+				startTimestamp,
 				audioTracks: audioTracks.length,
 				audioBitrate,
 				frameRate:
@@ -130,7 +134,7 @@ self.onmessage = async (
 			const conversion = await Conversion.init({
 				input,
 				output,
-				trim: { start: job.start, end: job.end },
+				trim: { start: plan.sourceStart, end: plan.sourceEnd },
 				copy: { boundaryPolicy: 'shrink', shiftTolerance: 0 },
 				video: (track) =>
 					track.id === video.id

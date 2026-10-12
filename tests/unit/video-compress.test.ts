@@ -140,3 +140,24 @@ test('本番は動画圧縮ページだけ共通CSPを解除しmetaで制限', a
 		assert.equal(lines[index + 1].trim(), '! Content-Security-Policy');
 	}
 });
+
+test('正の開始タイムスタンプを実長に正規化し切り出しを元時刻へ戻す', async () => {
+	const { sourceTimeline } = await import(
+		'../../src/lib/tools/video-compress.ts'
+	);
+	const timeline = sourceTimeline(3600, 3660);
+	assert.deepEqual(timeline, { startTimestamp: 3600, duration: 60 });
+	const plan = compressionPlan(
+		{ ...info, ...timeline },
+		{ settings: DEFAULT_VIDEO_SETTINGS, start: 10, end: 30 },
+	);
+	assert.equal(plan.duration, 20);
+	assert.equal(plan.sourceStart, 3610);
+	assert.equal(plan.sourceEnd, 3630);
+	assert.deepEqual(sourceTimeline(-0.02, 60), {
+		startTimestamp: 0,
+		duration: 60,
+	});
+	assert.throws(() => sourceTimeline(NaN, 60));
+	assert.throws(() => sourceTimeline(60, 60));
+});

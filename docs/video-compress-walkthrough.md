@@ -48,3 +48,7 @@ E2Eは共通の通信遮断fixtureを使用せず、実Worker・実WebCodecsで�
 本番の共通CSPヘッダーをpreviewに付与する実検証で、`media-src`省略時のdefault-srcによりblob動画が拒否されることを確認した（preview readyState=0、MEDIA_ERR_SRC_NOT_SUPPORTED、media-src違反）。Cloudflare Pagesは重複するCSPヘッダーを連結するため、新しいヘッダーでは共通制限を緩和できない。`public/_headers` に `/video-compress` と `/video-compress/` の完全一致だけ `! Content-Security-Policy` を追加し、当該ページは既存のmeta CSPを実効制限として使用する。metaは同一オリジンとblobだけを許可し、共通CSPより通信・script制限を厳しくする。共通CSPや既存ページの境界は変更しない。両パスのCSP解除とmeta指定をunitで、共通ヘッダー解除後にもmetaが存在して元・結果動画がreadyState>=2になることをE2Eで検証する。ページ固有の配信ヘッダーを追加したため変更全体をR3として記録し、独立レビューを追加する。ユーザーからのリリース指示を人間承認として扱う。
 
 追加R3レビューで、ワイルドカード解除が共通404ページのCSPまで消す問題を指摘され、解除を実ページ2パスの完全一致へ限定。新規7unit・PC/mobile16E2Eで検証。
+
+正式GitHub Code Review（aeb0330）のP2指摘2件を修正: 読み込み中キャンセルはWorkerを終了してファイル選択可能な状態へ戻し、再読み込みを開始しない。正の開始タイムスタンプは実長へ正規化し、UIの相対切り出し秒を元の時刻へ変換する。遅延loadと開始5秒・実長3秒の合成動画をE2Eに追加した。
+
+最終修正のローカル結果: lint/build/astro check/tsc成功、全1,432unit（新規8件）・PC/mobile20E2E成功、失敗・skipなし。修正周回は3/3。独立再レビューで追加blocking findingなし。最新コミットの正式Code/Security Review・CI成功を確認してからMerge・Deployする。

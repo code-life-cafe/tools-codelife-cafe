@@ -22,6 +22,7 @@ export type VideoInfo = {
 	width: number;
 	height: number;
 	duration: number;
+	startTimestamp?: number;
 	audioTracks: number;
 	audioBitrate?: number;
 	frameRate: number;
@@ -80,6 +81,14 @@ export function outputDimensions(
 		height: Math.max(2, Math.floor((height * scale) / 2) * 2),
 	};
 }
+export function sourceTimeline(firstTimestamp: number, endTimestamp: number) {
+	if (![firstTimestamp, endTimestamp].every(Number.isFinite))
+		throw new Error('動画の長さを読み取れません。');
+	const startTimestamp = Math.max(0, firstTimestamp);
+	const duration = endTimestamp - startTimestamp;
+	if (duration <= 0) throw new Error('動画の長さを読み取れません。');
+	return { startTimestamp, duration };
+}
 export function compressionPlan(info: VideoInfo, job: VideoJob) {
 	const { start, end, settings } = job;
 	if (
@@ -134,6 +143,8 @@ export function compressionPlan(info: VideoInfo, job: VideoJob) {
 		);
 	return {
 		...dimensions,
+		sourceStart: (info.startTimestamp ?? 0) + start,
+		sourceEnd: (info.startTimestamp ?? 0) + end,
 		duration,
 		frameRate,
 		videoBitrate,

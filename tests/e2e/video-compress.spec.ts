@@ -280,3 +280,51 @@ test('本番の共通CSP解除後もmetaで制限し元・結果動画を再生�
 		)
 		.toBeGreaterThanOrEqual(2);
 });
+
+test('読み込み中のキャンセルは再読み込みを始めずファイル選択へ戻る', async ({
+	page,
+}) => {
+	let delayLoad = true;
+	await page.route('**/video-compress.worker-*.js', async (route) => {
+		const response = await route.fetch();
+		const body = await response.text();
+		await route.fulfill({
+			response,
+			body: delayLoad
+				? `${body}\nconst originalHandler=self.onmessage;self.onmessage=event=>{if(event.data.type==='load')setTimeout(()=>originalHandler.call(self,event),60000);else originalHandler.call(self,event);};`
+				: body,
+		});
+	});
+	await open(page);
+	await page
+		.getByLabel('動画を選択、またはここにドロップ')
+		.setInputFiles(landscape);
+	await expect(page.getByRole('status')).toContainText('読み込んでいます');
+	await page.getByRole('button', { name: 'キャンセル' }).click();
+	await expect(page.getByRole('status')).toContainText('キャンセルしました');
+	await expect(page.getByRole('button', { name: 'キャンセル' })).toHaveCount(0);
+	await expect(
+		page.getByLabel('動画を選択、またはここにドロップ'),
+	).toBeEnabled();
+	delayLoad = false;
+	await load(page, portrait);
+});
+
+test('開始タイムスタンプが正の動画を相対秒数で切り出す', async ({
+	page,
+}, testInfo) => {
+	await open(page);
+	await load(page, resolve('tests/e2e/fixtures/video-compress-offset.mp4'));
+	await expect(page.getByLabel('終了秒')).toHaveValue('3');
+	await page.getByLabel('開始秒').fill('0.5');
+	await page.getByLabel('終了秒').fill('2.5');
+	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
+	const result = await output(page, testInfo.outputPath('offset.mp4'));
+	try {
+		const video = await result.getPrimaryVideoTrack();
+		expect(await result.computeDuration()).toBeCloseTo(2, 1);
+		if (video) expect(await video.getFirstTimestamp()).toBeCloseTo(0, 1);
+	} finally {
+		result.dispose();
+	}
+});
