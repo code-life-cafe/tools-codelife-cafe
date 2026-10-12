@@ -1236,3 +1236,80 @@ test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', ()
 	assert.match(result.error ?? '', /入力が大きすぎる/);
 	assert.equal(repairMermaidCode('flowchart TD\nA --> B').error, undefined);
 });
+
+describe('複合括弧の形状（円・サブルーチン等）の保持', () => {
+	test('正常な円 ((開始)) とサブルーチン [[処理]] は修復で変化しない', () => {
+		const input = 'A((開始)) --> B[[処理]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+		const result = repairMermaidCode(`flowchart TD\n${input}`);
+		assert.ok(result.repairedCode.includes(input));
+		assert.ok(!result.repairedCode.includes('"(開始)"'));
+		assert.ok(!result.repairedCode.includes('"[処理]"'));
+	});
+
+	test('スタジアム ([x]) と円柱 [(x)] の形状も保持する', () => {
+		const input = 'A([開始]) --> B[(DB)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('複合括弧でも内側の特殊記号は本文だけを二重引用符で囲む', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A((a b)) --> B[[c; d]]'),
+			'A(("a b")) --> B[["c; d"]]',
+		);
+		const quoted = 'A(("a b")) --> B[["c d"]]';
+		assert.equal(safeQuoteNodeLabels(quoted), quoted);
+	});
+
+	test('引用符付き本文が形状と同種の括弧を含んでも複合形状を保持する', () => {
+		const input =
+			'A(("a (b)")) --> B[["x[y]"]] --> C(["p (q)"]) --> D[("r [s]")]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('内部に生の引用符を含む不正な複合ラベルは引用符を正規化する', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A(("He said "hello"")) --> B[["x "y" z"]]'),
+			'A(("He said \'hello\'")) --> B[["x \'y\' z"]]',
+		);
+	});
+
+	test('複合ラベルの対になっていない引用符・先頭ハイフンは本文ごとクォートする', () => {
+		assert.equal(safeQuoteNodeLabels('A((a"b))'), 'A(("a\'b"))');
+		assert.equal(safeQuoteNodeLabels('B[[a"b]]'), 'B[["a\'b"]]');
+		assert.equal(safeQuoteNodeLabels('A((-a))'), 'A(("-a"))');
+		assert.equal(safeQuoteNodeLabels('B[[-x]]'), 'B[["-x"]]');
+	});
+
+	test('複合ラベルの予約語・先頭記号は本文ごとクォートし形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((end))'), 'A(("end"))');
+		assert.equal(safeQuoteNodeLabels('B[[End]]'), 'B[["End"]]');
+		assert.equal(safeQuoteNodeLabels('C([subgraph])'), 'C(["subgraph"])');
+		assert.equal(safeQuoteNodeLabels('D[(class)]'), 'D[("class")]');
+		assert.equal(safeQuoteNodeLabels('E((.x))'), 'E((".x"))');
+	});
+
+	test('複合ラベルの安全な本文（日本語・英数字）は素通しする', () => {
+		const input = 'A((開始)) --> B[[処理_1]] --> C([ok]) --> D[(DB2)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('複合ラベルの対にならないバッククォートは実体参照にして形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((`))'), 'A(("#96;"))');
+		assert.equal(safeQuoteNodeLabels('B[[`]]'), 'B[["#96;"]]');
+		assert.equal(safeQuoteNodeLabels('C([a`b])'), 'C(["a#96;b"])');
+		assert.equal(safeQuoteNodeLabels('D[("`")]'), 'D[("#96;")]');
+	});
+
+	test('複合ラベルのMarkdown文字列（対になる``）は保持する', () => {
+		const input = 'A(("`bold`")) --> B[["`x`"]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('従来の単一括弧の修復は維持される', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
+			'A["a (b)"] --> B("c d")',
+		);
+	});
+});
