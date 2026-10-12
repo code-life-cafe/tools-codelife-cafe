@@ -212,7 +212,7 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svg).not.toContainText('(end)');
 	});
 
-	for (const key of ['title', '"title"']) {
+	for (const key of ['title', '"title"', '  title']) {
 		test(`正常なYAML frontmatter(${key})の図タイトルが修復ONでも保持・描画されること`, async ({
 			page,
 			createToolPage,

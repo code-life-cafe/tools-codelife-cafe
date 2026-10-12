@@ -1477,4 +1477,13 @@ describe('YAML frontmatter の保持', () => {
 			1,
 		);
 	});
+
+	test('extractMermaidCode/repairMermaidCode: インデント付きYAMLキーのfrontmatterも保持する', () => {
+		const indented = `---\n  title: 東京大阪ルート\n---\n`;
+		const { code } = extractMermaidCode(`説明です\n${indented}${body}`);
+		assert.equal(code, `${indented}${body}`);
+		const result = repairMermaidCode(`${indented}${body}`);
+		assert.equal(result.repairedCode, `${indented}${body}`);
+		assert.equal(result.isModified, false);
+	});
 });
