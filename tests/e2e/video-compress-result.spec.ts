@@ -3,14 +3,23 @@ import { expect, test } from './fixtures/base';
 test('成功結果と現在設定を区別し、元に戻す・失敗・キャンセル・連続実行で整合する', async ({
 	page,
 }) => {
+	const pageErrors: string[] = [];
+	page.on('pageerror', (error) => pageErrors.push(error.message));
 	// UIの結果ライフサイクルを決定的に検証する。実コーデックは既存実動画テストで検証。
 	await page.addInitScript(() => {
 		class VideoWorker {
 			onmessage: ((event: { data: unknown }) => void) | null = null;
 			terminated = false;
 			timer = 0;
+			thumbnail: boolean;
+			constructor(url: string | URL) {
+				this.thumbnail = String(url).includes('video-thumbnails.worker');
+			}
 			postMessage(message: { type: string }) {
-				if (message.type === 'load') {
+				if (this.thumbnail) {
+					// サムネイル未取得は仕様上のfallback。圧縮Workerの応答とは分ける。
+					this.timer = window.setTimeout(() => this.reply(null), 10);
+				} else if (message.type === 'load') {
 					this.timer = window.setTimeout(
 						() =>
 							this.reply({
@@ -59,6 +68,11 @@ test('成功結果と現在設定を区別し、元に戻す・失敗・キャ�
 	const status = page.getByRole('status');
 	const result = page.getByRole('region', { name: '圧縮結果', exact: true });
 	await expect(compress).toBeEnabled();
+	await expect(
+		page.getByText(
+			'フレームを表示できません。範囲の調整・圧縮は引き続き利用できます。',
+		),
+	).toBeVisible();
 	await compress.click();
 	await expect(status).toHaveText('圧縮が完了しました。');
 	const url = await page
@@ -128,4 +142,5 @@ test('成功結果と現在設定を区別し、元に戻す・失敗・キャ�
 	await expect(status).toHaveText('圧縮が完了しました。');
 	await page.getByLabel('目標容量（MB）').fill('10');
 	await expect(status).toContainText('現在の設定で再圧縮');
+	expect(pageErrors).toEqual([]);
 });
