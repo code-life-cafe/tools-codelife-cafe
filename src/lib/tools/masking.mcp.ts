@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 import { defineMcpTool } from '../webmcp/define-tool.ts';
 import {
 	type MaskChar,
@@ -89,7 +90,7 @@ export const maskingMcpTool = defineMcpTool<
 	},
 	annotations: { readOnlyHint: true, untrustedContentHint: true },
 	handler(input) {
-		if (input.text.length > 100_000)
+		if (exceedsMaxCharacters(input.text, 100_000))
 			throw new Error('入力の上限は100000文字です。');
 		const targets = new Set<MaskTarget>();
 		for (const target of [

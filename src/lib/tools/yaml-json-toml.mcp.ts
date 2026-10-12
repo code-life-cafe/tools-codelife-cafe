@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 import { defineMcpTool } from '../webmcp/define-tool.ts';
 import { convertFormats, type Format, type Indent } from './yaml-json-toml.ts';
 
@@ -49,7 +50,7 @@ export const yamlJsonTomlMcpTool = defineMcpTool<
 	returns: { output: { type: 'string' }, note: { type: 'string' } },
 	annotations: { readOnlyHint: true, untrustedContentHint: true },
 	handler(input) {
-		if (input.text.length > 100_000)
+		if (exceedsMaxCharacters(input.text, 100_000))
 			throw new Error('入力の上限は100000文字です。');
 		const result = convertFormats(input.from, input.to, input.text, {
 			indent: Number(input.indent) as Indent,

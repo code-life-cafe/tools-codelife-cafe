@@ -203,3 +203,41 @@ test('3件の公開スキーマ: 100000文字上限と全省略値を明示す�
 		}
 	}
 });
+
+test('3件: astral文字も1文字として100000文字まで受理し超過を拒否', async () => {
+	const limit = 100_000;
+	const diagramPrefix = 'flowchart TD\nA["';
+	const diagramSuffix = '"]';
+	const jsonPrefix = '{"text":"';
+	const jsonSuffix = '"}';
+	const diagram =
+		diagramPrefix +
+		'😀'.repeat(limit - diagramPrefix.length - diagramSuffix.length) +
+		diagramSuffix;
+	const json =
+		jsonPrefix +
+		'😀'.repeat(limit - jsonPrefix.length - jsonSuffix.length) +
+		jsonSuffix;
+	const repaired = await mermaid.run({ text: diagram });
+	assert.ok(repaired.ok);
+	assert.equal(repaired.value.code, diagram);
+	const converted = await formats.run({
+		text: json,
+		from: 'json',
+		to: 'json',
+		indent: '0',
+	});
+	assert.ok(converted.ok);
+	assert.equal(converted.value.output, json);
+	const masked = await masking.run({ text: '😀'.repeat(limit) });
+	assert.ok(masked.ok);
+	assert.equal(masked.value.maskedText, '😀'.repeat(limit));
+	for (const tool of [mermaid, formats, masking]) {
+		const rejected = await tool.run({
+			text: '😀'.repeat(limit + 1),
+			from: 'json',
+			to: 'json',
+		});
+		assert.equal(rejected.ok, false);
+	}
+});

@@ -30,3 +30,8 @@
 入力上限と省略時既定値が公開スキーマに出ていない指摘を受け、3件のtextにmaxLengthを宣言し、共通生成器でmaxLength/defaultを出力するよう修正した。実行時の検査・既定値は変更せず、クライアントへ明示する。既存ツールのdefaultも同じ宣言からmanifestへ反映。生成器と3件のスキーマの回帰テストを追加。
 
 GitHub CIの初回lint/型チェック/build/全unitは成功。ローカルでのみ発生したONNX課題とは区別する。初回E2EとSecurity Reviewの結果はGitHub PRの最新状態を参照。修正後headのCI・独立レビューを改めて確認してからMergeする。
+
+
+## 独立レビュー修正（2周目）
+
+JSON SchemaのmaxLengthはUnicodeコードポイント単位だが、実行時がUTF-16 code unitを数えていた。共通の上限検査を導入し、生成器validator・3件のhandler・Mermaidの修復/描画前段を一致させた。3件それぞれでastral文字を含む100000文字の受理と超過拒否の回帰テストを追加。BMP文字の上限は維持する。処理を停止できる早期判定とし、文字配列全体の生成は行わない。

@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 /**
  * Mermaidコード内の修正履歴
  */
@@ -992,7 +993,7 @@ export function autoCloseBlocks(lines: string[]): {
  * Mermaidコード全体の自動修復を実行するメイン純粋関数
  */
 export function repairMermaidCode(rawInput: string): MermaidRepairResult {
-	if (rawInput.length > MAX_REPAIR_INPUT_LENGTH) {
+	if (exceedsMaxCharacters(rawInput, MAX_REPAIR_INPUT_LENGTH)) {
 		return {
 			originalCode: rawInput,
 			repairedCode: rawInput,

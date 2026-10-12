@@ -252,3 +252,13 @@ test('buildInputSchema: 実行時と同じ入力上限と省略時の既定値�
 	});
 	assert.equal(validate({ text: 'abcd' }).ok, false);
 });
+
+test('buildValidator: maxLengthはUTF-16ではなくUnicodeコードポイントで判定する', () => {
+	const validate = buildValidator({
+		text: { type: 'string', description: 'text', maxLength: 3 },
+	});
+	assert.equal(validate({ text: '😀😀😀' }).ok, true);
+	assert.equal(validate({ text: '😀😀😀😀' }).ok, false);
+	assert.equal(validate({ text: 'a😀b' }).ok, true);
+	assert.equal(validate({ text: 'a😀bc' }).ok, false);
+});

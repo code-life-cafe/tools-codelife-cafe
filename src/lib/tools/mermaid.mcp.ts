@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 import { defineMcpTool } from '../webmcp/define-tool.ts';
 import { renderMermaidSvg } from './mermaid.ts';
 import { type RepairChange, repairMermaidCode } from './mermaid-repair.ts';
@@ -45,7 +46,7 @@ export const mermaidMcpTool = defineMcpTool<
 	async handler(input) {
 		if (!input.text.trim())
 			throw new Error('Mermaidコードを入力してください。');
-		if (input.text.length > 100_000)
+		if (exceedsMaxCharacters(input.text, 100_000))
 			throw new Error('入力の上限は100000文字です。');
 		const repaired = repairMermaidCode(input.text);
 		const useRepair = input.action === 'repair' || input.autoRepair;
