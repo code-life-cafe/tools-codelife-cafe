@@ -357,17 +357,14 @@ test('開始タイムスタンプが正の動画を相対秒数で切り出す',
 
 test('実フレーム・品質推定が範囲に追従しD&Dで選択できる', async ({ page }) => {
 	await open(page);
-	const bytes = await readFile(landscape);
-	const transfer = await page.evaluateHandle(
-		(data) => {
-			const transfer = new DataTransfer();
-			transfer.items.add(
-				new File([new Uint8Array(data)], 'dropped.mp4', { type: 'video/mp4' }),
-			);
-			return transfer;
-		},
-		[...bytes],
-	);
+	// 数値配列（[...bytes]）で渡すとCIで十数秒かかりテスト制限を圧迫するため、base64文字列で渡す
+	const encoded = (await readFile(landscape)).toString('base64');
+	const transfer = await page.evaluateHandle((base64) => {
+		const data = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+		const transfer = new DataTransfer();
+		transfer.items.add(new File([data], 'dropped.mp4', { type: 'video/mp4' }));
+		return transfer;
+	}, encoded);
 	await page
 		.getByRole('button', { name: /動画をドラッグ＆ドロップ/ })
 		.dispatchEvent('drop', { dataTransfer: transfer });
