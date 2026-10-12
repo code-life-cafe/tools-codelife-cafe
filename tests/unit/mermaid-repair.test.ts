@@ -1386,3 +1386,48 @@ test('未対応の閉じブロック10万文字を3回処理して2秒以内に�
 		timeout: 2000,
 	});
 });
+
+describe('YAML frontmatter の保持', () => {
+	const fm = '---\ntitle: 東京→大阪 “計画”\n---\n';
+	const body = 'flowchart TD\n  A[開始] --> B[終了]';
+
+	test('extractMermaidCode: 会話文＋frontmatter付き図でfrontmatterを残す', () => {
+		const { code, extracted } = extractMermaidCode(
+			`こちらです。\n${fm}${body}\n以上です`,
+		);
+		assert.equal(code, `${fm}${body}`);
+		assert.equal(extracted, true);
+	});
+
+	test('extractMermaidCode: ```mermaid フェンス内のfrontmatterを残す', () => {
+		const { code } = extractMermaidCode(`\`\`\`mermaid\n${fm}${body}\n\`\`\``);
+		assert.equal(code, `${fm}${body}`);
+	});
+
+	test('extractMermaidCode: 言語指定なしフェンスでもfrontmatter付き図を検出する', () => {
+		const { code, fenceRemoved } = extractMermaidCode(
+			`説明\n\`\`\`\n${fm}${body}\n\`\`\``,
+		);
+		assert.equal(code, `${fm}${body}`);
+		assert.equal(fenceRemoved, true);
+	});
+
+	test('extractMermaidCode: 図と無関係な --- 区切りは従来どおり除去する', () => {
+		const { code } = extractMermaidCode(`説明\n---\n補足\n---\n${body}`);
+		assert.equal(code, body);
+	});
+
+	test('repairMermaidCode: frontmatterを削除・改変せず本文だけ修復する', () => {
+		const result = repairMermaidCode(`${fm}flowchart TD\n  A → B`);
+		assert.ok(result.repairedCode.startsWith(fm));
+		assert.match(result.repairedCode, /A --> B/);
+		assert.ok(result.repairedCode.includes('title: 東京→大阪 “計画”'));
+	});
+
+	test('repairMermaidCode: 正常なfrontmatter付き図は変更なし', () => {
+		const input = `${fm}${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
+});

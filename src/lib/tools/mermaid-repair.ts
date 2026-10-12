@@ -32,6 +32,24 @@ const DIAGRAM_HEADER_REGEX =
 	/^(?:(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b|sequenceDiagram\b|classDiagram(?:-v2)?\b|stateDiagram(?:-v2)?\b|erDiagram\b|gantt\b|pie(?:\s+title)?\b|gitGraph\b|mindmap\b|quadrantChart\b|timeline\b|c4Context\b|sankey-beta\b|kanban\b|architecture-beta\b|block-beta\b|packet-beta\b|requirementDiagram\b)/i;
 
 /**
+ * ダイアグラム宣言の直前にあるYAML frontmatter（--- ... ---）の開始行indexを返す。
+ * 宣言行(headerIndex)の直前が閉じ `---` で、それより上に開き `---` がある場合のみ該当。
+ */
+function findFrontmatterStart(lines: string[], headerIndex: number): number {
+	let end = headerIndex - 1;
+	while (end >= 0 && lines[end].trim() === '') end--;
+	if (end < 1 || lines[end].trim() !== '---') return -1;
+	for (let start = end - 1; start >= 0; start--) {
+		if (lines[start].trim() === '---') {
+			const body = lines.slice(start + 1, end);
+			// 会話文の区切り線と区別するため、YAMLのキー行(key:)を1つ以上要求する
+			return body.some((l) => /^[A-Za-z_][\w-]*\s*:/.test(l)) ? start : -1;
+		}
+	}
+	return -1;
+}
+
+/**
  * AIが出力したMarkdownコードフェンスや前後の会話テキストを検出し、
  * 純粋なMermaidコードブロックを抽出する
  */
@@ -93,7 +111,9 @@ export function extractMermaidCode(rawText: string): {
 	}
 
 	if (startIndex > 0) {
-		lines.splice(0, startIndex);
+		// 正常なYAML frontmatter（図タイトル・config）は図の一部として残す
+		const frontmatterStart = findFrontmatterStart(lines, startIndex);
+		lines.splice(0, frontmatterStart >= 0 ? frontmatterStart : startIndex);
 		extracted = true;
 	}
 
@@ -1123,10 +1143,22 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 				? 'sequence'
 				: 'other';
 	const processedLines: string[] = [];
+	const headerIndex = rawLines.findIndex((line) =>
+		DIAGRAM_HEADER_REGEX.test(line.trim()),
+	);
+	// 先頭のYAML frontmatterは修復対象外（タイトル等の文言を改変しない）
+	const frontmatterEnd =
+		headerIndex > 0 && findFrontmatterStart(rawLines, headerIndex) === 0
+			? headerIndex
+			: 0;
 
 	for (let i = 0; i < rawLines.length; i++) {
 		const origLine = rawLines[i];
 		let curLine = origLine;
+		if (i < frontmatterEnd) {
+			processedLines.push(curLine);
+			continue;
+		}
 
 		// Step 2: スマートクォート正規化
 		const normalizedQuote = normalizeSmartQuotes(curLine);
