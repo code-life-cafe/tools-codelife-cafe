@@ -212,29 +212,31 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svg).not.toContainText('(end)');
 	});
 
-	test('正常なYAML frontmatterの図タイトルが修復ONでも保持・描画されること', async ({
-		page,
-		createToolPage,
-	}) => {
-		const toolPage = createToolPage('mermaid');
-		await toolPage.goto();
+	for (const key of ['title', '"title"']) {
+		test(`正常なYAML frontmatter(${key})の図タイトルが修復ONでも保持・描画されること`, async ({
+			page,
+			createToolPage,
+		}) => {
+			const toolPage = createToolPage('mermaid');
+			await toolPage.goto();
 
-		const textarea = page.locator('textarea');
-		await textarea.fill(
-			'---\ntitle: 東京大阪ルート\n---\nflowchart TD\nA[開始] --> B[完了]',
-		);
+			const textarea = page.locator('textarea');
+			await textarea.fill(
+				`---\n${key}: 東京大阪ルート\n---\nflowchart TD\nA[開始] --> B[完了]`,
+			);
 
-		const previewTab = page.getByRole('tab', { name: /プレビュー/ });
-		if (await previewTab.isVisible()) {
-			await previewTab.click();
-		}
+			const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+			if (await previewTab.isVisible()) {
+				await previewTab.click();
+			}
 
-		const svg = page
-			.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
-			.locator('svg')
-			.first();
-		await expect(svg).toBeVisible({ timeout: 10000 });
-		await expect(svg).toContainText('東京大阪ルート');
-		await expect(svg).toContainText('開始');
-	});
+			const svg = page
+				.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
+				.locator('svg')
+				.first();
+			await expect(svg).toBeVisible({ timeout: 10000 });
+			await expect(svg).toContainText('東京大阪ルート');
+			await expect(svg).toContainText('開始');
+		});
+	}
 });

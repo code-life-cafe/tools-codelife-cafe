@@ -1430,4 +1430,19 @@ describe('YAML frontmatter の保持', () => {
 		assert.equal(result.repairedCode, input);
 		assert.equal(result.isModified, false);
 	});
+
+	test('extractMermaidCode: 引用符付きYAMLキーのfrontmatterも残す', () => {
+		for (const key of ['"title"', "'title'"]) {
+			const quoted = `---\n${key}: 東京大阪ルート\n---\n`;
+			const { code } = extractMermaidCode(`説明です\n${quoted}${body}`);
+			assert.equal(code, `${quoted}${body}`);
+		}
+	});
+
+	test('repairMermaidCode: 引用符付きキーのfrontmatter付き図は変更なし', () => {
+		const input = `---\n"title": 東京→大阪\n---\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
 });

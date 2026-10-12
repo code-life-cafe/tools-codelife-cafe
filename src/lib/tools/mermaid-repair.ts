@@ -42,8 +42,12 @@ function findFrontmatterStart(lines: string[], headerIndex: number): number {
 	for (let start = end - 1; start >= 0; start--) {
 		if (lines[start].trim() === '---') {
 			const body = lines.slice(start + 1, end);
-			// 会話文の区切り線と区別するため、YAMLのキー行(key:)を1つ以上要求する
-			return body.some((l) => /^[A-Za-z_][\w-]*\s*:/.test(l)) ? start : -1;
+			// 会話文の区切り線と区別するため、YAMLのキー行(key: / "key": / 'key':)を1つ以上要求する
+			return body.some((l) =>
+				/^(?:"[^"]+"|'[^']+'|[A-Za-z_][\w-]*)\s*:/.test(l),
+			)
+				? start
+				: -1;
 		}
 	}
 	return -1;
