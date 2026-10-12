@@ -166,7 +166,9 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 		expect(labeled.svg).toContain('<svg');
 	}
 	const error = await run('not a diagram');
-	const entityLabel = await run(`flowchart TD\nA -- ${`${'x'.repeat(95)}#59;`.repeat(48)} --> B`);
+	const entityLabel = await run(
+		`flowchart TD\nA -- ${`${'x'.repeat(95)}#59;`.repeat(48)} --> B`,
+	);
 	expect(entityLabel.isError).toBe(true);
 	expect(entityLabel.error).toContain('200文字');
 	const semicolonLabel = await run(`flowchart TD\nA["${'項目;'.repeat(50)}"]`);
