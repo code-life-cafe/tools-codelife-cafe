@@ -66,6 +66,7 @@ test('成功結果と現在設定を区別し、元に戻す・失敗・キャ�
 		.getAttribute('href');
 	await page.getByLabel('開始秒').fill('1');
 	await page.getByLabel('終了秒').fill('2');
+	await page.getByLabel('終了秒').press('Tab');
 	await expect(status).toContainText('現在の設定で再圧縮');
 	await expect(result.getByRole('heading')).toHaveText('前回の圧縮結果');
 	await expect(result).toContainText('現在の設定は反映されていません');
@@ -74,6 +75,7 @@ test('成功結果と現在設定を区別し、元に戻す・失敗・キャ�
 	).toHaveAttribute('href', url ?? '');
 	await page.getByLabel('開始秒').fill('0');
 	await page.getByLabel('終了秒').fill('2.333');
+	await page.getByLabel('終了秒').press('Tab');
 	await expect(status).toHaveText('圧縮が完了しました。');
 	await expect(result.getByRole('heading')).toHaveText('圧縮結果');
 	const quality = page.getByLabel('品質', { exact: true });
