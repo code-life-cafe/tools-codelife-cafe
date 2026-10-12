@@ -304,7 +304,10 @@ test.describe('Cipher Tool', () => {
 						name: 'ブルートフォース（全パターン表示）',
 					}),
 				})
-				.screenshot({ path: testInfo.outputPath(`cipher-ui-${width}.png`) });
+				.screenshot({
+					path: testInfo.outputPath(`cipher-ui-${width}.png`),
+					style: 'header { visibility: hidden !important; }',
+				});
 		}
 	});
 
