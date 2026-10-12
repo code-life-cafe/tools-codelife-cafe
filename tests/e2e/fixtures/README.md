@@ -39,3 +39,28 @@ npx tsx scripts/generate-heic-fixture.ts
 pdf-lib は暗号化PDFを生成できないため、`scripts/generate-fixtures.ts` ではなく
 専用スクリプトで事前生成してコミットしている。出力は決定的（固定ファイルID・
 固定パスワード）なので、再生成しても同一バイト列になる。
+
+## 動画圧縮用フィクスチャ
+
+外部の動画は使用せず、FFmpegの`testsrc2`と`sine`で生成した合成動画。CIではコミットしたファイルを使い、FFmpegは不要。
+
+- `video-compress.mp4`: 960×540、24fps、4秒、H.264 + AAC（48kHz）。音声保持・トリミング・オフライン検証。
+- `video-compress-portrait.mp4`: 360×640、24fps、3秒、H.264、音声なし。縦動画・目標容量。
+- `video-compress-opus.webm`: 320×180、24fps、2秒、VP9 + Opus。AACエンコード非対応時の停止・音声削除。
+- `video-compress-rotated.mp4`: 符号化640×360、表示360×640、24fps、2秒、H.264、音声なし。rotation正規化。
+
+再生成（FFmpegのlibx264/libvpx-vp9/libopusが必要）:
+
+```bash
+ffmpeg -f lavfi -i testsrc2=size=960x540:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 4 -c:v libx264 -preset ultrafast -crf 12 -pix_fmt yuv420p -c:a aac -y tests/e2e/fixtures/video-compress.mp4
+ffmpeg -f lavfi -i testsrc2=size=360x640:rate=24 -t 3 -c:v libx264 -preset ultrafast -crf 12 -pix_fmt yuv420p -y tests/e2e/fixtures/video-compress-portrait.mp4
+ffmpeg -f lavfi -i testsrc2=size=320x180:rate=24 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 2 -c:v libvpx-vp9 -b:v 500k -c:a libopus -y tests/e2e/fixtures/video-compress-opus.webm
+ffmpeg -f lavfi -i testsrc2=size=640x360:rate=24 -t 2 -c:v libx264 -preset ultrafast -crf 12 -pix_fmt yuv420p -y /tmp/video-rotation-source.mp4
+ffmpeg -display_rotation:v:0 90 -i /tmp/video-rotation-source.mp4 -c copy -y tests/e2e/fixtures/video-compress-rotated.mp4
+```
+
+`video-compress-offset.mp4` は縦動画に開始タイムスタンプ5秒を付けた3秒のH.264動画。正の開始時刻を実長として扱わない回帰テスト用。
+
+```bash
+ffmpeg -i tests/e2e/fixtures/video-compress-portrait.mp4 -c copy -output_ts_offset 5 -y tests/e2e/fixtures/video-compress-offset.mp4
+```

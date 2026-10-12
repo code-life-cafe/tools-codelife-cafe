@@ -52,6 +52,25 @@ export type PurposeCategory = {
 
 export const toolCatalog: readonly ToolCatalogItem[] = [
 	{
+		id: 'video-compress',
+		title: '動画圧縮・リサイズ',
+		description:
+			'動画を端末内で圧縮。品質・目標容量・解像度指定、トリミング、MP4保存。',
+		href: '/video-compress',
+		icon: 'Shrink',
+		categories: ['ユーティリティ'],
+		categoryColor: 'border-l-primary',
+		keywords: ['動画', '圧縮', 'MP4', 'リサイズ', 'トリミング'],
+		related: ['image-compress', 'transcribe'],
+		llmsFull: {
+			useCase: '動画の完全ローカル圧縮・リサイズ・トリミング',
+			inputs:
+				'MP4/MOV/WebM/MKV動画（256MiB以下、ブラウザーのコーデック対応に依存）',
+			outputs: 'MP4（H.264/AAC、128MiB以下）',
+			options: '品質、目標容量（推定）、長辺、開始・終了秒、音声削除',
+		},
+	},
+	{
 		id: 'zenkaku-hankaku',
 		title: '全角↔半角変換',
 		description:
