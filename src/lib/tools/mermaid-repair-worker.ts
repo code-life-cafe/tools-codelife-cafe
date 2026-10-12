@@ -1,19 +1,22 @@
+import { repairMermaidCode } from './mermaid-repair.ts';
 import {
-	type MermaidRepairResult,
-	repairMermaidCode,
-} from './mermaid-repair.ts';
+	MAX_REPAIR_RESPONSE_BYTES,
+	type MermaidRepairOutput,
+	serializeRepairOutput,
+} from './mermaid-repair-output.ts';
 
 let repairing = false;
-type Reply =
-	| { ok: true; result: MermaidRepairResult }
-	| { ok: false; error: string };
+type Reply = MermaidRepairOutput | { error: string };
 
 /** 公開ブラウザの100k修復はUIスレッドから分離し、終了時/期限超過時にWorkerを破棄する。 */
 export async function repairMermaidInWorker(
 	text: string,
-): Promise<MermaidRepairResult> {
+): Promise<MermaidRepairOutput> {
 	// 純粋関数のNodeテスト/SSRではページスレッドが存在しない。
-	if (typeof window === 'undefined') return repairMermaidCode(text);
+	if (typeof window === 'undefined')
+		return JSON.parse(
+			serializeRepairOutput(repairMermaidCode(text)),
+		) as MermaidRepairOutput;
 	if (typeof Worker === 'undefined')
 		throw new Error(
 			'このブラウザではWeb Workerを利用できません。通常画面をご利用ください。',
@@ -28,7 +31,7 @@ export async function repairMermaidInWorker(
 				{ type: 'module' },
 			);
 			let settled = false;
-			const finish = (error?: Error, result?: MermaidRepairResult) => {
+			const finish = (error?: Error, result?: MermaidRepairOutput) => {
 				if (settled) return;
 				settled = true;
 				window.clearTimeout(timer);
@@ -46,9 +49,19 @@ export async function repairMermaidInWorker(
 					),
 				5000,
 			);
-			worker.onmessage = (event: MessageEvent<Reply>) => {
-				if (event.data.ok) finish(undefined, event.data.result);
-				else finish(new Error(event.data.error));
+			worker.onmessage = (event: MessageEvent<string>) => {
+				try {
+					if (
+						typeof event.data !== 'string' ||
+						event.data.length > MAX_REPAIR_RESPONSE_BYTES
+					)
+						throw new Error();
+					const reply = JSON.parse(event.data) as Reply;
+					if ('error' in reply) finish(new Error(reply.error));
+					else finish(undefined, reply);
+				} catch {
+					finish(new Error('修復結果の形式が不正です。'));
+				}
 			};
 			worker.onerror = (event) => {
 				event.preventDefault();

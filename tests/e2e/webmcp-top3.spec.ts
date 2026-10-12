@@ -297,3 +297,56 @@ test('Mermaid修復: Worker期限・同時実行制限・解放後の再実行',
 		}),
 	).toBeVisible();
 });
+
+test('Mermaid修復: 50000行の履歴を送信前に有界化してUIを維持する', async ({
+	page,
+}) => {
+	await page.addInitScript(() => {
+		const state = window as unknown as MockWindow;
+		state.__top3Tools = [];
+		Object.defineProperty(document, 'modelContext', {
+			configurable: true,
+			value: {
+				registerTool(tool: RegisteredTool) {
+					state.__top3Tools.push(tool);
+					return Promise.resolve();
+				},
+			},
+		});
+	});
+	await page.goto('/mermaid');
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				(window as unknown as MockWindow).__top3Tools.some(
+					(tool) => tool.name === 'repair_mermaid_code',
+				),
+			),
+		)
+		.toBe(true);
+	const result = await page.evaluate(async () => {
+		const tool = (window as unknown as MockWindow).__top3Tools.find(
+			(entry) => entry.name === 'repair_mermaid_code',
+		);
+		if (!tool) throw new Error('登録されていません');
+		const reply = await tool.execute({
+			text: String.fromCharCode(0x2192, 10).repeat(50000),
+		});
+		if (reply.isError) throw new Error(String(reply.error));
+		return {
+			total: reply.totalChanges,
+			count: (reply.changes as unknown[]).length,
+			truncated: reply.changesTruncated,
+			bytes: new TextEncoder().encode(JSON.stringify(reply)).byteLength,
+			codeLength: (reply.code as string).length,
+		};
+	});
+	expect(result.total).toBe(50000);
+	expect(result.count).toBe(200);
+	expect(result.truncated).toBe(true);
+	expect(result.bytes).toBeLessThanOrEqual(1024 * 1024);
+	expect(result.codeLength).toBe(199999);
+	await expect(
+		page.getByRole('button', { name: 'SVG保存', exact: true }),
+	).toBeEnabled();
+});

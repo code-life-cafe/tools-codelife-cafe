@@ -294,6 +294,7 @@ export function protectQuotedStrings(
 	line: string,
 	protect: (literal: string) => string,
 ): string {
+	if (!line.includes('"') && !line.includes("'")) return line;
 	const n = line.length;
 	const doubleEnds = new Int32Array(n + 1).fill(-1);
 	const singleEnds = new Int32Array(n + 1).fill(-1);
@@ -364,6 +365,16 @@ export function protectNodeLabelBodies(
 	s: string,
 	protect: (content: string) => string,
 ): string {
+	if (
+		!(
+			s.includes('[') ||
+			s.includes('(') ||
+			s.includes('{') ||
+			s.includes('>')
+		) ||
+		!(s.includes(']') || s.includes(')') || s.includes('}'))
+	)
+		return s;
 	const n = s.length;
 	const code = (i: number): number => s.charCodeAt(i);
 	const isAsciiWord = (i: number): boolean => {
@@ -665,6 +676,7 @@ function replaceFullWidthBrackets(
 	closing: string,
 	requireId: boolean,
 ): string {
+	if (!text.includes(open) || !text.includes(close)) return text;
 	const nextClose = new Int32Array(text.length + 1).fill(-1);
 	for (let index = text.length - 1; index >= 0; index--)
 		nextClose[index] = text[index] === close ? index : nextClose[index + 1];
@@ -805,6 +817,7 @@ function replaceBracketedNodes(
 	close: string,
 	fn: (id: string, content: string) => string,
 ): string {
+	if (!s.includes(open) || !s.includes(close)) return s;
 	const n = s.length;
 	const isWord = (i: number): boolean => {
 		const c = s.charCodeAt(i);

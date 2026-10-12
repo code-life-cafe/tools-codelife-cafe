@@ -7,6 +7,10 @@ import {
 	mermaidRenderMcpTool,
 } from '../../src/lib/tools/mermaid.mcp.ts';
 import { assertMermaidRenderBudget } from '../../src/lib/tools/mermaid-render-budget.ts';
+import {
+	MAX_REPAIR_RESPONSE_BYTES,
+	serializeRepairOutput,
+} from '../../src/lib/tools/mermaid-repair-output.ts';
 import { yamlJsonTomlMcpTool } from '../../src/lib/tools/yaml-json-toml.mcp.ts';
 import { generateWebMcpDescriptor } from '../../src/lib/webmcp/descriptor-generator.ts';
 import { provideToolsFromFactory } from '../../src/lib/webmcp.ts';
@@ -14,6 +18,53 @@ import { provideToolsFromFactory } from '../../src/lib/webmcp.ts';
 const mermaid = generateWebMcpDescriptor(mermaidMcpTool);
 const formats = generateWebMcpDescriptor(yamlJsonTomlMcpTool);
 const masking = generateWebMcpDescriptor(maskingMcpTool);
+
+test('Mermaid: 大量の修復履歴は総件数付き200件に制限する', async () => {
+	const result = await mermaid.run({
+		text: String.fromCharCode(0x2192, 10).repeat(50000),
+	});
+	assert.ok(result.ok);
+	assert.equal(result.value.totalChanges, 50000);
+	assert.equal(result.value.changes.length, 200);
+	assert.equal(result.value.changesTruncated, true);
+	assert.ok(
+		new TextEncoder().encode(JSON.stringify(result.value)).byteLength <=
+			MAX_REPAIR_RESPONSE_BYTES,
+	);
+});
+
+test('Mermaid: 履歴プレビューは500コードポイント、レスポンスはUTF-8 1MiB', () => {
+	const change = {
+		lineNumber: 1,
+		rule: 'test',
+		description: 'test',
+		original: '😀'.repeat(501),
+		fixed: '😀'.repeat(501),
+	};
+	const output = JSON.parse(
+		serializeRepairOutput({
+			originalCode: '',
+			repairedCode: 'flowchart TD',
+			isModified: true,
+			changes: Array(1000).fill(change),
+		}),
+	);
+	assert.equal(output.totalChanges, 1000);
+	assert.equal(output.changes.length, 200);
+	assert.equal(Array.from(output.changes[0].original).length, 500);
+	assert.equal(output.changes[0].originalTruncated, true);
+	assert.equal(output.changes[0].fixedTruncated, true);
+	assert.throws(
+		() =>
+			serializeRepairOutput({
+				originalCode: '',
+				repairedCode: 'あ'.repeat(400000),
+				isModified: false,
+				changes: [],
+			}),
+		/1MiB/,
+	);
+});
 
 test('形式変換: JSON/YAMLの50階層を受理し51階層を拒否する', async () => {
 	for (const from of ['json', 'yaml'] as const) {

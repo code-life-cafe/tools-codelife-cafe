@@ -3,7 +3,7 @@
     {
       "toolId": "mermaid",
       "name": "repair_mermaid_code",
-      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。",
+      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字、結果1MiB。履歴は先頭200件・各原文/修正後500文字プレビューと省略フラグ/総件数を返す。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。",
       "aliases": [],
       "inputSchema": {
         "type": "object",
@@ -28,18 +28,29 @@
             "type": "boolean"
           },
           "changes": {
-            "type": "array"
+            "type": "array",
+            "description": "先頭200件。original/fixedは各500文字まで。各originalTruncated/fixedTruncatedでプレビュー省略を示す。"
           },
           "svg": {
             "type": "string",
             "description": "描画時のSVG。修復のみは空文字。"
+          },
+          "totalChanges": {
+            "type": "number",
+            "description": "省略前の修正履歴総件数。"
+          },
+          "changesTruncated": {
+            "type": "boolean",
+            "description": "履歴件数またはプレビューを省略したか。"
           }
         },
         "required": [
           "code",
           "modified",
           "changes",
-          "svg"
+          "svg",
+          "totalChanges",
+          "changesTruncated"
         ]
       },
       "annotations": {

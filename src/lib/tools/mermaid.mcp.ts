@@ -8,6 +8,7 @@ import {
 	MERMAID_RENDER_MAX_SVG_BYTES,
 } from './mermaid-render-budget.ts';
 import { type RepairChange, repairMermaidCode } from './mermaid-repair.ts';
+import type { MermaidRepairOutput } from './mermaid-repair-output.ts';
 import { repairMermaidInWorker } from './mermaid-repair-worker.ts';
 
 interface Output {
@@ -23,11 +24,14 @@ const returns = {
 	svg: { type: 'string', description: '描画時のSVG。修復のみは空文字。' },
 };
 
-export const mermaidMcpTool = defineMcpTool<{ text: string }, Output>({
+export const mermaidMcpTool = defineMcpTool<
+	{ text: string },
+	MermaidRepairOutput
+>({
 	toolId: 'mermaid',
 	name: 'repair_mermaid_code',
 	description:
-		'Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。',
+		'Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字、結果1MiB。履歴は先頭200件・各原文/修正後500文字プレビューと省略フラグ/総件数を返す。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。',
 	params: {
 		text: {
 			type: 'string',
@@ -35,20 +39,26 @@ export const mermaidMcpTool = defineMcpTool<{ text: string }, Output>({
 			description: 'Mermaidコード（Markdownフェンスも可）。上限100000文字。',
 		},
 	},
-	returns,
+	returns: {
+		...returns,
+		changes: {
+			type: 'array',
+			description:
+				'先頭200件。original/fixedは各500文字まで。各originalTruncated/fixedTruncatedでプレビュー省略を示す。',
+		},
+		totalChanges: { type: 'number', description: '省略前の修正履歴総件数。' },
+		changesTruncated: {
+			type: 'boolean',
+			description: '履歴件数またはプレビューを省略したか。',
+		},
+	},
 	annotations: { readOnlyHint: true, untrustedContentHint: true },
 	async handler(input) {
 		if (!input.text.trim())
 			throw new Error('Mermaidコードを入力してください。');
 		if (exceedsMaxCharacters(input.text, 100_000))
 			throw new Error('入力の上限は100000文字です。');
-		const repaired = await repairMermaidInWorker(input.text);
-		return {
-			code: repaired.repairedCode,
-			modified: repaired.isModified,
-			changes: repaired.changes,
-			svg: '',
-		};
+		return await repairMermaidInWorker(input.text);
 	},
 });
 
