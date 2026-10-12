@@ -8,7 +8,7 @@ type MockWindow = Window & { __top3Tools: RegisteredTool[] };
 const cases = [
 	{
 		path: 'mermaid',
-		name: 'repair_render_mermaid',
+		name: 'repair_mermaid_code',
 		input: { text: '```mermaid\nflowchart TD\nA((開始)) → B[[処理]]\n```' },
 		key: 'code',
 		expected: 'A((開始)) --> B[[処理]]',
@@ -125,15 +125,24 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 	const run = async (text: string) =>
 		page.evaluate(async (code) => {
 			const tool = (window as unknown as MockWindow).__top3Tools.find(
-				(entry) => entry.name === 'repair_render_mermaid',
+				(entry) => entry.name === 'render_mermaid_svg',
 			);
 			if (!tool) throw new Error('登録されていません');
-			return tool.execute({ text: code, action: 'render' });
+			return tool.execute({ text: code });
 		}, text);
 	const result = await run('flowchart TD\nA[開始] --> B[終了]');
 	expect(result.svg).toContain('<svg');
 	const error = await run('not a diagram');
 	expect(error.isError).toBe(true);
+	const tooMany = await run(`sequenceDiagram\n${'A->>B:x\n'.repeat(51)}`);
+	expect(tooMany.isError).toBe(true);
+	const tooLong = await run(`sequenceDiagram\n${'A->>B:x\n'.repeat(6247)}`);
+	expect(tooLong.isError).toBe(true);
+	const edgeChain = Array.from({ length: 52 }, (_, index) => `A${index}`).join(
+		'-->',
+	);
+	const overEdges = await run(`graph TD\n${edgeChain}`);
+	expect(overEdges.isError).toBe(true);
 });
 for (const item of cases) {
 	test(`${item.path}: WebMCPなしでもUIを利用できる`, async ({ page }) => {

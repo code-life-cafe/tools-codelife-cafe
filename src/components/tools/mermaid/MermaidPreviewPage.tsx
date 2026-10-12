@@ -47,7 +47,7 @@ import {
 	renderMermaidSvg,
 	SAMPLE_MERMAID_CODES,
 } from '@/lib/tools/mermaid';
-import { mermaidMcpTool } from '@/lib/tools/mermaid.mcp';
+import { mermaidMcpTool, mermaidRenderMcpTool } from '@/lib/tools/mermaid.mcp';
 import {
 	type MermaidRepairResult,
 	repairMermaidCode,
@@ -144,7 +144,11 @@ function useSiteDarkMode(): boolean {
 
 export function MermaidPreviewPage() {
 	useEffect(
-		() => provideToolsFromFactory([generateWebMcpDescriptor(mermaidMcpTool)]),
+		() =>
+			provideToolsFromFactory([
+				generateWebMcpDescriptor(mermaidMcpTool),
+				generateWebMcpDescriptor(mermaidRenderMcpTool),
+			]),
 		[],
 	);
 	const containerId = useId().replace(/:/g, '_');

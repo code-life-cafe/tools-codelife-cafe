@@ -2,8 +2,8 @@
   "tools": [
     {
       "toolId": "mermaid",
-      "name": "repair_render_mermaid",
-      "description": "Repair AI-generated Mermaid code and optionally render SVG locally. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復し、必要に応じSVGを生成する。修復のみでは構文の正しさを保証しない。入力上限100000文字。",
+      "name": "repair_mermaid_code",
+      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。SVG生成はrender_mermaid_svgを利用する。",
       "aliases": [],
       "inputSchema": {
         "type": "object",
@@ -12,19 +12,57 @@
             "type": "string",
             "description": "Mermaidコード（Markdownフェンスも可）。上限100000文字。",
             "maxLength": 100000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
           },
-          "action": {
+          "modified": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array"
+          },
+          "svg": {
             "type": "string",
-            "description": "repair: 修復のみ / render: SVG生成",
-            "enum": [
-              "repair",
-              "render"
-            ],
-            "default": "repair"
+            "description": "描画時のSVG。修復のみは空文字。"
+          }
+        },
+        "required": [
+          "code",
+          "modified",
+          "changes",
+          "svg"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "mermaid",
+      "name": "render_mermaid_svg",
+      "description": "Render a small Mermaid diagram as SVG locally in strict mode. / 小型のMermaid図をSVG化する。入力と修復後コードは5000文字、改行・セミコロン区切り50文、50エッジ、SVG出力1MiBまで。設定ディレクティブ・frontmatter・&並列リンク・拡張シェイプ・画像・HTMLは不可。大きな図はrepair_mermaid_codeを利用する。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "SVG描画するMermaidコード。上限5000文字・50文。",
+            "maxLength": 5000
           },
           "autoRepair": {
             "type": "boolean",
-            "description": "SVG生成前に自動修復を適用する。repairでは常に修復する。",
+            "description": "描画前に修復する（省略時true）",
             "default": true
           }
         },
@@ -46,7 +84,7 @@
           },
           "svg": {
             "type": "string",
-            "description": "render時のSVG。repair時は空文字。"
+            "description": "描画時のSVG。修復のみは空文字。"
           }
         },
         "required": [

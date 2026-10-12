@@ -144,6 +144,7 @@ export async function renderMermaidSvg(
 	containerId: string,
 	theme: 'default' | 'dark' | 'forest' | 'base' = 'default',
 	themeVariables?: Record<string, string>,
+	renderLimits?: { maxEdges: number; maxTextSize: number },
 ): Promise<{ svg: string }> {
 	if (exceedsMaxCharacters(code, MAX_INPUT_LENGTH)) {
 		throw new Error(
@@ -159,6 +160,7 @@ export async function renderMermaidSvg(
 		securityLevel: 'strict',
 		theme,
 		themeVariables,
+		...renderLimits,
 		fontFamily:
 			'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
 	});

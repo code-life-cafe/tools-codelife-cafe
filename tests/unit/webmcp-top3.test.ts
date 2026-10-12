@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { maskingMcpTool } from '../../src/lib/tools/masking.mcp.ts';
-import { mermaidMcpTool } from '../../src/lib/tools/mermaid.mcp.ts';
+import {
+	mermaidMcpTool,
+	mermaidRenderMcpTool,
+} from '../../src/lib/tools/mermaid.mcp.ts';
 import { yamlJsonTomlMcpTool } from '../../src/lib/tools/yaml-json-toml.mcp.ts';
 import { generateWebMcpDescriptor } from '../../src/lib/webmcp/descriptor-generator.ts';
 import { provideToolsFromFactory } from '../../src/lib/webmcp.ts';
@@ -98,7 +101,15 @@ test('3件: 必須値・型・列挙値・入力上限を拒否', async () => {
 			false,
 		);
 	}
-	assert.equal((await mermaid.run({ text: 'x', action: 'exec' })).ok, false);
+	assert.equal(
+		(
+			await generateWebMcpDescriptor(mermaidRenderMcpTool).run({
+				text: 'x',
+				autoRepair: 'yes',
+			})
+		).ok,
+		false,
+	);
 	assert.equal(
 		(await formats.run({ text: '{}', from: 'json', to: 'yaml', indent: '3' }))
 			.ok,
@@ -299,4 +310,29 @@ test('形式変換: 深いYAMLブロック文字列の巨大出力を生成前�
 		to: 'yaml',
 	});
 	assert.ok(normal.ok);
+});
+
+test('Mermaid: 描画は別スキーマで5000文字に限定し大きなsequenceを拒否', async () => {
+	const renderer = generateWebMcpDescriptor(mermaidRenderMcpTool);
+	const properties = renderer.inputSchema.properties as Record<
+		string,
+		Record<string, unknown>
+	>;
+	assert.equal(properties.text.maxLength, 5000);
+	const big = `sequenceDiagram\n${'A->>B:x\n'.repeat(6247)}`;
+	assert.equal((await renderer.run({ text: big })).ok, false);
+	const many = `sequenceDiagram\n${'A->>B:x\n'.repeat(51)}`;
+	assert.equal((await renderer.run({ text: many })).ok, false);
+	assert.ok((await mermaid.run({ text: big })).ok);
+});
+test('Mermaid: 50文を超えるインライン図と予算回避の設定・並列記法を拒否', async () => {
+	const renderer = generateWebMcpDescriptor(mermaidRenderMcpTool);
+	for (const text of [
+		`graph TD;${'A-->B;'.repeat(51)}`,
+		'%%{init: {"maxEdges":99999}}%%\ngraph TD\nA-->B',
+		'graph TD\nA & B --> C & D',
+		'graph TD\nA[<img src="x">]',
+	]) {
+		assert.equal((await renderer.run({ text })).ok, false);
+	}
 });
