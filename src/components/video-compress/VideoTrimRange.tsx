@@ -169,15 +169,15 @@ export function VideoTrimRange({
 					<Slider.Thumb
 						key={label}
 						aria-label={label}
-						aria-valuetext={`${(label === '開始位置' ? start : end).toFixed(2)}秒`}
+						aria-valuetext={`${(label === '開始位置' ? start : end).toFixed(decimals)}秒`}
 						className="relative block h-20 w-5 rounded after:absolute after:inset-y-0 after:-inset-x-2 after:content-['']  border-2 border-background bg-primary shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
 					/>
 				))}
 			</Slider.Root>
 			<div className="flex flex-wrap justify-between gap-2 text-sm tabular-nums">
-				<span>開始 {start.toFixed(2)}秒</span>
-				<span>書き出し {(end - start).toFixed(2)}秒</span>
-				<span>終了 {end.toFixed(2)}秒</span>
+				<span>開始 {start.toFixed(decimals)}秒</span>
+				<span>書き出し {(end - start).toFixed(decimals)}秒</span>
+				<span>終了 {end.toFixed(decimals)}秒</span>
 			</div>
 			<div className="grid grid-cols-2 gap-3">
 				<SecondsField
