@@ -28,6 +28,7 @@ export default function VideoCompress() {
 		url: string;
 		size: number;
 		target: number | null;
+		jobKey: string;
 	} | null>(null);
 	const [status, setStatus] = useState<
 		'empty' | 'loading' | 'ready' | 'compressing' | 'done' | 'error'
@@ -40,6 +41,17 @@ export default function VideoCompress() {
 	const worker = useRef<Worker | null>(null);
 	const resultUrl = useRef('');
 	const runTarget = useRef<number | null>(null);
+	const runJobKey = useRef('');
+	const jobKey = JSON.stringify([
+		settings.mode,
+		settings.quality,
+		settings.targetMB,
+		settings.maxEdge,
+		settings.removeAudio,
+		start,
+		end,
+	]);
+	const resultIsStale = result !== null && result.jobKey !== jobKey;
 	const processing = status === 'loading' || status === 'compressing';
 
 	useEffect(() => {
@@ -106,7 +118,12 @@ export default function VideoCompress() {
 					const blob = new Blob([message.buffer], { type: 'video/mp4' });
 					const url = URL.createObjectURL(blob);
 					resultUrl.current = url;
-					setResult({ url, size: blob.size, target: runTarget.current });
+					setResult({
+						url,
+						size: blob.size,
+						target: runTarget.current,
+						jobKey: runJobKey.current,
+					});
 					setProgress(100);
 					setStatus('done');
 				} else {
@@ -149,6 +166,7 @@ export default function VideoCompress() {
 		setStatus('compressing');
 		runTarget.current =
 			settings.mode === 'size' ? settings.targetMB * 1_000_000 : null;
+		runJobKey.current = jobKey;
 		worker.current.postMessage({
 			type: 'compress',
 			job: { settings, start, end },
@@ -384,7 +402,9 @@ export default function VideoCompress() {
 					: status === 'compressing'
 						? `圧縮中… ${progress}%`
 						: status === 'done'
-							? '圧縮が完了しました。'
+							? resultIsStale
+								? '設定が変更されています。現在の設定で再圧縮してください。'
+								: '圧縮が完了しました。'
 							: notice}
 			</div>
 			{status === 'compressing' && (
@@ -405,7 +425,14 @@ export default function VideoCompress() {
 					className="space-y-4 rounded-xl border p-4"
 					aria-label="圧縮結果"
 				>
-					<h2 className="font-semibold">圧縮結果</h2>
+					<h2 className="font-semibold">
+						{resultIsStale ? '前回の圧縮結果' : '圧縮結果'}
+					</h2>
+					{resultIsStale && (
+						<p>
+							この動画は変更前の設定で作成された結果です。現在の設定は反映されていません。
+						</p>
+					)}
 					<p>
 						元 {formatVideoBytes(file.size)} → 圧縮後{' '}
 						{formatVideoBytes(result.size)} / 削減率{' '}
@@ -435,7 +462,7 @@ export default function VideoCompress() {
 							href={result.url}
 							download={`${file.name.replace(/\.[^.]+$/, '')}-compressed.mp4`}
 						>
-							MP4をダウンロード
+							{resultIsStale ? '前回のMP4をダウンロード' : 'MP4をダウンロード'}
 						</a>
 					</Button>
 				</section>
