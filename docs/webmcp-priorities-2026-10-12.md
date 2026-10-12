@@ -8,7 +8,7 @@
 
 | 順位 | ツール | AIが使う価値 |
 |---:|---|---|
-| 1 | [Mermaidプレビュー・修復](https://tools.codelife.cafe/mermaid) | AIが生成した図の修復とSVG化を一度の呼び出しで完結 |
+| 1 | [Mermaidプレビュー・修復](https://tools.codelife.cafe/mermaid) | AIが生成した図を修復し、小型の図をSVG化できる |
 | 2 | [YAML ⇔ JSON ⇔ TOML 変換](https://tools.codelife.cafe/yaml-json-toml) | 構文検証・形式固有の制約を含む設定ファイル変換を確実に実行 |
 | 3 | [個人情報マスキング](https://tools.codelife.cafe/masking) | 日本語の個人情報パターンを既存検出器で加工。共有前の確認を補助 |
 | 4 | [CSV文字化け修復](https://tools.codelife.cafe/csv-fixer) | Shift_JIS/BOM等、LLMの文章生成では解決しにくいバイト処理 |
@@ -54,10 +54,10 @@
 
 ## 今回の実装
 
-- `repair_mermaid_code` / `render_mermaid_svg`: 修復コード、修正履歴、SVGを返す。既定はrepair、renderでSVG生成。修復のみは構文検証を保証しない。
+- `repair_mermaid_code` / `render_mermaid_svg`: 修復コード、修正履歴、SVGを返す。修復とSVG生成は別API。修復のみは構文検証を保証しない。
 - `convert_yaml_json_toml`: from/to・インデント・キーソート指定。構文エラーとTOML非対応値を返す。
 - `mask_personal_information`: 6種の対象・伏字文字・強度を指定。既定は全対象・全文字伏字。検出漏れ・誤検出の注意を返し、原文や検出箇所の原文は返さない。AIへ渡した原文を遡って秘匿できるわけではない。
 
-各ページでのみ登録。処理は既存ロジックを再利用し、入力の通信・保存・ログ出力は追加しない。依存・共通登録基盤・Analytics・PWA・権限・CIは変更しない。3件とも100000文字上限（スキーマのmaxLengthと実行時検査を一致させ、省略時defaultをスキーマへ公開）。WebMCP非対応ブラウザでは既存UIを継続利用。
+各ページでのみ登録。処理は既存ロジックを再利用し、入力の通信・保存・ログ出力は追加しない。依存・共通登録基盤・Analytics・PWA・権限・CIは変更しない。修復・変換・マスキングは100000文字、SVG描画は5000文字・50文・50エッジ・各文200文字上限（スキーマのmaxLengthと実行時検査を一致させ、省略時defaultをスキーマへ公開）。WebMCP非対応ブラウザでは既存UIを継続利用。
 
 Risk Class: R3（WebMCP）。AGENTS.mdに従い、Draft PRを準備し、追加リスクレビューと人間承認を経てからMerge/Deployする。独立レビューは本作業の自己検証では代替しない。
