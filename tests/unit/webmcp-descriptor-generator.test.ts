@@ -198,3 +198,67 @@ test('reference implementation: hashMcpTool から生成したディスクリプ
 		assert.equal(result.value.hash, '5d41402abc4b2a76b9719d911017c592');
 	}
 });
+
+test('buildInputSchema: 実行時と同じ入力上限と省略時の既定値を公開する', () => {
+	const params = {
+		text: { type: 'string' as const, description: 'text', maxLength: 3 },
+		action: {
+			type: 'string' as const,
+			description: 'action',
+			required: false,
+			default: 'repair',
+		},
+		count: {
+			type: 'number' as const,
+			description: 'count',
+			required: false,
+			default: 0,
+		},
+		enabled: {
+			type: 'boolean' as const,
+			description: 'enabled',
+			required: false,
+			default: false,
+		},
+		label: {
+			type: 'string' as const,
+			description: 'label',
+			required: false,
+			default: '',
+		},
+	};
+	const schema = buildInputSchema(params);
+	assert.deepEqual(schema, {
+		type: 'object',
+		required: ['text'],
+		properties: {
+			text: { type: 'string', description: 'text', maxLength: 3 },
+			action: { type: 'string', description: 'action', default: 'repair' },
+			count: { type: 'number', description: 'count', default: 0 },
+			enabled: { type: 'boolean', description: 'enabled', default: false },
+			label: { type: 'string', description: 'label', default: '' },
+		},
+	});
+	const validate = buildValidator(params);
+	assert.deepEqual(validate({ text: 'abc' }), {
+		ok: true,
+		value: {
+			text: 'abc',
+			action: 'repair',
+			count: 0,
+			enabled: false,
+			label: '',
+		},
+	});
+	assert.equal(validate({ text: 'abcd' }).ok, false);
+});
+
+test('buildValidator: maxLengthはUTF-16ではなくUnicodeコードポイントで判定する', () => {
+	const validate = buildValidator({
+		text: { type: 'string', description: 'text', maxLength: 3 },
+	});
+	assert.equal(validate({ text: '😀😀😀' }).ok, true);
+	assert.equal(validate({ text: '😀😀😀😀' }).ok, false);
+	assert.equal(validate({ text: 'a😀b' }).ok, true);
+	assert.equal(validate({ text: 'a😀bc' }).ok, false);
+});

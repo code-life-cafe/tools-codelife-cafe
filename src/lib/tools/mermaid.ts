@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 /**
  * Mermaidレンダリング・エクスポート共通ロジック
  * 完全クライアントサイド・securityLevel: 'strict' で動作
@@ -143,8 +144,13 @@ export async function renderMermaidSvg(
 	containerId: string,
 	theme: 'default' | 'dark' | 'forest' | 'base' = 'default',
 	themeVariables?: Record<string, string>,
+	renderLimits?: {
+		maxEdges: number;
+		maxTextSize: number;
+		htmlLabels?: boolean;
+	},
 ): Promise<{ svg: string }> {
-	if (code.length > MAX_INPUT_LENGTH) {
+	if (exceedsMaxCharacters(code, MAX_INPUT_LENGTH)) {
 		throw new Error(
 			`入力サイズが上限（${MAX_INPUT_LENGTH.toLocaleString()}文字）を超えています。`,
 		);
@@ -158,6 +164,7 @@ export async function renderMermaidSvg(
 		securityLevel: 'strict',
 		theme,
 		themeVariables,
+		...renderLimits,
 		fontFamily:
 			'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
 	});

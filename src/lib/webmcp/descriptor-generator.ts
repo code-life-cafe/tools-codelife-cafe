@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 import type {
 	McpParamDef,
 	McpReturnDef,
@@ -20,6 +21,10 @@ function paramToJsonSchema(def: McpParamDef): Record<string, unknown> {
 		description: def.description,
 	};
 	if (def.enum) schema.enum = def.enum;
+	if (def.type === 'string' && def.maxLength !== undefined)
+		schema.maxLength = def.maxLength;
+	if (def.required === false && def.default !== undefined)
+		schema.default = def.default;
 	return schema;
 }
 
@@ -68,7 +73,10 @@ function validateOneParam(
 				`"${key}" must be one of: ${def.enum.join(', ')} / "${key}" は次のいずれかを指定してください: ${def.enum.join(', ')}`,
 			);
 		}
-		if (def.maxLength !== undefined && raw.length > def.maxLength) {
+		if (
+			def.maxLength !== undefined &&
+			exceedsMaxCharacters(raw, def.maxLength)
+		) {
 			return failure(
 				`"${key}" exceeds the maximum size limit / "${key}" のサイズが上限を超えています`,
 			);
