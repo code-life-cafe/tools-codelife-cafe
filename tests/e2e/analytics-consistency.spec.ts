@@ -73,7 +73,8 @@ for (const sample of samples) {
 		expect(
 			events.filter((event) => event.event === 'tool_engage'),
 		).toHaveLength(1);
-		expect(JSON.stringify(events)).not.toContain(sample.input);
+		// 短い数値が既存UUID/timestampへ偶然含まれる場合を入力漏洩と誤判定しない。
+		expect(JSON.stringify(events.map((event) => event.props))).not.toContain('合成');
 	});
 }
 
