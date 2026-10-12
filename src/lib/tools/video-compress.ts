@@ -188,7 +188,9 @@ export function qualityEstimate(
 			settings: { ...job.settings, mode: 'quality', quality },
 		});
 		const percent = reductionPercent(originalBytes, plan.estimatedBytes);
-		return `約${Math.abs(percent)}%${percent < 0 ? '増加' : '削減'}`;
+		// 丸め後は増加が -0 になり得るため、増加かどうかは丸め前の容量で判定する
+		const grew = plan.estimatedBytes > originalBytes;
+		return `約${Math.abs(percent)}%${grew ? '増加' : '削減'}`;
 	} catch {
 		return '推定不可';
 	}

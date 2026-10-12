@@ -182,6 +182,19 @@ test('品質の推定は範囲・音声・元容量を反映し増加も明示�
 		'推定不可',
 	);
 });
+test('元よりわずかに増える推定は0.5%未満でも「削減」と表示しない', () => {
+	const job = { settings: DEFAULT_VIDEO_SETTINGS, start: 0, end: 60 };
+	const { estimatedBytes } = compressionPlan(info, {
+		...job,
+		settings: { ...job.settings, mode: 'quality', quality: 'high' },
+	});
+	// 推定容量が元の約0.3%増し（丸めると -0 になる範囲）
+	const original = Math.floor(estimatedBytes / 1.003);
+	assert.ok(estimatedBytes > original);
+	assert.equal(qualityEstimate(info, job, original, 'high'), '約0%増加');
+	// 同容量・わずかな削減は従来どおり削減
+	assert.equal(qualityEstimate(info, job, estimatedBytes, 'high'), '約0%削減');
+});
 test('短い動画も8フレームを実長内で等間隔に抽出する', () => {
 	for (const duration of [0.001, 6.89, 3600]) {
 		const times = thumbnailTimes(duration);
