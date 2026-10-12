@@ -32,24 +32,31 @@ export function BruteForcePanel({
 			onOpenChange={setIsOpen}
 			className="w-full rounded-md border bg-card p-4 shadow-sm"
 		>
-			<div className="flex items-center justify-between">
+			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex items-center gap-2">
 					<Unlock className="h-5 w-5 text-primary" />
 					<h3 className="font-medium">ブルートフォース（全パターン表示）</h3>
 				</div>
 				<CollapsibleTrigger asChild>
-					<Button variant="ghost" size="sm" className="w-9 p-0">
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-auto whitespace-normal text-left"
+					>
+						鍵がわからないとき：全候補を見る
 						<ChevronDown
 							className={`h-4 w-4 transition-transform duration-200 ${
 								isOpen ? 'rotate-180' : ''
 							}`}
 						/>
-						<span className="sr-only">Toggle brute force panel</span>
 					</Button>
 				</CollapsibleTrigger>
 			</div>
 
 			<CollapsibleContent className="mt-4 animate-in slide-in-from-top-2 fade-in-0">
+				<p className="text-sm text-muted-foreground mb-3">
+					シーザー暗号の復号候補をシフト順に表示します。対応するかなを含む入力は45候補、それ以外は25候補です。読める候補を選ぶと、シフト数と方向が「デコード（復号）」になり、結果欄に反映されます。方式の自動判別や正解の判定は行いません。
+				</p>
 				{!input ? (
 					<p className="text-sm text-muted-foreground py-4 text-center">
 						テキストを入力すると全パターンが表示されます

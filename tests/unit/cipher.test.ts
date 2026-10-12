@@ -3,10 +3,26 @@ import { test } from 'node:test';
 import {
 	caesarBruteForce,
 	caesarCipher,
+	getMaxShift,
 	morseDecode,
 	morseEncode,
 	reverseString,
 } from '../../src/lib/cipher/index.ts';
+
+test('caesar: 公開するかな順・未対応文字と英字の境界は既存出力に一致', () => {
+	const input = 'んンZz がぱゃー漢字ｶﾞ😀Ａ１';
+	assert.equal(
+		caesarCipher(input, { shift: 1, direction: 'encode' }).output,
+		'あアAa ぎぴゃー漢字ｶﾞ😀Ａ１',
+	);
+	assert.equal(getMaxShift('abc 漢字ゃーｶﾞ😀'), 25);
+	assert.equal(getMaxShift('abc が'), 45);
+	assert.equal(caesarBruteForce('abc').length, 25);
+	const japanese = caesarBruteForce('いうえ');
+	assert.equal(japanese.length, 45);
+	assert.deepEqual(japanese[0], { shift: 1, output: 'あいう' });
+	assert.equal(japanese.at(-1)?.shift, 45);
+});
 
 test('caesarCipher: 正のシフトでエンコード・デコードが往復一致する', () => {
 	const original = 'Hello, World!';

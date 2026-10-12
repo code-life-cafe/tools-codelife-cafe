@@ -453,7 +453,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		id: 'cipher',
 		title: '暗号化・難読化',
 		description:
-			'シーザー暗号・ROT13・モールス信号などをブラウザ内で相互変換。',
+			'英字・かなのシーザー暗号と復号候補、ROT13・反転・欧文モールスをブラウザ内で変換。遊び・学習向け。',
 		href: '/cipher',
 		icon: 'KeyRound',
 		categories: ['ユーティリティ'],
@@ -462,7 +462,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		related: ['base64', 'wareki-converter'],
 		llmsFull: {
 			useCase:
-				'古典暗号（シーザー暗号、ROT13、モールス信号等）によるテキストの変形・相互変換',
+				'遊び・学習向けのシーザー暗号・ROT13による簡易難読化、文字列反転、欧文モールスの符号化・デコード。秘密情報の保護には使えない',
 			inputs:
 				'text（文字列）, algorithm（rot13 | caesar | morse）, mode（encode | decode）',
 			outputs: '変換後テキスト',
