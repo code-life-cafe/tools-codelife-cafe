@@ -435,6 +435,11 @@ test('Mermaid: 1文内のエッジ過多も描画器に入る前に拒否', asyn
 
 test('Mermaid: 1行で大量展開するtimelineと長い1文を描画前に拒否', async () => {
 	const renderer = generateWebMcpDescriptor(mermaidRenderMcpTool);
+	const entityMessage = await renderer.run({
+		text: `sequenceDiagram\nA->>B: ${`${'x'.repeat(95)}#59;`.repeat(48)}`,
+	});
+	assert.equal(entityMessage.ok, false);
+	if (!entityMessage.ok) assert.match(entityMessage.error, /200文字/);
 	const text = `timeline\n2020 ${': a '.repeat(1000)}`;
 	assert.ok(text.length < 5000);
 	const result = await renderer.run({ text });

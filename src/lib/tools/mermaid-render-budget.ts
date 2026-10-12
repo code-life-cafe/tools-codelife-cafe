@@ -7,6 +7,28 @@ export const MERMAID_RENDER_MAX_EDGES = 50;
 export const MERMAID_RENDER_MAX_STATEMENT_CHARACTERS = 200;
 export const MERMAID_RENDER_MAX_SVG_BYTES = 1024 * 1024;
 
+function splitSequenceStatements(code: string): string[] {
+	const statements: string[] = [];
+	let start = 0;
+	for (let index = 0; index < code.length; index++) {
+		if (code[index] === '#') {
+			const entity = code.slice(index).match(/^#[A-Za-z0-9_]+;/);
+			if (entity) {
+				index += entity[0].length - 1;
+				continue;
+			}
+		}
+		if (/[;\r\n]/.test(code[index])) {
+			const statement = code.slice(start, index).trim();
+			if (statement) statements.push(statement);
+			start = index + 1;
+		}
+	}
+	const last = code.slice(start).trim();
+	if (last) statements.push(last);
+	return statements;
+}
+
 /** flowchartのラベル・引用文字列内の区切りを文として数えない。 */
 function splitFlowchartStatements(code: string): string[] {
 	const statements: string[] = [];
@@ -81,7 +103,7 @@ export function assertMermaidRenderBudget(code: string): void {
 		? extracted.replace(/^\s*%%[^\r\n]*/gm, '')
 		: flowStatements.join('\n');
 	const statements = isSequence
-		? checkedCode.split(/[;\r\n]+/).filter((part) => part.trim())
+		? splitSequenceStatements(checkedCode)
 		: flowStatements;
 	if (statements.length > MERMAID_RENDER_MAX_STATEMENTS)
 		throw new Error('SVG描画は改行・セミコロン区切りで50文までです。');
