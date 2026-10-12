@@ -157,6 +157,7 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 		'flowchart TD\nA -->|R&D| B',
 		'flowchart TD\nA -- R&D --> B',
 		'sequenceDiagram\nparticipant A as R&D\nA->>B:x',
+		'sequenceDiagram\nalt R&D\nA->>B:x\nend',
 	]) {
 		const labeled = await run(text);
 		expect(labeled.isError).toBeUndefined();

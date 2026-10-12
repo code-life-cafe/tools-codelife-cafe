@@ -27,7 +27,8 @@ export function assertMermaidRenderBudget(code: string): void {
 		throw new Error('SVG描画は改行・セミコロン区切りで50文までです。');
 	// 描画器の共有設定だけに頼らず、矢印記法も入口で保守的に数える。
 	const syntax = code.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '');
-	const structuralSyntax = /^sequenceDiagram\b/i.test(extracted)
+	const isSequence = /^sequenceDiagram\b/i.test(extracted);
+	const structuralSyntax = isSequence
 		? syntax.replace(/:[^\r\n]*|\s+as\s+[^;\r\n]*|^\s*box\s+[^;\r\n]*/gm, '')
 		: syntax
 				.replace(
@@ -36,8 +37,11 @@ export function assertMermaidRenderBudget(code: string): void {
 				)
 				.replace(/[-=.]{2}\s+[^;\r\n]*?\s+[-=.]{2}>/g, '-->')
 				.replace(/^\s*subgraph\s+[^;\r\n]*/gm, 'subgraph');
-	const arrows =
-		structuralSyntax.match(/[-=~.]{2,}[<>|ox]?|->|<-|=>|<=/g) ?? [];
+	// sequenceは1文1メッセージで文数上限が仕事量を制限する。
+	// ブロック見出しの矢印文字や&はリンク構文ではない。
+	const arrows = isSequence
+		? []
+		: (structuralSyntax.match(/[-=~.]{2,}[<>|ox]?|->|<-|=>|<=/g) ?? []);
 	if (arrows.length > MERMAID_RENDER_MAX_EDGES)
 		throw new Error('SVG描画は50エッジまでです。');
 
@@ -57,7 +61,7 @@ export function assertMermaidRenderBudget(code: string): void {
 	// &はラベル・メッセージ中では通常の文字。構造部分だけを検査する。
 
 	if (
-		structuralSyntax.includes('&') ||
+		(!isSequence && structuralSyntax.includes('&')) ||
 		code.includes('@{') ||
 		code.includes('![') ||
 		/<\s*\/?\s*[A-Za-z][\w:-]*(?:\s+[A-Za-z_:][\w:.-]*(?:\s*=\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s<>[\]{}]+))?)*\s*\/?>/.test(

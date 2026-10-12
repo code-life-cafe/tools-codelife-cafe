@@ -42,6 +42,8 @@ test('Mermaid: ラベルの&と比較文字は許可し並列リンクとHTMLは
 		'flowchart TD\nA -->|R&D| B',
 		'flowchart TD\nA -- R&D --> B',
 		'sequenceDiagram\nparticipant A as R&D\nA->>B:x',
+		'sequenceDiagram\nalt R&D\nA->>B:x\nend',
+		`sequenceDiagram\nalt ${'->'.repeat(51)}\nA->>B:x\nend`,
 	])
 		assert.doesNotThrow(() => assertMermaidRenderBudget(text));
 	for (const text of [
