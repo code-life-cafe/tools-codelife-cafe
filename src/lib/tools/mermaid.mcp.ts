@@ -8,6 +8,7 @@ import {
 	MERMAID_RENDER_MAX_SVG_BYTES,
 } from './mermaid-render-budget.ts';
 import { type RepairChange, repairMermaidCode } from './mermaid-repair.ts';
+import { repairMermaidInWorker } from './mermaid-repair-worker.ts';
 
 interface Output {
 	code: string;
@@ -26,7 +27,7 @@ export const mermaidMcpTool = defineMcpTool<{ text: string }, Output>({
 	toolId: 'mermaid',
 	name: 'repair_mermaid_code',
 	description:
-		'Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。SVG生成はrender_mermaid_svgを利用する。',
+		'Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。',
 	params: {
 		text: {
 			type: 'string',
@@ -36,12 +37,12 @@ export const mermaidMcpTool = defineMcpTool<{ text: string }, Output>({
 	},
 	returns,
 	annotations: { readOnlyHint: true, untrustedContentHint: true },
-	handler(input) {
+	async handler(input) {
 		if (!input.text.trim())
 			throw new Error('Mermaidコードを入力してください。');
 		if (exceedsMaxCharacters(input.text, 100_000))
 			throw new Error('入力の上限は100000文字です。');
-		const repaired = repairMermaidCode(input.text);
+		const repaired = await repairMermaidInWorker(input.text);
 		return {
 			code: repaired.repairedCode,
 			modified: repaired.isModified,

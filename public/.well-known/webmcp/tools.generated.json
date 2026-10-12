@@ -3,7 +3,7 @@
     {
       "toolId": "mermaid",
       "name": "repair_mermaid_code",
-      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。SVG生成はrender_mermaid_svgを利用する。",
+      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。",
       "aliases": [],
       "inputSchema": {
         "type": "object",

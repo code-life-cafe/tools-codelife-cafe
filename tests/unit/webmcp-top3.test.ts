@@ -15,6 +15,71 @@ const mermaid = generateWebMcpDescriptor(mermaidMcpTool);
 const formats = generateWebMcpDescriptor(yamlJsonTomlMcpTool);
 const masking = generateWebMcpDescriptor(maskingMcpTool);
 
+test('形式変換: JSON/YAMLの50階層を受理し51階層を拒否する', async () => {
+	for (const from of ['json', 'yaml'] as const) {
+		for (const [open, close] of from === 'yaml'
+			? [
+					['[', ']'],
+					['{a:', '}'],
+				]
+			: [
+					['[', ']'],
+					['{"a":', '}'],
+				]) {
+			const accepted = await formats.run({
+				text: `${open.repeat(50)}0${close.repeat(50)}`,
+				from,
+				to: 'json',
+			});
+			assert.ok(accepted.ok, accepted.ok ? undefined : accepted.error);
+			const rejected = await formats.run({
+				text: `${open.repeat(51)}0${close.repeat(51)}`,
+				from,
+				to: 'json',
+			});
+			assert.equal(rejected.ok, false);
+		}
+	}
+});
+
+test('形式変換: JSON/YAMLのちょうど10000要素を受理し10001を拒否する', async () => {
+	for (const from of ['json', 'yaml'] as const) {
+		const accepted = await formats.run({
+			text: JSON.stringify(Array(10000).fill(0)),
+			from,
+			to: 'json',
+		});
+		assert.ok(accepted.ok);
+		assert.equal(JSON.parse(accepted.value.output).length, 10000);
+		assert.equal(
+			(
+				await formats.run({
+					text: JSON.stringify(Array(10001).fill(0)),
+					from,
+					to: 'json',
+				})
+			).ok,
+			false,
+		);
+	}
+});
+
+test('Mermaid: 異種未閉じブロックの修復履歴は各追加行を示す', async () => {
+	const result = await mermaid.run({
+		text: 'sequenceDiagram\nopt pending\nclass C {',
+	});
+	assert.ok(result.ok);
+	assert.deepEqual(
+		result.value.changes
+			.filter((change) => change.rule === 'auto-close')
+			.map((change) => ({ line: change.lineNumber, fixed: change.fixed })),
+		[
+			{ line: 4, fixed: '}' },
+			{ line: 5, fixed: '    end' },
+		],
+	);
+});
+
 test('Mermaid: 100000文字の未完構文7種を5秒以内に修復する（隔離プロセス）', () => {
 	const tool = new URL('../../src/lib/tools/mermaid.mcp.ts', import.meta.url)
 		.href;

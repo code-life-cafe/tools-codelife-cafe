@@ -997,7 +997,13 @@ export function autoCloseBlocks(lines: string[]): {
 } {
 	const result = [...lines];
 	const added: string[] = [];
-	const stack: BlockScope[] = [];
+	const stack: (BlockScope & { closed: boolean })[] = [];
+	const endScopes: number[] = [];
+	const braceScopes: number[] = [];
+	const pushScope = (scope: BlockScope) => {
+		const index = stack.push({ ...scope, closed: false }) - 1;
+		(scope.type === 'brace' ? braceScopes : endScopes).push(index);
+	};
 
 	for (const rawLine of result) {
 		const line = rawLine.trim();
@@ -1009,46 +1015,33 @@ export function autoCloseBlocks(lines: string[]): {
 
 		// 1. subgraph 開始
 		if (/^subgraph\b/.test(line)) {
-			stack.push({ type: 'subgraph', indent });
+			pushScope({ type: 'subgraph', indent });
 			continue;
 		}
 
 		// 2. sequenceDiagram のブロック構文 (opt, alt, loop, rect, par, critical, break)
 		if (/^(?:opt|alt|loop|rect|par|critical|break)\b/.test(line)) {
-			stack.push({ type: 'sequence_block', indent });
+			pushScope({ type: 'sequence_block', indent });
 			continue;
 		}
 
 		// 3. 中括弧ブロック開始 (class ... { / state ... {) ※同一行で閉じていないもの
 		if (/^(?:class|state)\b.*\{$/.test(line)) {
-			stack.push({ type: 'brace', indent });
+			pushScope({ type: 'brace', indent });
 			continue;
 		}
 
 		// 4. end 終了行
 		if (line === 'end') {
-			// スタックを末尾から探索し、直近の subgraph または sequence_block を pop
-			for (let i = stack.length - 1; i >= 0; i--) {
-				if (
-					stack[i].type === 'subgraph' ||
-					stack[i].type === 'sequence_block'
-				) {
-					stack.splice(i, 1);
-					break;
-				}
-			}
+			const index = endScopes.pop();
+			if (index !== undefined) stack[index].closed = true;
 			continue;
 		}
 
 		// 5. } 終了行
 		if (line === '}') {
-			// スタックを末尾から探索し、直近の brace を pop
-			for (let i = stack.length - 1; i >= 0; i--) {
-				if (stack[i].type === 'brace') {
-					stack.splice(i, 1);
-					break;
-				}
-			}
+			const index = braceScopes.pop();
+			if (index !== undefined) stack[index].closed = true;
 		}
 	}
 
@@ -1056,6 +1049,7 @@ export function autoCloseBlocks(lines: string[]): {
 	while (stack.length > 0) {
 		const unclosed = stack.pop();
 		if (!unclosed) break;
+		if (unclosed.closed) continue;
 
 		if (unclosed.type === 'subgraph' || unclosed.type === 'sequence_block') {
 			const indent = unclosed.indent || '    ';
@@ -1168,13 +1162,13 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 
 	// Step 5: ブロックの閉じ忘れ補完
 	const { lines: finalLines, added } = autoCloseBlocks(processedLines);
-	for (const addMsg of added) {
+	for (const [index, addMsg] of added.entries()) {
 		changes.push({
-			lineNumber: finalLines.length,
+			lineNumber: processedLines.length + index + 1,
 			rule: 'auto-close',
 			description: addMsg,
 			original: '(未終了ブロック)',
-			fixed: finalLines[finalLines.length - 1],
+			fixed: finalLines[processedLines.length + index],
 		});
 	}
 

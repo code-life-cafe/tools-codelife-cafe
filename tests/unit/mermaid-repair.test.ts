@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test, { describe } from 'node:test';
@@ -1375,4 +1376,13 @@ test('引用文字列の線形保護は乱数1000件で従来のregexと一致�
 		const actual = protectQuotedStrings(input, () => `L${newIndex++}`);
 		assert.equal(actual, expected, `sample ${sample}`);
 	}
+});
+
+test('未対応の閉じブロック10万文字を3回処理して2秒以内に完了する（隔離）', () => {
+	const url = new URL('../../src/lib/tools/mermaid-repair.ts', import.meta.url)
+		.href;
+	const script = `import {autoCloseBlocks} from ${JSON.stringify(url)}; const lines=('opt\\n'.repeat(12500)+'}\\n'.repeat(25000)).split('\\n'); for(let i=0;i<3;i++){const r=autoCloseBlocks(lines);if(r.added.length!==12500)process.exit(1);}`;
+	execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+		timeout: 2000,
+	});
 });

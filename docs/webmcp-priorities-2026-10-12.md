@@ -54,7 +54,7 @@
 
 ## 今回の実装
 
-- `repair_mermaid_code` / `render_mermaid_svg`: 修復コード、修正履歴、SVGを返す。修復とSVG生成は別API。修復のみは構文検証を保証しない。
+- `repair_mermaid_code` / `render_mermaid_svg`: 修復コード、修正履歴、SVGを返す。修復とSVG生成は別API。修復のみは構文検証を保証しない。ブラウザでは専用Worker・5秒のタイマー・同時1件で処理する。
 - `convert_yaml_json_toml`: from/to・インデント・キーソート指定。構文エラーとTOML非対応値を返す。
 - `mask_personal_information`: 6種の対象・伏字文字・強度を指定。既定は全対象・全文字伏字。検出漏れ・誤検出の注意を返し、原文や検出箇所の原文は返さない。AIへ渡した原文を遡って秘匿できるわけではない。
 

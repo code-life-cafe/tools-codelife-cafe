@@ -217,3 +217,83 @@ for (const item of cases) {
 		expect(errors).toEqual([]);
 	});
 }
+
+test('Mermaid修復: Worker期限・同時実行制限・解放後の再実行', async ({
+	page,
+}) => {
+	await page.addInitScript(() => {
+		const state = window as unknown as MockWindow & {
+			__repairTerminated: boolean;
+		};
+		state.__top3Tools = [];
+		state.__repairTerminated = false;
+		Object.defineProperty(document, 'modelContext', {
+			configurable: true,
+			value: {
+				registerTool(tool: RegisteredTool) {
+					state.__top3Tools.push(tool);
+					return Promise.resolve();
+				},
+			},
+		});
+		const OriginalWorker = Worker;
+		let stall = true;
+		Object.defineProperty(window, 'Worker', {
+			configurable: true,
+			value: new Proxy(OriginalWorker, {
+				construct(target, args) {
+					if (stall && String(args[0]).includes('mermaid-repair')) {
+						stall = false;
+						return {
+							postMessage() {},
+							terminate() {
+								state.__repairTerminated = true;
+							},
+						} as unknown as Worker;
+					}
+					return Reflect.construct(target, args);
+				},
+			}),
+		});
+	});
+	await page.goto('/mermaid');
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				(window as unknown as MockWindow).__top3Tools.some(
+					(tool) => tool.name === 'repair_mermaid_code',
+				),
+			),
+		)
+		.toBe(true);
+	const results = await page.evaluate(async () => {
+		const tool = (window as unknown as MockWindow).__top3Tools.find(
+			(entry) => entry.name === 'repair_mermaid_code',
+		);
+		if (!tool) throw new Error('登録されていません');
+		const pending = tool.execute({ text: 'flowchart TD\nA --> B' });
+		const busy = await tool.execute({ text: 'flowchart TD\nA --> B' });
+		const timed = await pending;
+		const retry = await tool.execute({ text: 'flowchart TD\nA --> B' });
+		return {
+			busy,
+			timed,
+			retry,
+			terminated: (window as unknown as { __repairTerminated: boolean })
+				.__repairTerminated,
+		};
+	});
+	expect(results.busy.isError).toBe(true);
+	expect(results.busy.error).toContain('実行中');
+	expect(results.timed.isError).toBe(true);
+	expect(results.timed.error).toContain('5秒');
+	expect(results.terminated).toBe(true);
+	expect(results.retry.isError).toBeUndefined();
+	expect(results.retry.code).toContain('A --> B');
+	await expect(
+		page.getByRole('heading', {
+			name: 'Mermaidプレビュー・自動修復',
+			exact: true,
+		}),
+	).toBeVisible();
+});

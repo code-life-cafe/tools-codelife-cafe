@@ -208,7 +208,8 @@ function parseValue(
 				value:
 					yaml.load(
 						text,
-						safeMode ? { maxAliases: 0, maxDepth: 50 } : undefined,
+						// パーサの2フレーム分を許可し、実データは下の50段検査で制限する。
+						safeMode ? { maxAliases: 0, maxDepth: 52 } : undefined,
 					) ?? null,
 			};
 		}
@@ -299,7 +300,8 @@ function checkSafeStructure(value: unknown): string | null {
 		{ value, depth: 0, pathUnits: 0 },
 	];
 	const seen = new WeakSet<object>();
-	let nodes = 0;
+	// ルート容器は要素に含めず、配列の10000要素をそのまま受理する。
+	let nodes = -1;
 	let stringUnits = 0;
 	let estimatedBytes = 0;
 	while (stack.length) {
