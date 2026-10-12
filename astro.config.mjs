@@ -14,6 +14,13 @@ export default defineConfig({
 	integrations: [
 		react(),
 		sitemap({
+			filter: (page) => !new URL(page).pathname.startsWith('/tools/'),
+			serialize: (item) => {
+				const url = new URL(item.url);
+				if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/$/, '');
+				item.url = url.toString();
+				return item;
+			},
 			changefreq: 'weekly',
 			priority: 0.7,
 			lastmod: new Date(),
