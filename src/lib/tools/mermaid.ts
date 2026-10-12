@@ -144,7 +144,11 @@ export async function renderMermaidSvg(
 	containerId: string,
 	theme: 'default' | 'dark' | 'forest' | 'base' = 'default',
 	themeVariables?: Record<string, string>,
-	renderLimits?: { maxEdges: number; maxTextSize: number },
+	renderLimits?: {
+		maxEdges: number;
+		maxTextSize: number;
+		htmlLabels?: boolean;
+	},
 ): Promise<{ svg: string }> {
 	if (exceedsMaxCharacters(code, MAX_INPUT_LENGTH)) {
 		throw new Error(

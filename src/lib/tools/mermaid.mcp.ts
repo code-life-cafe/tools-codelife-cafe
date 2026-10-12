@@ -58,7 +58,7 @@ export const mermaidRenderMcpTool = defineMcpTool<
 	toolId: 'mermaid',
 	name: 'render_mermaid_svg',
 	description:
-		'Render a small Mermaid diagram as SVG locally in strict mode. / 小型のMermaid図をSVG化する。入力と修復後コードは5000文字、改行・セミコロン区切り50文、50エッジ、SVG出力1MiBまで。設定ディレクティブ・frontmatter・&並列リンク・拡張シェイプ・画像・HTMLは不可。大きな図はrepair_mermaid_codeを利用する。',
+		'Render a small Mermaid diagram as SVG locally in strict mode. / 小型のフローチャート/シーケンス図をSVG化する。描画対応はflowchart/graph/sequenceDiagramのみ。入力と修復後コードは5000文字、改行・セミコロン区切り50文、各文200文字、50エッジ、SVG出力1MiBまで。設定ディレクティブ・frontmatter・&並列リンク・拡張シェイプ・画像・HTML・Markdownラベルは不可。大きな図はrepair_mermaid_codeを利用する。',
 	params: {
 		text: {
 			type: 'string',
@@ -88,6 +88,7 @@ export const mermaidRenderMcpTool = defineMcpTool<
 			undefined,
 			{
 				maxEdges: MERMAID_RENDER_MAX_EDGES,
+				htmlLabels: false,
 				maxTextSize: MERMAID_RENDER_MAX_CHARACTERS * 2,
 			},
 		);

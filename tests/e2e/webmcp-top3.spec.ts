@@ -143,6 +143,8 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 	);
 	const overEdges = await run(`graph TD\n${edgeChain}`);
 	expect(overEdges.isError).toBe(true);
+	const timeline = await run(`timeline\n2020 ${': a '.repeat(1000)}`);
+	expect(timeline.isError).toBe(true);
 });
 for (const item of cases) {
 	test(`${item.path}: WebMCPなしでもUIを利用できる`, async ({ page }) => {

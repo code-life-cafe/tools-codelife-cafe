@@ -347,3 +347,16 @@ test('Mermaid: 1文内のエッジ過多も描画器に入る前に拒否', asyn
 	assert.equal(result.ok, false);
 	if (!result.ok) assert.match(result.error, /50エッジ/);
 });
+
+test('Mermaid: 1行で大量展開するtimelineと長い1文を描画前に拒否', async () => {
+	const renderer = generateWebMcpDescriptor(mermaidRenderMcpTool);
+	const text = `timeline\n2020 ${': a '.repeat(1000)}`;
+	assert.ok(text.length < 5000);
+	const result = await renderer.run({ text });
+	assert.equal(result.ok, false);
+	if (!result.ok) assert.match(result.error, /フローチャート/);
+	const longLabel = await renderer.run({
+		text: `graph TD\nA[${'a'.repeat(201)}]`,
+	});
+	assert.equal(longLabel.ok, false);
+});
