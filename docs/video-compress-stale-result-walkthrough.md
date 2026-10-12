@@ -1,6 +1,6 @@
 # 動画圧縮の旧結果表示修正
 
-Risk Class: R1。base: main `f1e3c7d`。
+Risk Class: R1。元修正のbase: main `f1e3c7d`。以下は元修正の検証履歴で、PR433への統合結果は末尾に記載する。
 
 成功時に圧縮設定と開始・終了秒の比較キーを結果へ保持する。現在設定が異なる間は完了通知を再圧縮案内へ切り替え、結果見出しとダウンロードを「前回」と明示する。元へ戻すと通常表示へ戻る。成功ファイルは設定変更だけでは破棄せず、再実行開始・読み直しでは従来どおり破棄する。失敗・キャンセルで旧結果を復活させない。
 
@@ -46,4 +46,16 @@ package.json、package-lock.json、astro.config.mjs、src/content.config.tsはma
 
 最小の取り込み手順: 434を含む最新433 headを基点に新しい専用branchを作り、本branchの2つのローカルcommitをcherry-pickする。競合部分ではrunJobKey/jobKey/resultIsStaleを残し、input refを削除する。新回帰テストは終了秒のfill後にTabで確定するため、434のblur/Enter確定方式にも対応する。433のサムネWorkerもmock対象なので、統合後にはそのUIと実Workerを含め標準build・unit・動画E2Eを再実行し、最新headの独立レビューとCIを得る。
 
-push・PR作成・merge・deployは実施しない。依存修正は不要。次は433/434の統合順序を決め、上記の最小競合解消を行って最新headを再検証する。
+元修正の検証段階ではpush・PR作成・merge・deployは実施しなかった。依存修正は不要。
+
+## PR433への統合（2026-10-12）
+
+ユーザーの承認を受け、PR433最新head `ae00bf4` を基点に専用worktree `task-3/integration` を作成した。元commit `5853099` と `d5d8903` をcherry-pickし、ref宣言1か所の競合では旧結果判定を保持、PR433で削除済みのinput refは復活させなかった。重複修正はなかった。
+
+取り込み中の並行更新 `b6a9bb7`（短動画のスライダー表示・読み上げ桁数）を通常mergeで取り込んだ。`7b96717` のD&D動画base64受け渡し、`ae00bf4` の短動画入力精度、PR434の改善を全て保持する。これらのファイルと最新PR433との差分はない。
+
+独立レビューでサムネWorkerにも圧縮用mock応答を返すテスト不備を指摘されたため、Worker URLで分岐しサムネには仕様上のnull fallback応答を返すよう補正した。fallback表示とpageerrorゼロも検証し、再レビューで解消確認済み。
+
+統合版の標準lint・build・Astro全体check・tscは成功。unitは1448 passed / 0 failed、動画圧縮の標準E2EはPC/Pixel 7計28件成功。既存の実動画・サムネD&D・長尺/短尺範囲操作に、新しい旧結果ライフサイクル検証を加えた。ログはworkspace直下evidence/integration-final-*.log。元修正の全体E2Eでmainにも再現したSQL/全角半角の3失敗は別問題として残し、検査や期待値を緩和していない。
+
+最新PR433への差分はVideoCompress、旧結果回帰テスト、本文書の3ファイルだけ。既存checkout/他担当worktree/PR435は変更しない。ユーザー承認の対象は通常の非force pushとCI確認までで、mainへのmergeと本番deployは対象外。push直前にPR状態・headを再確認し、並行更新時は再取得して保持する。
