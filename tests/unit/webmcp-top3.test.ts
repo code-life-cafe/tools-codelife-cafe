@@ -47,6 +47,7 @@ test('Mermaid: ラベルの&と比較文字は許可し並列リンクとHTMLは
 		`flowchart TD\n%% R&D ${'-->'.repeat(51)}\nA --> B`,
 		'flowchart TD\nA --> B %% R&D <img src="x"> @{ ![ `',
 		'flowchart TD\nA["%% R&D"] --> B',
+		'flowchart TD\nA>研究開発 R&D] --> B',
 	])
 		assert.doesNotThrow(() => assertMermaidRenderBudget(text));
 	for (const text of [
@@ -380,6 +381,20 @@ test('Mermaid: 50文を超えるインライン図と予算回避の設定・並
 });
 
 test('Mermaid: 1文内のエッジ過多も描画器に入る前に拒否', async () => {
+	assert.throws(
+		() =>
+			assertMermaidRenderBudget(
+				`flowchart TD\n${Array.from({ length: 52 }, (_, i) => `A${i}[x]`).join('-->')}`,
+			),
+		/50エッジ/,
+	);
+	assert.throws(
+		() =>
+			assertMermaidRenderBudget(
+				`flowchart TD\nA -- ${`${'x'.repeat(95)}#59;`.repeat(48)} --> B`,
+			),
+		/200文字/,
+	);
 	assert.doesNotThrow(() =>
 		assertMermaidRenderBudget(`flowchart TD\nA["${'項目;'.repeat(50)}"]`),
 	);

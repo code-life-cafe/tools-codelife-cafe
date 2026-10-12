@@ -23,6 +23,13 @@ function splitFlowchartStatements(code: string): string[] {
 			else if (char === quote) quote = '';
 			continue;
 		}
+		if (char === '#') {
+			const entity = code.slice(index).match(/^#[A-Za-z0-9_]+;/);
+			if (entity) {
+				index += entity[0].length - 1;
+				continue;
+			}
+		}
 		if (depth === 0 && !pipe && char === '%' && code[index + 1] === '%') {
 			const statement = code.slice(start, index).trim();
 			if (statement) statements.push(statement);
@@ -33,6 +40,12 @@ function splitFlowchartStatements(code: string): string[] {
 			continue;
 		}
 		if (char === '"') quote = char;
+		else if (
+			char === '>' &&
+			depth === 0 &&
+			/[\p{L}\p{N}_]/u.test(code[index - 1] ?? '')
+		)
+			depth++;
 		else if ('[({'.includes(char)) depth++;
 		else if ('])}'.includes(char)) depth = Math.max(0, depth - 1);
 		else if (char === '|' && depth === 0) pipe = !pipe;
@@ -80,6 +93,10 @@ export function assertMermaidRenderBudget(code: string): void {
 	const structuralSyntax = isSequence
 		? syntax.replace(/:[^\r\n]*|\s+as\s+[^;\r\n]*|^\s*box\s+[^;\r\n]*/gm, '')
 		: syntax
+				.replace(
+					/[\p{L}\p{N}_](?:[\p{L}\p{N}_.-]*[\p{L}\p{N}_])?>[^\]\r\n]*\]/gu,
+					'',
+				)
 				.replace(
 					/\[[^\]\r\n]*\]|\([^)\r\n]*\)|\{[^}\r\n]*\}|\|[^|\r\n]*\|/g,
 					'',
