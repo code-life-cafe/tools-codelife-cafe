@@ -42,3 +42,9 @@ E2Eは共通の通信遮断fixtureを使用せず、実Worker・実WebCodecsで�
 - 初回npm installは既存onnxruntime-nodeのインストールスクリプトがネットワークエラーで失敗したため、ignore-scriptsで依存を配置した。Mediabunnyに必要なインストールスクリプトはない。既存のWASM配信・ビルド検証は成功。
 - build前の全unit実行は旧distを参照する既存ONNX生成物テスト1件が失敗。build後は全件成功。
 - 初回rotation fixture生成はFFmpeg 7のrotateメタデータ指定では回転情報が付かなかった。display_rotationで生成し直し、ffprobeで実回転情報を確認してから最終E2Eを成功させた。
+
+## リリース前の本番CSP検証・修正
+
+本番の共通CSPヘッダーをpreviewに付与する実検証で、`media-src`省略時のdefault-srcによりblob動画が拒否されることを確認した（preview readyState=0、MEDIA_ERR_SRC_NOT_SUPPORTED、media-src違反）。Cloudflare Pagesは重複するCSPヘッダーを連結するため、新しいヘッダーでは共通制限を緩和できない。`public/_headers` に `/video-compress` と `/video-compress/` の完全一致だけ `! Content-Security-Policy` を追加し、当該ページは既存のmeta CSPを実効制限として使用する。metaは同一オリジンとblobだけを許可し、共通CSPより通信・script制限を厳しくする。共通CSPや既存ページの境界は変更しない。両パスのCSP解除とmeta指定をunitで、共通ヘッダー解除後にもmetaが存在して元・結果動画がreadyState>=2になることをE2Eで検証する。ページ固有の配信ヘッダーを追加したため変更全体をR3として記録し、独立レビューを追加する。ユーザーからのリリース指示を人間承認として扱う。
+
+追加R3レビューで、ワイルドカード解除が共通404ページのCSPまで消す問題を指摘され、解除を実ページ2パスの完全一致へ限定。新規7unit・PC/mobile16E2Eで検証。

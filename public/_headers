@@ -31,3 +31,12 @@
 # 機械可読リソース（llms.txt / Agent Skills index）の場所をトップページで通知する。
 /
   Link: </llms.txt>; rel="describedby"; type="text/plain", </.well-known/agent-skills/index.json>; rel="describedby"; type="application/json"
+
+# 動画圧縮では共通CSPのdefault-srcがblob動画を拒否するため、当該ページだけ解除する。
+# 制限はHTMLのmeta CSPで適用する（src/lib/tools/video-compress.ts）。
+# Cloudflareは複数CSPを連結するため、ヘッダー追加では共通制限を緩和できない。
+/video-compress
+  ! Content-Security-Policy
+
+/video-compress/
+  ! Content-Security-Policy

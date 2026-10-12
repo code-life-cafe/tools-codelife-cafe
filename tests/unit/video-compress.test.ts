@@ -120,3 +120,23 @@ test('コピーAACの実測ビットレートを合算して容量を計算', ()
 	assert.equal(plan.videoBitrate, 820_000);
 	assert.equal(plan.estimatedBytes, 3_000_000);
 });
+
+test('本番は動画圧縮ページだけ共通CSPを解除しmetaで制限', async () => {
+	const { readFile } = await import('node:fs/promises');
+	const page = await readFile('src/pages/video-compress.astro', 'utf8');
+	assert.match(
+		page,
+		/http-equiv="Content-Security-Policy" content=\{VIDEO_CSP\}/,
+	);
+	const headers = await readFile('public/_headers', 'utf8');
+	const detachedPaths = [
+		...headers.matchAll(/^([^#\s][^\n]*)\n[ \t]+! Content-Security-Policy$/gm),
+	].map((match) => match[1]);
+	assert.deepEqual(detachedPaths, ['/video-compress', '/video-compress/']);
+	for (const path of ['/video-compress', '/video-compress/']) {
+		const lines = headers.split('\n');
+		const index = lines.indexOf(path);
+		assert.notEqual(index, -1);
+		assert.equal(lines[index + 1].trim(), '! Content-Security-Policy');
+	}
+});

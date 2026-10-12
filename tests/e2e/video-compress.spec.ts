@@ -237,3 +237,46 @@ test('rotation付き動画を表示寸法で縮小しPC・スマホ幅で操作�
 		fullPage: true,
 	});
 });
+
+test('本番の共通CSP解除後もmetaで制限し元・結果動画を再生可能', async ({
+	page,
+}, testInfo) => {
+	const { VIDEO_CSP } = await import('../../src/lib/tools/video-compress');
+	await page.route('**/video-compress', async (route) => {
+		const response = await route.fetch();
+		await route.fulfill({
+			response,
+			headers: Object.fromEntries(
+				Object.entries(response.headers()).filter(
+					([name]) => name.toLowerCase() !== 'content-security-policy',
+				),
+			),
+		});
+	});
+	await open(page);
+	await expect(
+		page.locator('meta[http-equiv="Content-Security-Policy"]'),
+	).toHaveAttribute('content', VIDEO_CSP);
+	await load(page);
+	await expect
+		.poll(() =>
+			page
+				.getByLabel('元の動画プレビュー')
+				.evaluate((video) => (video as HTMLVideoElement).readyState),
+		)
+		.toBeGreaterThanOrEqual(2);
+	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
+	const result = await output(page, testInfo.outputPath('production-csp.mp4'));
+	try {
+		expect(await result.getAudioTracks()).toHaveLength(1);
+	} finally {
+		result.dispose();
+	}
+	await expect
+		.poll(() =>
+			page
+				.getByLabel('圧縮後の動画プレビュー')
+				.evaluate((video) => (video as HTMLVideoElement).readyState),
+		)
+		.toBeGreaterThanOrEqual(2);
+});

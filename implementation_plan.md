@@ -83,3 +83,9 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 ### 完了記録
 
 実装と独立レビュー修正、最終検証が完了。`docs/video-compress-walkthrough.md` に最終仕様、全1,430件unit・14件E2E成功、lint/build/astro check、オフライン実変換と通信監視、実出力の再解析、環境上の対応範囲を記録。公開・merge・deployは未実施。
+
+### リリース前の本番ヘッダー対応
+
+リリースの指示に基づき本番用ヘッダーを再現すると、共通default-srcがblob動画を拒否する問題を実確認。動画圧縮ページに限って `public/_headers` に共通CSPの解除を当該ページだけ追加し、既存metaの厳しいCSPを使用。Cloudflareの複数ヘッダー連結仕様を公式文書で確認。元動画・圧縮後動画の再生E2Eとページ限定解除unitを追加。共通CSPは変更しない。配信設定追加をR3として追加独立レビューと最新headのCI/正式Code・Security Reviewを実施し、成功後リリースする。
+
+追加R3レビューで、ワイルドカード解除が共通404ページのCSPまで消す問題を指摘され、解除を実ページ2パスの完全一致へ限定。新規7unit・PC/mobile16E2Eで検証。
