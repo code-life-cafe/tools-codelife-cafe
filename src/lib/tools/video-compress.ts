@@ -204,3 +204,16 @@ export function trimStep(duration: number): number {
 	if (duration <= 60) return trimGap(duration);
 	return duration <= 600 ? 0.1 : 1;
 }
+
+/** 開始秒・終了秒の数値入力が取りうる範囲。最小間隔はスライダー刻みではなく trimGap を使う */
+export function trimFieldBounds(
+	duration: number,
+	start: number,
+	end: number,
+): { start: { min: number; max: number }; end: { min: number; max: number } } {
+	const gap = trimGap(duration);
+	return {
+		start: { min: 0, max: Math.max(0, end - gap) },
+		end: { min: Math.min(duration, start + gap), max: duration },
+	};
+}
