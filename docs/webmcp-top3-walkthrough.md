@@ -5,17 +5,17 @@
 ## 受け入れ条件と実装
 
 - 55件を対象に、既存のmanifest・レガシー定義・ページでの実登録を照合。既存12件対応、未対応43件。全順位と理由は `webmcp-priorities-2026-10-12.md` に記録。
-- 上位3件の既存処理を `defineMcpTool` の単一ソース定義で公開し、registryと各ページのuseEffectへ接続。生成manifestは10定義から13定義へ増加。レガシーtax/unix-timeは既存のまま。
+- 上位3件の既存処理を `defineMcpTool` の単一ソース定義で公開し、registryと各ページのuseEffectへ接続。生成manifestは10定義から14定義へ増加。レガシーtax/unix-timeは既存のまま。
 - Mermaidは修復・SVG生成、形式変換は6方向・整形・キーソート、マスキングは対象6種・全文字/一部伏字・2種の伏字を提供。
 - UIの既定値とWebMCPの既定値は独立。WebMCPのマスキングは共有用途を想定し全文字伏字を既定にする。AIへ既に渡した情報の漏えいを取り消す機能ではない。
-- 入力は100000文字上限。入力データのfetch・保存・ログ・計測を追加していない。既存のSVGレンダラーはstrictモード。ブラウザ非対応では登録がno-op。
+- 修復・形式変換・マスキングの入力は100000文字、SVG描画は5000文字上限。入力データのfetch・保存・ログ・計測を追加していない。既存のSVGレンダラーはstrictモード。ブラウザ非対応では登録がno-op。
 
-## 実測
+## 初回ローカル実測（レビュー前の履歴）
 
 - `npm run lint`: 成功。15警告と1infoは変更前でも再現。追加・変更ファイルへのBiomeチェックは指摘なし。
 - `npx tsc --noEmit --pretty false --ignoreDeprecations 6.0`: 成功。
 - 対象単体テスト9件とregistryテスト3件: 全12件成功。文法修復・複合形状保持、全変換方向の値維持、TOML制約、マスキング設定・既定値・原文非返却、型/列挙/サイズエラー、現行document登録と旧navigator登録の実行・解除を確認。
-- `npm run webmcp:generate`: 成功、13定義。
+- `npm run webmcp:generate`: 初回13定義、最終生成は14定義。
 - 全単体テスト: ONNXランタイムのビルド成果物検証1件が失敗。変更前のmainでも同じテストが失敗（成果物の配置によりアサーションは異なる）。成功扱いにしない。
 - `npm run build`: Astroの115ページ生成は成功。最後のCloudflare Pages 25MiB検査でONNX/WASM容量超過となり全buildは失敗。変更前mainでもWASM容量超過を再現。依存・ランタイム配信は本スコープ外のため変更していない。
 - `npm test -- tests/e2e/webmcp-top3.spec.ts --project=chromium --workers=1`: preview webServer起動失敗で実行不可。ChromiumダウンロードもZIP取得失敗。E2Eは追加済みだが未検証。ブラウザ登録、実SVGレンダリング、非対応時のUI、実行中リクエスト観測をCIで確認する必要がある。
@@ -48,3 +48,8 @@ YAML alias増幅とメール検出の二乗時間走査を修正。WebMCP形式�
 
 
 追加のtimeline 1行展開の指摘に対し、WebMCP描画だけflowchart/graph/sequenceDiagramへ限定。通常UI/修復の図種は維持する。各文200文字とMarkdownラベル制限、htmlLabels=falseも適用し、長いラベルによるDOM展開を抑える。1000イベントのtimelineは描画器に入る前に拒否する回帰を追加。
+
+
+## 最終検証記録の整合
+
+Mermaid修復とSVG描画は別API。最終manifestは14定義、レガシー2件を含む対応ページは15件。描画のみ5000文字/50文/50エッジ/各文200文字、修復・変換・マスキングは100000文字。最新コードのGitHub lint/型/build/全unit1466件は成功。全E2E・Code/Security Review・本番デプロイ・公開ブラウザ検証の確定結果はPR #435へ記録する。初回ローカル実測は履歴であり、最終CIの結果ではない。
