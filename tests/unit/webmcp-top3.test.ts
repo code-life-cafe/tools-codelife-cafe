@@ -6,6 +6,7 @@ import {
 	mermaidMcpTool,
 	mermaidRenderMcpTool,
 } from '../../src/lib/tools/mermaid.mcp.ts';
+import { assertMermaidRenderBudget } from '../../src/lib/tools/mermaid-render-budget.ts';
 import { yamlJsonTomlMcpTool } from '../../src/lib/tools/yaml-json-toml.mcp.ts';
 import { generateWebMcpDescriptor } from '../../src/lib/webmcp/descriptor-generator.ts';
 import { provideToolsFromFactory } from '../../src/lib/webmcp.ts';
@@ -13,6 +14,39 @@ import { provideToolsFromFactory } from '../../src/lib/webmcp.ts';
 const mermaid = generateWebMcpDescriptor(mermaidMcpTool);
 const formats = generateWebMcpDescriptor(yamlJsonTomlMcpTool);
 const masking = generateWebMcpDescriptor(maskingMcpTool);
+
+test('形式変換: ソート時も予約名キーをデータとして保持する', async () => {
+	const text =
+		'{"__proto__":{"polluted":true},"constructor":2,"prototype":3,"a":{"__proto__":4}}';
+	const result = await formats.run({
+		text,
+		from: 'json',
+		to: 'json',
+		sortKeys: true,
+	});
+	assert.ok(result.ok);
+	assert.deepEqual(JSON.parse(result.value.output), JSON.parse(text));
+	assert.equal(
+		Object.hasOwn(JSON.parse(result.value.output), '__proto__'),
+		true,
+	);
+	assert.equal(Object.hasOwn(Object.prototype, 'polluted'), false);
+});
+
+test('Mermaid: ラベルの&と比較文字は許可し並列リンクとHTMLは拒否する', () => {
+	for (const text of [
+		'flowchart TD\nA[研究開発 R&D] --> B[完了]',
+		'flowchart TD\nA[x < y] --> B[z]',
+		'flowchart TD\nA["R&D"] --> B[完了]',
+		'sequenceDiagram\nA->>B:研究開発 R&D',
+	])
+		assert.doesNotThrow(() => assertMermaidRenderBudget(text));
+	for (const text of [
+		'flowchart TD\nA & B --> C',
+		'flowchart TD\nA[<img src="x">]',
+	])
+		assert.throws(() => assertMermaidRenderBudget(text));
+});
 
 test('Mermaid: フェンス除去・全角矢印修復と形状保持', async () => {
 	const result = await mermaid.run({

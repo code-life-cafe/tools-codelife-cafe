@@ -44,11 +44,17 @@ export function assertMermaidRenderBudget(code: string): void {
 			'SVG描画では設定ディレクティブ・frontmatterは利用できません。',
 		);
 	// 小型図の予算を超える並列リンク展開、外部画像やHTML描画を受け付けない。
+	// &はラベル・メッセージ中では通常の文字。構造部分だけを検査する。
+	const structuralSyntax = /^sequenceDiagram\b/i.test(extracted)
+		? syntax.replace(/:[^\r\n]*/g, '')
+		: syntax.replace(/\[[^\]\r\n]*\]|\([^)\r\n]*\)|\{[^}\r\n]*\}/g, '');
 	if (
-		code.includes('&') ||
+		structuralSyntax.includes('&') ||
 		code.includes('@{') ||
 		code.includes('![') ||
-		/<\s*\/?\s*[A-Za-z]/.test(code)
+		/<\s*\/?\s*[A-Za-z][\w:-]*(?:\s+[A-Za-z_:][\w:.-]*(?:\s*=\s*(?:"[^"\r\n]*"|'[^'\r\n]*'|[^\s<>[\]{}]+))?)*\s*\/?>/.test(
+			code,
+		)
 	)
 		throw new Error(
 			'SVG描画では&による並列リンク・拡張シェイプ・画像・HTMLは利用できません。',

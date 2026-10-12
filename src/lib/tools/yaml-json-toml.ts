@@ -51,7 +51,12 @@ export function sortKeysDeep(value: unknown): unknown {
 	if (isPlainObject(value)) {
 		const out: Record<string, unknown> = {};
 		for (const key of Object.keys(value).sort()) {
-			out[key] = sortKeysDeep(value[key]);
+			Object.defineProperty(out, key, {
+				value: sortKeysDeep(value[key]),
+				enumerable: true,
+				writable: true,
+				configurable: true,
+			});
 		}
 		return out;
 	}
@@ -68,7 +73,12 @@ function normalizeTomlDates(value: unknown): unknown {
 	if (isPlainObject(value)) {
 		const out: Record<string, unknown> = {};
 		for (const [key, child] of Object.entries(value)) {
-			out[key] = normalizeTomlDates(child);
+			Object.defineProperty(out, key, {
+				value: normalizeTomlDates(child),
+				enumerable: true,
+				writable: true,
+				configurable: true,
+			});
 		}
 		return out;
 	}

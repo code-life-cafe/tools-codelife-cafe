@@ -89,6 +89,24 @@ for (const mode of ['document', 'navigator'] as const) {
 			}, item);
 			expect(result[item.key]).toContain(item.expected);
 			expect(result.isError).toBeUndefined();
+			if (item.path === 'yaml-json-toml') {
+				const reserved = await page.evaluate(async (name) => {
+					const tool = (window as unknown as MockWindow).__top3Tools.find(
+						(entry) => entry.name === name,
+					);
+					if (!tool) throw new Error('登録されていません');
+					return tool.execute({
+						text: '{"__proto__":{"polluted":true},"a":1}',
+						from: 'json',
+						to: 'json',
+						sortKeys: true,
+					});
+				}, item.name);
+				expect(reserved.isError).toBeUndefined();
+				expect(JSON.parse(reserved.output as string)).toEqual(
+					JSON.parse('{"__proto__":{"polluted":true},"a":1}'),
+				);
+			}
 			const error = await page.evaluate(async (name) => {
 				const tool = (window as unknown as MockWindow).__top3Tools.find(
 					(entry) => entry.name === name,
@@ -132,6 +150,9 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 		}, text);
 	const result = await run('flowchart TD\nA[開始] --> B[終了]');
 	expect(result.svg).toContain('<svg');
+	const label = await run('flowchart TD\nA[研究開発 R&D] --> B[x < y]');
+	expect(label.isError).toBeUndefined();
+	expect(label.svg).toContain('<svg');
 	const error = await run('not a diagram');
 	expect(error.isError).toBe(true);
 	const tooMany = await run(`sequenceDiagram\n${'A->>B:x\n'.repeat(51)}`);

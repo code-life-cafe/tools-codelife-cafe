@@ -53,3 +53,8 @@ YAML alias増幅とメール検出の二乗時間走査を修正。WebMCP形式�
 ## 最終検証記録の整合
 
 Mermaid修復とSVG描画は別API。最終manifestは14定義、レガシー2件を含む対応ページは15件。描画のみ5000文字/50文/50エッジ/各文200文字、修復・変換・マスキングは100000文字。最新コードのGitHub lint/型/build/全unit1466件は成功。全E2E・Code/Security Review・本番デプロイ・公開ブラウザ検証の確定結果はPR #435へ記録する。初回ローカル実測は履歴であり、最終CIの結果ではない。
+
+
+## 追加独立レビューの回帰修正
+
+ラベル中のR&Dやx < yを構造記法と誤認しないよう、並列リンク判定からラベル/メッセージを除外し、HTMLはタグ構文のみ検出。禁止する並列リンク/画像/HTMLの検査は維持。キーソートおよびTOML日時正規化ではObject.definePropertyでown data propertyを作り、__proto__/constructor/prototypeを失わない。関連unit109件成功、document/navigator登録E2Eで予約名キーとSVGラベルを検証する。
