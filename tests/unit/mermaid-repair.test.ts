@@ -1445,4 +1445,36 @@ describe('YAML frontmatter の保持', () => {
 		assert.equal(result.repairedCode, input);
 		assert.equal(result.isModified, false);
 	});
+
+	test('extractMermaidCode: frontmatterと宣言の間の%%コメントを跨いで保持する', () => {
+		const withComment = `---\ntitle: 図\n---\n%% 説明\n\n`;
+		const { code } = extractMermaidCode(`説明です\n${withComment}${body}`);
+		assert.equal(code, `${withComment}${body}`);
+	});
+
+	test('repairMermaidCode: %%コメント付きfrontmatterは変更なし', () => {
+		const input = `---\ntitle: 図\n---\n%% 説明\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
+
+	test('repairMermaidCode: 複数行titleのsubgraph風テキストで余計なendを足さない', () => {
+		const input = `---\ntitle: |\n  subgraph Heading\n---\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.ok(!result.changes.some((c) => c.rule === 'auto-close'));
+	});
+
+	test('repairMermaidCode: frontmatter付きでも図本文の未閉じブロックは補完する', () => {
+		const result = repairMermaidCode(
+			`${fm}flowchart TD\n  subgraph S\n    A --> B`,
+		);
+		assert.ok(result.repairedCode.startsWith(fm));
+		assert.ok(result.repairedCode.trimEnd().endsWith('end'));
+		assert.equal(
+			result.changes.filter((c) => c.rule === 'auto-close').length,
+			1,
+		);
+	});
 });

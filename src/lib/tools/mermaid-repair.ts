@@ -37,7 +37,8 @@ const DIAGRAM_HEADER_REGEX =
  */
 function findFrontmatterStart(lines: string[], headerIndex: number): number {
 	let end = headerIndex - 1;
-	while (end >= 0 && lines[end].trim() === '') end--;
+	// 宣言との間の空行・Mermaidコメント(%%)は読み飛ばす
+	while (end >= 0 && /^(?:%%.*)?$/.test(lines[end].trim())) end--;
 	if (end < 1 || lines[end].trim() !== '---') return -1;
 	for (let start = end - 1; start >= 0; start--) {
 		if (lines[start].trim() === '---') {
@@ -1209,15 +1210,18 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 		processedLines.push(curLine);
 	}
 
-	// Step 5: ブロックの閉じ忘れ補完
-	const { lines: finalLines, added } = autoCloseBlocks(processedLines);
+	// Step 5: ブロックの閉じ忘れ補完（frontmatterは対象外、図本文のみに適用）
+	const frontmatterLines = processedLines.slice(0, frontmatterEnd);
+	const bodyLines = processedLines.slice(frontmatterEnd);
+	const { lines: closedBody, added } = autoCloseBlocks(bodyLines);
+	const finalLines = [...frontmatterLines, ...closedBody];
 	for (const [index, addMsg] of added.entries()) {
 		changes.push({
 			lineNumber: processedLines.length + index + 1,
 			rule: 'auto-close',
 			description: addMsg,
 			original: '(未終了ブロック)',
-			fixed: finalLines[processedLines.length + index],
+			fixed: closedBody[bodyLines.length + index],
 		});
 	}
 
