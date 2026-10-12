@@ -46,8 +46,14 @@ export function assertMermaidRenderBudget(code: string): void {
 	// 小型図の予算を超える並列リンク展開、外部画像やHTML描画を受け付けない。
 	// &はラベル・メッセージ中では通常の文字。構造部分だけを検査する。
 	const structuralSyntax = /^sequenceDiagram\b/i.test(extracted)
-		? syntax.replace(/:[^\r\n]*/g, '')
-		: syntax.replace(/\[[^\]\r\n]*\]|\([^)\r\n]*\)|\{[^}\r\n]*\}/g, '');
+		? syntax.replace(/:[^\r\n]*|\s+as\s+[^;\r\n]*|^\s*box\s+[^;\r\n]*/gm, '')
+		: syntax
+				.replace(
+					/\[[^\]\r\n]*\]|\([^)\r\n]*\)|\{[^}\r\n]*\}|\|[^|\r\n]*\|/g,
+					'',
+				)
+				.replace(/[-=.]{2}\s+[^;\r\n]*?\s+[-=.]{2}>/g, '-->')
+				.replace(/^\s*subgraph\s+[^;\r\n]*/gm, 'subgraph');
 	if (
 		structuralSyntax.includes('&') ||
 		code.includes('@{') ||

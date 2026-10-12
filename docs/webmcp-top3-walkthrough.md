@@ -58,3 +58,5 @@ Mermaid修復とSVG描画は別API。最終manifestは14定義、レガシー2�
 ## 追加独立レビューの回帰修正
 
 ラベル中のR&Dやx < yを構造記法と誤認しないよう、並列リンク判定からラベル/メッセージを除外し、HTMLはタグ構文のみ検出。禁止する並列リンク/画像/HTMLの検査は維持。キーソートおよびTOML日時正規化ではObject.definePropertyでown data propertyを作り、__proto__/constructor/prototypeを失わない。関連unit109件成功、document/navigator登録E2Eで予約名キーとSVGラベルを検証する。
+
+エッジラベル（パイプ/テキスト記法）と参加者別名/図グループ見出しも構造部分から除外。セミコロン以降の別文は除外せず並列リンク検査を維持。関連unit109件、エッジ/参加者ラベルのブラウザSVG回帰を追加。

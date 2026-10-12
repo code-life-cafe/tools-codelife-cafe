@@ -153,6 +153,15 @@ test('Mermaid: SVG生成と構文エラーをブラウザで確認', async ({ pa
 	const label = await run('flowchart TD\nA[研究開発 R&D] --> B[x < y]');
 	expect(label.isError).toBeUndefined();
 	expect(label.svg).toContain('<svg');
+	for (const text of [
+		'flowchart TD\nA -->|R&D| B',
+		'flowchart TD\nA -- R&D --> B',
+		'sequenceDiagram\nparticipant A as R&D\nA->>B:x',
+	]) {
+		const labeled = await run(text);
+		expect(labeled.isError).toBeUndefined();
+		expect(labeled.svg).toContain('<svg');
+	}
 	const error = await run('not a diagram');
 	expect(error.isError).toBe(true);
 	const tooMany = await run(`sequenceDiagram\n${'A->>B:x\n'.repeat(51)}`);
