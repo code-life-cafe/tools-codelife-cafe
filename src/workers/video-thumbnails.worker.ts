@@ -2,7 +2,10 @@ import { ALL_FORMATS, BlobSource, CanvasSink, Input } from 'mediabunny';
 import { thumbnailTimes, type VideoInfo } from '../lib/tools/video-compress';
 
 self.onmessage = async (
-	event: MessageEvent<{ file: File; info: VideoInfo }>,
+	event: MessageEvent<{
+		file: File;
+		info: Pick<VideoInfo, 'duration' | 'startTimestamp'>;
+	}>,
 ) => {
 	const input = new Input({
 		source: new BlobSource(event.data.file),
