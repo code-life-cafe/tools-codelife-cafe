@@ -20,6 +20,10 @@ function paramToJsonSchema(def: McpParamDef): Record<string, unknown> {
 		description: def.description,
 	};
 	if (def.enum) schema.enum = def.enum;
+	if (def.type === 'string' && def.maxLength !== undefined)
+		schema.maxLength = def.maxLength;
+	if (def.required === false && def.default !== undefined)
+		schema.default = def.default;
 	return schema;
 }
 

@@ -17,7 +17,11 @@ export const yamlJsonTomlMcpTool = defineMcpTool<
 	description:
 		'Convert YAML, JSON and TOML locally with syntax errors and TOML limitations reported. / YAML・JSON・TOMLをブラウザ内で相互変換する。構文エラーとTOMLの制約を報告する。入力上限100000文字。',
 	params: {
-		text: { type: 'string', description: '変換するテキスト。上限100000文字。' },
+		text: {
+			type: 'string',
+			maxLength: 100_000,
+			description: '変換するテキスト。上限100000文字。',
+		},
 		from: {
 			type: 'string',
 			enum: ['yaml', 'json', 'toml'],

@@ -185,3 +185,21 @@ for (const api of ['document', 'navigator'] as const) {
 		}
 	});
 }
+
+test('3件の公開スキーマ: 100000文字上限と全省略値を明示する', () => {
+	for (const [definition, descriptor] of [
+		[mermaidMcpTool, mermaid],
+		[yamlJsonTomlMcpTool, formats],
+		[maskingMcpTool, masking],
+	] as const) {
+		const properties = descriptor.inputSchema.properties as Record<
+			string,
+			Record<string, unknown>
+		>;
+		assert.equal(properties.text.maxLength, 100_000);
+		for (const [key, param] of Object.entries(definition.params)) {
+			if (param.required === false)
+				assert.equal(properties[key].default, param.default);
+		}
+	}
+});

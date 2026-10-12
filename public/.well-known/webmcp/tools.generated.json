@@ -10,7 +10,8 @@
         "properties": {
           "text": {
             "type": "string",
-            "description": "Mermaidコード（Markdownフェンスも可）。上限100000文字。"
+            "description": "Mermaidコード（Markdownフェンスも可）。上限100000文字。",
+            "maxLength": 100000
           },
           "action": {
             "type": "string",
@@ -18,11 +19,13 @@
             "enum": [
               "repair",
               "render"
-            ]
+            ],
+            "default": "repair"
           },
           "autoRepair": {
             "type": "boolean",
-            "description": "SVG生成前に自動修復を適用する。repairでは常に修復する。"
+            "description": "SVG生成前に自動修復を適用する。repairでは常に修復する。",
+            "default": true
           }
         },
         "required": [
@@ -68,7 +71,8 @@
         "properties": {
           "text": {
             "type": "string",
-            "description": "変換するテキスト。上限100000文字。"
+            "description": "変換するテキスト。上限100000文字。",
+            "maxLength": 100000
           },
           "from": {
             "type": "string",
@@ -95,11 +99,13 @@
               "0",
               "2",
               "4"
-            ]
+            ],
+            "default": "2"
           },
           "sortKeys": {
             "type": "boolean",
-            "description": "キーを辞書順でソート"
+            "description": "キーを辞書順でソート",
+            "default": false
           }
         },
         "required": [
@@ -138,7 +144,8 @@
         "properties": {
           "text": {
             "type": "string",
-            "description": "マスキングするテキスト。上限100000文字。"
+            "description": "マスキングするテキスト。上限100000文字。",
+            "maxLength": 100000
           },
           "maskChar": {
             "type": "string",
@@ -146,7 +153,8 @@
             "enum": [
               "*",
               "●"
-            ]
+            ],
+            "default": "*"
           },
           "strength": {
             "type": "string",
@@ -154,31 +162,38 @@
             "enum": [
               "partial",
               "full"
-            ]
+            ],
+            "default": "full"
           },
           "email": {
             "type": "boolean",
-            "description": "メールを対象にする"
+            "description": "メールを対象にする",
+            "default": true
           },
           "phone": {
             "type": "boolean",
-            "description": "電話番号を対象にする"
+            "description": "電話番号を対象にする",
+            "default": true
           },
           "zipcode": {
             "type": "boolean",
-            "description": "郵便番号を対象にする"
+            "description": "郵便番号を対象にする",
+            "default": true
           },
           "card": {
             "type": "boolean",
-            "description": "カード番号を対象にする"
+            "description": "カード番号を対象にする",
+            "default": true
           },
           "mynumber": {
             "type": "boolean",
-            "description": "マイナンバーを対象にする"
+            "description": "マイナンバーを対象にする",
+            "default": true
           },
           "name": {
             "type": "boolean",
-            "description": "氏名を対象にする（簡易検出）"
+            "description": "氏名を対象にする（簡易検出）",
+            "default": true
           }
         },
         "required": [
@@ -280,7 +295,8 @@
               "kana",
               "alpha",
               "digit"
-            ]
+            ],
+            "default": "all"
           }
         },
         "required": [
@@ -318,11 +334,13 @@
           },
           "indent": {
             "type": "number",
-            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される"
+            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される",
+            "default": 2
           },
           "minify": {
             "type": "boolean",
-            "description": "Minify instead of indenting when true / trueの場合は整形の代わりに最小化する"
+            "description": "Minify instead of indenting when true / trueの場合は整形の代わりに最小化する",
+            "default": false
           }
         },
         "required": [
@@ -363,7 +381,8 @@
             "enum": [
               "utf-8",
               "shift_jis"
-            ]
+            ],
+            "default": "utf-8"
           }
         },
         "required": [
@@ -484,7 +503,8 @@
             "enum": [
               "component",
               "full"
-            ]
+            ],
+            "default": "component"
           }
         },
         "required": [
@@ -528,7 +548,8 @@
           },
           "count": {
             "type": "number",
-            "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）"
+            "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）",
+            "default": 1
           }
         },
         "required": [
@@ -565,7 +586,8 @@
           },
           "count": {
             "type": "number",
-            "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）"
+            "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）",
+            "default": 5
           }
         },
         "required": [

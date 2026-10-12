@@ -28,6 +28,7 @@ export const maskingMcpTool = defineMcpTool<
 	params: {
 		text: {
 			type: 'string',
+			maxLength: 100_000,
 			description: 'マスキングするテキスト。上限100000文字。',
 		},
 		maskChar: {

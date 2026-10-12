@@ -18,6 +18,7 @@ export const mermaidMcpTool = defineMcpTool<
 	params: {
 		text: {
 			type: 'string',
+			maxLength: 100_000,
 			description: 'Mermaidコード（Markdownフェンスも可）。上限100000文字。',
 		},
 		action: {
