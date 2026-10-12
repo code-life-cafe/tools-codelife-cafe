@@ -1,0 +1,12 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import VideoCompress from '../components/tools/VideoCompress';
+import { VIDEO_CSP } from '../lib/tools/video-compress';
+const toolEntry = await getEntry('tools', 'video-compress');
+if (!toolEntry) throw new Error('Tool entry not found: video-compress');
+---
+<ToolLayout tool={toolEntry} disableAnalytics>
+  <Fragment slot="head"><meta http-equiv="Content-Security-Policy" content={VIDEO_CSP} /></Fragment>
+  <VideoCompress client:load />
+</ToolLayout>
