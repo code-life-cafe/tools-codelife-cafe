@@ -25,6 +25,9 @@ import {
 	type Format,
 	type Indent,
 } from '@/lib/tools/yaml-json-toml';
+import { yamlJsonTomlMcpTool } from '@/lib/tools/yaml-json-toml.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 interface Sample {
 	id: string;
@@ -100,6 +103,11 @@ function formatErrorLine(result: ConvertResult | null): string | null {
 }
 
 export default function YamlJsonToml() {
+	useEffect(
+		() =>
+			provideToolsFromFactory([generateWebMcpDescriptor(yamlJsonTomlMcpTool)]),
+		[],
+	);
 	const { trackRunDebounced } = useToolAnalytics('yaml-json-toml');
 	const [from, setFrom] = useState<Format>('yaml');
 	const [to, setTo] = useState<Format>('json');

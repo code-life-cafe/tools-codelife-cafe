@@ -1,6 +1,215 @@
 {
   "tools": [
     {
+      "toolId": "mermaid",
+      "name": "repair_render_mermaid",
+      "description": "Repair AI-generated Mermaid code and optionally render SVG locally. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復し、必要に応じSVGを生成する。修復のみでは構文の正しさを保証しない。入力上限100000文字。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Mermaidコード（Markdownフェンスも可）。上限100000文字。"
+          },
+          "action": {
+            "type": "string",
+            "description": "repair: 修復のみ / render: SVG生成",
+            "enum": [
+              "repair",
+              "render"
+            ]
+          },
+          "autoRepair": {
+            "type": "boolean",
+            "description": "SVG生成前に自動修復を適用する。repairでは常に修復する。"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "modified": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array"
+          },
+          "svg": {
+            "type": "string",
+            "description": "render時のSVG。repair時は空文字。"
+          }
+        },
+        "required": [
+          "code",
+          "modified",
+          "changes",
+          "svg"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "yaml-json-toml",
+      "name": "convert_yaml_json_toml",
+      "description": "Convert YAML, JSON and TOML locally with syntax errors and TOML limitations reported. / YAML・JSON・TOMLをブラウザ内で相互変換する。構文エラーとTOMLの制約を報告する。入力上限100000文字。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "変換するテキスト。上限100000文字。"
+          },
+          "from": {
+            "type": "string",
+            "description": "入力形式",
+            "enum": [
+              "yaml",
+              "json",
+              "toml"
+            ]
+          },
+          "to": {
+            "type": "string",
+            "description": "出力形式",
+            "enum": [
+              "yaml",
+              "json",
+              "toml"
+            ]
+          },
+          "indent": {
+            "type": "string",
+            "description": "インデント幅（0はコンパクト）",
+            "enum": [
+              "0",
+              "2",
+              "4"
+            ]
+          },
+          "sortKeys": {
+            "type": "boolean",
+            "description": "キーを辞書順でソート"
+          }
+        },
+        "required": [
+          "text",
+          "from",
+          "to"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "output",
+          "note"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "masking",
+      "name": "mask_personal_information",
+      "description": "Mask detected Japanese personal information locally. Detection is heuristic and incomplete; review before sharing. This cannot undo data already given to an AI. / 日本の個人情報をブラウザ内でマスキングする。検出は簡易方式で漏れがあり、共有前の確認が必要。AIへ既に渡した情報は取り消せない。入力上限100000文字。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "マスキングするテキスト。上限100000文字。"
+          },
+          "maskChar": {
+            "type": "string",
+            "description": "伏字文字",
+            "enum": [
+              "*",
+              "●"
+            ]
+          },
+          "strength": {
+            "type": "string",
+            "description": "fullは全体を伏字、partialは一部を残す",
+            "enum": [
+              "partial",
+              "full"
+            ]
+          },
+          "email": {
+            "type": "boolean",
+            "description": "メールを対象にする"
+          },
+          "phone": {
+            "type": "boolean",
+            "description": "電話番号を対象にする"
+          },
+          "zipcode": {
+            "type": "boolean",
+            "description": "郵便番号を対象にする"
+          },
+          "card": {
+            "type": "boolean",
+            "description": "カード番号を対象にする"
+          },
+          "mynumber": {
+            "type": "boolean",
+            "description": "マイナンバーを対象にする"
+          },
+          "name": {
+            "type": "boolean",
+            "description": "氏名を対象にする（簡易検出）"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "maskedText": {
+            "type": "string"
+          },
+          "counts": {
+            "type": "object"
+          },
+          "warning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "maskedText",
+          "counts",
+          "warning"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
       "toolId": "hash",
       "name": "generate_hash",
       "description": "Calculate MD5 / SHA-256 / SHA-512 hash of text. Runs entirely in the browser; no data is sent externally. / 文字列のハッシュ値を計算する。処理はブラウザ内で完結し、外部送信は行わない。",
