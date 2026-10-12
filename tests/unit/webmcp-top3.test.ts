@@ -375,6 +375,11 @@ test('Mermaid: 50文を超えるインライン図と予算回避の設定・並
 });
 
 test('Mermaid: 1文内のエッジ過多も描画器に入る前に拒否', async () => {
+	assert.doesNotThrow(() =>
+		assertMermaidRenderBudget(
+			`flowchart TD\n${Array.from({ length: 26 }, (_, i) => `A${i}[left-->right and up-->down]`).join('\n')}`,
+		),
+	);
 	const chain = Array.from({ length: 52 }, (_, index) => `A${index}`).join(
 		'-->',
 	);
