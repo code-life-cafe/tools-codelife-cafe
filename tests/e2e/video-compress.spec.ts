@@ -15,6 +15,18 @@ async function load(page: Page, file = landscape) {
 		page.getByRole('button', { name: '圧縮する', exact: true }),
 	).toBeEnabled({ timeout: 20_000 });
 }
+async function trim(page: Page, start: number, end: number) {
+	const left = page.getByRole('slider', { name: '開始位置' });
+	const right = page.getByRole('slider', { name: '終了位置' });
+	await left.press('Home');
+	await right.press('End');
+	for (let i = 0; i < Math.round(start * 100); i++)
+		await left.press('ArrowRight');
+	const current = Number(await right.getAttribute('aria-valuenow'));
+	const delta = Math.round((end - current) * 100);
+	for (let i = 0; i < Math.abs(delta); i++)
+		await right.press(delta < 0 ? 'ArrowLeft' : 'ArrowRight');
+}
 async function output(page: Page, path: string) {
 	await expect(page.getByRole('status')).toHaveText('圧縮が完了しました。', {
 		timeout: 45_000,
@@ -41,8 +53,7 @@ test('実動画をオフラインで圧縮し映像・音声・トリミング�
 	await load(page);
 	await page.getByLabel('品質', { exact: true }).selectOption('low');
 	await page.getByLabel('解像度（長辺の上限）').selectOption('854');
-	await page.getByLabel('開始秒').fill('0.5');
-	await page.getByLabel('終了秒').fill('2.5');
+	await trim(page, 0.5, 2.5);
 	await context.setOffline(true);
 	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
 	const result = await output(page, testInfo.outputPath('compressed.mp4'));
@@ -89,17 +100,28 @@ test('実動画をオフラインで圧縮し映像・音声・トリミング�
 	expect(settings).not.toContain('video-compress.mp4');
 	expect(settings).not.toContain('start');
 });
-test('縦動画・音声なし・目標容量と不正範囲', async ({ page }, testInfo) => {
+test('縦動画・音声なし・目標容量とハンドル交差防止', async ({
+	page,
+}, testInfo) => {
 	await open(page);
 	await load(page, portrait);
 	await page.getByLabel('圧縮方法').selectOption('size');
 	await page.getByLabel('目標容量（MB）').fill('0.2');
-	await page.getByLabel('開始秒').fill('3');
-	await expect(page.getByRole('alert')).toContainText('開始・終了秒');
-	await expect(
-		page.getByRole('button', { name: '圧縮する', exact: true }),
-	).toBeDisabled();
-	await page.getByLabel('開始秒').fill('0');
+	const startHandle = page.getByRole('slider', { name: '開始位置' });
+	for (let i = 0; i < 30; i++) await startHandle.press('PageUp');
+	for (let i = 0; i < 20; i++) await startHandle.press('ArrowRight');
+	const boundary = Number(await startHandle.getAttribute('aria-valuenow'));
+	expect(boundary).toBeGreaterThan(2.9);
+	await startHandle.press('ArrowRight');
+	await expect(startHandle).toHaveAttribute('aria-valuenow', String(boundary));
+	expect(
+		Number(
+			await page
+				.getByRole('slider', { name: '開始位置' })
+				.getAttribute('aria-valuenow'),
+		),
+	).toBeLessThan(3);
+	await page.getByRole('button', { name: '全範囲に戻す' }).click();
 	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
 	const result = await output(page, testInfo.outputPath('portrait.mp4'));
 	try {
@@ -143,7 +165,9 @@ test('壊れた動画・非対応形式から回復', async ({ page }) => {
 		mimeType: 'video/x-msvideo',
 		buffer: Buffer.from('invalid'),
 	});
-	await expect(page.getByRole('alert')).toContainText('256MiB以下');
+	await expect(page.getByRole('alert')).toContainText(
+		'対応していないファイル形式',
+	);
 	await load(page);
 });
 test('AAC非対応Workerでは音声を黙って落とさない', async ({
@@ -315,15 +339,96 @@ test('開始タイムスタンプが正の動画を相対秒数で切り出す',
 }, testInfo) => {
 	await open(page);
 	await load(page, resolve('tests/e2e/fixtures/video-compress-offset.mp4'));
-	await expect(page.getByLabel('終了秒')).toHaveValue('3');
-	await page.getByLabel('開始秒').fill('0.5');
-	await page.getByLabel('終了秒').fill('2.5');
+	await expect(page.getByRole('slider', { name: '終了位置' })).toHaveAttribute(
+		'aria-valuenow',
+		'3',
+	);
+	await trim(page, 0.5, 2.5);
 	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
 	const result = await output(page, testInfo.outputPath('offset.mp4'));
 	try {
 		const video = await result.getPrimaryVideoTrack();
 		expect(await result.computeDuration()).toBeCloseTo(2, 1);
 		if (video) expect(await video.getFirstTimestamp()).toBeCloseTo(0, 1);
+	} finally {
+		result.dispose();
+	}
+});
+
+test('実フレーム・品質推定が範囲に追従しD&Dで選択できる', async ({ page }) => {
+	await open(page);
+	const bytes = await readFile(landscape);
+	const transfer = await page.evaluateHandle(
+		(data) => {
+			const transfer = new DataTransfer();
+			transfer.items.add(
+				new File([new Uint8Array(data)], 'dropped.mp4', { type: 'video/mp4' }),
+			);
+			return transfer;
+		},
+		[...bytes],
+	);
+	await page
+		.getByRole('button', { name: /動画をドラッグ＆ドロップ/ })
+		.dispatchEvent('drop', { dataTransfer: transfer });
+	await transfer.dispose();
+	await expect(
+		page.getByRole('button', { name: '圧縮する', exact: true }),
+	).toBeEnabled();
+	const images = page.getByTestId('video-frames').locator('img');
+	await expect(images).toHaveCount(8);
+	await expect
+		.poll(() =>
+			images.evaluateAll((nodes) =>
+				nodes.every((node) => (node as HTMLImageElement).naturalWidth === 160),
+			),
+		)
+		.toBe(true);
+	const before = await page.getByLabel('品質', { exact: true }).textContent();
+	await trim(page, 0.5, 2.5);
+	expect(await page.getByLabel('品質', { exact: true }).textContent()).not.toBe(
+		before,
+	);
+	await expect(page.getByLabel('品質', { exact: true })).toContainText(
+		/約[0-9.]+%/,
+	);
+	await load(page, portrait);
+	await expect(images).toHaveCount(8);
+	await expect(page.getByRole('slider', { name: '開始位置' })).toHaveAttribute(
+		'aria-valuenow',
+		'0',
+	);
+	expect(
+		await page.evaluate(
+			() => document.documentElement.scrollWidth <= innerWidth,
+		),
+	).toBe(true);
+});
+
+test('フレーム抽出の失敗でも範囲選択・圧縮できる', async ({
+	page,
+}, testInfo) => {
+	await page.route('**/video-thumbnails.worker-*.js', (route) =>
+		route.fulfill({
+			contentType: 'text/javascript',
+			body: 'self.onmessage=()=>self.postMessage(null);',
+		}),
+	);
+	await open(page);
+	await load(page);
+	await expect(
+		page.getByText(
+			'フレームを表示できません。範囲の調整・圧縮は引き続き利用できます。',
+		),
+	).toBeVisible();
+	await trim(page, 0.5, 2.5);
+	await page.getByRole('button', { name: '圧縮する', exact: true }).click();
+	const result = await output(
+		page,
+		testInfo.outputPath('thumbnail-failure.mp4'),
+	);
+	try {
+		expect(await result.computeDuration()).toBeCloseTo(2, 1);
 	} finally {
 		result.dispose();
 	}

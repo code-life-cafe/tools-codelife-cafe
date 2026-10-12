@@ -167,3 +167,29 @@ export function assertTracksPreserved(
 			'必要な映像または音声を変換できません。音声を削除するか、対応ブラウザー・動画を変更してください。',
 		);
 }
+
+export function thumbnailTimes(duration: number): number[] {
+	if (!Number.isFinite(duration) || duration <= 0) return [];
+	return Array.from(
+		{ length: 8 },
+		(_, index) => (duration * (index + 0.5)) / 8,
+	);
+}
+
+export function qualityEstimate(
+	info: VideoInfo,
+	job: VideoJob,
+	originalBytes: number,
+	quality: VideoSettings['quality'],
+): string {
+	try {
+		const plan = compressionPlan(info, {
+			...job,
+			settings: { ...job.settings, mode: 'quality', quality },
+		});
+		const percent = reductionPercent(originalBytes, plan.estimatedBytes);
+		return `約${Math.abs(percent)}%${percent < 0 ? '増加' : '削減'}`;
+	} catch {
+		return '推定不可';
+	}
+}

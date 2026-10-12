@@ -6,7 +6,9 @@ import {
 	compressionPlan,
 	DEFAULT_VIDEO_SETTINGS,
 	outputDimensions,
+	qualityEstimate,
 	reductionPercent,
+	thumbnailTimes,
 	validateVideoSettings,
 } from '../../src/lib/tools/video-compress.ts';
 
@@ -160,4 +162,35 @@ test('正の開始タイムスタンプを実長に正規化し切り出しを�
 	});
 	assert.throws(() => sourceTimeline(NaN, 60));
 	assert.throws(() => sourceTimeline(60, 60));
+});
+
+test('品質の推定は範囲・音声・元容量を反映し増加も明示する', () => {
+	const job = { settings: DEFAULT_VIDEO_SETTINGS, start: 0, end: 60 };
+	const full = qualityEstimate(info, job, 100_000_000, 'medium');
+	assert.match(full, /^約[0-9.]+%削減$/);
+	assert.notEqual(
+		qualityEstimate(info, { ...job, end: 10 }, 100_000_000, 'medium'),
+		full,
+	);
+	assert.match(qualityEstimate(info, job, 1000, 'high'), /増加$/);
+	assert.equal(
+		qualityEstimate(info, { ...job, end: 0 }, 1000, 'high'),
+		'推定不可',
+	);
+});
+test('短い動画も8フレームを実長内で等間隔に抽出する', () => {
+	for (const duration of [0.001, 6.89, 3600]) {
+		const times = thumbnailTimes(duration);
+		assert.equal(times.length, 8);
+		assert.ok(
+			times.every(
+				(time, index) =>
+					time > 0 &&
+					time < duration &&
+					(index === 0 || time > times[index - 1]),
+			),
+		);
+	}
+	assert.deepEqual(thumbnailTimes(0), []);
+	assert.deepEqual(thumbnailTimes(Infinity), []);
 });

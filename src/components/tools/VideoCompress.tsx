@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
+import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { VideoTrimRange } from '@/components/video-compress/VideoTrimRange';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
 	compressionPlan,
 	DEFAULT_VIDEO_SETTINGS,
 	formatVideoBytes,
 	MAX_VIDEO_BYTES,
+	qualityEstimate,
 	reductionPercent,
 	type VideoInfo,
 	type VideoReply,
@@ -37,7 +40,6 @@ export default function VideoCompress() {
 	const worker = useRef<Worker | null>(null);
 	const resultUrl = useRef('');
 	const runTarget = useRef<number | null>(null);
-	const input = useRef<HTMLInputElement>(null);
 	const processing = status === 'loading' || status === 'compressing';
 
 	useEffect(() => {
@@ -167,36 +169,21 @@ export default function VideoCompress() {
 			<p className="text-sm text-muted-foreground">
 				動画は端末のブラウザー内だけで処理します。アップロード・外部送信はありません。入力上限256MiB、出力上限128MiB。長い動画はPCをおすすめします。
 			</p>
-			<section
-				aria-label="動画を選択"
-				className="rounded-xl border-2 border-dashed p-6 text-center space-y-3"
-				onDragOver={(event) => event.preventDefault()}
-				onDrop={(event) => {
-					event.preventDefault();
-					if (!processing && event.dataTransfer.files[0])
-						load(event.dataTransfer.files[0]);
-				}}
-			>
-				<label htmlFor="video-file" className="block font-semibold">
-					動画を選択、またはここにドロップ
-				</label>
-				<input
-					ref={input}
-					id="video-file"
-					type="file"
-					accept=".mp4,.mov,.webm,.mkv"
-					disabled={processing}
-					className="max-w-full text-sm"
-					onChange={(event) => {
-						const selected = event.target.files?.[0];
-						if (selected) load(selected);
-						event.target.value = '';
-					}}
-				/>
-				<p className="text-sm text-muted-foreground">
-					MP4 / MOV / WebM / MKV（コーデックによって非対応の場合があります）
-				</p>
-			</section>
+			<FileDropzone
+				onFileSelect={load}
+				onValidationError={setError}
+				accept=".mp4,.mov,.webm,.mkv"
+				maxSizeBytes={MAX_VIDEO_BYTES}
+				validationMessage="MP4・MOV・WebM・MKVの、空でない256MiB以下の動画を選択してください。"
+				validate={(selected) =>
+					selected.size ? null : '空の動画は読み込めません。'
+				}
+				label="動画をドラッグ＆ドロップ"
+				description="またはクリックして動画を選択（MP4 / MOV / WebM / MKV・256MiB以下）"
+				privacyNote="動画は端末内だけで処理され、外部へ送信されません"
+				inputAriaLabel="動画を選択、またはここにドロップ"
+				disabled={processing}
+			/>
 			{file && (
 				<p className="break-all text-sm">
 					{file.name} · {formatVideoBytes(file.size)}
@@ -254,9 +241,36 @@ export default function VideoCompress() {
 										})
 									}
 								>
-									<option value="high">高品質</option>
-									<option value="medium">標準</option>
-									<option value="low">低品質・小容量</option>
+									<option value="high">
+										高品質（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'high',
+										)}
+										）
+									</option>
+									<option value="medium">
+										標準（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'medium',
+										)}
+										）
+									</option>
+									<option value="low">
+										低品質・小容量（
+										{qualityEstimate(
+											info,
+											{ settings, start, end },
+											file?.size ?? 0,
+											'low',
+										)}
+										）
+									</option>
 								</select>
 							</label>
 						) : (
@@ -314,34 +328,24 @@ export default function VideoCompress() {
 							/>
 							音声を削除
 						</label>
-						<label className="space-y-1">
-							開始秒
-							<input
-								className={fieldClass}
-								type="number"
-								min="0"
-								max={info.duration}
-								step="0.01"
-								value={start}
-								onChange={(event) => setStart(Number(event.target.value))}
-							/>
-						</label>
-						<label className="space-y-1">
-							終了秒
-							<input
-								className={fieldClass}
-								type="number"
-								min="0"
-								max={info.duration}
-								step="0.01"
-								value={end}
-								onChange={(event) => setEnd(Number(event.target.value))}
-							/>
-						</label>
 					</div>
+					{file && (
+						<VideoTrimRange
+							file={file}
+							info={info}
+							start={start}
+							end={end}
+							disabled={processing}
+							onChange={(nextStart, nextEnd) => {
+								setStart(nextStart);
+								setEnd(nextEnd);
+							}}
+						/>
+					)}
 					<p className="text-sm text-muted-foreground">
 						縦横比を維持し、拡大しません。映像は最大30fps、AAC音声は元の品質を保持し、その他の音声はAAC（最大2チャンネル・48kHz）に変換します。切り出しの音声境界にはサンプル単位の誤差があります。MB
-						= 1,000,000バイト。目標容量・推定容量は目安です。
+						=
+						1,000,000バイト。目標容量・推定容量・削減率は目安です。削減率は元のファイル全体との比較です。
 					</p>
 					{plan && (
 						<p className="text-sm">
