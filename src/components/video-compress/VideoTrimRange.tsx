@@ -1,13 +1,7 @@
 import { Slider } from 'radix-ui';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import type { VideoInfo } from '@/lib/tools/video-compress';
-
-/** 長尺でもキーボード・タッチで現実的に操作できるよう、刻みを尺に応じて粗くする */
-export function trimStep(duration: number): number {
-	if (duration <= 60) return Math.min(0.01, duration / 100);
-	return duration <= 600 ? 0.1 : 1;
-}
+import { trimGap, trimStep, type VideoInfo } from '@/lib/tools/video-compress';
 
 function SecondsField({
 	label,
@@ -110,6 +104,7 @@ export function VideoTrimRange({
 		};
 	}, [file, duration, startTimestamp]);
 	const step = trimStep(info.duration);
+	const gap = trimGap(info.duration);
 	return (
 		<div className="space-y-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
@@ -181,14 +176,14 @@ export function VideoTrimRange({
 					label="開始秒"
 					value={start}
 					min={0}
-					max={Math.max(0, end - step)}
+					max={Math.max(0, end - gap)}
 					disabled={disabled}
 					onCommit={(value) => onChange(value, end)}
 				/>
 				<SecondsField
 					label="終了秒"
 					value={end}
-					min={Math.min(info.duration, start + step)}
+					min={Math.min(info.duration, start + gap)}
 					max={info.duration}
 					disabled={disabled}
 					onCommit={(value) => onChange(start, value)}

@@ -9,6 +9,8 @@ import {
 	qualityEstimate,
 	reductionPercent,
 	thumbnailTimes,
+	trimGap,
+	trimStep,
 	validateVideoSettings,
 } from '../../src/lib/tools/video-compress.ts';
 
@@ -193,4 +195,12 @@ test('短い動画も8フレームを実長内で等間隔に抽出する', () =
 	}
 	assert.deepEqual(thumbnailTimes(0), []);
 	assert.deepEqual(thumbnailTimes(Infinity), []);
+});
+
+test('スライダー刻みは尺で粗くなるが数値入力の最小間隔は常に細かい', () => {
+	assert.equal(trimStep(30), 0.01);
+	assert.equal(trimStep(600), 0.1);
+	assert.equal(trimStep(600.5), 1);
+	assert.equal(trimGap(3600), 0.01);
+	assert.equal(trimGap(0.5), 0.005);
 });
