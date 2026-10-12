@@ -15,6 +15,19 @@ const mermaid = generateWebMcpDescriptor(mermaidMcpTool);
 const formats = generateWebMcpDescriptor(yamlJsonTomlMcpTool);
 const masking = generateWebMcpDescriptor(maskingMcpTool);
 
+test('Mermaid: 100000文字の未閉じ全角括弧4種を5秒以内に修復する（隔離プロセス）', () => {
+	const tool = new URL('../../src/lib/tools/mermaid.mcp.ts', import.meta.url)
+		.href;
+	const generator = new URL(
+		'../../src/lib/webmcp/descriptor-generator.ts',
+		import.meta.url,
+	).href;
+	const script = `import { mermaidMcpTool } from ${JSON.stringify(tool)}; import { generateWebMcpDescriptor } from ${JSON.stringify(generator)}; const d=generateWebMcpDescriptor(mermaidMcpTool); for (const text of ['A［'.repeat(50000), 'A（'.repeat(50000), 'A｛'.repeat(50000), '｛'.repeat(100000)]) { const r=await d.run({text}); if (!r.ok) process.exit(1); }`;
+	execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+		timeout: 5000,
+	});
+});
+
 test('形式変換: ソート時も予約名キーをデータとして保持する', async () => {
 	const text =
 		'{"__proto__":{"polluted":true},"constructor":2,"prototype":3,"a":{"__proto__":4}}';

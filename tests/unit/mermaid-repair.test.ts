@@ -1313,3 +1313,21 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		);
 	});
 });
+
+test('全角括弧の線形修復は短い乱数入力400件で従来のマッチ範囲を保持する', () => {
+	let seed = 42;
+	const alphabet = 'Aa12_文［］（）｛｝';
+	for (let sample = 0; sample < 400; sample++) {
+		let input = '';
+		for (let i = 0; i < 80; i++) {
+			seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+			input += alphabet[seed % alphabet.length];
+		}
+		const expected = input
+			.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]')
+			.replace(/(\b[A-Za-z0-9_]+)（([\s\S]*?)）/g, '$1($2)')
+			.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}')
+			.replace(/｛([\s\S]*?)｝/g, '{$1}');
+		assert.equal(replaceSyntaxZenkaku(input, 'other'), expected);
+	}
+});

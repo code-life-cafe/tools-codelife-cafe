@@ -618,6 +618,40 @@ export function matchHeaderlessSequence(
  * 構文位置にある全角記号を半角に置換する。
  * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
  */
+function replaceFullWidthBrackets(
+	text: string,
+	open: string,
+	close: string,
+	opening: string,
+	closing: string,
+	requireId: boolean,
+): string {
+	const nextClose = new Int32Array(text.length + 1).fill(-1);
+	for (let index = text.length - 1; index >= 0; index--)
+		nextClose[index] = text[index] === close ? index : nextClose[index + 1];
+	const parts: string[] = [];
+	let start = 0;
+	for (let index = 0; index < text.length; index++) {
+		if (
+			text[index] !== open ||
+			(requireId && !/[A-Za-z0-9_]/.test(text[index - 1] ?? ''))
+		)
+			continue;
+		const end = nextClose[index + 1];
+		if (end < 0) break;
+		parts.push(
+			text.slice(start, index),
+			opening,
+			text.slice(index + 1, end),
+			closing,
+		);
+		start = end + 1;
+		index = end;
+	}
+	parts.push(text.slice(start));
+	return parts.join('');
+}
+
 export function replaceSyntaxZenkaku(
 	line: string,
 	diagramKind?: 'sequence' | 'other',
@@ -666,10 +700,10 @@ export function replaceSyntaxZenkaku(
 		// 2. 全角矢印・長音混入矢印はラベル本文を保護してから置換する（下記の4.）
 
 		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧を半角化
-		res = res.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]');
-		res = res.replace(/(\b[A-Za-z0-9_]+)（([\s\S]*?)）/g, '$1($2)');
-		res = res.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}');
-		res = res.replace(/｛([\s\S]*?)｝/g, '{$1}');
+		res = replaceFullWidthBrackets(res, '［', '］', '[', ']', true);
+		res = replaceFullWidthBrackets(res, '（', '）', '(', ')', true);
+		res = replaceFullWidthBrackets(res, '｛', '｝', '{', '}', true);
+		res = replaceFullWidthBrackets(res, '｛', '｝', '{', '}', false);
 
 		// 4. ノードラベル本文を保護した上で、構文位置の矢印・コロン・カンマを置換
 		res = withProtectedNodeLabels(res, (nodeProtected) => {
