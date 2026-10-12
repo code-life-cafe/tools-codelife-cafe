@@ -5,6 +5,7 @@ import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import { runtimeAssetsPlugin } from './scripts/lib/onnx-runtime-assets.mjs';
+import { toCanonicalUrl } from './src/lib/seo/url.ts';
 
 const runtimePlugin = await runtimeAssetsPlugin(process.cwd());
 
@@ -16,9 +17,7 @@ export default defineConfig({
 		sitemap({
 			filter: (page) => !new URL(page).pathname.startsWith('/tools/'),
 			serialize: (item) => {
-				const url = new URL(item.url);
-				if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/$/, '');
-				item.url = url.toString();
+				item.url = toCanonicalUrl(item.url);
 				return item;
 			},
 			changefreq: 'weekly',

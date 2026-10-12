@@ -6,6 +6,7 @@ import {
 	legacyToolDestination,
 	legacyToolRoutes,
 } from '../../src/lib/seo/legacy-tools.ts';
+import { normalizeCanonicalPath } from '../../src/lib/seo/url.ts';
 
 test('全コンテンツの旧URLに実在する正規ページが一意に対応する', () => {
 	const slugs = readdirSync('src/content/tools')
@@ -106,6 +107,12 @@ test('ビルド済sitemapは旧URLを含まず正規ツールを一度ずつ掲�
 		(match) => new URL(match[1]).pathname,
 	);
 	assert.ok(paths.every((path) => !path.startsWith('/tools/')));
+	assert.equal(new Set(paths).size, paths.length);
+	assert.ok(paths.every((path) => path.endsWith('/')));
 	for (const target of legacyToolRoutes.values())
-		assert.equal(paths.filter((path) => path === target).length, 1, target);
+		assert.equal(
+			paths.filter((path) => path === normalizeCanonicalPath(target)).length,
+			1,
+			target,
+		);
 });

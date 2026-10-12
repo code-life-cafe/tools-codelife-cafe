@@ -11,6 +11,10 @@ test('旧URL全件は正規URLへ移動しクエリ・ハッシュを維持す�
 		await expect(page).toHaveURL(
 			new RegExp(`${tool.href}/\\?probe=%2B&probe=two#preview$`),
 		);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			'href',
+			`https://tools.codelife.cafe${tool.href}/`,
+		);
 	}
 });
 
