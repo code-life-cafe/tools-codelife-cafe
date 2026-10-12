@@ -1,4 +1,5 @@
 import { classifyTrafficType } from './lib/traffic-type.ts';
+import { isAnalyticsDisabledPath } from '../src/lib/analytics-policy.ts';
 
 type Env = {
 	EVENTS?: {
@@ -28,6 +29,7 @@ function shouldRecordPageView(request: Request, response: Response): boolean {
 	if (!contentType.includes('text/html')) return false;
 
 	const path = new URL(request.url).pathname;
+	if (isAnalyticsDisabledPath(path)) return false;
 	return !EXCLUDED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
