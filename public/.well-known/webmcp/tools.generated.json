@@ -64,7 +64,7 @@
     {
       "toolId": "yaml-json-toml",
       "name": "convert_yaml_json_toml",
-      "description": "Convert YAML, JSON and TOML locally with syntax errors and TOML limitations reported. / YAML・JSON・TOMLをブラウザ内で相互変換する。構文エラーとTOMLの制約を報告する。入力上限100000文字。",
+      "description": "Convert YAML, JSON and TOML locally with syntax errors and TOML limitations reported. / YAML・JSON・TOMLをブラウザ内で相互変換する。構文エラーとTOMLの制約を報告する。入力上限100000文字。YAMLのaliasは禁止。ネスト50段・10000要素・出力4MiBを上限とする。",
       "aliases": [],
       "inputSchema": {
         "type": "object",

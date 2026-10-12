@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { maskingMcpTool } from '../../src/lib/tools/masking.mcp.ts';
 import { mermaidMcpTool } from '../../src/lib/tools/mermaid.mcp.ts';
@@ -240,4 +241,62 @@ test('3件: astral文字も1文字として100000文字まで受理し超過を�
 		});
 		assert.equal(rejected.ok, false);
 	}
+});
+
+test('形式変換: YAML alias増幅・循環をシリアライズ前に拒否しリテラルは許可', async () => {
+	const aliases = 'a: &a [x, x, x]\nb: &b [*a, *a, *a]\nc: [*b, *b, *b]';
+	for (const text of [aliases, 'a: &a [*a]']) {
+		const result = await formats.run({ text, from: 'yaml', to: 'json' });
+		assert.equal(result.ok, false);
+	}
+	const literal = await formats.run({
+		text: 'text: "*a"',
+		from: 'yaml',
+		to: 'json',
+	});
+	assert.ok(literal.ok);
+	assert.deepEqual(JSON.parse(literal.value.output), { text: '*a' });
+});
+test('形式変換: ノード数と深さをシリアライズ前に制限する', async () => {
+	const result = await formats.run({
+		text: JSON.stringify(Array(10_001).fill(0)),
+		from: 'json',
+		to: 'yaml',
+	});
+	assert.equal(result.ok, false);
+	const deep = `${'{"a":'.repeat(52)}0${'}'.repeat(52)}`;
+	assert.equal(
+		(await formats.run({ text: deep, from: 'json', to: 'json' })).ok,
+		false,
+	);
+});
+test('マスキング: 100000文字の非メール入力を5秒以内に処理する（隔離プロセス）', () => {
+	const url = new URL('../../src/lib/tools/masking.mcp.ts', import.meta.url)
+		.href;
+	const generator = new URL(
+		'../../src/lib/webmcp/descriptor-generator.ts',
+		import.meta.url,
+	).href;
+	const script = `import { maskingMcpTool } from ${JSON.stringify(url)}; import { generateWebMcpDescriptor } from ${JSON.stringify(generator)}; const text = 'a'.repeat(100000); const result = await generateWebMcpDescriptor(maskingMcpTool).run({text}); if (!result.ok || result.value.maskedText !== text || result.value.counts.email !== 0) process.exit(1);`;
+	execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+		timeout: 5000,
+	});
+});
+
+test('形式変換: 深いYAMLブロック文字列の巨大出力を生成前に拒否', async () => {
+	const text = `${'{"a":'.repeat(40)}${JSON.stringify('\n'.repeat(40_000))}${'}'.repeat(40)}`;
+	const result = await formats.run({
+		text,
+		from: 'json',
+		to: 'yaml',
+		indent: '4',
+	});
+	assert.equal(result.ok, false);
+	if (!result.ok) assert.match(result.error, /出力見積もり/);
+	const normal = await formats.run({
+		text: JSON.stringify({ text: 'a\nb\nc' }),
+		from: 'json',
+		to: 'yaml',
+	});
+	assert.ok(normal.ok);
 });

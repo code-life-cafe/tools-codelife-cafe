@@ -243,3 +243,54 @@ test('maskText: マイナンバー(12桁)対象ONなら全桁マスクされる'
 	assert.strictEqual(result.counts.mynumber, 1);
 	assert.strictEqual(result.maskedText, '************');
 });
+
+test('メールの線形走査: 従来の検出範囲・件数・位置を維持する', () => {
+	const samples = [
+		'alice@example.com',
+		'a+b.c_d-e@sub.example.co.jp',
+		'no-at-here',
+		'a@b.',
+		'@example.com',
+		'a@@b.com',
+		'a@b.c@d.e',
+		'a@b..',
+		'日本語alice@example.com、bob@test.jp',
+		`${'x'.repeat(300)}@example.com`,
+	];
+	let seed = 12345;
+	const alphabet = 'abcAB12_.+-@ !';
+	for (let i = 0; i < 400; i++) {
+		let sample = '';
+		for (let j = 0; j < 150; j++) {
+			seed = (seed * 1664525 + 1013904223) >>> 0;
+			sample += alphabet[seed % alphabet.length];
+		}
+		samples.push(sample);
+	}
+	for (const text of samples) {
+		const matches = [
+			...text.matchAll(/([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g),
+		];
+		const result = maskText(text, {
+			targets: new Set(['email']),
+			maskChar: '*',
+			strength: 'full',
+		});
+		assert.equal(
+			result.maskedText,
+			text.replace(
+				/([a-zA-Z0-9_.+-]+)@([a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+)/g,
+				(match) => '*'.repeat(match.length),
+			),
+		);
+		assert.equal(result.counts.email, matches.length);
+		assert.deepEqual(
+			result.ranges,
+			matches.map((match) => ({
+				start: match.index,
+				end: match.index + match[0].length,
+				type: 'email',
+			})),
+		);
+	}
+});
