@@ -116,3 +116,41 @@ test('ビルド済sitemapは旧URLを含まず正規ツールを一度ずつ掲�
 			target,
 		);
 });
+
+test('全ツールのビルド済JSON-LDはcanonicalと同じページURLを使う', {
+	skip: !existsSync('dist/sitemap-0.xml'),
+}, () => {
+	for (const target of legacyToolRoutes.values()) {
+		const html = readFileSync(`dist${target}/index.html`, 'utf8');
+		const canonical = /<link[^>]*rel="canonical"[^>]*href="([^"]+)"/.exec(
+			html,
+		)?.[1];
+		assert.ok(canonical, target);
+		const script =
+			/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/.exec(
+				html,
+			)?.[1];
+		assert.ok(script, target);
+		const graph = JSON.parse(script)['@graph'] as Record<string, unknown>[];
+		const application = graph.find(
+			(item) => item['@type'] === 'SoftwareApplication',
+		);
+		assert.ok(application, target);
+		assert.equal(application.url, canonical);
+		assert.equal(application['@id'], `${canonical}#app`);
+		assert.equal(
+			(application.offers as Record<string, unknown>).url,
+			canonical,
+		);
+		const breadcrumb = graph.find((item) => item['@type'] === 'BreadcrumbList');
+		assert.ok(breadcrumb, target);
+		assert.equal(
+			(breadcrumb.itemListElement as Record<string, unknown>[]).at(-1)?.item,
+			canonical,
+		);
+		for (const item of graph) {
+			if (item['@id'])
+				assert.ok(String(item['@id']).startsWith(`${canonical}#`), target);
+		}
+	}
+});
