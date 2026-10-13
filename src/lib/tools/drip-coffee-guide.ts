@@ -699,6 +699,26 @@ export function mergeStores(
 	};
 }
 
+/** 初期リリース後に追加されたプリセット。旧データのストアへ読み込み時に補完する対象。 */
+const LATER_ADDED_PRESET_IDS: readonly string[] = [
+	PRESET_RECIPE_IDS.v60Neo,
+	PRESET_RECIPE_IDS.switchHybrid,
+];
+
+/**
+ * 後から追加されたプリセットが無い旧データに、不足分だけを末尾へ補完する。
+ * 既存のレシピ・記録は変更せず、同じIDが既にあれば追加しない（冪等）。
+ * 補完があった場合のみ新しいストアを返し、無ければ入力をそのまま返す。
+ */
+export function withMissingPresets(store: BrewLogStore): BrewLogStore {
+	const existingIds = new Set(store.recipes.map((r) => r.id));
+	const missing = PRESET_RECIPES.filter(
+		(r) => LATER_ADDED_PRESET_IDS.includes(r.id) && !existingIds.has(r.id),
+	).map((r) => ({ ...r }));
+	if (missing.length === 0) return store;
+	return { ...store, recipes: [...store.recipes, ...missing] };
+}
+
 export function applyImport(
 	existing: BrewLogStore,
 	incoming: BrewLogStore,

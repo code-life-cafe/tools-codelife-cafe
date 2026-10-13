@@ -62,6 +62,106 @@ test('loadStore: 未保存時はプリセット5種のみで初期化し永続�
 	assert.ok(localStorage.getItem(STORAGE_KEY));
 });
 
+// 旧データ（V60 NEO・Switch新ハイブリッド追加前）の保存形式を再現する
+function seedLegacyStore(
+	extra: { recipes?: unknown[]; brews?: unknown[] } = {},
+) {
+	const full = loadStore();
+	const legacyPresets = full.recipes.filter(
+		(r) =>
+			r.id !== PRESET_RECIPE_IDS.v60Neo &&
+			r.id !== PRESET_RECIPE_IDS.switchHybrid,
+	);
+	const legacy = {
+		version: STORE_VERSION,
+		recipes: [...legacyPresets, ...(extra.recipes ?? [])],
+		brews: extra.brews ?? [],
+	};
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+	return legacy;
+}
+
+test('loadStore: 旧データへV60 NEOとSwitch新ハイブリッドを補完し永続化する', () => {
+	seedLegacyStore();
+	const store = loadStore();
+	const ids = store.recipes.map((r) => r.id);
+	assert.ok(ids.includes(PRESET_RECIPE_IDS.v60Neo));
+	assert.ok(ids.includes(PRESET_RECIPE_IDS.switchHybrid));
+	assert.strictEqual(store.recipes.length, 5);
+	const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) as string);
+	assert.strictEqual(saved.recipes.length, 5);
+});
+
+test('loadStore: 補完は1回だけで、繰り返し読み込んでも重複しない', () => {
+	seedLegacyStore();
+	loadStore();
+	const again = loadStore();
+	const third = loadStore();
+	assert.strictEqual(again.recipes.length, 5);
+	assert.strictEqual(third.recipes.length, 5);
+	const ids = third.recipes.map((r) => r.id);
+	assert.strictEqual(new Set(ids).size, ids.length);
+});
+
+test('loadStore: 補完してもマイレシピと抽出記録は変更も欠落もしない', () => {
+	const mine = {
+		id: 'my-recipe-1',
+		name: 'マイレシピ',
+		method: 'v60',
+		dose_g: 15,
+		total_water_ml: 250,
+		is_preset: false,
+		steps: [
+			{
+				step_order: 1,
+				time_sec: 0,
+				pour_amount_ml: 250,
+				label: '注ぐ',
+				action_type: 'pour',
+			},
+			{
+				step_order: 2,
+				time_sec: 120,
+				pour_amount_ml: 0,
+				label: '完了',
+				action_type: 'finish',
+			},
+		],
+		updated_at: '2026-08-20T00:00:00.000Z',
+	};
+	const brew = {
+		id: 'brew-1',
+		brewed_at: '2026-08-21T00:00:00.000Z',
+		updated_at: '2026-08-21T00:00:00.000Z',
+		bean_name: 'エチオピア',
+		method: 'v60',
+		dose_g: 15,
+		yield_g: 250,
+		brew_time_sec: 150,
+		notes: '甘い',
+	};
+	const legacy = seedLegacyStore({ recipes: [mine], brews: [brew] });
+	const store = loadStore();
+	assert.deepStrictEqual(store.brews, [brew]);
+	assert.deepStrictEqual(
+		store.recipes.find((r) => r.id === 'my-recipe-1'),
+		mine,
+	);
+	for (const r of legacy.recipes) {
+		assert.deepStrictEqual(
+			store.recipes.find((x) => x.id === (r as { id: string }).id),
+			r,
+		);
+	}
+});
+
+test('loadStore: 最新のプリセットを持つデータは書き換えない', () => {
+	loadStore();
+	const before = localStorage.getItem(STORAGE_KEY);
+	loadStore();
+	assert.strictEqual(localStorage.getItem(STORAGE_KEY), before);
+});
+
 test('loadStore: 破損JSONは初期化せず CorruptedStoreError を投げる', () => {
 	localStorage.setItem(STORAGE_KEY, '{not valid json');
 	assert.throws(() => loadStore(), CorruptedStoreError);
