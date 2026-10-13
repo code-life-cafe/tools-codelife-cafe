@@ -297,6 +297,15 @@ test('parseExpectedHash: 16進のみのファイル名でも別アルゴリズ�
 	);
 });
 
+test('parseExpectedHash: 先頭が空白のファイル名はそのまま保持する', () => {
+	// 実際の sha256sum ' leading.txt' の出力（digest + 空白2個 + 空白で始まるファイル名）
+	const leading = parseExpectedHash(`${ABC_SHA256}   leading.txt`);
+	assert.ok(leading.ok && leading.hash === ABC_SHA256);
+	assert.ok(leading.ok && leading.fileName === ' leading.txt');
+	const binary = parseExpectedHash(`${ABC_SHA256} * leading.txt`);
+	assert.ok(binary.ok && binary.fileName === ' leading.txt');
+});
+
 test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
 	assert.deepEqual(
 		parseExpectedHash(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`),
