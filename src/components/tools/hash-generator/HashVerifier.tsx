@@ -1,23 +1,24 @@
 import { CheckCircle2, HelpCircle, XCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
 	compareHash,
-	detectAlgorithmByLength,
 	HASH_ALGORITHM_LABELS,
 	type HashAlgorithm,
 	type HashResults,
-	normalizeHash,
+	parseExpectedHash,
 } from '@/lib/tools/hash';
 
 type VerifyVerdict =
 	| { kind: 'empty' }
 	| { kind: 'unknown-length' }
-	| { kind: 'not-selected'; algorithm: HashAlgorithm }
-	| { kind: 'pending'; algorithm: HashAlgorithm }
-	| { kind: 'match'; algorithm: HashAlgorithm }
-	| { kind: 'mismatch'; algorithm: HashAlgorithm };
+	| { kind: 'multi-line' }
+	| { kind: 'invalid-line' }
+	| { kind: 'not-selected'; algorithm: HashAlgorithm; fileName: string | null }
+	| { kind: 'pending'; algorithm: HashAlgorithm; fileName: string | null }
+	| { kind: 'match'; algorithm: HashAlgorithm; fileName: string | null }
+	| { kind: 'mismatch'; algorithm: HashAlgorithm; fileName: string | null };
 
 interface HashVerifierProps {
 	results: HashResults;
@@ -30,20 +31,20 @@ export function HashVerifier({
 }: HashVerifierProps) {
 	const [expected, setExpected] = useState('');
 
+	const parsed = useMemo(() => parseExpectedHash(expected), [expected]);
+
 	const verdict = useMemo<VerifyVerdict>(() => {
-		const normalized = normalizeHash(expected);
-		if (!normalized) return { kind: 'empty' };
-		const algorithm = detectAlgorithmByLength(normalized);
-		if (!algorithm) return { kind: 'unknown-length' };
+		if (!parsed.ok) return { kind: parsed.reason };
+		const { algorithm, fileName, hash } = parsed;
 		// 検出されたアルゴリズムが未選択でも自動で計算対象には追加しない（仕様）
 		if (!selectedAlgorithms.includes(algorithm)) {
-			return { kind: 'not-selected', algorithm };
+			return { kind: 'not-selected', algorithm, fileName };
 		}
 		const computed = results[algorithm];
-		if (computed == null) return { kind: 'pending', algorithm };
-		return compareHash(computed, expected)
-			? { kind: 'match', algorithm }
-			: { kind: 'mismatch', algorithm };
+		if (computed == null) return { kind: 'pending', algorithm, fileName };
+		return compareHash(computed, hash)
+			? { kind: 'match', algorithm, fileName }
+			: { kind: 'mismatch', algorithm, fileName };
 	}, [expected, results, selectedAlgorithms]);
 
 	return (
@@ -51,18 +52,53 @@ export function HashVerifier({
 			<Label htmlFor="expected-hash" className="text-sm font-semibold">
 				期待値との照合（ファイルの改ざん・破損チェック）
 			</Label>
-			<Input
+			<Textarea
 				id="expected-hash"
+				rows={2}
 				value={expected}
 				onChange={(e) => setExpected(e.target.value)}
-				placeholder="配布元のハッシュ値を貼り付けると自動で照合します"
-				className="font-mono"
+				placeholder="配布元のハッシュ値、または sha256sum 形式の1行（ハッシュ値 ファイル名）を貼り付けると自動で照合します"
+				className="min-h-0 font-mono"
 			/>
+			{parsed.ok && (
+				<dl
+					data-testid="hash-verify-extracted"
+					className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs"
+				>
+					<dt className="text-muted-foreground">抽出したハッシュ値</dt>
+					<dd className="break-all font-mono">{parsed.hash}</dd>
+					<dt className="text-muted-foreground">検出アルゴリズム</dt>
+					<dd>{HASH_ALGORITHM_LABELS[parsed.algorithm]}</dd>
+					{parsed.fileName != null && (
+						<>
+							<dt className="text-muted-foreground">記載のファイル名</dt>
+							<dd className="break-all">
+								{parsed.fileName}
+								<span className="ml-2 text-muted-foreground">
+									（ファイル名の一致は確認しません）
+								</span>
+							</dd>
+						</>
+					)}
+				</dl>
+			)}
 			<div data-testid="hash-verify-result" className="min-h-6 text-sm">
 				{verdict.kind === 'unknown-length' && (
 					<span className="inline-flex items-center gap-1.5 text-muted-foreground">
 						<HelpCircle className="h-4 w-4 shrink-0" />
 						ハッシュ値の長さからアルゴリズムを判定できません
+					</span>
+				)}
+				{verdict.kind === 'multi-line' && (
+					<span className="inline-flex items-center gap-1.5 text-destructive">
+						<XCircle className="h-4 w-4 shrink-0" />
+						複数行は照合できません。1行ずつ貼り付けてください
+					</span>
+				)}
+				{verdict.kind === 'invalid-line' && (
+					<span className="inline-flex items-center gap-1.5 text-destructive">
+						<XCircle className="h-4 w-4 shrink-0" />
+						チェックサム行の形式が正しくありません（「ハッシュ値＋空白2個＋ファイル名」または「ハッシュ値＋空白＋*＋ファイル名」）
 					</span>
 				)}
 				{verdict.kind === 'not-selected' && (

@@ -373,3 +373,65 @@ export function detectAlgorithmByLength(hex: string): HashAlgorithm | null {
 			return null;
 	}
 }
+
+export type ParsedExpectedHash =
+	| {
+			ok: true;
+			hash: string;
+			algorithm: HashAlgorithm;
+			/** GNU形式の1行から抽出したファイル名。裸のハッシュ値ならnull */
+			fileName: string | null;
+	  }
+	| {
+			ok: false;
+			reason: 'empty' | 'multi-line' | 'unknown-length' | 'invalid-line';
+	  };
+
+// digest + 空白2個 + filename（テキストモード）／ digest + 空白 + * + filename（バイナリモード）
+const GNU_CHECKSUM_LINE = /^([0-9a-fA-F]+)(?: {2}| \*)(\S.*)$/;
+
+function hasControlChars(value: string): boolean {
+	for (const ch of value) {
+		const code = ch.charCodeAt(0);
+		if (code < 0x20 || code === 0x7f) return true;
+	}
+	return false;
+}
+
+/**
+ * 期待値欄の入力を解析する。裸のハッシュ値（空白・ハイフン区切り許容）と
+ * GNU形式チェックサムの単一行のみ受け付け、複数行や不完全な行は暗黙に切り捨てず拒否する。
+ */
+export function parseExpectedHash(input: string): ParsedExpectedHash {
+	const lines = input.split(/\r\n|\r|\n/).filter((l) => l.trim() !== '');
+	if (lines.length === 0) return { ok: false, reason: 'empty' };
+	if (lines.length > 1) return { ok: false, reason: 'multi-line' };
+	const line = lines[0].trim();
+
+	const bare = detectAlgorithmByLength(line);
+	const gnu = GNU_CHECKSUM_LINE.exec(line);
+	// 区切りが空白2個の裸ハッシュ（16進のグループ表記）は従来どおり裸として扱う
+	if (bare && (!gnu || /^[0-9a-fA-F\s-]+$/.test(gnu[2]))) {
+		return {
+			ok: true,
+			hash: normalizeHash(line),
+			algorithm: bare,
+			fileName: null,
+		};
+	}
+
+	if (gnu) {
+		const [, digest, fileName] = gnu;
+		const algorithm = detectAlgorithmByLength(digest);
+		if (!algorithm || hasControlChars(fileName)) {
+			return { ok: false, reason: 'invalid-line' };
+		}
+		return { ok: true, hash: normalizeHash(digest), algorithm, fileName };
+	}
+
+	// ハッシュ値以外の文字と空白が混在する場合は、不完全なチェックサム行として扱う
+	if (/\s/.test(line) && /[^0-9a-fA-F\s-]/.test(line)) {
+		return { ok: false, reason: 'invalid-line' };
+	}
+	return { ok: false, reason: 'unknown-length' };
+}
