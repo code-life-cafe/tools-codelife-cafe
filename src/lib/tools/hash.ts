@@ -387,8 +387,9 @@ export type ParsedExpectedHash =
 			reason: 'empty' | 'multi-line' | 'unknown-length' | 'invalid-line';
 	  };
 
-// digest + 空白2個 + filename（テキストモード）／ digest + 空白 + * + filename（バイナリモード）
-const GNU_CHECKSUM_LINE = /^([0-9a-fA-F]+)(?: {2}| \*)(\S.*)$/;
+// [\\] + digest + 空白2個 + filename（テキストモード）／ digest + 空白 + * + filename（バイナリモード）
+// 行頭の \\ は、ファイル名に \\ や改行を含む場合にGNUが付けるエスケープ印
+const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)(\S.*)$/;
 
 function hasControlChars(value: string): boolean {
 	for (const ch of value) {
@@ -396,6 +397,22 @@ function hasControlChars(value: string): boolean {
 		if (code < 0x20 || code === 0x7f) return true;
 	}
 	return false;
+}
+
+/** GNUのファイル名エスケープ（\\\\ と \\n）を戻す。未定義のエスケープはnull */
+function unescapeGnuFileName(raw: string): string | null {
+	let out = '';
+	for (let i = 0; i < raw.length; i++) {
+		if (raw[i] !== '\\') {
+			out += raw[i];
+			continue;
+		}
+		const next = raw[++i];
+		if (next === '\\') out += '\\';
+		else if (next === 'n') out += '\n';
+		else return null;
+	}
+	return out;
 }
 
 /**
@@ -408,10 +425,23 @@ export function parseExpectedHash(input: string): ParsedExpectedHash {
 	if (lines.length > 1) return { ok: false, reason: 'multi-line' };
 	const line = lines[0].trim();
 
-	const bare = detectAlgorithmByLength(line);
 	const gnu = GNU_CHECKSUM_LINE.exec(line);
-	// 区切りが空白2個の裸ハッシュ（16進のグループ表記）は従来どおり裸として扱う
-	if (bare && (!gnu || /^[0-9a-fA-F\s-]+$/.test(gnu[2]))) {
+	// 先頭のハッシュ値が有効な長さならGNU形式を優先する
+	// （MD5行＋「  deadbeef」や「  -」が別アルゴリズムの裸ハッシュに化けないように）
+	if (gnu) {
+		const [, escaped, digest, rawName] = gnu;
+		const algorithm = detectAlgorithmByLength(digest);
+		if (algorithm) {
+			if (hasControlChars(rawName))
+				return { ok: false, reason: 'invalid-line' };
+			const fileName = escaped ? unescapeGnuFileName(rawName) : rawName;
+			if (fileName == null) return { ok: false, reason: 'invalid-line' };
+			return { ok: true, hash: normalizeHash(digest), algorithm, fileName };
+		}
+	}
+
+	const bare = detectAlgorithmByLength(line);
+	if (bare) {
 		return {
 			ok: true,
 			hash: normalizeHash(line),
@@ -419,15 +449,7 @@ export function parseExpectedHash(input: string): ParsedExpectedHash {
 			fileName: null,
 		};
 	}
-
-	if (gnu) {
-		const [, digest, fileName] = gnu;
-		const algorithm = detectAlgorithmByLength(digest);
-		if (!algorithm || hasControlChars(fileName)) {
-			return { ok: false, reason: 'invalid-line' };
-		}
-		return { ok: true, hash: normalizeHash(digest), algorithm, fileName };
-	}
+	if (gnu) return { ok: false, reason: 'invalid-line' };
 
 	// ハッシュ値以外の文字と空白が混在する場合は、不完全なチェックサム行として扱う
 	if (/\s/.test(line) && /[^0-9a-fA-F\s-]/.test(line)) {

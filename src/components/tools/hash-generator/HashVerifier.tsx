@@ -72,7 +72,7 @@ export function HashVerifier({
 					{parsed.fileName != null && (
 						<>
 							<dt className="text-muted-foreground">記載のファイル名</dt>
-							<dd className="break-all">
+							<dd className="whitespace-pre-wrap break-all">
 								{parsed.fileName}
 								<span className="ml-2 text-muted-foreground">
 									（ファイル名の一致は確認しません）

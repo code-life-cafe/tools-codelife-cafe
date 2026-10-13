@@ -228,11 +228,6 @@ test('parseExpectedHash: 裸のハッシュ値は従来どおり（大文字・�
 	});
 	const grouped = parseExpectedHash(' 90015098 3CD24FB0 D6963F7D 28E17F72 ');
 	assert.ok(grouped.ok && grouped.algorithm === 'md5' && !grouped.fileName);
-	// 空白2個区切りの16進グループも裸のハッシュとして扱う
-	const twoSpaces = parseExpectedHash('90015098  3CD24FB0  D6963F7D  28E17F72');
-	assert.ok(
-		twoSpaces.ok && twoSpaces.algorithm === 'md5' && !twoSpaces.fileName,
-	);
 });
 
 test('parseExpectedHash: GNU形式（テキスト・バイナリ）の1行からハッシュとファイル名を抽出', () => {
@@ -258,6 +253,48 @@ test('parseExpectedHash: GNU形式（テキスト・バイナリ）の1行から
 	// HTML風の文字列は抽出値としてそのまま返す（描画側でエスケープ）
 	const html = parseExpectedHash(`${ABC_SHA256}  <img src=x onerror=1>`);
 	assert.ok(html.ok && html.fileName === '<img src=x onerror=1>');
+});
+
+test('parseExpectedHash: GNUのエスケープ形式（行頭 \\ ・ファイル名内の \\\\ と \\n）', () => {
+	// sha256sum は ファイル名に \\ や改行を含むと行頭に \\ を付けて出力する
+	const backslash = parseExpectedHash(`\\${ABC_SHA256}  dir\\\\file.txt`);
+	assert.ok(backslash.ok && backslash.hash === ABC_SHA256);
+	assert.ok(backslash.ok && backslash.fileName === 'dir\\file.txt');
+	const newline = parseExpectedHash(`\\${ABC_SHA256}  a\\nb.txt`);
+	assert.ok(newline.ok && newline.fileName === 'a\nb.txt');
+	// エスケープ印なしの \\ はファイル名の一部としてそのまま扱う
+	const literal = parseExpectedHash(`${ABC_SHA256}  a\\nb.txt`);
+	assert.ok(literal.ok && literal.fileName === 'a\\nb.txt');
+	// 未定義のエスケープは拒否
+	assert.deepEqual(parseExpectedHash(`\\${ABC_SHA256}  a\\xb.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+});
+
+test('parseExpectedHash: 16進のみのファイル名でも別アルゴリズムに化けない（GNU優先）', () => {
+	const md5 = '900150983cd24fb0d6963f7d28e17f72';
+	// MD5(32桁) + 「  deadbeef」= 40桁になってもSHA-1ではなくMD5として扱う
+	const collide = parseExpectedHash(`${md5}  deadbeef`);
+	assert.ok(collide.ok && collide.algorithm === 'md5');
+	assert.ok(
+		collide.ok && collide.hash === md5 && collide.fileName === 'deadbeef',
+	);
+	// 標準入力の出力（ファイル名 -）はファイル名として残る
+	for (const hash of [md5, ABC_SHA256]) {
+		const stdin = parseExpectedHash(`${hash}  -`);
+		assert.ok(stdin.ok && stdin.hash === hash && stdin.fileName === '-');
+	}
+	// SHA-256(64桁) + 空白 + 64桁 = 128桁でもSHA-512にならない
+	const long = parseExpectedHash(`${ABC_SHA256}  ${ABC_SHA256}`);
+	assert.ok(
+		long.ok && long.algorithm === 'sha256' && long.fileName === ABC_SHA256,
+	);
+	// 区切りが空白1個の16進グループは従来どおり裸のハッシュ
+	const grouped = parseExpectedHash(`${md5.slice(0, 8)} ${md5.slice(8)}`);
+	assert.ok(
+		grouped.ok && grouped.algorithm === 'md5' && grouped.fileName === null,
+	);
 });
 
 test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
