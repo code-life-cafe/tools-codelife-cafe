@@ -306,6 +306,23 @@ test('parseExpectedHash: 先頭が空白のファイル名はそのまま保持�
 	assert.ok(binary.ok && binary.fileName === ' leading.txt');
 });
 
+test('parseExpectedHash: 実際のsha256sum出力の \\r エスケープ・末尾空白・空白のみ・タブのファイル名', () => {
+	const cr = parseExpectedHash(`\\${ABC_SHA256}  a\\rb`);
+	assert.ok(cr.ok && cr.fileName === 'a\rb');
+	const trailing = parseExpectedHash(`${ABC_SHA256}  trail `);
+	assert.ok(trailing.ok && trailing.fileName === 'trail ');
+	const spaceOnly = parseExpectedHash(`${ABC_SHA256}   `);
+	assert.ok(spaceOnly.ok && spaceOnly.hash === ABC_SHA256);
+	assert.ok(spaceOnly.ok && spaceOnly.fileName === ' ');
+	const tab = parseExpectedHash(`${ABC_SHA256}  t\tab`);
+	assert.ok(tab.ok && tab.fileName === 't\tab');
+	// 裸のハッシュの前後空白（2個以下の末尾空白）は従来どおり裸として扱う
+	for (const raw of [` ${ABC_SHA256} `, `${ABC_SHA256}  `, `${ABC_SHA256}\t`]) {
+		const bare = parseExpectedHash(raw);
+		assert.ok(bare.ok && bare.hash === ABC_SHA256 && bare.fileName === null);
+	}
+});
+
 test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
 	assert.deepEqual(
 		parseExpectedHash(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`),

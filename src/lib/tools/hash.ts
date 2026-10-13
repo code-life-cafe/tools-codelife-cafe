@@ -394,12 +394,13 @@ const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)(.+)$/;
 function hasControlChars(value: string): boolean {
 	for (const ch of value) {
 		const code = ch.charCodeAt(0);
-		if (code < 0x20 || code === 0x7f) return true;
+		// タブはGNUがエスケープせずそのまま出力するため許容する
+		if ((code < 0x20 && code !== 0x09) || code === 0x7f) return true;
 	}
 	return false;
 }
 
-/** GNUのファイル名エスケープ（\\\\ と \\n）を戻す。未定義のエスケープはnull */
+/** GNUのファイル名エスケープ（\\\\・\\n・\\r）を戻す。未定義のエスケープはnull */
 function unescapeGnuFileName(raw: string): string | null {
 	let out = '';
 	for (let i = 0; i < raw.length; i++) {
@@ -410,6 +411,7 @@ function unescapeGnuFileName(raw: string): string | null {
 		const next = raw[++i];
 		if (next === '\\') out += '\\';
 		else if (next === 'n') out += '\n';
+		else if (next === 'r') out += '\r';
 		else return null;
 	}
 	return out;
@@ -423,7 +425,8 @@ export function parseExpectedHash(input: string): ParsedExpectedHash {
 	const lines = input.split(/\r\n|\r|\n/).filter((l) => l.trim() !== '');
 	if (lines.length === 0) return { ok: false, reason: 'empty' };
 	if (lines.length > 1) return { ok: false, reason: 'multi-line' };
-	const line = lines[0].trim();
+	// ファイル名末尾の空白を保持するため、行頭側のみtrimする
+	const line = lines[0].trimStart();
 
 	const gnu = GNU_CHECKSUM_LINE.exec(line);
 	// 先頭のハッシュ値が有効な長さならGNU形式を優先する
