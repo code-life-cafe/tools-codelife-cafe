@@ -158,3 +158,7 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 ## 範囲外・未確認
 
 実 WebMCP クライアントでの受入、本番 Deploy、mainマージ、最新 head の必須CI、Codex 再レビューは別途確認する。
+
+## テキスト差分 WebMCP実装（2026-10-15）
+
+ユーザー承認済み計画はapproved-text-diff-plan.md。対象はNotion cdcd2236-5b3f-45f6-b022-1d407a9ce93eのtext-diff分割のみ。Codex実装・agy独立レビューへの変更も承認済み。Risk R3、Merge/Deploy対象外。API/予算/ファイル範囲は計画を参照。既存記録は保持する。

@@ -93,3 +93,18 @@
 - ローカル: lint exit0（既存15 warnings/1 info）、tsc exit0、build成功、全unit1536/1536、関連PC/モバイルE2E110/110。diff --check成功。
 - 実WebMCPクライアント: 修正版を再読み込み・2ツール再検出。両方向実呼出しと文字列/先頭ゼロ/安全整数外の保持、30000文字ヘッダー＋10000行＋2種類の不正引用符で10002行目の既存日本語isErrorを確認。console error/warn0。
 - 最新main974a11dを含むことを再確認。新headの必須CIと正式Code/Security Reviewはpush後に確認。Merge/Deployは未実施。4周目は自動開始しない。
+
+
+## テキスト差分WebMCP検証（2026-10-15）
+
+承認計画: approved-text-diff-plan.md。Codex実装・agy独立レビュー、Risk R3。
+compare_textを追加し、既存computeDiffは任意の内部予算引数だけを拡張。既存UIは登録/解除のみ。
+各入力20kコードポイント、編集距離1000/算法500ms/Worker2秒/同時1件/5000断片/成功JSON UTF8 1MiB。Nodeもbounded、ブラウザ同期fallbackなし。入力/結果を通信/ログ/保存しない。
+
+- lint exit0（既存15 warnings/1 info）、型チェックexit0、build成功。
+- 関連unit28/28、全unit1553/1553、関連PC/mobile E2E94/94成功。
+- 実WebMCPクライアントで検出・両モード実呼出し・UI統計一致・入力不変・予算エラー・Split表示・console error/warn0を確認。ローカルpreviewであり本番確認ではない。
+- agy独立レビューapprove、指摘0。読取専任スナップショットレビューであり実行テストは主担当が担当。詳細はdocs/text-diff-webmcp-review.md。
+- WorkerのSWプリキャッシュへの収録を確認。PWAの一括キャッシュ有効化は自動承認レビュー拒否のため明示承認確認中、PWA実行は未確認。
+- 既存文字単位UI行番号/LP課題は範囲外。親Notion全体未完了、修正ループ0/3。
+- 最新headのCIはPR作成後に確認。Merge/Deploy/本番受入は未実施。
