@@ -199,7 +199,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run' AND blob6 = 'ai_agent'
    GROUP BY tool_slug
-   ORDER BY ai_used_count DESC
+   ORDER BY ai_run_event_count DESC
    ```
    ```sql
    -- traffic_type 別の全イベント件数分布（human / ai_agent / crawler / unknown）
