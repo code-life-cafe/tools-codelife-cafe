@@ -16,10 +16,24 @@ const KONNICHIWA_SHA256 =
 	'125aeadf27b0459b8760c13a3d80912dfa8a81a68261906f60d87f4a0268646c';
 
 test.describe('Hash Generator Tool', () => {
-	test('ページが正しく表示されること', async ({ createToolPage }) => {
+	test('ページが正しく表示されること', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('hash');
 		await toolPage.goto();
-		await toolPage.expectTitle('ハッシュ値計算ツール');
+		await expect(page).toHaveTitle(
+			'ハッシュ値計算・確認・照合ツール｜SHA-256・MD5対応 | CODE:LIFE Tools',
+		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'ハッシュ値計算・確認ツール',
+		);
+		await expect(
+			page
+				.getByRole('navigation', { name: 'パンくずリスト' })
+				.locator('[aria-current="page"]'),
+		).toHaveText('ハッシュ値計算・確認ツール');
+		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+			'content',
+			'ファイルやテキストのハッシュ値を計算・確認できる無料ツール。SHA-256・MD5・SHA-1・SHA-512・CRC32に対応し、配布元のハッシュ値と照合できます。入力内容やファイルは外部に送信せず、ブラウザ内で処理します。',
+		);
 		await toolPage.expectSafetyBadge();
 	});
 
