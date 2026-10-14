@@ -1,3 +1,4 @@
+import { exceedsMaxCharacters } from '../string-length.ts';
 /**
  * Mermaidコード内の修正履歴
  */
@@ -288,19 +289,59 @@ function restoreMarkers(
 	return out + text.slice(pos);
 }
 
+/** 従来の引用文字列regexと同じマッチ範囲を、未閉じ入力も線形で求める。 */
+export function protectQuotedStrings(
+	line: string,
+	protect: (literal: string) => string,
+): string {
+	if (!line.includes('"') && !line.includes("'")) return line;
+	const n = line.length;
+	const doubleEnds = new Int32Array(n + 1).fill(-1);
+	const singleEnds = new Int32Array(n + 1).fill(-1);
+	const barriers = new Int32Array(n + 1).fill(-1);
+	let backslashes = 0;
+	for (let i = 0; i < n; i++) {
+		const char = line[i];
+		if (char === '\\') {
+			backslashes++;
+			continue;
+		}
+		if (backslashes % 2 === 0) {
+			if (char === '"') doubleEnds[i] = i;
+			if (char === "'") singleEnds[i] = i;
+		} else if ('\r\n\u2028\u2029'.includes(char)) barriers[i] = i;
+		backslashes = 0;
+	}
+	for (let i = n - 1; i >= 0; i--) {
+		if (doubleEnds[i] < 0) doubleEnds[i] = doubleEnds[i + 1];
+		if (singleEnds[i] < 0) singleEnds[i] = singleEnds[i + 1];
+		if (barriers[i] < 0) barriers[i] = barriers[i + 1];
+	}
+	const parts: string[] = [];
+	let start = 0;
+	for (let i = 0; i < n; i++) {
+		if (line[i] !== '"' && line[i] !== "'") continue;
+		const end = (line[i] === '"' ? doubleEnds : singleEnds)[i + 1];
+		const barrier = barriers[i + 1];
+		if (end < 0 || (barrier >= 0 && barrier < end)) continue;
+		parts.push(line.slice(start, i), protect(line.slice(i, end + 1)));
+		start = end + 1;
+		i = end;
+	}
+	parts.push(line.slice(start));
+	return parts.join('');
+}
+
 function withProtectedStrings(
 	line: string,
 	transformSyntax: (syntaxOnlyLine: string) => string,
 ): string {
 	const literals: string[] = [];
 	const prefix = markerPrefix(line, 'STR');
-	const protectedLine = line.replace(
-		/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
-		(match) => {
-			literals.push(match);
-			return `${prefix}${literals.length - 1}__`;
-		},
-	);
+	const protectedLine = protectQuotedStrings(line, (match) => {
+		literals.push(match);
+		return `${prefix}${literals.length - 1}__`;
+	});
 
 	const transformed = transformSyntax(protectedLine);
 
@@ -324,6 +365,16 @@ export function protectNodeLabelBodies(
 	s: string,
 	protect: (content: string) => string,
 ): string {
+	if (
+		!(
+			s.includes('[') ||
+			s.includes('(') ||
+			s.includes('{') ||
+			s.includes('>')
+		) ||
+		!(s.includes(']') || s.includes(')') || s.includes('}'))
+	)
+		return s;
 	const n = s.length;
 	const code = (i: number): number => s.charCodeAt(i);
 	const isAsciiWord = (i: number): boolean => {
@@ -617,6 +668,41 @@ export function matchHeaderlessSequence(
  * 構文位置にある全角記号を半角に置換する。
  * 【重要制約】クォートされた文字列およびノードラベル本文内の「：」「（）」などの日本語本文は一切変更しない。
  */
+function replaceFullWidthBrackets(
+	text: string,
+	open: string,
+	close: string,
+	opening: string,
+	closing: string,
+	requireId: boolean,
+): string {
+	if (!text.includes(open) || !text.includes(close)) return text;
+	const nextClose = new Int32Array(text.length + 1).fill(-1);
+	for (let index = text.length - 1; index >= 0; index--)
+		nextClose[index] = text[index] === close ? index : nextClose[index + 1];
+	const parts: string[] = [];
+	let start = 0;
+	for (let index = 0; index < text.length; index++) {
+		if (
+			text[index] !== open ||
+			(requireId && !/[A-Za-z0-9_]/.test(text[index - 1] ?? ''))
+		)
+			continue;
+		const end = nextClose[index + 1];
+		if (end < 0) break;
+		parts.push(
+			text.slice(start, index),
+			opening,
+			text.slice(index + 1, end),
+			closing,
+		);
+		start = end + 1;
+		index = end;
+	}
+	parts.push(text.slice(start));
+	return parts.join('');
+}
+
 export function replaceSyntaxZenkaku(
 	line: string,
 	diagramKind?: 'sequence' | 'other',
@@ -657,7 +743,14 @@ export function replaceSyntaxZenkaku(
 
 		// 1. 全角スペース（インデント・矢印周辺）
 		res = res.replace(/^[　]+/g, (m) => '  '.repeat(m.length));
-		res = res.replace(/　+(?=(?:-->|---|==>|-\.->|--|==))/g, ' ');
+		res = res.replace(/　+/g, (spaces, offset, source) => {
+			const after = offset + spaces.length;
+			return source.startsWith('--', after) ||
+				source.startsWith('==', after) ||
+				source.startsWith('-.->', after)
+				? ' '
+				: spaces;
+		});
 		res = res.replace(/(?:-->|---|==>|-\.->|--|==)　+/g, (m) =>
 			m.replace(/　/g, ' '),
 		);
@@ -665,10 +758,10 @@ export function replaceSyntaxZenkaku(
 		// 2. 全角矢印・長音混入矢印はラベル本文を保護してから置換する（下記の4.）
 
 		// 3. ノード定義括弧の全角ブラケット・全角丸括弧・全角波括弧を半角化
-		res = res.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]');
-		res = res.replace(/(\b[A-Za-z0-9_]+)（([\s\S]*?)）/g, '$1($2)');
-		res = res.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}');
-		res = res.replace(/｛([\s\S]*?)｝/g, '{$1}');
+		res = replaceFullWidthBrackets(res, '［', '］', '[', ']', true);
+		res = replaceFullWidthBrackets(res, '（', '）', '(', ')', true);
+		res = replaceFullWidthBrackets(res, '｛', '｝', '{', '}', true);
+		res = replaceFullWidthBrackets(res, '｛', '｝', '{', '}', false);
 
 		// 4. ノードラベル本文を保護した上で、構文位置の矢印・コロン・カンマを置換
 		res = withProtectedNodeLabels(res, (nodeProtected) => {
@@ -687,7 +780,9 @@ export function replaceSyntaxZenkaku(
 			s = protectDashedEdgeLabels(s, protectEdgeLabel);
 			s = s.replace(/ーー＞/g, '-->');
 			s = s.replace(/ーー>>/g, '-->>');
-			s = s.replace(/ー+>/g, '-->');
+			s = s.replace(/ー+/g, (marks, offset, source) =>
+				source[offset + marks.length] === '>' ? '--' : marks,
+			);
 			s = s.replace(/--＞/g, '-->');
 			s = s.replace(/→/g, '-->');
 			s = s.replace(/==＞/g, '==>');
@@ -722,6 +817,7 @@ function replaceBracketedNodes(
 	close: string,
 	fn: (id: string, content: string) => string,
 ): string {
+	if (!s.includes(open) || !s.includes(close)) return s;
 	const n = s.length;
 	const isWord = (i: number): boolean => {
 		const c = s.charCodeAt(i);
@@ -780,6 +876,55 @@ function replaceBracketedNodes(
 }
 
 /**
+ * 複合括弧の形状（円 ((x)) / サブルーチン [[x]] / スタジアム ([x]) / 円柱 [(x)]）の
+ * 内側括弧を取り除いた本文を返す。形状でなければ null。
+ * 本文側に同種の括弧が残る場合はネストの判別ができないため形状とみなさない。
+ */
+function splitCompoundShape(
+	content: string,
+): { inner: string; open: string; close: string } | null {
+	const pairs: Record<string, string> = { '(': ')', '[': ']' };
+	const open = content[0];
+	const close = pairs[open];
+	if (!close || !content.endsWith(close) || content.length < 2) return null;
+	const inner = content.slice(1, -1);
+	// 引用符で囲まれた本文は括弧を含んでいても曖昧さがない
+	const quoted = /^\s*"[^"]*"\s*$/.test(inner);
+	if (!quoted && (inner.includes(open) || inner.includes(close))) return null;
+	return { inner, open, close };
+}
+
+const SAFE_SHAPE_INNER = /^[\p{L}\p{N}_]+$/u;
+// フローチャートの予約語。引用符なしでは構文エラーになり得る
+const RESERVED_SHAPE_WORDS =
+	/^(end|graph|flowchart|subgraph|direction|class|classDef|click|style|linkStyle|default|call|href|interpolate)$/i;
+
+function quoteShapeInner(inner: string): string {
+	const trimmed = inner.trim();
+	if (trimmed === '') return inner;
+	const isQuoted = trimmed.length >= 2 && /^".*"$/s.test(trimmed);
+	const body = isQuoted ? trimmed.slice(1, -1) : trimmed;
+	// 先頭と末尾だけが ` の本文は Mermaid の Markdown 文字列として有効
+	const isMarkdownString = /^`[^`]+`$/.test(body);
+	// 単一の正しい引用符文字列だけをそのまま保持する（対にならない ` を含む場合を除く）
+	if (/^"[^"]*"$/.test(trimmed) && (isMarkdownString || !body.includes('`'))) {
+		return inner;
+	}
+	// 許可リスト方式: 文字・数字・アンダースコアのみで予約語でない本文だけ素通しし、
+	// それ以外（生の引用符・先頭記号・予約語など）は本文全体をクォートする
+	if (
+		!isQuoted &&
+		SAFE_SHAPE_INNER.test(trimmed) &&
+		!RESERVED_SHAPE_WORDS.test(trimmed)
+	) {
+		return inner;
+	}
+	const safe = body.replace(/"/g, "'");
+	// 対にならない ` は Markdown 文字列の開始と解釈されるため実体参照にする
+	return `"${isMarkdownString ? safe : safe.replace(/`/g, '#96;')}"`;
+}
+
+/**
  * ノードラベル内に未クォートの丸括弧・角括弧・セミコロン・スラッシュ等が含まれている場合、
  * ラベル全体を安全に ["..."] で囲む
  */
@@ -788,6 +933,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 1. 角括弧ノード: ID[...] を安全にクォート
 	res = replaceBracketedNodes(res, '[', ']', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}[${shape.open}${body}${shape.close}]`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}[${content}]`;
@@ -800,6 +950,11 @@ export function safeQuoteNodeLabels(line: string): string {
 
 	// 2. 丸括弧ノード（角丸ノード）: ID(...)
 	res = replaceBracketedNodes(res, '(', ')', (id, content) => {
+		const shape = splitCompoundShape(content);
+		if (shape) {
+			const body = quoteShapeInner(shape.inner);
+			return `${id}(${shape.open}${body}${shape.close})`;
+		}
 		const trimmed = content.trim();
 		if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
 			return `${id}(${content})`;
@@ -855,7 +1010,13 @@ export function autoCloseBlocks(lines: string[]): {
 } {
 	const result = [...lines];
 	const added: string[] = [];
-	const stack: BlockScope[] = [];
+	const stack: (BlockScope & { closed: boolean })[] = [];
+	const endScopes: number[] = [];
+	const braceScopes: number[] = [];
+	const pushScope = (scope: BlockScope) => {
+		const index = stack.push({ ...scope, closed: false }) - 1;
+		(scope.type === 'brace' ? braceScopes : endScopes).push(index);
+	};
 
 	for (const rawLine of result) {
 		const line = rawLine.trim();
@@ -867,46 +1028,33 @@ export function autoCloseBlocks(lines: string[]): {
 
 		// 1. subgraph 開始
 		if (/^subgraph\b/.test(line)) {
-			stack.push({ type: 'subgraph', indent });
+			pushScope({ type: 'subgraph', indent });
 			continue;
 		}
 
 		// 2. sequenceDiagram のブロック構文 (opt, alt, loop, rect, par, critical, break)
 		if (/^(?:opt|alt|loop|rect|par|critical|break)\b/.test(line)) {
-			stack.push({ type: 'sequence_block', indent });
+			pushScope({ type: 'sequence_block', indent });
 			continue;
 		}
 
 		// 3. 中括弧ブロック開始 (class ... { / state ... {) ※同一行で閉じていないもの
 		if (/^(?:class|state)\b.*\{$/.test(line)) {
-			stack.push({ type: 'brace', indent });
+			pushScope({ type: 'brace', indent });
 			continue;
 		}
 
 		// 4. end 終了行
 		if (line === 'end') {
-			// スタックを末尾から探索し、直近の subgraph または sequence_block を pop
-			for (let i = stack.length - 1; i >= 0; i--) {
-				if (
-					stack[i].type === 'subgraph' ||
-					stack[i].type === 'sequence_block'
-				) {
-					stack.splice(i, 1);
-					break;
-				}
-			}
+			const index = endScopes.pop();
+			if (index !== undefined) stack[index].closed = true;
 			continue;
 		}
 
 		// 5. } 終了行
 		if (line === '}') {
-			// スタックを末尾から探索し、直近の brace を pop
-			for (let i = stack.length - 1; i >= 0; i--) {
-				if (stack[i].type === 'brace') {
-					stack.splice(i, 1);
-					break;
-				}
-			}
+			const index = braceScopes.pop();
+			if (index !== undefined) stack[index].closed = true;
 		}
 	}
 
@@ -914,6 +1062,7 @@ export function autoCloseBlocks(lines: string[]): {
 	while (stack.length > 0) {
 		const unclosed = stack.pop();
 		if (!unclosed) break;
+		if (unclosed.closed) continue;
 
 		if (unclosed.type === 'subgraph' || unclosed.type === 'sequence_block') {
 			const indent = unclosed.indent || '    ';
@@ -933,7 +1082,7 @@ export function autoCloseBlocks(lines: string[]): {
  * Mermaidコード全体の自動修復を実行するメイン純粋関数
  */
 export function repairMermaidCode(rawInput: string): MermaidRepairResult {
-	if (rawInput.length > MAX_REPAIR_INPUT_LENGTH) {
+	if (exceedsMaxCharacters(rawInput, MAX_REPAIR_INPUT_LENGTH)) {
 		return {
 			originalCode: rawInput,
 			repairedCode: rawInput,
@@ -1026,13 +1175,13 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 
 	// Step 5: ブロックの閉じ忘れ補完
 	const { lines: finalLines, added } = autoCloseBlocks(processedLines);
-	for (const addMsg of added) {
+	for (const [index, addMsg] of added.entries()) {
 		changes.push({
-			lineNumber: finalLines.length,
+			lineNumber: processedLines.length + index + 1,
 			rule: 'auto-close',
 			description: addMsg,
 			original: '(未終了ブロック)',
-			fixed: finalLines[finalLines.length - 1],
+			fixed: finalLines[processedLines.length + index],
 		});
 	}
 

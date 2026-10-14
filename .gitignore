@@ -33,6 +33,9 @@ playwright-report/
 # Temporary files
 *.txt.bak
 report.json
+# コマンド出力・調査用ログの誤コミット防止
+test_output.txt
+tmp-playwright-error.log
 
 # Superpowers brainstorming
 .superpowers/

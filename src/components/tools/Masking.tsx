@@ -21,6 +21,9 @@ import {
 	type MaskTarget,
 	maskText,
 } from '@/lib/tools/masking';
+import { maskingMcpTool } from '@/lib/tools/masking.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 const TARGET_TYPES: { id: MaskTarget; label: string }[] = [
 	{ id: 'email', label: 'メールアドレス' },
@@ -32,6 +35,10 @@ const TARGET_TYPES: { id: MaskTarget; label: string }[] = [
 ];
 
 export default function Masking() {
+	useEffect(
+		() => provideToolsFromFactory([generateWebMcpDescriptor(maskingMcpTool)]),
+		[],
+	);
 	const { trackRunDebounced } = useToolAnalytics('masking');
 	const [text, setText] = useState('');
 	const [targets, setTargets] = useState<Set<MaskTarget>>(

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test, { describe } from 'node:test';
@@ -10,6 +11,7 @@ import {
 	normalizeSmartQuotes,
 	protectDashedEdgeLabels,
 	protectNodeLabelBodies,
+	protectQuotedStrings,
 	repairMermaidCode,
 	replaceSyntaxZenkaku,
 	safeQuoteNodeLabels,
@@ -1235,4 +1237,152 @@ test('repairMermaidCode: 上限超過の入力は修復せずerrorを返す', ()
 	assert.deepEqual(result.changes, []);
 	assert.match(result.error ?? '', /入力が大きすぎる/);
 	assert.equal(repairMermaidCode('flowchart TD\nA --> B').error, undefined);
+});
+
+describe('複合括弧の形状（円・サブルーチン等）の保持', () => {
+	test('正常な円 ((開始)) とサブルーチン [[処理]] は修復で変化しない', () => {
+		const input = 'A((開始)) --> B[[処理]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+		const result = repairMermaidCode(`flowchart TD\n${input}`);
+		assert.ok(result.repairedCode.includes(input));
+		assert.ok(!result.repairedCode.includes('"(開始)"'));
+		assert.ok(!result.repairedCode.includes('"[処理]"'));
+	});
+
+	test('スタジアム ([x]) と円柱 [(x)] の形状も保持する', () => {
+		const input = 'A([開始]) --> B[(DB)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('複合括弧でも内側の特殊記号は本文だけを二重引用符で囲む', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A((a b)) --> B[[c; d]]'),
+			'A(("a b")) --> B[["c; d"]]',
+		);
+		const quoted = 'A(("a b")) --> B[["c d"]]';
+		assert.equal(safeQuoteNodeLabels(quoted), quoted);
+	});
+
+	test('引用符付き本文が形状と同種の括弧を含んでも複合形状を保持する', () => {
+		const input =
+			'A(("a (b)")) --> B[["x[y]"]] --> C(["p (q)"]) --> D[("r [s]")]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('内部に生の引用符を含む不正な複合ラベルは引用符を正規化する', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A(("He said "hello"")) --> B[["x "y" z"]]'),
+			'A(("He said \'hello\'")) --> B[["x \'y\' z"]]',
+		);
+	});
+
+	test('複合ラベルの対になっていない引用符・先頭ハイフンは本文ごとクォートする', () => {
+		assert.equal(safeQuoteNodeLabels('A((a"b))'), 'A(("a\'b"))');
+		assert.equal(safeQuoteNodeLabels('B[[a"b]]'), 'B[["a\'b"]]');
+		assert.equal(safeQuoteNodeLabels('A((-a))'), 'A(("-a"))');
+		assert.equal(safeQuoteNodeLabels('B[[-x]]'), 'B[["-x"]]');
+	});
+
+	test('複合ラベルの予約語・先頭記号は本文ごとクォートし形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((end))'), 'A(("end"))');
+		assert.equal(safeQuoteNodeLabels('B[[End]]'), 'B[["End"]]');
+		assert.equal(safeQuoteNodeLabels('C([subgraph])'), 'C(["subgraph"])');
+		assert.equal(safeQuoteNodeLabels('D[(class)]'), 'D[("class")]');
+		assert.equal(safeQuoteNodeLabels('E((.x))'), 'E((".x"))');
+	});
+
+	test('複合ラベルの安全な本文（日本語・英数字）は素通しする', () => {
+		const input = 'A((開始)) --> B[[処理_1]] --> C([ok]) --> D[(DB2)]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('複合ラベルの対にならないバッククォートは実体参照にして形状を保持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((`))'), 'A(("#96;"))');
+		assert.equal(safeQuoteNodeLabels('B[[`]]'), 'B[["#96;"]]');
+		assert.equal(safeQuoteNodeLabels('C([a`b])'), 'C(["a#96;b"])');
+		assert.equal(safeQuoteNodeLabels('D[("`")]'), 'D[("#96;")]');
+	});
+
+	test('複合ラベルのMarkdown文字列（対になる``）は保持する', () => {
+		const input = 'A(("`bold`")) --> B[["`x`"]]';
+		assert.equal(safeQuoteNodeLabels(input), input);
+	});
+
+	test('従来の単一括弧の修復は維持される', () => {
+		assert.equal(
+			safeQuoteNodeLabels('A[a (b)] --> B(c d)'),
+			'A["a (b)"] --> B("c d")',
+		);
+	});
+});
+
+test('全角括弧の線形修復は短い乱数入力400件で従来のマッチ範囲を保持する', () => {
+	let seed = 42;
+	const alphabet = 'Aa12_文［］（）｛｝';
+	for (let sample = 0; sample < 400; sample++) {
+		let input = '';
+		for (let i = 0; i < 80; i++) {
+			seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+			input += alphabet[seed % alphabet.length];
+		}
+		const expected = input
+			.replace(/(\b[A-Za-z0-9_]+)［([\s\S]*?)］/g, '$1[$2]')
+			.replace(/(\b[A-Za-z0-9_]+)（([\s\S]*?)）/g, '$1($2)')
+			.replace(/(\b[A-Za-z0-9_]+)｛([\s\S]*?)｝/g, '$1{$2}')
+			.replace(/｛([\s\S]*?)｝/g, '{$1}');
+		assert.equal(replaceSyntaxZenkaku(input, 'other'), expected);
+	}
+});
+
+test('長い全角空白・長音の線形修復は矢印直前だけを従来どおり置換する', () => {
+	for (const run of ['　', '　'.repeat(40)]) {
+		assert.equal(replaceSyntaxZenkaku(`A${run}B`, 'other'), `A${run}B`);
+		for (const arrow of ['-->', '---', '==>', '-.->', '--', '==']) {
+			assert.equal(
+				replaceSyntaxZenkaku(`A${run}${arrow} B`, 'other'),
+				`A ${arrow} B`,
+			);
+		}
+	}
+	for (let n = 1; n <= 40; n++) {
+		const input = `A ${'ー'.repeat(n)}> B`;
+		const expected = input
+			.replace(/ーー＞/g, '-->')
+			.replace(/ーー>>/g, '-->>')
+			.replace(/ー+>/g, '-->');
+		assert.equal(replaceSyntaxZenkaku(input, 'other'), expected);
+		const plain = `A ${'ー'.repeat(n)} B`;
+		assert.equal(replaceSyntaxZenkaku(plain, 'other'), plain);
+	}
+});
+
+test('引用文字列の線形保護は乱数1000件で従来のregexと一致する', () => {
+	let seed = 19;
+	const alphabet = [65, 0x6587, 34, 39, 92, 10, 13, 0x2028, 0x2029].map(
+		(code) => String.fromCharCode(code),
+	);
+	for (let sample = 0; sample < 1000; sample++) {
+		let input = '';
+		for (let i = 0; i < 80; i++) {
+			seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+			input += alphabet[seed % alphabet.length];
+		}
+		let oldIndex = 0;
+		let newIndex = 0;
+		const expected = input.replace(
+			/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g,
+			() => `L${oldIndex++}`,
+		);
+		const actual = protectQuotedStrings(input, () => `L${newIndex++}`);
+		assert.equal(actual, expected, `sample ${sample}`);
+	}
+});
+
+test('未対応の閉じブロック10万文字を3回処理して2秒以内に完了する（隔離）', () => {
+	const url = new URL('../../src/lib/tools/mermaid-repair.ts', import.meta.url)
+		.href;
+	const script = `import {autoCloseBlocks} from ${JSON.stringify(url)}; const lines=('opt\\n'.repeat(12500)+'}\\n'.repeat(25000)).split('\\n'); for(let i=0;i<3;i++){const r=autoCloseBlocks(lines);if(r.added.length!==12500)process.exit(1);}`;
+	execFileSync(process.execPath, ['--input-type=module', '-e', script], {
+		timeout: 2000,
+	});
 });
