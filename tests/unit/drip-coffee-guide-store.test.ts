@@ -195,8 +195,10 @@ test('loadStore: v60_neo 修正前に保存された旧V60 NEOプリセットを
 	const staleNeo = {
 		...latestNeo,
 		method: 'v60',
-		updated_at: '2026-08-29T00:00:00.000Z',
+		// #359 時点の実際の旧エントリ: method は v60、updated_at は現行定義と同じ
+		updated_at: latestNeo.updated_at,
 	};
+	assert.strictEqual(staleNeo.updated_at, '2026-08-30T00:00:00.000Z');
 	legacy.recipes.push(staleNeo as never);
 	localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
 
