@@ -214,6 +214,27 @@ test('loadStore: v60_neo 修正前に保存された旧V60 NEOプリセットを
 	assert.deepStrictEqual(loadStore().recipes, store.recipes);
 });
 
+test('loadStore: updated_at が新しい保存済みプリセットは、method が違っても上書きしない', () => {
+	const latestNeo = loadStoreFromLatest().recipes.find(
+		(r) => r.id === PRESET_RECIPE_IDS.v60Neo,
+	);
+	assert.ok(latestNeo);
+	const newer = {
+		...latestNeo,
+		method: 'pour_other',
+		updated_at: '2026-12-01T00:00:00.000Z',
+	};
+	const legacy = seedLegacyStore();
+	legacy.recipes.push(newer as never);
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+	const store = loadStore();
+	assert.deepStrictEqual(
+		store.recipes.find((r) => r.id === PRESET_RECIPE_IDS.v60Neo),
+		newer,
+	);
+});
+
 test('loadStore: 最新のプリセットを持つデータは書き換えない', () => {
 	loadStore();
 	const before = localStorage.getItem(STORAGE_KEY);

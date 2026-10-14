@@ -706,14 +706,16 @@ const LATER_ADDED_PRESET_IDS: readonly string[] = [
 ];
 
 /**
- * 保存済みのプリセットが最新の定義より古いか。updated_at が古い場合に加え、
- * 抽出器具が違う場合も古いとみなす（V60 NEOは #361 で method を v60 から v60_neo に直したが、
- * updated_at は据え置かれたため、時刻だけでは旧定義を判別できない）。
+ * 保存済みのプリセットが最新の定義より古いか。
+ * updated_at が古ければ古い。updated_at が同じ場合に限り、抽出器具が違えば古いとみなす
+ * （V60 NEOは #361 で method を v60 から v60_neo に直したが updated_at は据え置かれたため、
+ * 時刻だけでは旧定義を判別できない）。updated_at が新しいデータは、将来の定義として維持する。
  */
 function isStalePreset(stored: Recipe, latest: Recipe): boolean {
-	return (
-		stored.updated_at < latest.updated_at || stored.method !== latest.method
-	);
+	if (stored.updated_at !== latest.updated_at) {
+		return stored.updated_at < latest.updated_at;
+	}
+	return stored.method !== latest.method;
 }
 
 /**
