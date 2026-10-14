@@ -8,6 +8,7 @@ import { jwtDecoderMcpTool } from '../tools/jwt-decoder.mcp.ts';
 import { maskingMcpTool } from '../tools/masking.mcp.ts';
 import { mermaidMcpTool, mermaidRenderMcpTool } from '../tools/mermaid.mcp.ts';
 import { qrEncryptMcpTool } from '../tools/qr-encrypt.mcp.ts';
+import { textDiffMcpTool } from '../tools/text-diff.mcp.ts';
 import { urlEncoderMcpTool } from '../tools/url-encoder.mcp.ts';
 import { uuidMcpTool } from '../tools/uuid.mcp.ts';
 import { yamlJsonTomlMcpTool } from '../tools/yaml-json-toml.mcp.ts';
@@ -25,6 +26,7 @@ import type { McpToolDefinition } from './define-tool.ts';
  */
 // biome-ignore lint/suspicious/noExplicitAny: 各ツールの McpToolDefinition<TParams, TOutput> はツールごとに型引数が異なるため、配列としてまとめる際は unknown 化する
 export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
+	textDiffMcpTool,
 	mermaidMcpTool,
 	mermaidRenderMcpTool,
 	yamlJsonTomlMcpTool,
