@@ -2,6 +2,7 @@ import { base64McpTool } from '../tools/base64.mcp.ts';
 import { charCountMcpTool } from '../tools/char-count.mcp.ts';
 import { cronCheckerMcpTool } from '../tools/cron-checker.mcp.ts';
 import { hashMcpTool } from '../tools/hash.mcp.ts';
+import { csvToJsonMcpTool, jsonToCsvMcpTool } from '../tools/json-csv.mcp.ts';
 import { jsonFormatterMcpTool } from '../tools/json-formatter.mcp.ts';
 import { jwtDecoderMcpTool } from '../tools/jwt-decoder.mcp.ts';
 import { maskingMcpTool } from '../tools/masking.mcp.ts';
@@ -38,4 +39,6 @@ export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
 	cronCheckerMcpTool,
 	jwtDecoderMcpTool,
 	qrEncryptMcpTool,
+	jsonToCsvMcpTool,
+	csvToJsonMcpTool,
 ];
