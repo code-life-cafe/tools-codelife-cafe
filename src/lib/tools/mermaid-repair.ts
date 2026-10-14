@@ -31,6 +31,32 @@ export const MAX_REPAIR_INPUT_LENGTH = 100_000;
 const DIAGRAM_HEADER_REGEX =
 	/^(?:(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b|sequenceDiagram\b|classDiagram(?:-v2)?\b|stateDiagram(?:-v2)?\b|erDiagram\b|gantt\b|pie(?:\s+title)?\b|gitGraph\b|mindmap\b|quadrantChart\b|timeline\b|c4Context\b|sankey-beta\b|kanban\b|architecture-beta\b|block-beta\b|packet-beta\b|requirementDiagram\b)/i;
 
+/** Mermaidが解釈するfrontmatterのトップレベルキー */
+const FRONTMATTER_KEY_REGEX =
+	/^(?:"(?:title|config|displayMode)"|'(?:title|config|displayMode)'|title|config|displayMode)\s*:(?:\s|$)/;
+
+/**
+ * `---` で囲まれたブロックが、Mermaidのfrontmatterとして保持してよいか判定する。
+ * 会話文の区切り線と区別するため、先頭の字下げ位置にある行はすべてMermaidのキー
+ * （title / config / displayMode）であること、それより深い字下げ行は値の続きとして許容する。
+ * キー行・コメント行・空行以外の字下げなし行（会話文など）が含まれる場合は保持しない。
+ */
+function isMermaidFrontmatterBody(body: string[]): boolean {
+	const content = body.filter((l) => l.trim() !== '' && !/^\s*#/.test(l));
+	if (content.length === 0) return false;
+	const indentOf = (l: string) => l.length - l.trimStart().length;
+	const baseIndent = indentOf(content[0]);
+	let hasKey = false;
+	for (const line of content) {
+		const indent = indentOf(line);
+		if (indent < baseIndent) return false;
+		if (indent > baseIndent) continue;
+		if (!FRONTMATTER_KEY_REGEX.test(line.trimStart())) return false;
+		hasKey = true;
+	}
+	return hasKey;
+}
+
 /**
  * ダイアグラム宣言の直前にあるYAML frontmatter（--- ... ---）の開始行indexを返す。
  * 宣言行(headerIndex)の直前が閉じ `---` で、それより上に開き `---` がある場合のみ該当。
@@ -42,13 +68,7 @@ function findFrontmatterStart(lines: string[], headerIndex: number): number {
 	if (end < 1 || lines[end].trim() !== '---') return -1;
 	for (let start = end - 1; start >= 0; start--) {
 		if (lines[start].trim() === '---') {
-			const body = lines.slice(start + 1, end);
-			// 会話文の区切り線と区別するため、YAMLのキー行(インデント可、key: / "key": / 'key':)を1つ以上要求する
-			return body.some((l) =>
-				/^\s*(?:"[^"]+"|'[^']+'|[A-Za-z_][\w-]*)\s*:/.test(l),
-			)
-				? start
-				: -1;
+			return isMermaidFrontmatterBody(lines.slice(start + 1, end)) ? start : -1;
 		}
 	}
 	return -1;

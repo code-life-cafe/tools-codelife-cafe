@@ -1486,4 +1486,30 @@ describe('YAML frontmatter の保持', () => {
 		assert.equal(result.repairedCode, `${indented}${body}`);
 		assert.equal(result.isModified, false);
 	});
+
+	test('extractMermaidCode: key:風の行を含む非YAMLの会話文はfrontmatterとして保持しない', () => {
+		const prose =
+			'---\nNote: 次の図です\nこれはYAMLではない説明文です。\n---\n';
+		const { code } = extractMermaidCode(`${prose}${body}`);
+		assert.equal(code, body);
+	});
+
+	test('extractMermaidCode: Mermaidが解釈しないキーだけのブロックは保持しない', () => {
+		const other = '---\nauthor: 太郎\n---\n';
+		const { code } = extractMermaidCode(`説明\n${other}${body}`);
+		assert.equal(code, body);
+	});
+
+	test('extractMermaidCode: title/config/displayModeと入れ子のconfigは保持する', () => {
+		const rich =
+			'---\ntitle: 図\nconfig:\n  theme: dark\n  flowchart:\n    curve: basis\ndisplayMode: compact\n---\n';
+		const { code } = extractMermaidCode(`説明\n${rich}${body}`);
+		assert.equal(code, `${rich}${body}`);
+	});
+
+	test('extractMermaidCode: 有効なキーの後に会話文が混ざるブロックは保持しない', () => {
+		const mixed = '---\ntitle: 図\nこれは説明です\n---\n';
+		const { code } = extractMermaidCode(`${mixed}${body}`);
+		assert.equal(code, body);
+	});
 });
