@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
 	execRegexSync,
+	MAX_MATCHES,
 	sanitizeRegexTesterSettings,
 } from '../../src/lib/tools/regex-tester.ts';
 
@@ -83,4 +84,33 @@ test('sanitizeRegexTesterSettings: 重複・不正文字・u/v併用・非文字
 		assert.equal(r.flags, 'g', `flags=${String(flags)}`);
 		assert.equal(r.pattern, 'a');
 	}
+});
+
+test('execRegexSync: 一致が上限未満・ちょうど上限なら打ち切り扱いにしない（4999/5000件）', () => {
+	for (const n of [MAX_MATCHES - 1, MAX_MATCHES]) {
+		const result = execRegexSync('a', 'g', 'a'.repeat(n));
+		assert.strictEqual(result.matches.length, n);
+		assert.ok(!result.truncated);
+	}
+});
+
+test('execRegexSync: 上限を1件でも超えると5000件で打ち切り truncated=true（5001/6000件）', () => {
+	for (const n of [MAX_MATCHES + 1, 6000]) {
+		const result = execRegexSync('a', 'g', 'a'.repeat(n));
+		assert.strictEqual(result.matches.length, MAX_MATCHES);
+		assert.strictEqual(result.truncated, true);
+	}
+});
+
+test('execRegexSync: 置換は表示上限に関係なく全一致が対象（6000件）', () => {
+	const result = execRegexSync('a', 'g', 'a'.repeat(6000), 'b');
+	assert.strictEqual(result.replacedText, 'b'.repeat(6000));
+	assert.strictEqual(result.matches.length, MAX_MATCHES);
+	assert.strictEqual(result.truncated, true);
+});
+
+test('execRegexSync: 非グローバルは常に最大1件で truncated にならない', () => {
+	const result = execRegexSync('a', '', 'a'.repeat(6000));
+	assert.strictEqual(result.matches.length, 1);
+	assert.ok(!result.truncated);
 });
