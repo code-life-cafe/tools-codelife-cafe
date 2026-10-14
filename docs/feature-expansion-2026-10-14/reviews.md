@@ -42,3 +42,18 @@ Codexは上記指摘の照合・修正を担当しており、自分の修正を
 照合したP2/test inadequacyは「保持容量の上限ちょうどを許可する比較がテストで固定されていない」1件。上限ちょうど・次の超過画像・最初の画像の超過を追加し、対象14件成功。>=への誤変更で失敗を確認、復元済み。他の主な指摘は既存の例外伝播・URL cleanup・処理中FileDropzone disabled・テストにより不採用。新しいProduction不具合は確認されなかった。
 
 PR修正周回1/3。Claude独立レビュー未完了の記録は維持。追加テストへの独立最終承認や最新head CI成功の代わりとは扱わない。
+
+
+## 2026-10-15 Claude Code 独立レビュー・修正（第2周回）
+
+対象head: 5eac5dfa0e0ea0e02e5e03bc9eb54b1fc63ef945。Sonnet 5.5、独立セッションd1934a83-ba53-47bb-be93-887718a31177。読み取り専用レビューが完了し、前日の利用上限による未完了状態を解消した。レビュー自体はテスト未実行であり、主担当の検証と区別する。
+
+- P2/actionable defect: toBlob失敗/getContext失敗を素のErrorで投げると画像化圧縮のwithCorruptFallbackが破損PDFへ変換し、解像度を下げる案内が失われる。toBlobをnullに差し替えたブラウザ回帰テストで修正前の誤案内を再現。render-failedのPdfToolErrorでnull/同期throwを日本語化し、withCorruptFallbackでそのまま維持。単体とPC/mobile E2E追加。
+- P2/test inadequacy: 署名/フォームは圧縮のみ拒否、画像変換では受理するACを固定するE2Eなし。既存signed.pdf/form.pdfの静的変換・ファイル名・1190×1684画素・文字領域の描画を追加。
+- P2/test inadequacy: 遅い有効PDF Aの読込中に有効PDF Bを選ぶ競合E2Eなし。AのFile.arrayBufferをゲートで止め、Bの採用後にAを再開。両UIでBの4ページ情報を保持するE2Eを追加。
+
+修正差分を別セッション641336b7-2bd7-462d-8734-9bdfa4e8dd29で独立再レビュー。元3件はコード上で解消見込み、新たな具体的不具合なし。レビュー側はテスト未実行、主担当の全unit1534/1534・対象PC/mobile E2E92/92・check/build成功で確認した。
+
+残るnit/informational: 競合テストの負例確認は再開後600ms待機であり、遅い実機での検出力に限界。ICC/CMYK色再現、PDF.js描画本体やBlob.arrayBufferの未知の失敗原因別表示は今回の修正外。実機・codec未検証を承認へ置き換えない。nit/informationalだけでblockingにはしない。
+
+修正ループ2/3。独立レビュー結果はMerge許可・自己承認ではない。最新headの必須CI完了を別途確認し、R3の人間承認前はDraftを維持。

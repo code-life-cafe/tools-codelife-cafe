@@ -13,6 +13,7 @@ import {
 	CANCELLED_MESSAGE,
 	corruptError,
 	encryptedError,
+	imageGenerationError,
 	MAX_PIXELS_PER_PAGE,
 	type PageSizePt,
 	type PdfDocumentFlags,
@@ -140,18 +141,15 @@ export function canvasToBlob(
 	quality?: number,
 ): Promise<Blob> {
 	return new Promise((resolve, reject) => {
-		canvas.toBlob(
-			(blob) =>
-				blob
-					? resolve(blob)
-					: reject(
-							new Error(
-								'画像の生成に失敗しました。解像度を下げてお試しください。',
-							),
-						),
-			type,
-			quality,
-		);
+		try {
+			canvas.toBlob(
+				(blob) => (blob ? resolve(blob) : reject(imageGenerationError())),
+				type,
+				quality,
+			);
+		} catch {
+			reject(imageGenerationError());
+		}
 	});
 }
 
@@ -228,10 +226,16 @@ export async function openPdfRenderSession(
 		canvas.width = size.width;
 		canvas.height = size.height;
 		const transparent = background === 'transparent';
-		const canvasContext = canvas.getContext('2d', { alpha: transparent });
+		let canvasContext: CanvasRenderingContext2D | null;
+		try {
+			canvasContext = canvas.getContext('2d', { alpha: transparent });
+		} catch {
+			releaseCanvas(canvas);
+			throw imageGenerationError();
+		}
 		if (!canvasContext) {
 			releaseCanvas(canvas);
-			throw new Error('canvas を利用できません。');
+			throw imageGenerationError();
 		}
 		const task = page.render({
 			canvas,

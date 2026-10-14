@@ -342,3 +342,80 @@ test('読み込み中の空PDFへの再選択で読み込み表示を終了し�
 		'全3ページ',
 	);
 });
+
+test('署名・フォーム付きPDFも元を変更せず静的画像へ変換できる', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('pdf-to-image').goto();
+	for (const name of ['signed.pdf', 'form.pdf']) {
+		await upload(page, name, 1);
+		await page.getByRole('button', { name: '画像に変換', exact: true }).click();
+		await expect(page.getByTestId('pdf-to-image-results')).toContainText(
+			'1枚の画像を作成しました',
+		);
+		const image = await downloadImage(page, name.replace('.pdf', '_p01.jpg'));
+		const pixels = await rawPixels(image);
+		expect([pixels.width, pixels.height]).toEqual([1190, 1684]);
+		let darkPixels = 0;
+		for (let y = 80; y < 170; y += 2) {
+			for (let x = 100; x < 700; x += 2) {
+				if (
+					pixels
+						.at(x, y)
+						.slice(0, 3)
+						.every((value) => value < 200)
+				)
+					darkPixels++;
+			}
+		}
+		expect(darkPixels).toBeGreaterThan(20);
+	}
+});
+
+for (const slug of ['pdf-compress', 'pdf-to-image']) {
+	test(`${slug}: 遅い有効PDFの後に選んだ有効PDFの情報を古い読み込みで上書きしない`, async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(() => {
+			const read = File.prototype.arrayBuffer;
+			File.prototype.arrayBuffer = async function (this: File) {
+				if (this.name === 'slow.pdf') {
+					await new Promise<void>((resolve) => {
+						(
+							window as typeof window & { releaseSlowPdf?: () => void }
+						).releaseSlowPdf = resolve;
+					});
+				}
+				return read.call(this);
+			};
+		});
+		await createToolPage(slug).goto();
+		await fileInput(page).setInputFiles({
+			name: 'slow.pdf',
+			mimeType: 'application/pdf',
+			buffer: fs.readFileSync(fixturePath('text-ja.pdf')),
+		});
+		await page.waitForFunction(
+			() =>
+				!!(window as typeof window & { releaseSlowPdf?: () => void })
+					.releaseSlowPdf,
+		);
+		await fileInput(page).setInputFiles(fixturePath('rotated.pdf'));
+		const info = page.getByTestId(`${slug}-info`);
+		await expect(info).toContainText('rotated.pdf');
+		await expect(info).toContainText('全4ページ');
+		await page.evaluate(() =>
+			(
+				window as typeof window & { releaseSlowPdf?: () => void }
+			).releaseSlowPdf?.(),
+		);
+		// 先に開始した読込の完了を待ち、後の選択が保持されることを確認する。
+		await page.waitForTimeout(600);
+		await expect(info).toContainText('rotated.pdf');
+		await expect(info).toContainText('全4ページ');
+		await expect(info).not.toContainText('slow.pdf');
+		await expect(page.getByRole('alert')).toHaveCount(0);
+	});
+}

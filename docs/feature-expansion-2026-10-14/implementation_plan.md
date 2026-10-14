@@ -1,6 +1,6 @@
 # PDF機能拡充の実装計画
 
-作成日: 2026-10-14。状態: 2026-10-14 ユーザー承認済み・実装とローカル検証完了。Draft PR準備済み（結果は [walkthrough.md](walkthrough.md)、外部レビューは [reviews.md](reviews.md)。Claude独立レビューは利用上限で未完了、Merge・Deploy対象外）。
+作成日: 2026-10-14。状態: 2026-10-14 ユーザー承認済み・実装とローカル検証完了。Draft PR #449作成済み（結果は [walkthrough.md](walkthrough.md)、外部レビューは [reviews.md](reviews.md)。2026-10-15 Claude独立レビュー・指摘修正と再レビューを実施、Merge・Deploy対象外）。
 
 ## 判断
 

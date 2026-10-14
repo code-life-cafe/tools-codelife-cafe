@@ -402,3 +402,24 @@ test('極端に細長いPDFのプレビューも描画上限内で扱う', async
 		.click();
 	await expect(page.getByRole('alert')).toContainText('16メガピクセル');
 });
+
+test('画像化圧縮の画像生成失敗はPDF破損ではなく解像度を下げる案内を表示する', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('pdf-compress').goto();
+	await upload(page, 'scan.pdf', 2);
+	await chooseRaster(page, '72dpi', '品質50%');
+	await page.evaluate(() => {
+		HTMLCanvasElement.prototype.toBlob = (callback) => {
+			callback(null);
+		};
+	});
+	await page
+		.getByRole('button', { name: '画像化して圧縮する', exact: true })
+		.click();
+	await expect(page.getByRole('alert')).toContainText(
+		'解像度を下げてお試しください',
+	);
+	await expect(page.getByRole('alert')).not.toContainText('破損');
+});

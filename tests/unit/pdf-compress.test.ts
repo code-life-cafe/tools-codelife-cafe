@@ -647,3 +647,23 @@ test('画像化圧縮: 不正なJPEGを返す失敗経路も日本語のPdfToolE
 		'PDFを読み込めませんでした',
 	);
 });
+
+test('画像化圧縮: 描画リソース失敗はPDF破損に上書きせず回復案内を維持する', async () => {
+	const { imageGenerationError } = await import('../../src/lib/pdf/common.ts');
+	const renderer: PageRasterizer = {
+		pageCount: 1,
+		getPageSize: async () => ({ widthPt: 200, heightPt: 200 }),
+		renderJpeg: async () => {
+			throw imageGenerationError();
+		},
+	};
+	await rejects(
+		compressRaster(
+			read('compact.pdf'),
+			renderer,
+			DEFAULT_PDF_COMPRESS_SETTINGS,
+		),
+		'render-failed',
+		'解像度を下げてお試しください',
+	);
+});

@@ -26,6 +26,7 @@ export type PdfToolErrorCode =
 	| 'too-large'
 	| 'encrypted'
 	| 'corrupt'
+	| 'render-failed'
 	| 'no-pages'
 	| 'too-many-pages'
 	| 'too-many-pixels'
@@ -178,4 +179,12 @@ export function pdfBaseName(fileName: string): string {
 export function reductionPercent(original: number, output: number): number {
 	if (original <= 0 || output >= original) return 0;
 	return Math.round(((original - output) / original) * 1000) / 10;
+}
+
+/** 描画・画像エンコードのリソース不足はPDF破損と区別する。 */
+export function imageGenerationError(): PdfToolError {
+	return new PdfToolError(
+		'render-failed',
+		'画像の生成に失敗しました。解像度を下げてお試しください。',
+	);
 }
