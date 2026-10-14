@@ -146,3 +146,7 @@ Makerは原則Claude Code、CodexはProduction+testsの独立レビュー。Clau
 ## 実装担当変更の承認（2026-10-15）
 
 ユーザーが「承認」と回答し、Claude Code使用枠上限に伴うCodex Makerへの変更を承認。以後の担当は **Codex実装・agy独立レビュー**。計画のAPI・予算・変更範囲・Draft PRまでの停止条件は維持する。以前の担当変更確認中の記録は履歴。
+
+## 2026-10-15 追加承認: PWA生成対象の最小修正
+
+ユーザーが一括キャッシュ確認・復元・最新main/CI/再レビュー後のMerge/Deployを承認。受入で既存の /tools/ 404を確認し、SW対象修正も「最小修正を追加して進める」と明示承認した。R3を維持。scripts/generate-sw.mjsで既存除外条件を維持し、index.htmlが実ファイルとして存在する直下ディレクトリだけをページ一覧に含める。tests/unit/generate-sw.test.tsで実スクリプトを一時fixtureに対して実行し、空の親ディレクトリ、index.htmlというディレクトリ、既存除外、正常ページとトップを検証する。SW通信戦略・権限・CI・R2配信は変更しない。修正前失敗→修正後成功、build/PWA再確認、agy+正式レビュー、最新CIを経て同PRをMergeする。

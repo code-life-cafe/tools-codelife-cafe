@@ -108,3 +108,9 @@ compare_textを追加し、既存computeDiffは任意の内部予算引数だけ
 - WorkerのSWプリキャッシュへの収録を確認。PWAの一括キャッシュ有効化は自動承認レビュー拒否のため明示承認確認中、PWA実行は未確認。
 - 既存文字単位UI行番号/LP課題は範囲外。親Notion全体未完了、修正ループ0/3。
 - 最新headのCIはPR作成後に確認。Merge/Deploy/本番受入は未実施。
+
+## PWA追加修正・受入
+
+ユーザーが一括キャッシュ/復元/マージ/デプロイと、発見した既存SW対象不具合の最小修正を承認。/tools/はindex.htmlがない親ディレクトリだが一覧に混入し、本番でも404。生成処理で実ファイルindex.htmlの存在を確認するよう修正。新規unitは修正前に/tools/と/invalid/混入で失敗、修正後成功。
+
+使い捨てPlaywright contextで全370資産のisComplete=trueを確認。通信オフ・再読込後、WebMCP登録経路からcompare_textの両モードを実Worker実行。2回ともWorkerレスポンスfromServiceWorker=true、pageerror0。初期テストの文字単位行統計の誤期待を既存断片仕様へ訂正。ローカルpreviewにはPages R2経路がないので、ONNX5資産のみmanifest SHA一致のpublic実体をrouteで補った。本番R2全体の証明ではない。テストcontextのcaches=[]、SW登録0、local/session={}へ削除しcontext破棄。通常Chromeのキャッシュ設定は変更していない。
