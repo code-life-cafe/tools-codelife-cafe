@@ -1,6 +1,86 @@
 {
   "tools": [
     {
+      "toolId": "text-diff",
+      "name": "compare_text",
+      "description": "Compare two texts locally without changing the page UI. / 変更前後のテキストを比較。各20000 Unicodeコードポイント、編集距離1000（行/文字トークン）、算法500ms、Worker起動から2秒、同時1件、出力5000断片・UTF-8で1MiBまで。超過は省略せず拒否。空文字も有効。空白・大小文字・改行コードは正規化しない。行単位は既存UIと同じく末尾LFを補い、末尾LF有無のみでは差分なし。文字数には補完LFを含む。文字単位の行数は差分断片内の区間数で、ファイル全体の変更行数ではない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "textA": {
+            "type": "string",
+            "description": "変更前。空文字可。最大20000文字。",
+            "maxLength": 20000
+          },
+          "textB": {
+            "type": "string",
+            "description": "変更後。空文字可。最大20000文字。",
+            "maxLength": 20000
+          },
+          "mode": {
+            "type": "string",
+            "description": "linesは行単位、charsは文字単位。既定lines。",
+            "enum": [
+              "lines",
+              "chars"
+            ],
+            "default": "lines"
+          }
+        },
+        "required": [
+          "textA",
+          "textB"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "description": "比較単位linesまたはchars。"
+          },
+          "hasChanges": {
+            "type": "boolean",
+            "description": "空でない追加/削除断片があるか。"
+          },
+          "parts": {
+            "type": "array",
+            "description": "順序付き断片。各要素は{value:string,type:\"added\"|\"removed\"|\"unchanged\"}。HTMLとして実行しない。"
+          },
+          "addedLines": {
+            "type": "number",
+            "description": "追加断片内の行区切りで分かれた区間数。"
+          },
+          "removedLines": {
+            "type": "number",
+            "description": "削除断片内の行区切りで分かれた区間数。"
+          },
+          "addedChars": {
+            "type": "number",
+            "description": "追加コードポイント数。行単位では補完LFも含む。"
+          },
+          "removedChars": {
+            "type": "number",
+            "description": "削除コードポイント数。行単位では補完LFも含む。"
+          }
+        },
+        "required": [
+          "mode",
+          "hasChanges",
+          "parts",
+          "addedLines",
+          "removedLines",
+          "addedChars",
+          "removedChars"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
       "toolId": "mermaid",
       "name": "repair_mermaid_code",
       "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字、結果1MiB。履歴は先頭200件・各原文/修正後500文字プレビューと省略フラグ/総件数を返す。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。",
@@ -752,6 +832,141 @@
       },
       "annotations": {
         "readOnlyHint": false
+      }
+    },
+    {
+      "toolId": "json-csv",
+      "name": "json_to_csv",
+      "description": "Convert a JSON array of objects (or one object) to CSV locally without changing the page UI. Input up to 100000 characters, nesting up to 50 levels, output up to 1 MiB (UTF-8); over-limit requests are rejected, never truncated. / JSON（オブジェクトの配列または単一オブジェクト）をブラウザ内でCSVへ変換する。画面の入力・結果は変更しない。入力上限100000文字、ネスト50段、出力UTF-8で1MiB。上限超過は省略せず拒否する。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "変換するJSON。上限100000文字。",
+            "maxLength": 100000
+          },
+          "delimiter": {
+            "type": "string",
+            "description": "CSVの区切り文字",
+            "enum": [
+              "comma",
+              "tab",
+              "semicolon"
+            ],
+            "default": "comma"
+          },
+          "includeHeader": {
+            "type": "boolean",
+            "description": "ヘッダー行を出力する",
+            "default": true
+          },
+          "flattenNested": {
+            "type": "boolean",
+            "description": "ネストをドット記法（user.name、items.0）に展開する。falseではJSON文字列セルにする",
+            "default": false
+          },
+          "newline": {
+            "type": "string",
+            "description": "改行コード",
+            "enum": [
+              "crlf",
+              "lf"
+            ],
+            "default": "crlf"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "変換後のCSV"
+          },
+          "rowCount": {
+            "type": "number",
+            "description": "変換したデータ行数"
+          }
+        },
+        "required": [
+          "output",
+          "rowCount"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "json-csv",
+      "name": "csv_to_json",
+      "description": "Convert CSV to a JSON array of objects locally without changing the page UI. Values stay strings (leading zeros preserved) unless inferTypes is true. Input up to 100000 characters, dot-key nesting up to 50 levels, output up to 1 MiB (UTF-8); over-limit requests are rejected, never truncated. / CSVをブラウザ内でJSON配列へ変換する。画面の入力・結果は変更しない。既定では全て文字列のまま保持し先頭ゼロも維持する。入力上限100000文字、ドット記法のネスト50段、出力UTF-8で1MiB。上限超過は省略せず拒否する。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "変換するCSV。上限100000文字。",
+            "maxLength": 100000
+          },
+          "delimiter": {
+            "type": "string",
+            "description": "区切り文字。autoは1行目から判定する",
+            "enum": [
+              "auto",
+              "comma",
+              "tab",
+              "semicolon"
+            ],
+            "default": "auto"
+          },
+          "hasHeader": {
+            "type": "boolean",
+            "description": "1行目をヘッダーとして扱う。falseでは column_1 から採番する",
+            "default": true
+          },
+          "inferTypes": {
+            "type": "boolean",
+            "description": "数値・true/false・空セル(null)を推論する。安全整数外や先頭ゼロの数値は文字列のまま",
+            "default": false
+          },
+          "unflattenDotKeys": {
+            "type": "boolean",
+            "description": "ドット記法のヘッダー（user.name、items.0）をネストへ復元する。深さ50段まで。巨大な配列インデックスなど展開結果が出力上限を超える場合は拒否",
+            "default": false
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "string",
+            "description": "変換後のJSON（インデント2）"
+          },
+          "rowCount": {
+            "type": "number",
+            "description": "変換したデータ行数"
+          }
+        },
+        "required": [
+          "output",
+          "rowCount"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
       }
     }
   ]

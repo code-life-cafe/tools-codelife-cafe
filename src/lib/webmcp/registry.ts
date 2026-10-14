@@ -2,11 +2,13 @@ import { base64McpTool } from '../tools/base64.mcp.ts';
 import { charCountMcpTool } from '../tools/char-count.mcp.ts';
 import { cronCheckerMcpTool } from '../tools/cron-checker.mcp.ts';
 import { hashMcpTool } from '../tools/hash.mcp.ts';
+import { csvToJsonMcpTool, jsonToCsvMcpTool } from '../tools/json-csv.mcp.ts';
 import { jsonFormatterMcpTool } from '../tools/json-formatter.mcp.ts';
 import { jwtDecoderMcpTool } from '../tools/jwt-decoder.mcp.ts';
 import { maskingMcpTool } from '../tools/masking.mcp.ts';
 import { mermaidMcpTool, mermaidRenderMcpTool } from '../tools/mermaid.mcp.ts';
 import { qrEncryptMcpTool } from '../tools/qr-encrypt.mcp.ts';
+import { textDiffMcpTool } from '../tools/text-diff.mcp.ts';
 import { urlEncoderMcpTool } from '../tools/url-encoder.mcp.ts';
 import { uuidMcpTool } from '../tools/uuid.mcp.ts';
 import { yamlJsonTomlMcpTool } from '../tools/yaml-json-toml.mcp.ts';
@@ -24,6 +26,7 @@ import type { McpToolDefinition } from './define-tool.ts';
  */
 // biome-ignore lint/suspicious/noExplicitAny: 各ツールの McpToolDefinition<TParams, TOutput> はツールごとに型引数が異なるため、配列としてまとめる際は unknown 化する
 export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
+	textDiffMcpTool,
 	mermaidMcpTool,
 	mermaidRenderMcpTool,
 	yamlJsonTomlMcpTool,
@@ -38,4 +41,6 @@ export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
 	cronCheckerMcpTool,
 	jwtDecoderMcpTool,
 	qrEncryptMcpTool,
+	jsonToCsvMcpTool,
+	csvToJsonMcpTool,
 ];

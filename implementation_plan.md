@@ -99,3 +99,70 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 - image-compressのFileDropzoneを再利用し、クリック・D&Dの操作領域を改善。
 - 入力・フレームは保存・送信しない。既存CSP・依存は変更しない。
 - unit、対象E2E（PC/モバイル）、lint、型、buildと独立サブエージェントレビュー後にcommit・Draft PR作成。
+
+
+---
+
+# WebMCP 第一段階: JSON↔CSV 実装計画（確定版）
+
+上記は別作業の既存内容であり変更していない。以下が本作業（JSON↔CSV）のセクション。承認元: approved-webmcp-plan.md（人間承認済み、承認根拠として同梱）。Notion: 3f1dfd36-0336-814c-bf08-e79f0de50558。Risk Class R3。担当 Claude Code、独立レビューは Codex。
+
+## スコープ
+
+`json_to_csv` / `csv_to_json` の2操作のみ。他ツール・後続段階、既存 `json-csv.ts`・UI・依存・共通schema・Analytics・CI・Constitutionは変更しない。
+
+## API
+
+| 操作 | 引数（既定値） | 出力 |
+| --- | --- | --- |
+| json_to_csv | text（必須）, delimiter=comma/tab/semicolon（comma）, includeHeader（true）, flattenNested（false）, newline=crlf/lf（crlf） | output, rowCount |
+| csv_to_json | text（必須）, delimiter=auto/comma/tab/semicolon（auto）, hasHeader（true）, inferTypes（false）, unflattenDotKeys（false） | output, rowCount |
+
+既存 `jsonToCsv` / `csvToJson` を呼び、変換仕様（先頭ゼロ・安全整数外の文字列保持、BOM除去、引用符内改行、`__proto__` の own プロパティ化）は変えない。MCP既定はUI既定（flatten/inferTypes が true）と異なる（計画どおり）。
+
+## 上限と実行予算
+
+- 入力: 10万 Unicode コードポイント（schema `maxLength` とハンドラ内の二重検査）。出力: UTF-8 1MiB（ちょうどは成功、超過は省略せず拒否）。
+- JSON→CSV のネスト50段: 既存パーサーの前に、文字列リテラルとエスケープを読み飛ばす走査で `[` `{` の深さを数え、51段目で拒否。
+- JSON→CSV の出力予算: 行数 ×(ヘッダー和集合 − 1) が区切り文字だけで1MiBを超える入力は、CSV生成前に拒否。
+- CSV→JSON の実行予算（修正ループ2/3で再設計）: `csvToJson` 呼び出し前に、papaparse（既存依存）で入力文字数に比例する文字列配列だけを解析し、出力JSONの**下限バイト数**を行ごとに積算して1MiB超を拒否する。1プロパティ／配列要素は最低8バイト＋JSONエスケープ後のキーのUTF-8バイト数（`extra_N` は7、`column_N` は実長、重複ヘッダーは既存と同じ `_N` 付与後のキー）。これによりプロパティ数だけでなく長いヘッダー×行数の反復も変換前に拒否する。行×列のオブジェクトや巨大な文字列は作らない。通常・hasHeader=false・型推論・重複ヘッダー・extra_N・展開の全モードに適用。
+- 展開キー: セグメント数は50段まで。既存 `unflattenObject` と同じ処理順（整数様キー昇順→挿入順）・コンテナ種別（次セグメントが `/^d+$/` なら配列）・スカラー上書きの規則を、配列を実体化しない構造モデル（Map）で再現し、実際に配列へ入る添字（0〜2^32-2）だけを疎配列の長さとして出力下限に加算する（空要素も1要素8バイト以上）。既に確定したobject配下の数値キー（`a.x` の後の `a.1000000000.b`）、先頭セグメント（`2026.value`）、配列に実在しない添字（2^32-1以上・Infinity）は制限しない。巨大な実配列（`a.1000000000`、`a.x.0` と `a.x.1000000000` 等）は拒否。展開の中間出力は作らない（呼び出し前の見積もりのみ）。
+- 想定外例外は入力を含み得るため固定文言に置換。既知エラー（既存の日本語エラー、上限メッセージ）のみ返す。失敗は factory のエラー経路（`isError: true` + `error`）。
+
+## 独立実行・プライバシー
+
+ハンドラは純粋関数のみを呼び、React 状態・DOM・ダウンロード・コピー・ファイル・外部取得に触れない。ログ・通信・localStorage・共有URLへの保存なし。Analytics 追加なし。登録は `JsonCsvPage` の `useEffect` で `provideToolsFromFactory`（Masking 等と同形）。
+
+## 対象ファイル
+
+- 新規 `src/lib/tools/json-csv.mcp.ts`、`src/lib/webmcp/registry.ts`（2行追加）、`src/components/tools/json-csv/JsonCsvPage.tsx`（登録 useEffect）
+- `public/.well-known/webmcp/tools.generated.json`（`npm run webmcp:generate` の生成物）
+- 新規 `tests/unit/json-csv-mcp.test.ts`、`tests/e2e/json-csv-webmcp.spec.ts`
+- 本ファイルと `walkthrough.md`（本作業のセクションを末尾に追記したのみ）
+- `approved-webmcp-plan.md`（承認根拠。PRに含める場合は明記する）
+
+## AC と検証の対応
+
+| AC | 検証 |
+| --- | --- |
+| 双方向変換・全option | unit: 既定値、delimiter 全enum、includeHeader、newline、flattenNested、hasHeader、inferTypes、unflattenDotKeys |
+| 日本語・引用符・引用符内改行・BOM・安全整数外・先頭ゼロ | unit / E2E |
+| 空・不正JSON・不正CSV・未知enum・型 | unit（schema 整合含む）/ E2E |
+| 入力10万ちょうど/超過、出力1MiBちょうど/超過、深さ50/51 | unit（両方向）、E2E |
+| 実行予算（巨大な行×列、疎配列）・数値キー | unit: 300列×600行を全モードで拒否し中間プロパティ生成0件、`2026.value`・`items.9.name` 受け入れ、巨大添字拒否 |
+| プロトタイプ関連キー | unit（`__proto__` / `constructor`、汚染なし） |
+| 実ページ登録・引数付き実行・UI一致・UI状態不変 | E2E（fixtures/base 経由、document.modelContext 差し替え、UI同設定結果と比較、前後スナップショット） |
+| 通信・ログ・永続化なし | E2E（ページ内 fetch/XHR/beacon/WebSocket 記録、request/console/pageerror 監視、storage/cookie/IndexedDB/Cache/URL 前後比較） |
+| lint / build / unit / E2E / 型 | walkthrough.md に実測を記録 |
+
+## 範囲外・未確認
+
+実 WebMCP クライアントでの受入、本番 Deploy、mainマージ、最新 head の必須CI、Codex 再レビューは別途確認する。
+
+## テキスト差分 WebMCP実装（2026-10-15）
+
+ユーザー承認済み計画はapproved-text-diff-plan.md。対象はNotion cdcd2236-5b3f-45f6-b022-1d407a9ce93eのtext-diff分割のみ。Codex実装・agy独立レビューへの変更も承認済み。Risk R3、Merge/Deploy対象外。API/予算/ファイル範囲は計画を参照。既存記録は保持する。
+
+## 2026-10-15 追加承認: PWA生成対象の最小修正
+
+ユーザーが一括キャッシュ確認・復元・最新main/CI/再レビュー後のMerge/Deployを承認。受入で既存の /tools/ 404を確認し、SW対象修正も「最小修正を追加して進める」と明示承認した。R3を維持。scripts/generate-sw.mjsで既存除外条件を維持し、index.htmlが実ファイルとして存在する直下ディレクトリだけをページ一覧に含める。tests/unit/generate-sw.test.tsで実スクリプトを一時fixtureに対して実行し、空の親ディレクトリ、index.htmlというディレクトリ、既存除外、正常ページとトップを検証する。SW通信戦略・権限・CI・R2配信は変更しない。修正前失敗→修正後成功、build/PWA再確認、agy+正式レビュー、最新CIを経て同PRをMergeする。
