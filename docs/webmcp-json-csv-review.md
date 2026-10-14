@@ -41,3 +41,15 @@
 ## コミット前フックの対応
 
 コミット前の gitleaks が E2E のダミー値（カナリア文字列）を generic-api-key と誤検出したため、フックは迂回せず、テスト内の定数値のみを鍵らしく見えない文字列に変更した（検証ロジックは不変）。変更後に対象E2E（json-csv-webmcp）10 passedを再確認。
+
+## 2026-10-14 実クライアント受入・最新main追従
+
+ユーザーが実WebMCP受入、最新main追従・CI・Codex再レビュー後のPR #448 Merge/Deployを条件付きで承認。
+
+- 実クライアント: Codex In-app Browserのwebmcp capability（モック差替えなし）。localhost:4399/json-csv/で2操作を検出し、tools.callから引数付き実行。
+- 両方向で同設定の通常UI出力と一致（textareaのCRLF正規化を考慮）。既定の文字列保持、先頭ゼロ・安全整数外の保持、不正CSVの日本語isError、UI状態不変を確認。
+- 統合後に再読み込み・ツール再検出して両方向を再確認。長いヘッダーによる出力膨張を拒否。console error/warnは0。
+- 最新main 974a11dを通常merge。統合コミット663a923、競合なし。JSON↔CSV Production・tests・manifestは5fda5ecの独立レビュー済み内容と不変。rootのdirty checkoutは未変更。
+- 依存更新後のローカル検証: lint exit0（既存15 warnings）、tsc exit0、build成功、全unit1535/1535、PC/モバイル関連E2E110/110（別ポート4398）。一時設定は削除。
+- Codex再レビュー:最新mainとの差分は承認済みJSON↔CSVの10ファイルのみ、diff --check成功、blocking findingなし。機械的main取り込みと検証はClaudeの使用枠上限によりCodexが実施。Productionの新規編集は行っていない。
+- 修正ループ2/3を維持。新headのGitHub必須CIと正式Code/Security Reviewの完了を別途確認してからMergeする。Merge/Deployはこの記録時点では未実施。
