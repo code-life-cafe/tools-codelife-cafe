@@ -33,7 +33,7 @@ const heroTitle = displayTitle || title;
 
 const toolId = entry.id;
 const catalogTool = toolCatalog.find((t) => t.id === toolId);
-const path = customPath || catalogTool?.href || `/tools/${toolId}`;
+const path = customPath || catalogTool?.href || `/${toolId}`;
 const canonicalPath = normalizeCanonicalPath(canonical || path);
 
 // パンくずリスト用
@@ -45,7 +45,7 @@ const jsonLdData = generateJsonLd(
 	{
 		title,
 		breadcrumbTitle: heroTitle,
-		path,
+		path: canonicalPath,
 		summary,
 		category,
 		howto,

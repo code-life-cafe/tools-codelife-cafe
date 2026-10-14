@@ -1,5 +1,6 @@
 import { classifyTrafficType } from './lib/traffic-type.ts';
 import { isAnalyticsDisabledPath } from '../src/lib/analytics-policy.ts';
+import { legacyToolDestination } from '../src/lib/seo/legacy-tools.ts';
 
 type Env = {
 	EVENTS?: {
@@ -69,10 +70,18 @@ function recordPageView(
 export const onRequest = async (
 	context: PagesMiddlewareContext,
 ): Promise<Response> => {
+	const url = new URL(context.request.url);
+	const destination = legacyToolDestination(url.pathname);
+	if (destination && (context.request.method === 'GET' || context.request.method === 'HEAD')) {
+		url.pathname = destination;
+		const headers = new Headers({ Location: url.toString() });
+		if (url.searchParams.has('settings')) {
+			headers.set('X-Robots-Tag', 'noindex, follow');
+		}
+		return new Response(null, { status: 301, headers });
+	}
 	const response = await context.next();
 	recordPageView(context, response);
-
-	const url = new URL(context.request.url);
 
 	if (!url.searchParams.has('settings')) {
 		return response;
