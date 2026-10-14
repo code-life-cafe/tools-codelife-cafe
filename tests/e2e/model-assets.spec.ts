@@ -1,21 +1,38 @@
+import { execFile } from 'node:child_process';
 import { appendFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { promisify } from 'node:util';
 import {
 	MODEL_ASSETS,
 	modelFile,
 } from '../../src/lib/model-assets/manifest.ts';
 import { expect, test } from './fixtures/base';
 import { modelAssetServer } from './helpers/model-asset-server';
+import { startMemoryProfile } from './helpers/model-memory-profile';
+
+test.use({
+	serviceWorkers: 'allow',
+	launchOptions: {
+		args: [
+			'--js-flags=--max-old-space-size=256 --max-semi-space-size=8',
+			'--enable-precise-memory-info',
+		],
+	},
+});
 
 test.describe('固定モデルと自前ランタイムの実Worker検証', () => {
-	test.use({ serviceWorkers: 'allow' });
-	test.describe.configure({ mode: 'serial', timeout: 240_000 });
+	test.describe.configure({ mode: 'serial', timeout: 480_000 });
 	let server: Awaited<ReturnType<typeof modelAssetServer>>;
 	test.beforeAll(async () => {
+		await promisify(execFile)(
+			process.execPath,
+			['scripts/fetch-model-assets.mjs'],
+			{ timeout: 300_000, maxBuffer: 1024 * 1024 },
+		);
 		server = await modelAssetServer();
 	});
 	test.afterAll(async () => {
-		await server.close();
+		await server?.close();
 	});
 
 	async function infer(
@@ -57,7 +74,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					const timeout = setTimeout(() => {
 						worker.terminate();
 						resolve({ type: 'timeout', ms: performance.now() - start });
-					}, 220_000);
+					}, 450_000);
 					worker.onerror = (event) => {
 						clearTimeout(timeout);
 						worker.terminate();
@@ -202,17 +219,29 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		['upscale', 'max', 'realesrgan-x4plus'],
 	] as const) {
 		test(`実モデル推論・通信: ${model}`, async ({ page, context }) => {
-			test.skip(
-				process.env.MODEL_ASSET_REAL_TESTS !== '1',
-				'大容量実モデルはローカル取得後に明示実行する',
-			);
 			await open(page, tool);
 			const external: string[] = [];
 			context.on('request', (request) => {
 				if (/huggingface|jsdelivr|hf.co/.test(request.url()))
 					external.push(request.url());
 			});
+			const stopProfile =
+				model === 'ben2' ? await startMemoryProfile(context) : null;
 			const result = await infer(page, tool, mode);
+			const memory = await stopProfile?.();
+			const observedJsHeapLimitBytes = await page.evaluate(
+				() =>
+					(
+						performance as Performance & {
+							memory?: { jsHeapSizeLimit: number };
+						}
+					).memory?.jsHeapSizeLimit ?? null,
+			);
+			if (memory) {
+				expect(memory.samples).toBeGreaterThan(0);
+				expect(observedJsHeapLimitBytes).toBeLessThan(320 * 1024 * 1024);
+			}
+
 			expect(result, JSON.stringify(result)).toMatchObject({ type: 'result' });
 			expect(external).toEqual([]);
 			const asset = MODEL_ASSETS.find((item) => item.name === model);
@@ -228,6 +257,8 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 				`${JSON.stringify({
 					project: test.info().project.name,
 					model,
+					memory,
+					observedJsHeapLimitBytes,
 					...result,
 				})}\n`,
 			);

@@ -76,4 +76,20 @@ Mobile Chrome projectはPC上のモバイル幅/UAエミュレーション。実
 
 ローカル検証サーバーは実際のPages関数をローカルファイルR2 adapterで実行し、共通CSP/COOP/COEPも再現する。本番Cloudflareの設定・アップロード完了・配信内容まで証明しない。文字起こしのUI回帰テストには既存のmock Workerが含まれ、Whisper実推論の新規成功とは報告しない。全サイトの外部依存除去、計測スクリプトの自前配信、共通CSPの厳格化、Safari/実モバイル、権限・レビュー強制設定は今回の範囲外。
 
-独立Codexサブエージェントの読み取りレビューで確定actionable defect/test inadequacyなし。テストをそのレビュー担当が再実行したわけではなく、正式GitHub botレビュー・CIの代用ではない。Makerとして自己承認・Mergeは行わない。
+初回の独立Codexサブエージェントの読み取りレビューで確定actionable defect/test inadequacyなし（後続の正式bot P2指摘は下記で対応）。テストをそのレビュー担当が再実行したわけではなく、正式GitHub botレビュー・CIの代用ではない。Makerとして自己承認・Mergeは行わない。
+
+## 手動レビュー修正ループ 1/3
+
+旧head 806d64dfeabddb28ceaa538e8f9e1461d0efe9a5 の正式Code/Security Reviewは両方Completed。Code側のP2 2件（大容量モデルの余分な全コピー、通常CIで実モデル成功ケースがskip）へ対応。Security側の個別findingなし。
+
+- ORTは検証済みArrayBufferを直接消費。Transformers用Responseは共有viewのstreamを持ち、arrayBuffer()で同じ検証済みbufferを一度だけ返す。ライブラリのストリーム再結合を避けるため、進捗は検証fetch側へ集約。
+- cacheへのclone/teeとBufferSourceによる全コピーを除去し、保存完了を推論開始の条件にしない。保存失敗でも次回の取得・hash検証は維持。
+- buffer同一性とcache保存未完了でも返却できる回帰テストを追加。全unit 1,549件成功。build成功、Astro check 0 errors/0 warnings。
+- 通常E2Eのopt-in skipを撤去。実行前に固定revisionの全ファイルを取得・hash/サイズ照合し、取得失敗はテスト失敗にする。並行workerの取得は一時ファイルのatomic renameで未完成資産の読み取りを防止。
+- BEN2はV8 old-space 256MiB / semi-space 8MiBの条件で実推論し、CDPの1秒間隔memory dumpから全ブラウザプロセスのprivate footprint合計を記録。JS heap上限とWASM/全プロセスのメモリは別。最大観測値は厳密なピーク・実機モバイルの上限を証明しない。変更前同条件との改善率は未測定。
+
+この修正差分の独立読み取りレビューは追加defectなし。正式bot再レビューと最新head CIは別途照合する。Draftを維持し、R2投入・Merge・本番公開は実施しない。
+
+修正後の通常実モデルE2E: PC/モバイル幅の14件すべて成功、skipなし（2.8分）。外部HF/jsDelivrへの通信なし。BEN2の1秒間隔CDP dumpは各6サンプル、最大観測private footprint合計はPC 4,326,023,168 bytes / mobile project 4,331,061,248 bytes（約4.03GiB）。観測JS heap上限は両方293,601,280 bytes（280MiB）。これはV8以外のメモリが大きいことを示し、実スマートフォンでOOMしない根拠にはならない。実機のメモリ余裕と旧版同条件比較は公開前の判断事項として残す。
+
+既存背景削除・拡大・文字起こしの対象回帰E2E: 46件成功（52.1秒）、skipなし。文字起こしは既存mockを含む。lint成功（既存15 warnings/1 info）。

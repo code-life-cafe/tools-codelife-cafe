@@ -4,7 +4,7 @@
 
 import { modelFile } from '../lib/model-assets/manifest.ts';
 import { UPSCALE_WASM_BASE_PATH } from '../lib/model-assets/runtime-manifest.ts';
-import { fetchVerifiedAsset } from '../lib/model-assets/verified-fetch.ts';
+import { fetchVerifiedBytes } from '../lib/model-assets/verified-fetch.ts';
 import {
 	computeOutputDimensions,
 	MODELS,
@@ -101,13 +101,12 @@ async function getSession(
 		quality === 'fast'
 			? modelFile('realesr-general-x4v3', 'realesr-general-x4v3.onnx')
 			: modelFile('realesrgan-x4plus', 'real-esrgan-x4plus-128.onnx');
-	const response = await fetchVerifiedAsset(asset, {
+	const modelBuf = await fetchVerifiedBytes(asset, {
 		origin: location.origin,
 		cache: await modelCache,
 		onProgress: (loaded, total) =>
 			onProgress({ status: 'loading', progress: loaded / total }),
 	});
-	const modelBuf = await response.arrayBuffer();
 	const providers = spec.device === 'webgpu' ? ['webgpu', 'wasm'] : ['wasm'];
 	const session = await ort.InferenceSession.create(modelBuf, {
 		executionProviders: providers,

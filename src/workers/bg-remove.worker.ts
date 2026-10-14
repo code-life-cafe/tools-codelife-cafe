@@ -155,24 +155,13 @@ async function ensurePipeline(mode: ModelMode, id: string) {
 		await response.body?.cancel();
 	}
 
+	// env.fetchが取得進捗を通知する。library側progress_callbackは指定せず、
+	// 検証済みResponse.arrayBuffer()から同じbufferを受け取り再確保を避ける。
 	// Worker 内は WebGPU 不安定を避け wasm 固定
 	try {
 		remover = await pipeline('background-removal', model.id, {
 			device: 'wasm',
 			dtype: model.dtype,
-			progress_callback: (p: {
-				status: string;
-				progress?: number;
-				loaded?: number;
-				total?: number;
-				file?: string;
-			}) => {
-				self.postMessage({
-					type: 'progress',
-					id,
-					payload: p,
-				} satisfies WorkerProgressMessage);
-			},
 		});
 	} catch {
 		throw new Error(assetLoadError ?? 'モデルの読み込みに失敗しました。');

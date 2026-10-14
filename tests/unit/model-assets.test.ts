@@ -13,6 +13,7 @@ import {
 	assetCacheKey,
 	createVerifiedModelFetch,
 	fetchVerifiedAsset,
+	fetchVerifiedBytes,
 	verifyAsset,
 } from '../../src/lib/model-assets/verified-fetch.ts';
 
@@ -302,4 +303,50 @@ test('配信はPOST拒否・欠落404・未設定/例外/サイズ不一致503',
 		503,
 	);
 	assert.equal((await upDelivery({ request, env: {} })).status, 404);
+});
+
+test('検証したArrayBufferを直接消費し、Response変換経路でも同じbufferを返す', async () => {
+	const original = crypto.subtle.digest;
+	let validated: ArrayBuffer | undefined;
+	crypto.subtle.digest = async (algorithm, data) => {
+		validated = data as ArrayBuffer;
+		return original.call(crypto.subtle, algorithm, data);
+	};
+	try {
+		const options = { origin, fetcher: async () => new Response(copy()) };
+		const direct = await fetchVerifiedBytes(asset, options);
+		assert.strictEqual(direct, validated);
+		const response = await fetchVerifiedAsset(asset, options);
+		const buffer = validated;
+		assert.strictEqual(await response.arrayBuffer(), buffer);
+		assert(response.bodyUsed);
+		await assert.rejects(response.arrayBuffer(), TypeError);
+	} finally {
+		crypto.subtle.digest = original;
+	}
+});
+test('cache書込みが未完了でも検証済みbytesを推論へ返す', async () => {
+	let finish: (() => void) | undefined;
+	const cache: AssetCache = {
+		match: async () => undefined,
+		put: async (_key, response) => {
+			assert.equal(await response.text(), new TextDecoder().decode(good));
+			await new Promise<void>((resolve) => {
+				finish = resolve;
+			});
+		},
+		delete: async () => false,
+	};
+	const pending = fetchVerifiedBytes(asset, {
+		origin,
+		cache,
+		fetcher: async () => new Response(copy()),
+	});
+	const result = await Promise.race([
+		pending,
+		new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+	]);
+	finish?.();
+	assert(result, 'cache IO must not block inference');
+	assert.equal(result.byteLength, asset.bytes);
 });

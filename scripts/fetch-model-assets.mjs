@@ -1,6 +1,6 @@
 // 固定マニフェストだけを取得・検証。期待hashをネットワークから更新しない。
-import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { MODEL_ASSETS } from '../src/lib/model-assets/manifest.ts';
 
@@ -33,7 +33,15 @@ for (const model of MODEL_ASSETS)
 					`固定モデルのサイズまたはハッシュが不一致です: ${model.name}`,
 				);
 			await mkdir(dirname(destination), { recursive: true });
-			await writeFile(destination, bytes);
+			const temporary = `${destination}.download-${randomUUID()}`;
+			try {
+				await writeFile(temporary, bytes);
+				await rename(temporary, destination);
+			} finally {
+				await unlink(temporary).catch((error) => {
+					if (error.code !== 'ENOENT') throw error;
+				});
+			}
 		}
 		console.log(`Verified ${model.name}/${file.path}`);
 	}
