@@ -16,16 +16,19 @@ test('解析停止ページは正規・旧・エンコードされたパスでse
 			assert.equal(isAnalyticsDisabledPath(pathname), true);
 			for (const method of ['GET', 'HEAD']) {
 				let writes = 0;
+				let nextCalls = 0;
 				const pending: Promise<unknown>[] = [];
 				const response = await onRequest({
 					request: new Request(
 						`https://tools.codelife.cafe${pathname}?settings=abc`,
 						{ method, headers: { 'user-agent': 'ClaudeBot' } },
 					),
-					next: async () =>
-						new Response('<html>sample</html>', {
+					next: async () => {
+						nextCalls++;
+						return new Response('<html>sample</html>', {
 							headers: { 'content-type': 'text/html' },
-						}),
+						});
+					},
 					env: {
 						EVENTS: {
 							writeDataPoint() {
@@ -39,9 +42,21 @@ test('解析停止ページは正規・旧・エンコードされたパスでse
 				});
 				await Promise.all(pending);
 				assert.equal(writes, 0, pathname);
-				assert.equal(response.status, 200);
 				assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, follow');
-				assert.equal(await response.text(), '<html>sample</html>');
+				const legacy =
+					pathname === `/tools/${slug}` || pathname === `/tools/${slug}/`;
+				assert.equal(response.status, legacy ? 301 : 200, pathname);
+				assert.equal(nextCalls, legacy ? 0 : 1, pathname);
+				if (legacy) {
+					assert.equal(
+						response.headers.get('Location'),
+						`https://tools.codelife.cafe/${slug}/?settings=abc`,
+					);
+					assert.equal(await response.text(), '');
+				} else {
+					assert.equal(response.headers.get('Location'), null);
+					assert.equal(await response.text(), '<html>sample</html>');
+				}
 			}
 		}
 	}
