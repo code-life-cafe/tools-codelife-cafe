@@ -33,8 +33,12 @@ import {
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 
 export default function RegexTester() {
-	const { trackRunDebounced, trackSharedUrlOpen } =
-		useToolAnalytics('regex-tester');
+	const {
+		trackRunDebounced,
+		trackSharedUrlOpen,
+		markRunInteraction,
+		canTrackAutoRun,
+	} = useToolAnalytics('regex-tester', { requireInteractionForAutoRun: true });
 
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
 		'regex-tester',
@@ -75,19 +79,28 @@ export default function RegexTester() {
 
 	useEffect(() => {
 		let cancelled = false;
+		const shouldTrackRun = canTrackAutoRun();
 		testRegex(pattern, flags, text, showReplace ? replacement : undefined).then(
 			(r) => {
 				if (!cancelled) {
 					setResult(r);
 					// テスト実行の分析計測
-					trackRunDebounced();
+					if (shouldTrackRun) trackRunDebounced();
 				}
 			},
 		);
 		return () => {
 			cancelled = true;
 		};
-	}, [pattern, flags, text, showReplace, replacement, trackRunDebounced]);
+	}, [
+		pattern,
+		flags,
+		text,
+		showReplace,
+		replacement,
+		trackRunDebounced,
+		canTrackAutoRun,
+	]);
 
 	// Handle synchronized scrolling for highlight overlay
 	const handleScroll = (e: UIEvent<HTMLTextAreaElement>) => {
@@ -155,7 +168,12 @@ export default function RegexTester() {
 	}, [generateShareUrl, copyShareUrl]);
 
 	return (
-		<div className="space-y-8">
+		<div
+			className="space-y-8"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			{/* Pattern Input Area */}
 			<div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 				<div className="lg:col-span-3 space-y-4">

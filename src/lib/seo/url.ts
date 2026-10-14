@@ -1,10 +1,5 @@
 const SITE_URL = 'https://tools.codelife.cafe';
 
-function removeTrailingSlash(pathname: string): string {
-	if (pathname === '/') return pathname;
-	return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-}
-
 export function normalizeCanonicalPath(path: string): string {
 	const rawPath = path.trim() || '/';
 	const url =
@@ -12,8 +7,9 @@ export function normalizeCanonicalPath(path: string): string {
 			? new URL(rawPath)
 			: new URL(rawPath.startsWith('/') ? rawPath : `/${rawPath}`, SITE_URL);
 
-	const pathname = removeTrailingSlash(url.pathname || '/');
-	return pathname === '' ? '/' : pathname;
+	// Pages serves directory index routes directly at the slash-form URL.
+	const pathname = url.pathname || '/';
+	return pathname.endsWith('/') ? pathname : `${pathname}/`;
 }
 
 export function toCanonicalUrl(path: string): string {
