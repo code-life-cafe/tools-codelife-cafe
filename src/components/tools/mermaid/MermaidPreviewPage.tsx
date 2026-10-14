@@ -152,7 +152,14 @@ export function MermaidPreviewPage() {
 		[],
 	);
 	const containerId = useId().replace(/:/g, '_');
-	const { trackRunDebounced, trackSharedUrlOpen } = useToolAnalytics('mermaid');
+	const {
+		trackRunDebounced,
+		trackSharedUrlOpen,
+		markRunInteraction,
+		canTrackAutoRun,
+	} = useToolAnalytics('mermaid', {
+		requireInteractionForAutoRun: true,
+	});
 	const [settings, updateSettings, generateShareUrl] =
 		useToolSettings<MermaidSettings>(
 			'mermaid',
@@ -236,6 +243,7 @@ export function MermaidPreviewPage() {
 		}
 
 		let cancelled = false;
+		const shouldTrackRun = canTrackAutoRun();
 		setIsRendering(true);
 
 		const timer = setTimeout(async () => {
@@ -249,7 +257,7 @@ export function MermaidPreviewPage() {
 				if (cancelled) return;
 				setSvgHtml(result.svg);
 				setRenderError(null);
-				trackRunDebounced();
+				if (shouldTrackRun) trackRunDebounced();
 			} catch (err: unknown) {
 				if (cancelled) return;
 				const message =
@@ -272,6 +280,7 @@ export function MermaidPreviewPage() {
 		mermaidTheme,
 		mermaidThemeVariables,
 		trackRunDebounced,
+		canTrackAutoRun,
 	]);
 
 	// SVGエクスポート
@@ -481,7 +490,12 @@ export function MermaidPreviewPage() {
 		settings.theme === 'dark' || (settings.theme === 'mono' && isSiteDark);
 
 	return (
-		<div className="flex flex-col gap-4">
+		<div
+			className="flex flex-col gap-4"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			{/* コントロールバー */}
 			<div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-card p-3 shadow-xs">
 				<div className="flex flex-wrap items-center gap-3">

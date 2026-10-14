@@ -39,10 +39,24 @@ export function cancelDebounced(handle: DebounceHandle): void {
 	}
 }
 
-export function useToolAnalytics(toolSlug: string) {
+export function useToolAnalytics(
+	toolSlug: string,
+	options: { requireInteractionForAutoRun?: boolean } = {},
+) {
 	const hasEngagedRef = useRef(false);
+	const hasRunInteractionRef = useRef(false);
+	const requireInteractionForAutoRun =
+		options.requireInteractionForAutoRun ?? false;
+	// 初期サンプルを自動計算する既存ツールだけで使用。送信イベントは追加しない。
+	const markRunInteraction = useCallback(() => {
+		hasRunInteractionRef.current = true;
+	}, []);
+	const canTrackAutoRun = useCallback(
+		() => !requireInteractionForAutoRun || hasRunInteractionRef.current,
+		[requireInteractionForAutoRun],
+	);
 
-	// tool_engage は「個別ツールで初めて入力・操作があった時」に発火する（docs/analytics.md 準拠）。
+	// tool_engage はdocument全体の初回操作を捕捉する（ヘッダー・本文も含む）。
 	// マウント時の無条件発火はやめ、最初のポインタ/キー操作を捕捉して 1 回だけ送信する。
 	useEffect(() => {
 		if (!toolSlug || hasEngagedRef.current) return;
@@ -93,12 +107,13 @@ export function useToolAnalytics(toolSlug: string) {
 
 	const trackRunDebounced = useCallback(() => {
 		if (!toolSlug) return;
+		if (!canTrackAutoRun()) return;
 		scheduleDebounced(
 			debounceHandleRef.current,
 			() => trackRun('debounced-input'),
 			DEBOUNCE_MS,
 		);
-	}, [toolSlug, trackRun]);
+	}, [toolSlug, trackRun, canTrackAutoRun]);
 
 	useEffect(() => {
 		const handle = debounceHandleRef.current;
@@ -121,6 +136,8 @@ export function useToolAnalytics(toolSlug: string) {
 	);
 
 	return {
+		canTrackAutoRun,
+		markRunInteraction,
 		trackRun,
 		trackRunDebounced,
 		trackSharedUrlOpen,
