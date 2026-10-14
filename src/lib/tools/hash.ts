@@ -391,15 +391,6 @@ export type ParsedExpectedHash =
 // 行頭の \\ は、ファイル名に \\ や改行を含む場合にGNUが付けるエスケープ印
 const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)([\s\S]+)$/;
 
-function hasControlChars(value: string): boolean {
-	for (const ch of value) {
-		const code = ch.charCodeAt(0);
-		// タブはGNUがエスケープせずそのまま出力するため許容する
-		if ((code < 0x20 && code !== 0x09) || code === 0x7f) return true;
-	}
-	return false;
-}
-
 /** GNUのファイル名エスケープ（\\\\・\\n・\\r）を戻す。未定義のエスケープはnull */
 function unescapeGnuFileName(raw: string): string | null {
 	let out = '';
@@ -435,8 +426,6 @@ export function parseExpectedHash(input: string): ParsedExpectedHash {
 		const [, escaped, digest, rawName] = gnu;
 		const algorithm = detectAlgorithmByLength(digest);
 		if (algorithm) {
-			if (hasControlChars(rawName))
-				return { ok: false, reason: 'invalid-line' };
 			const fileName = escaped ? unescapeGnuFileName(rawName) : rawName;
 			if (fileName == null) return { ok: false, reason: 'invalid-line' };
 			return { ok: true, hash: normalizeHash(digest), algorithm, fileName };

@@ -332,6 +332,15 @@ test('parseExpectedHash: 実際のsha256sum出力のU+2028/U+2029を含むファ
 	assert.ok(escaped.ok && escaped.fileName === 'a\u2028\nb');
 });
 
+test('parseExpectedHash: GNUがそのまま出力する制御文字（BEL・FF・ESC・DEL）を含むファイル名', () => {
+	// 実際の sha256sum 出力: x\x07y / x\x0cy / x\x1by / x\x7fy
+	for (const ch of ['\u0007', '\u000c', '\u001b', '\u007f']) {
+		const parsed = parseExpectedHash(`${ABC_SHA256}  x${ch}y`);
+		assert.ok(parsed.ok && parsed.hash === ABC_SHA256);
+		assert.ok(parsed.ok && parsed.fileName === `x${ch}y`);
+	}
+});
+
 test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
 	assert.deepEqual(
 		parseExpectedHash(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`),
@@ -371,11 +380,6 @@ test('parseExpectedHash: 空・不正形式・不正文字列は拒否する', (
 	});
 	// 無関係な文章中のハッシュは拾わない
 	assert.deepEqual(parseExpectedHash(`sha256 is ${ABC_SHA256}  a.txt`), {
-		ok: false,
-		reason: 'invalid-line',
-	});
-	// 制御文字入りファイル名
-	assert.deepEqual(parseExpectedHash(`${ABC_SHA256}  a\u0000.txt`), {
 		ok: false,
 		reason: 'invalid-line',
 	});
