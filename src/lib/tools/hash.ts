@@ -389,7 +389,7 @@ export type ParsedExpectedHash =
 
 // [\\] + digest + 空白2個 + filename（テキストモード）／ digest + 空白 + * + filename（バイナリモード）
 // 行頭の \\ は、ファイル名に \\ や改行を含む場合にGNUが付けるエスケープ印
-const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)(.+)$/;
+const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)([\s\S]+)$/;
 
 function hasControlChars(value: string): boolean {
 	for (const ch of value) {

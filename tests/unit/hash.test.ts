@@ -323,6 +323,15 @@ test('parseExpectedHash: 実際のsha256sum出力の \\r エスケープ・末�
 	}
 });
 
+test('parseExpectedHash: 実際のsha256sum出力のU+2028/U+2029を含むファイル名', () => {
+	const ls = parseExpectedHash(`${ABC_SHA256}  a\u2028b`);
+	assert.ok(ls.ok && ls.hash === ABC_SHA256 && ls.fileName === 'a\u2028b');
+	const ps = parseExpectedHash(`${ABC_SHA256}  a\u2029b`);
+	assert.ok(ps.ok && ps.fileName === 'a\u2029b');
+	const escaped = parseExpectedHash(`\\${ABC_SHA256}  a\u2028\\nb`);
+	assert.ok(escaped.ok && escaped.fileName === 'a\u2028\nb');
+});
+
 test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
 	assert.deepEqual(
 		parseExpectedHash(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`),
