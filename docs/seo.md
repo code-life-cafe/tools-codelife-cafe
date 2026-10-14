@@ -49,7 +49,9 @@ npm run build
 # PowerShell での確認例 (dist ディレクトリ内の SoftwareApplication 件数カウント)
 (Get-ChildItem -Path dist -Recurse -Filter *.html | Select-String -Pattern '"@type":"SoftwareApplication"').Count
 ```
-※各ツールは正規URL（例: `/base64/`）と旧URL（例: `/tools/base64/`、`canonical` は正規URLを指す）の2ページが生成されるため、出力件数は「全ツールの数（`src/lib/tools/catalog.ts` の登録数。ツールが追加され次第増えるため、固定値ではなく都度カタログを参照して確認する）× 2」と一致することを確認します。
+※構造化データは正規ツールページにだけ出力します。旧 `/tools/:slug` はカタログの正規URLへPages middlewareで301転送し、クエリを保持します。静的プレビュー用HTMLもクエリ・ハッシュを引き継いで移動し、操作UIや計測は読み込みません。sitemapには正規URLのみ掲載します。件数はカタログと実際のページ構成を参照し、旧ページ分を加算しないでください。
+
+Pagesのディレクトリ型ページは末尾 `/` 付きで直接200を返します。canonical・OG URL・sitemap・旧URLの転送先は共通の正規化でこの表記に揃えます。カタログのhrefや既存内部リンクのslashなし表記はルート識別用として維持し、Pagesによる既存の308転送は変更しません。設定共有のクエリは転送時に保持しますがcanonicalからは除外します。
 
 ### 3.3 Schema Markup Validator での検証
 1. [Google Rich Results Test](https://search.google.com/test/rich-results) または [Schema Markup Validator](https://validator.schema.org/) を開きます。
