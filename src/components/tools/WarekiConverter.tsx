@@ -98,7 +98,12 @@ function MonthDaySelects({
 }
 
 export default function WarekiConverter() {
-	const { trackRunDebounced } = useToolAnalytics('wareki-converter');
+	const { trackRunDebounced, markRunInteraction } = useToolAnalytics(
+		'wareki-converter',
+		{
+			requireInteractionForAutoRun: true,
+		},
+	);
 	const referenceDate = useMemo(() => new Date(), []);
 
 	const [direction, setDirection] = useState<Direction>('toWareki');
@@ -188,7 +193,12 @@ export default function WarekiConverter() {
 	}, [table, error, trackRunDebounced]);
 
 	return (
-		<div className="space-y-6">
+		<div
+			className="space-y-6"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			{/* Direction toggle */}
 			<div className="flex items-center gap-3">
 				<Label className="text-sm font-medium whitespace-nowrap">
