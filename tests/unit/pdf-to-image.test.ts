@@ -316,3 +316,48 @@ test('convertPdfPages: 開始前のキャンセルでは1ページも描画し�
 	);
 	assert.equal(renderer.calls.length, 0);
 });
+
+test('convertPdfPages: 保持容量が上限ちょうどなら保持し、次の超過画像だけを破棄して停止する', async () => {
+	const renderer = fakeRenderer([A4, A4, A4], { blobSize: 40 });
+	const result = await convertPdfPages(
+		renderer,
+		[1, 2, 3],
+		DEFAULT_PDF_TO_IMAGE_SETTINGS,
+		'd',
+		{ maxResultBytes: 80 },
+	);
+	assert.deepEqual(
+		result.images.map((image) => image.pageNumber),
+		[1, 2],
+	);
+	assert.equal(
+		result.images.reduce((total, image) => total + image.blob.size, 0),
+		80,
+	);
+	assert.equal(result.stoppedBeforePage, 3);
+	assert.equal(renderer.calls.length, 3);
+	const completeRenderer = fakeRenderer([A4, A4], { blobSize: 40 });
+	const complete = await convertPdfPages(
+		completeRenderer,
+		[1, 2],
+		DEFAULT_PDF_TO_IMAGE_SETTINGS,
+		'd',
+		{ maxResultBytes: 80 },
+	);
+	assert.equal(complete.images.length, 2);
+	assert.equal(complete.stoppedBeforePage, null);
+});
+
+test('convertPdfPages: 最初の画像だけで保持上限を超える場合は画像を返さず1ページ目で停止する', async () => {
+	const renderer = fakeRenderer([A4, A4], { blobSize: 81 });
+	const result = await convertPdfPages(
+		renderer,
+		[1, 2],
+		DEFAULT_PDF_TO_IMAGE_SETTINGS,
+		'd',
+		{ maxResultBytes: 80 },
+	);
+	assert.deepEqual(result.images, []);
+	assert.equal(result.stoppedBeforePage, 1);
+	assert.equal(renderer.calls.length, 1);
+});

@@ -135,3 +135,14 @@
 - 間接参照のSubtype/FT/Type検出、画像化圧縮の例外日本語化、100ページ・16MP境界と事前キャンセルを単体検証。フィクスチャ生成パスをfileURLToPathへ変更し、再生成7PDFのハッシュ一致を確認。
 - `npm audit --json`: low 3 / moderate 3 / high 0 / critical 0。base `be80ccec1ff52349ac1e654fdd46d4082a51a7a1`とvulnerabilities全体（advisory・severity・nodesを含む）が一致し、新規依存による追加なし。既存`node scripts/security-audit.mjs`はWindowsでnpm起動に失敗するため、CIの監査成功とは扱わない。
 - Claude Codeの初期Maker検証とCodexの独立検証は役割を区別。Claude Codeの別セッションによる独立レビューは利用上限で未完了。agyのレビュー内容・対応・範囲制限はreviews.md参照。最新headの必須CIと独立レビュー完了前はDraftを維持。
+
+
+## Draft PR #449 境界テスト補強
+
+2026-10-14、agy再レビューで確認したP2のテスト不足に対応。Productionの変更なし。
+
+- Blob40B×2枚・上限80Bで上限ちょうどを保持し、次の超過画像は破棄、stoppedBeforePage=3を確認。対象が2枚だけなら正常完了（stoppedBeforePage=null）も確認。
+- 最初の画像81B・上限80Bなら返す画像は0枚、stoppedBeforePage=1、後続ページは描画しないことを確認。
+- 対象単体テスト14/14成功、npm run lint成功（既存15 warnings / 1 info）、git diff --check成功。
+- 比較を一時的に > から >= に変更すると追加した上限ちょうどのテストが失敗することを確認。finallyで元バイト列を復元し、対象14件を再実行して成功。Production差分なし。
+- 全unit/E2E/buildの上記結果は初期コミット9b767729の検証記録。今回の差分はテストと記録だけで、最新headの全体CIはPRで別途確認する。
