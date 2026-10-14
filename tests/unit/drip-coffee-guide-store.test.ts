@@ -62,6 +62,11 @@ test('loadStore: 未保存時はプリセット5種のみで初期化し永続�
 	assert.ok(localStorage.getItem(STORAGE_KEY));
 });
 
+function loadStoreFromLatest() {
+	(globalThis.localStorage as unknown as MemoryStorage).clear();
+	return loadStore();
+}
+
 // 旧データ（V60 NEO・Switch新ハイブリッド追加前）の保存形式を再現する
 function seedLegacyStore(
 	extra: { recipes?: unknown[]; brews?: unknown[] } = {},
@@ -153,6 +158,58 @@ test('loadStore: 補完してもマイレシピと抽出記録は変更も欠落
 			r,
 		);
 	}
+});
+
+test('loadStore: v60_neo 修正前に保存された旧V60 NEOプリセットを最新の定義へ更新し、マイレシピは変更しない', () => {
+	const mine = {
+		id: 'my-recipe-1',
+		name: 'マイレシピ',
+		method: 'v60',
+		dose_g: 15,
+		total_water_ml: 250,
+		is_preset: false,
+		steps: [
+			{
+				step_order: 1,
+				time_sec: 0,
+				pour_amount_ml: 250,
+				label: '注ぐ',
+				action_type: 'pour',
+			},
+			{
+				step_order: 2,
+				time_sec: 120,
+				pour_amount_ml: 0,
+				label: '完了',
+				action_type: 'finish',
+			},
+		],
+		updated_at: '2026-08-20T00:00:00.000Z',
+	};
+	const legacy = seedLegacyStore({ recipes: [mine] });
+	// 旧V60 NEO（method が v60 のまま、updated_at が古い）を保存データへ混ぜる
+	const latestNeo = loadStoreFromLatest().recipes.find(
+		(r) => r.id === PRESET_RECIPE_IDS.v60Neo,
+	);
+	assert.ok(latestNeo);
+	const staleNeo = {
+		...latestNeo,
+		method: 'v60',
+		updated_at: '2026-08-29T00:00:00.000Z',
+	};
+	legacy.recipes.push(staleNeo as never);
+	localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+	const store = loadStore();
+	const neo = store.recipes.filter((r) => r.id === PRESET_RECIPE_IDS.v60Neo);
+	assert.strictEqual(neo.length, 1);
+	assert.strictEqual(neo[0].method, 'v60_neo');
+	assert.deepStrictEqual(
+		store.recipes.find((r) => r.id === 'my-recipe-1'),
+		mine,
+	);
+	// 更新後は再読み込みしても変わらない
+	assert.deepStrictEqual(loadStore().recipes, store.recipes);
 });
 
 test('loadStore: 最新のプリセットを持つデータは書き換えない', () => {

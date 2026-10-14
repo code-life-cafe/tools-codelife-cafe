@@ -706,17 +706,32 @@ const LATER_ADDED_PRESET_IDS: readonly string[] = [
 ];
 
 /**
- * 後から追加されたプリセットが無い旧データに、不足分だけを末尾へ補完する。
- * 既存のレシピ・記録は変更せず、同じIDが既にあれば追加しない（冪等）。
- * 補完があった場合のみ新しいストアを返し、無ければ入力をそのまま返す。
+ * 後から追加されたプリセットを旧データのストアへ反映する。
+ * - 無ければ末尾へ補完する。
+ * - 同じIDのプリセットが古い定義（updated_at が古い）で保存されている場合は、最新の定義で置き換える。
+ * マイレシピ・記録・他のプリセットは変更しない。同じIDが最新なら何もしない（冪等）。
+ * 変更があった場合のみ新しいストアを返し、無ければ入力をそのまま返す。
  */
 export function withMissingPresets(store: BrewLogStore): BrewLogStore {
-	const existingIds = new Set(store.recipes.map((r) => r.id));
-	const missing = PRESET_RECIPES.filter(
-		(r) => LATER_ADDED_PRESET_IDS.includes(r.id) && !existingIds.has(r.id),
-	).map((r) => ({ ...r }));
-	if (missing.length === 0) return store;
-	return { ...store, recipes: [...store.recipes, ...missing] };
+	const latest = PRESET_RECIPES.filter((r) =>
+		LATER_ADDED_PRESET_IDS.includes(r.id),
+	);
+	let changed = false;
+	const recipes = store.recipes.map((recipe) => {
+		const current = latest.find((r) => r.id === recipe.id);
+		if (current && recipe.is_preset && recipe.updated_at < current.updated_at) {
+			changed = true;
+			return { ...current };
+		}
+		return recipe;
+	});
+	const existingIds = new Set(recipes.map((r) => r.id));
+	const missing = latest
+		.filter((r) => !existingIds.has(r.id))
+		.map((r) => ({ ...r }));
+	if (missing.length > 0) changed = true;
+	if (!changed) return store;
+	return { ...store, recipes: [...recipes, ...missing] };
 }
 
 export function applyImport(
