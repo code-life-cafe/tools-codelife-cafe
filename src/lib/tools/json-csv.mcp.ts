@@ -231,11 +231,21 @@ function assertCsvWithinBudget(
 	if (!body.trim()) return;
 	const delimiter =
 		options.delimiter === 'auto' ? detectDelimiter(body) : options.delimiter;
-	const rows = Papa.parse<string[]>(body.replace(/\r\n?/g, '\n'), {
+	const parsed = Papa.parse<string[]>(body.replace(/\r\n?/g, '\n'), {
 		delimiter,
 		header: false,
 		skipEmptyLines: 'greedy',
-	}).data;
+	});
+	// 構文エラーは既存converterが巨大な出力を生成する前に返す。
+	// 予算判定より優先し、既存の日本語エラーと行番号を維持する。
+	if (
+		parsed.errors.some(
+			(error) =>
+				error.code === 'MissingQuotes' || error.code === 'InvalidQuotes',
+		)
+	)
+		return;
+	const rows = parsed.data;
 	if (rows.length === 0 || (options.hasHeader && rows.length === 1)) return;
 
 	let totalBytes = 0;

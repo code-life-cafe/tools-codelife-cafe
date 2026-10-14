@@ -776,3 +776,38 @@ test('想定外の例外は入力を含まない固定文言になる', async ()
 		globalThis.TextEncoder = original;
 	}
 });
+
+test('csv_to_json: 出力予算よりCSV構文エラーを優先（全モード）', async () => {
+	for (const tail of ['"unfinished', '"finished"oops']) {
+		const text = `${'k'.repeat(30_000)}\n${'x\n'.repeat(10_000)}${tail}`;
+		for (const hasHeader of [true, false]) {
+			for (const inferTypes of [true, false]) {
+				for (const unflattenDotKeys of [true, false]) {
+					const options = {
+						delimiter: 'auto' as const,
+						hasHeader,
+						inferTypes,
+						unflattenDotKeys,
+					};
+					const expected = csvToJson(text, options);
+					assert.equal(expected.ok, false);
+					if (expected.ok) continue;
+					let actual = '';
+					const defined = await countPropertyDefinitions(async () => {
+						actual = await errorOf(toJson, { text, ...options });
+					});
+					assert.equal(
+						actual,
+						expected.error,
+						JSON.stringify({ tail, ...options }),
+					);
+					assert.equal(
+						defined,
+						0,
+						'構文エラー時は中間オブジェクトを生成しない',
+					);
+				}
+			}
+		}
+	}
+});

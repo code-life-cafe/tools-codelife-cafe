@@ -53,3 +53,15 @@
 - 依存更新後のローカル検証: lint exit0（既存15 warnings）、tsc exit0、build成功、全unit1535/1535、PC/モバイル関連E2E110/110（別ポート4398）。一時設定は削除。
 - Codex再レビュー:最新mainとの差分は承認済みJSON↔CSVの10ファイルのみ、diff --check成功、blocking findingなし。機械的main取り込みと検証はClaudeの使用枠上限によりCodexが実施。Productionの新規編集は行っていない。
 - 修正ループ2/3を維持。新headのGitHub必須CIと正式Code/Security Reviewの完了を別途確認してからMergeする。Merge/Deployはこの記録時点では未実施。
+
+
+## 2026-10-14 正式P2修正・独立再レビュー（修正ループ3/3）
+
+- 対象: discussion_r4270853116（不正CSVと出力膨張が重なると、構文エラーより出力上限エラーが優先される）。
+- Claude Codeの使用枠上限により、ユーザーがCodex修正・別Codex独立レビューへの担当変更を承認。
+- 最小修正: preflightのPapa parseでMissingQuotes/InvalidQuotesを検出した場合のみ既存converterへ委譲。converterはオブジェクト生成前に日本語エラーと行番号を返す。正常CSVの予算判定・実出力1MiBチェックは維持。共通converter変更なし。
+- 回帰テスト: 2種類の引用符エラー×全8設定で既存converterとエラー全文を照合し、プロパティ生成ゼロを検証。修正前に失敗、修正後38/38成功。既存テスト弱体化なし。
+- 別Codexの読取専任レビュー: blocking findingなし。構文エラーの早期return、正常CSVの安全予算維持、Productionとテストの対応を確認（テスト実行結果は主担当が記録）。
+- ローカル: lint exit0（既存15 warnings/1 info）、tsc exit0、build成功、全unit1536/1536、関連PC/モバイルE2E110/110。diff --check成功。
+- 実WebMCPクライアント: 修正版を再読み込み・2ツール再検出。両方向実呼出しと文字列/先頭ゼロ/安全整数外の保持、30000文字ヘッダー＋10000行＋2種類の不正引用符で10002行目の既存日本語isErrorを確認。console error/warn0。
+- 最新main974a11dを含むことを再確認。新headの必須CIと正式Code/Security Reviewはpush後に確認。Merge/Deployは未実施。4周目は自動開始しない。
