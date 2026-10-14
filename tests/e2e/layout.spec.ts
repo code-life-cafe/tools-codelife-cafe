@@ -116,7 +116,7 @@ test.describe('Layout & Navigation', () => {
 			'@type': 'ListItem',
 			position: 3,
 			name: 'CSVビューア/エディタ',
-			item: 'https://tools.codelife.cafe/csv-editor',
+			item: 'https://tools.codelife.cafe/csv-editor/',
 		});
 	});
 
