@@ -47,12 +47,15 @@ import {
 	renderMermaidSvg,
 	SAMPLE_MERMAID_CODES,
 } from '@/lib/tools/mermaid';
+import { mermaidMcpTool, mermaidRenderMcpTool } from '@/lib/tools/mermaid.mcp';
 import {
 	type MermaidRepairResult,
 	repairMermaidCode,
 } from '@/lib/tools/mermaid-repair';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
 import { cn } from '@/lib/utils';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 const DEBOUNCE_MS = 250;
 const MIN_ZOOM = 0.2;
@@ -140,6 +143,14 @@ function useSiteDarkMode(): boolean {
 }
 
 export function MermaidPreviewPage() {
+	useEffect(
+		() =>
+			provideToolsFromFactory([
+				generateWebMcpDescriptor(mermaidMcpTool),
+				generateWebMcpDescriptor(mermaidRenderMcpTool),
+			]),
+		[],
+	);
 	const containerId = useId().replace(/:/g, '_');
 	const { trackRunDebounced, trackSharedUrlOpen } = useToolAnalytics('mermaid');
 	const [settings, updateSettings, generateShareUrl] =

@@ -1,6 +1,279 @@
 {
   "tools": [
     {
+      "toolId": "mermaid",
+      "name": "repair_mermaid_code",
+      "description": "Repair AI-generated Mermaid code locally without rendering. Repair is heuristic, not syntax validation. / AI生成のMermaidを修復する。修復のみでは構文の正しさを保証しない。入力上限100000文字、結果1MiB。履歴は先頭200件・各原文/修正後500文字プレビューと省略フラグ/総件数を返す。ブラウザでは専用Workerで処理し、5秒のタイマーで中止。同時修復は1件。SVG生成はrender_mermaid_svgを利用する。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Mermaidコード（Markdownフェンスも可）。上限100000文字。",
+            "maxLength": 100000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "modified": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array",
+            "description": "先頭200件。original/fixedは各500文字まで。各originalTruncated/fixedTruncatedでプレビュー省略を示す。"
+          },
+          "svg": {
+            "type": "string",
+            "description": "描画時のSVG。修復のみは空文字。"
+          },
+          "totalChanges": {
+            "type": "number",
+            "description": "省略前の修正履歴総件数。"
+          },
+          "changesTruncated": {
+            "type": "boolean",
+            "description": "履歴件数またはプレビューを省略したか。"
+          }
+        },
+        "required": [
+          "code",
+          "modified",
+          "changes",
+          "svg",
+          "totalChanges",
+          "changesTruncated"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "mermaid",
+      "name": "render_mermaid_svg",
+      "description": "Render a small Mermaid diagram as SVG locally in strict mode. / 小型のフローチャート/シーケンス図をSVG化する。描画対応はflowchart/graph/sequenceDiagramのみ。入力と修復後コードは5000文字、改行・セミコロン区切り50文、各文200文字、50エッジ、SVG出力1MiBまで。設定ディレクティブ・frontmatter・&並列リンク・拡張シェイプ・画像・HTML・Markdownラベルは不可。大きな図はrepair_mermaid_codeを利用する。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "SVG描画するMermaidコード。上限5000文字・50文。",
+            "maxLength": 5000
+          },
+          "autoRepair": {
+            "type": "boolean",
+            "description": "描画前に修復する（省略時true）",
+            "default": true
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "modified": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array"
+          },
+          "svg": {
+            "type": "string",
+            "description": "描画時のSVG。修復のみは空文字。"
+          }
+        },
+        "required": [
+          "code",
+          "modified",
+          "changes",
+          "svg"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "yaml-json-toml",
+      "name": "convert_yaml_json_toml",
+      "description": "Convert YAML, JSON and TOML locally with syntax errors and TOML limitations reported. / YAML・JSON・TOMLをブラウザ内で相互変換する。構文エラーとTOMLの制約を報告する。入力上限100000文字。YAMLのaliasは禁止。ネスト50段・10000要素・出力4MiBを上限とする。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "変換するテキスト。上限100000文字。",
+            "maxLength": 100000
+          },
+          "from": {
+            "type": "string",
+            "description": "入力形式",
+            "enum": [
+              "yaml",
+              "json",
+              "toml"
+            ]
+          },
+          "to": {
+            "type": "string",
+            "description": "出力形式",
+            "enum": [
+              "yaml",
+              "json",
+              "toml"
+            ]
+          },
+          "indent": {
+            "type": "string",
+            "description": "インデント幅（0はコンパクト）",
+            "enum": [
+              "0",
+              "2",
+              "4"
+            ],
+            "default": "2"
+          },
+          "sortKeys": {
+            "type": "boolean",
+            "description": "キーを辞書順でソート",
+            "default": false
+          }
+        },
+        "required": [
+          "text",
+          "from",
+          "to"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "output": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "output",
+          "note"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
+      "toolId": "masking",
+      "name": "mask_personal_information",
+      "description": "Mask detected Japanese personal information locally. Detection is heuristic and incomplete; review before sharing. This cannot undo data already given to an AI. / 日本の個人情報をブラウザ内でマスキングする。検出は簡易方式で漏れがあり、共有前の確認が必要。AIへ既に渡した情報は取り消せない。入力上限100000文字。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "マスキングするテキスト。上限100000文字。",
+            "maxLength": 100000
+          },
+          "maskChar": {
+            "type": "string",
+            "description": "伏字文字",
+            "enum": [
+              "*",
+              "●"
+            ],
+            "default": "*"
+          },
+          "strength": {
+            "type": "string",
+            "description": "fullは全体を伏字、partialは一部を残す",
+            "enum": [
+              "partial",
+              "full"
+            ],
+            "default": "full"
+          },
+          "email": {
+            "type": "boolean",
+            "description": "メールを対象にする",
+            "default": true
+          },
+          "phone": {
+            "type": "boolean",
+            "description": "電話番号を対象にする",
+            "default": true
+          },
+          "zipcode": {
+            "type": "boolean",
+            "description": "郵便番号を対象にする",
+            "default": true
+          },
+          "card": {
+            "type": "boolean",
+            "description": "カード番号を対象にする",
+            "default": true
+          },
+          "mynumber": {
+            "type": "boolean",
+            "description": "マイナンバーを対象にする",
+            "default": true
+          },
+          "name": {
+            "type": "boolean",
+            "description": "氏名を対象にする（簡易検出）",
+            "default": true
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "maskedText": {
+            "type": "string"
+          },
+          "counts": {
+            "type": "object"
+          },
+          "warning": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "maskedText",
+          "counts",
+          "warning"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
       "toolId": "hash",
       "name": "generate_hash",
       "description": "Calculate MD5 / SHA-256 / SHA-512 hash of text. Runs entirely in the browser; no data is sent externally. / 文字列のハッシュ値を計算する。処理はブラウザ内で完結し、外部送信は行わない。",
@@ -71,7 +344,8 @@
               "kana",
               "alpha",
               "digit"
-            ]
+            ],
+            "default": "all"
           }
         },
         "required": [
@@ -109,11 +383,13 @@
           },
           "indent": {
             "type": "number",
-            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される"
+            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される",
+            "default": 2
           },
           "minify": {
             "type": "boolean",
-            "description": "Minify instead of indenting when true / trueの場合は整形の代わりに最小化する"
+            "description": "Minify instead of indenting when true / trueの場合は整形の代わりに最小化する",
+            "default": false
           }
         },
         "required": [
@@ -154,7 +430,8 @@
             "enum": [
               "utf-8",
               "shift_jis"
-            ]
+            ],
+            "default": "utf-8"
           }
         },
         "required": [
@@ -275,7 +552,8 @@
             "enum": [
               "component",
               "full"
-            ]
+            ],
+            "default": "component"
           }
         },
         "required": [
@@ -319,7 +597,8 @@
           },
           "count": {
             "type": "number",
-            "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）"
+            "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）",
+            "default": 1
           }
         },
         "required": [
@@ -356,7 +635,8 @@
           },
           "count": {
             "type": "number",
-            "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）"
+            "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）",
+            "default": 5
           }
         },
         "required": [

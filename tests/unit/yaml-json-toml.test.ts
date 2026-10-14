@@ -364,3 +364,15 @@ test('convertFormats: TOML datetimeはJSON/YAMLでISO文字列になる', () => 
 	assert.equal(parsed.ld, '1979-05-27');
 	assert.equal(parsed.lt, '07:32:00.000');
 });
+
+test('safeMode: WebMCPのみaliasを拒否し、通常の変換は従来どおり許可する', () => {
+	const text = 'a: &a [1, 2]\nb: *a';
+	const normal = convertFormats('yaml', 'json', text, DEFAULT_OPTS);
+	assert.ok(normal.ok);
+	assert.deepEqual(JSON.parse(normal.output), { a: [1, 2], b: [1, 2] });
+	const safe = convertFormats('yaml', 'json', text, {
+		...DEFAULT_OPTS,
+		safeMode: true,
+	});
+	assert.equal(safe.ok, false);
+});
