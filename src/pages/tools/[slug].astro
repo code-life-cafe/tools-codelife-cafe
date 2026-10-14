@@ -1,29 +1,39 @@
 ---
 import { getCollection } from 'astro:content';
-import ToolLayout from '../../components/tool/ToolLayout.astro';
-import ToolIsland from '../../components/tool/ToolIsland';
-import { getToolComponent } from '../../components/tool/registry';
+import { legacyToolDestination } from '../../lib/seo/legacy-tools';
+import { toCanonicalUrl } from '../../lib/seo/url';
 
 export async function getStaticPaths() {
 	const toolEntries = await getCollection('tools');
-	return toolEntries.map((entry) => ({
-		params: { slug: entry.id },
-		props: { entry },
-	}));
+	return toolEntries.map((entry) => {
+		const destination = legacyToolDestination(`/tools/${entry.id}`);
+		if (!destination) throw new Error(`Missing canonical route: ${entry.id}`);
+		return { params: { slug: entry.id }, props: { destination } };
+	});
 }
 
-const { entry } = Astro.props;
-const slug = entry.id;
-if (slug === 'video-compress') return Astro.redirect('/video-compress', 301);
-const hasComponent = getToolComponent(slug) !== null;
+const { destination } = Astro.props;
 ---
 
-<ToolLayout tool={entry}>
-	{hasComponent ? (
-		<ToolIsland slug={slug} client:load />
-	) : (
-		<div class="p-8 text-center text-muted-foreground">
-			このツールには操作エリアがありません。
-		</div>
-	)}
-</ToolLayout>
+<!-- 本番はPages middlewareで301。静的preview用の転送フォールバック。 -->
+<!doctype html>
+<html lang="ja">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="robots" content="noindex, follow" />
+		<link rel="canonical" href={toCanonicalUrl(destination)} />
+		<title>ツールの新しいURLへ移動します</title>
+	</head>
+	<body>
+		<p>ツールの新しいURLへ移動します。<a id="destination" href={destination}>ツールを開く</a></p>
+		<script is:inline>
+			const link = document.getElementById('destination');
+			const target = new URL(link.getAttribute('href'), window.location.origin);
+			target.search = window.location.search;
+			target.hash = window.location.hash;
+			link.href = target.href;
+			window.location.replace(target.href);
+		</script>
+	</body>
+</html>
