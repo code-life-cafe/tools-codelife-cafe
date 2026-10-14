@@ -166,3 +166,11 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 ## 2026-10-15: セッション解放・直列化とローカル比較（ユーザー承認済み）
 
 旧pipelineのdispose完了後だけ次モデルを読み込み、初期化・推論をFIFOで直列化。失敗後の再試行と解放失敗時の重複確保防止をunitで検証する。変更前58aa235のWorkerを保存し、同一素材・環境でBEN2前後/MODNet/BiRefNet Lite512を比較する。候補は隔離したローカル比較だけで使用し、製品manifestやモデル設定に追加しない。品質は目視評価と同一出力比較、速度はcold/warm、メモリはブラウザ全体の観測値とbaseline差分を区別。PR #451はDraft維持、R2投入・Merge・公開なし。
+
+## テキスト差分 WebMCP実装（2026-10-15）
+
+ユーザー承認済み計画はapproved-text-diff-plan.md。対象はNotion cdcd2236-5b3f-45f6-b022-1d407a9ce93eのtext-diff分割のみ。Codex実装・agy独立レビューへの変更も承認済み。Risk R3、Merge/Deploy対象外。API/予算/ファイル範囲は計画を参照。既存記録は保持する。
+
+## 2026-10-15 追加承認: PWA生成対象の最小修正
+
+ユーザーが一括キャッシュ確認・復元・最新main/CI/再レビュー後のMerge/Deployを承認。受入で既存の /tools/ 404を確認し、SW対象修正も「最小修正を追加して進める」と明示承認した。R3を維持。scripts/generate-sw.mjsで既存除外条件を維持し、index.htmlが実ファイルとして存在する直下ディレクトリだけをページ一覧に含める。tests/unit/generate-sw.test.tsで実スクリプトを一時fixtureに対して実行し、空の親ディレクトリ、index.htmlというディレクトリ、既存除外、正常ページとトップを検証する。SW通信戦略・権限・CI・R2配信は変更しない。修正前失敗→修正後成功、build/PWA再確認、agy+正式レビュー、最新CIを経て同PRをMergeする。

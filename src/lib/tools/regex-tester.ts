@@ -10,6 +10,8 @@ export interface RegexResult {
 	matches: RegexMatch[];
 	error?: string;
 	replacedText?: string;
+	// MAX_MATCHES を超える一致が存在し、matches が打ち切られている場合 true
+	truncated?: boolean;
 }
 
 const MAX_PATTERN_LENGTH = 1000;
@@ -89,7 +91,9 @@ export const COMMON_PATTERNS = [
 ];
 
 const TIMEOUT_MS = 500;
-const MAX_MATCHES = 5000;
+export const MAX_MATCHES = 5000;
+// マッチ詳細リストの表示上限（件数表示・置換の対象範囲とは独立）
+export const MAX_DISPLAY_MATCHES = 500;
 
 /**
  * 正規表現を評価する同期純粋関数（Web Worker内およびテストで共有）
@@ -105,19 +109,21 @@ export function execRegexSync(
 	try {
 		const regex = new RegExp(pattern, flags);
 		const matches: RegexMatch[] = [];
+		let truncated = false;
 
 		if (regex.global) {
 			let match: RegExpExecArray | null = regex.exec(text);
 			while (match !== null) {
+				// 上限件数に達した後にさらに一致がある場合のみ「打ち切り」とする
+				if (matches.length >= MAX_MATCHES) {
+					truncated = true;
+					break;
+				}
 				matches.push({
 					value: match[0],
 					index: match.index,
 					groups: match.slice(1),
 				});
-
-				if (matches.length >= MAX_MATCHES) {
-					break;
-				}
 
 				if (match.index === regex.lastIndex) {
 					regex.lastIndex = getNextCodePointIndex(text, regex.lastIndex);
@@ -141,7 +147,9 @@ export function execRegexSync(
 			replacedText = text.replace(regex, replacement);
 		}
 
-		return { matches, replacedText };
+		return truncated
+			? { matches, replacedText, truncated }
+			: { matches, replacedText };
 	} catch (err: unknown) {
 		return {
 			matches: [],

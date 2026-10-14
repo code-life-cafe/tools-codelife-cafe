@@ -171,3 +171,14 @@ test('computeDiff: charsモードの行数は差分断片に含まれる行区�
 	assert.strictEqual(same.addedLines, 0);
 	assert.strictEqual(same.removedLines, 0);
 });
+
+test('computeDiff: 内部予算を超える差分を中止する', () => {
+	for (const mode of ['lines', 'chars'] as const) {
+		const a = mode === 'lines' ? 'a\n'.repeat(6) : 'aaaaaa';
+		const b = mode === 'lines' ? 'b\n'.repeat(6) : 'bbbbbb';
+		assert.throws(
+			() => computeDiff(a, b, mode, { maxEditLength: 10, timeout: 500 }),
+			/比較の計算量または時間/,
+		);
+	}
+});

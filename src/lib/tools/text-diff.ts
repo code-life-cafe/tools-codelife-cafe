@@ -38,19 +38,33 @@ function countLines(value: string): number {
 	return segments.length;
 }
 
+export class DiffBudgetExceededError extends Error {
+	constructor() {
+		super(
+			'比較の計算量または時間の上限を超えました。入力を短くして再試行してください。',
+		);
+	}
+}
+
 export function computeDiff(
 	textA: string,
 	textB: string,
 	mode: DiffMode,
+	budget?: { maxEditLength: number; timeout: number },
 ): DiffResult {
-	let changes: Change[];
+	let changes: Change[] | undefined;
 	if (mode === 'lines') {
 		const normA = textA === '' || textA.endsWith('\n') ? textA : `${textA}\n`;
 		const normB = textB === '' || textB.endsWith('\n') ? textB : `${textB}\n`;
-		changes = diffLines(normA, normB);
+		changes = budget
+			? diffLines(normA, normB, budget)
+			: diffLines(normA, normB);
 	} else {
-		changes = diffChars(textA, textB);
+		changes = budget
+			? diffChars(textA, textB, budget)
+			: diffChars(textA, textB);
 	}
+	if (changes === undefined) throw new DiffBudgetExceededError();
 	const parts = mapChanges(changes);
 
 	let addedLines = 0;
