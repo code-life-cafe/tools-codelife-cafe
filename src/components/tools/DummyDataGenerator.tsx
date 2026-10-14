@@ -49,7 +49,10 @@ const ALL_FIELDS: FieldItem[] = (Object.keys(FIELD_LABELS) as FieldType[]).map(
 );
 
 export default function DummyDataGenerator() {
-	const { trackRunDebounced } = useToolAnalytics('dummy-data');
+	const { trackRunDebounced, markRunInteraction, canTrackAutoRun } =
+		useToolAnalytics('dummy-data', {
+			requireInteractionForAutoRun: true,
+		});
 	const [fields, setFields] = useState<FieldItem[]>(ALL_FIELDS);
 	const [selectedFields, setSelectedFields] = useState<Set<FieldType>>(
 		new Set(['name', 'kana', 'email', 'phone']),
@@ -74,6 +77,7 @@ export default function DummyDataGenerator() {
 	// レコードの再抽選。format切替では再実行しない（activeFields/count/refreshKeyのみに反応）。
 	useEffect(() => {
 		void refreshKey;
+		const shouldTrackRun = canTrackAutoRun();
 		setRecords(null);
 		if (validationError) {
 			setIsGenerating(false);
@@ -84,14 +88,21 @@ export default function DummyDataGenerator() {
 		const timer = setTimeout(() => {
 			try {
 				setRecords(generateDummyRecords(activeFields, count));
-				trackRunDebounced();
+				if (shouldTrackRun) trackRunDebounced();
 			} catch (_e) {
 				setRecords(null);
 			}
 			setIsGenerating(false);
 		}, 50);
 		return () => clearTimeout(timer);
-	}, [activeFields, count, refreshKey, validationError, trackRunDebounced]);
+	}, [
+		activeFields,
+		count,
+		refreshKey,
+		validationError,
+		trackRunDebounced,
+		canTrackAutoRun,
+	]);
 
 	// 生成済みレコードの整形のみ。乱数の再抽選は行わない。
 	useEffect(() => {
@@ -173,7 +184,12 @@ export default function DummyDataGenerator() {
 	};
 
 	return (
-		<div className="space-y-8">
+		<div
+			className="space-y-8"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			<div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 				{/* Left column: Configuration */}
 				<div className="lg:col-span-4 space-y-6">

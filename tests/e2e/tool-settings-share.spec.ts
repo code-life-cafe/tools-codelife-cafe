@@ -101,7 +101,7 @@ test.describe('ツール設定共有URL', () => {
 
 			await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 				'href',
-				`https://tools.codelife.cafe/${tool.slug}`,
+				`https://tools.codelife.cafe/${tool.slug}/`,
 			);
 
 			await expect

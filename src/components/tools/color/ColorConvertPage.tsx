@@ -29,7 +29,9 @@ const checkerboardStyle: React.CSSProperties = {
 const DEFAULT_INPUT = '#1E90FF';
 
 export function ColorConvertPage() {
-	const { trackRunDebounced } = useToolAnalytics('color');
+	const { trackRunDebounced, markRunInteraction } = useToolAnalytics('color', {
+		requireInteractionForAutoRun: true,
+	});
 	const [input, setInput] = useState(DEFAULT_INPUT);
 
 	const parsed = useMemo(() => parseColor(input), [input]);
@@ -66,7 +68,12 @@ export function ColorConvertPage() {
 		: undefined;
 
 	return (
-		<div className="space-y-6">
+		<div
+			className="space-y-6"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			{/* 入力エリア */}
 			<div className="space-y-2">
 				<Label htmlFor="color-input">カラーコード入力</Label>
