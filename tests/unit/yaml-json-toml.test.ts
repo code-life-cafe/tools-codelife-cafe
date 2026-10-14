@@ -254,7 +254,20 @@ test('convertFormats: 不正なTOMLはrow/colを含むエラーになる', () =>
 		convertFormats('toml', 'json', 'a = [1, 2\nb = 3', DEFAULT_OPTS),
 	);
 	assert.ok(result.error.includes('TOML'));
-	assert.equal(result.row, 1);
+	// smol-toml 1.9以降は閉じ括弧が無い配列のエラーを、不正トークンのある行（2行目）に報告する
+	assert.equal(result.row, 2);
+});
+
+test('convertFormats: TOML入力（nullプロトタイプのパース結果）でもキーソートとTOML出力が動く', () => {
+	const sorted = convertFormats('toml', 'json', 'b = 2\na = "x"', {
+		...DEFAULT_OPTS,
+		sortKeys: true,
+	});
+	assert.equal(sorted.ok, true);
+	if (sorted.ok)
+		assert.equal(sorted.output.replace(/\s/g, ''), '{"a":"x","b":2}');
+	const same = convertFormats('toml', 'toml', 'b = 2\na = "x"', DEFAULT_OPTS);
+	assert.equal(same.ok, true);
 });
 
 test('convertFormats: 空入力はエラーになる', () => {

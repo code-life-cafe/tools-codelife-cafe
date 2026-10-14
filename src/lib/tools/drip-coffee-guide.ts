@@ -699,6 +699,54 @@ export function mergeStores(
 	};
 }
 
+/** 初期リリース後に追加されたプリセット。旧データのストアへ読み込み時に補完する対象。 */
+const LATER_ADDED_PRESET_IDS: readonly string[] = [
+	PRESET_RECIPE_IDS.v60Neo,
+	PRESET_RECIPE_IDS.switchHybrid,
+];
+
+/**
+ * 保存済みのプリセットが最新の定義より古いか。
+ * updated_at が古ければ古い。updated_at が同じ場合に限り、抽出器具が違えば古いとみなす
+ * （V60 NEOは #361 で method を v60 から v60_neo に直したが updated_at は据え置かれたため、
+ * 時刻だけでは旧定義を判別できない）。updated_at が新しいデータは、将来の定義として維持する。
+ */
+function isStalePreset(stored: Recipe, latest: Recipe): boolean {
+	if (stored.updated_at !== latest.updated_at) {
+		return stored.updated_at < latest.updated_at;
+	}
+	return stored.method !== latest.method;
+}
+
+/**
+ * 後から追加されたプリセットを旧データのストアへ反映する。
+ * - 無ければ末尾へ補完する。
+ * - 同じIDのプリセットが古い定義で保存されている場合は、最新の定義で置き換える。
+ * マイレシピ・記録・他のプリセットは変更しない。同じIDが最新なら何もしない（冪等）。
+ * 変更があった場合のみ新しいストアを返し、無ければ入力をそのまま返す。
+ */
+export function withMissingPresets(store: BrewLogStore): BrewLogStore {
+	const latest = PRESET_RECIPES.filter((r) =>
+		LATER_ADDED_PRESET_IDS.includes(r.id),
+	);
+	let changed = false;
+	const recipes = store.recipes.map((recipe) => {
+		const current = latest.find((r) => r.id === recipe.id);
+		if (current && recipe.is_preset && isStalePreset(recipe, current)) {
+			changed = true;
+			return { ...current };
+		}
+		return recipe;
+	});
+	const existingIds = new Set(recipes.map((r) => r.id));
+	const missing = latest
+		.filter((r) => !existingIds.has(r.id))
+		.map((r) => ({ ...r }));
+	if (missing.length > 0) changed = true;
+	if (!changed) return store;
+	return { ...store, recipes: [...recipes, ...missing] };
+}
+
 export function applyImport(
 	existing: BrewLogStore,
 	incoming: BrewLogStore,
