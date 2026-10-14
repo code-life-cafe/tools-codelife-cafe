@@ -1,8 +1,5 @@
 // 公開runtimeを既存R2から同一オリジンで配信する。モデルとはhash付きキーで分離。
-import {
-	ONNX_WASM_BASE_PATH,
-	RUNTIME_ARTIFACT,
-} from '../../../src/lib/transcribe/model-manifest.ts';
+import { RUNTIMES } from '../../../src/lib/model-assets/runtime-manifest.ts';
 
 type RuntimeObject = {
 	body: ReadableStream | null;
@@ -18,11 +15,19 @@ type Context = {
 	env: { TRANSCRIBE_MODELS?: RuntimeBucket };
 };
 
-const ALLOWED = new Map(
-	RUNTIME_ARTIFACT.files.map((file) => [
-		`${ONNX_WASM_BASE_PATH}${file.path}`,
-		file,
-	]),
+const ALLOWED = new Map<
+	string,
+	{ path: string; bytes: number; sha256: string; version: string }
+>(
+	RUNTIMES.flatMap((runtime) =>
+		runtime.files.map(
+			(file) =>
+				[
+					`/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${file.path}`,
+					{ ...file, version: runtime.onnxRuntimeVersion },
+				] as const,
+		),
+	),
 );
 
 function failure(status: number): Response {
@@ -32,7 +37,10 @@ function failure(status: number): Response {
 	});
 }
 
-export const onRequest = async ({ request, env }: Context): Promise<Response> => {
+export const onRequest = async ({
+	request,
+	env,
+}: Context): Promise<Response> => {
 	if (request.method !== 'GET' && request.method !== 'HEAD') {
 		return new Response('Method Not Allowed', {
 			status: 405,
@@ -44,7 +52,7 @@ export const onRequest = async ({ request, env }: Context): Promise<Response> =>
 	const bucket = env.TRANSCRIBE_MODELS;
 	if (!bucket) return failure(503);
 	// hashを含むキーで別buildを混在させない。配置時・リリース時に実体hashも検証する。
-	const key = `onnx-wasm/${RUNTIME_ARTIFACT.onnxRuntimeVersion}/${file.sha256}/${file.path}`;
+	const key = `onnx-wasm/${file.version}/${file.sha256}/${file.path}`;
 	let object: RuntimeObject | null;
 	try {
 		object = await bucket[request.method === 'HEAD' ? 'head' : 'get'](key);

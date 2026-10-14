@@ -1,23 +1,68 @@
 // bg-remove.worker.ts — 背景削除推論を Web Worker に隔離
 // Transformers.js v4 の background-removal パイプラインを使用
-import { env, pipeline } from '@huggingface/transformers';
+import { env, pipeline, RawImage } from '@huggingface/transformers';
+import { MODEL_ASSETS, modelAsset } from '../lib/model-assets/manifest.ts';
+import {
+	createVerifiedModelFetch,
+	fetchVerifiedAsset,
+} from '../lib/model-assets/verified-fetch.ts';
+import { ONNX_WASM_BASE_PATH } from '../lib/transcribe/model-manifest.ts';
 
-// --- モデル配信設定 ---
-// Cloudflare R2 (models.tools.codelife.cafe) からモデルを配信。
-// ローカル開発時は HuggingFace CDN にフォールバック。
-if (typeof location !== 'undefined' && location.hostname !== 'localhost') {
-	env.remoteHost = 'https://models.tools.codelife.cafe';
-}
-env.allowLocalModels = false;
-env.useBrowserCache = true;
-
-// WASMスレッド制限の回避: マルチスレッドとプロキシをオフにし、
-// cdn.jsdelivr.net からのスレッド動的モジュールインポートによるCSPエラーを完全に防止する。
+// 同一originの固定資産のみ。内蔵キャッシュ/外部フォールバックを無効化。
+env.allowRemoteModels = false;
+env.allowLocalModels = true;
+env.localModelPath = '/models/bg-remove/';
+env.useFS = false;
+env.useFSCache = false;
+env.useBrowserCache = false;
+env.useCustomCache = false;
+env.useWasmCache = false;
+env.experimental_useCrossOriginStorage = false;
+const modelFiles = MODEL_ASSETS.filter(
+	(model) => model.tool === 'bg-remove',
+).flatMap((model) => model.files);
+const cachePromise =
+	typeof caches === 'undefined'
+		? Promise.resolve(null)
+		: caches.open('codelife-verified-bg-models-v1').catch(() => null);
+let assetLoadError: string | null = null;
+let loadingRequestId = '';
+env.fetch = async (input, init) => {
+	try {
+		return await createVerifiedModelFetch(modelFiles, {
+			origin: location.origin,
+			cache: await cachePromise,
+			onProgress: (loaded, total) =>
+				self.postMessage({
+					type: 'progress',
+					id: loadingRequestId,
+					payload: {
+						status: 'progress',
+						loaded,
+						total,
+						progress: (100 * loaded) / total,
+					},
+				}),
+		})(input, init);
+	} catch (error) {
+		assetLoadError =
+			error instanceof Error ? error.message : 'モデル資産を取得できません。';
+		throw error;
+	}
+};
 const wasmBackend = env.backends.onnx.wasm;
 if (wasmBackend) {
 	wasmBackend.numThreads = 1;
 	wasmBackend.simd = true;
 	wasmBackend.proxy = false;
+	const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+	const base = isSafari
+		? 'ort-wasm-simd-threaded'
+		: 'ort-wasm-simd-threaded.asyncify';
+	wasmBackend.wasmPaths = {
+		mjs: `${ONNX_WASM_BASE_PATH}${base}.mjs`,
+		wasm: `${ONNX_WASM_BASE_PATH}${base}.wasm`,
+	};
 }
 
 // フェッチが中断された場合などのWorker内未処理拒否をサイレントに抑制
@@ -28,11 +73,11 @@ self.addEventListener('unhandledrejection', (event) => {
 // --- モデルレジストリ ---
 const MODELS = {
 	fast: {
-		id: 'onnx-community/modnet-webnn',
+		id: `modnet/${modelAsset('modnet').revision}`,
 		dtype: 'fp32' as const, // float32: ~25.9MB（高精度化）
 	},
 	high: {
-		id: 'onnx-community/BEN2-ONNX',
+		id: `ben2/${modelAsset('ben2').revision}`,
 		dtype: 'fp16' as const, // fp16: ~209MB
 	},
 } as const;
@@ -96,26 +141,47 @@ async function ensurePipeline(mode: ModelMode, id: string) {
 	if (remover && currentMode === mode) return remover;
 
 	const model = MODELS[mode];
+	assetLoadError = null;
+	loadingRequestId = id;
+	// 任意扱いの設定ファイルも先に検証し、ライブラリのoptional fallbackを許さない。
+	const asset = modelAsset(mode === 'fast' ? 'modnet' : 'ben2');
+	for (const file of asset.files.filter((file) =>
+		file.path.endsWith('.json'),
+	)) {
+		const response = await fetchVerifiedAsset(file, {
+			origin: location.origin,
+			cache: await cachePromise,
+		});
+		await response.body?.cancel();
+	}
 
 	// Worker 内は WebGPU 不安定を避け wasm 固定
-	remover = await pipeline('background-removal', model.id, {
-		device: 'wasm',
-		dtype: model.dtype,
-		progress_callback: (p: {
-			status: string;
-			progress?: number;
-			loaded?: number;
-			total?: number;
-			file?: string;
-		}) => {
-			self.postMessage({
-				type: 'progress',
-				id,
-				payload: p,
-			} satisfies WorkerProgressMessage);
-		},
-	});
-
+	try {
+		remover = await pipeline('background-removal', model.id, {
+			device: 'wasm',
+			dtype: model.dtype,
+			progress_callback: (p: {
+				status: string;
+				progress?: number;
+				loaded?: number;
+				total?: number;
+				file?: string;
+			}) => {
+				self.postMessage({
+					type: 'progress',
+					id,
+					payload: p,
+				} satisfies WorkerProgressMessage);
+			},
+		});
+	} catch {
+		throw new Error(assetLoadError ?? 'モデルの読み込みに失敗しました。');
+	}
+	if (assetLoadError) {
+		await remover.dispose();
+		remover = null;
+		throw new Error(assetLoadError);
+	}
 	currentMode = mode;
 	return remover;
 }
@@ -145,15 +211,15 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 			throw new Error('画像データが指定されていません');
 		}
 
-		// Blob → URL → pipeline に渡す
+		// 入力画像はローカルBlobからRawImageへ変換する
 		const blob = new Blob([imageData], {
 			type: mimeType ?? 'application/octet-stream',
 		});
-		const url = URL.createObjectURL(blob);
+		const image = await RawImage.fromBlob(blob);
 
-		try {
+		{
 			// background-removal パイプラインは RawImage (RGBA) を返す
-			const output = await pipe(url);
+			const output = await pipe(image);
 
 			// RawImage から RGBA ピクセルデータを取得
 			const { width, height, data } = output;
@@ -171,8 +237,6 @@ self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 				} satisfies WorkerResultMessage,
 				{ transfer: [buffer] },
 			);
-		} finally {
-			URL.revokeObjectURL(url);
 		}
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);

@@ -1,0 +1,11 @@
+{
+  "model_type": "modnet",
+  "transformers.js_config": {
+    "free_dimension_overrides": {
+      "batch_size": 1,
+      "num_channels": 3,
+      "height": 256,
+      "width": 256
+    }
+  }
+}

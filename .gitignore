@@ -51,3 +51,7 @@ scripts/.cache/
 # 取得: node scripts/fetch-transcribe-models.mjs / node scripts/copy-onnx-wasm.mjs
 public/models/transcribe/
 public/vendor/onnx-wasm/
+
+# 固定画像モデルのローカル検証用実体（R2投入は別承認）
+public/models/bg-remove/
+public/models/upscale/

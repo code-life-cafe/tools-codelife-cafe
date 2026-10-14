@@ -2,6 +2,9 @@
 // onnxruntime-web（Real-ESRGAN ONNX）を遅延ロードし、OffscreenCanvas でタイル分割推論・結合を行う。
 // メインスレッドは Blob 入出力のみで UI を固めない。
 
+import { modelFile } from '../lib/model-assets/manifest.ts';
+import { UPSCALE_WASM_BASE_PATH } from '../lib/model-assets/runtime-manifest.ts';
+import { fetchVerifiedAsset } from '../lib/model-assets/verified-fetch.ts';
 import {
 	computeOutputDimensions,
 	MODELS,
@@ -12,10 +15,10 @@ import {
 	validateResolution,
 } from '../lib/tools/upscale-core';
 
-// onnxruntime-web の wasm 配信元（package.json の pin と同期させること）。
-// bg-remove と同様 cdn.jsdelivr.net を使用（CSP script-src/connect-src で許可済み）。
-const ORT_VERSION = '1.27.0';
-const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+const modelCache =
+	typeof caches === 'undefined'
+		? Promise.resolve(null)
+		: caches.open('codelife-verified-upscale-models-v1').catch(() => null);
 
 // --- メッセージ型 ---
 export interface UpscaleWorkerRequest {
@@ -60,7 +63,7 @@ type OrtRuntime = 'wasm' | 'webgpu';
 const ortPromises = new Map<OrtRuntime, Promise<Ort>>();
 
 function configureOrt(ort: Ort): Ort {
-	ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+	ort.env.wasm.wasmPaths = UPSCALE_WASM_BASE_PATH;
 	ort.env.wasm.numThreads = 1; // SharedArrayBuffer 不要（COOP/COEP 変更なし）
 	ort.env.wasm.simd = true;
 	ort.env.wasm.proxy = false;
@@ -84,39 +87,6 @@ function loadOrt(runtime: OrtRuntime): Promise<Ort> {
 type SessionEntry = { session: Ort; ort: Ort; quality: QualityMode };
 const sessions = new Map<QualityMode, SessionEntry>();
 
-async function fetchModel(
-	url: string,
-	onProgress: (p: number) => void,
-): Promise<ArrayBuffer> {
-	const res = await fetch(url);
-	if (!res.ok) {
-		throw new Error(`モデルの取得に失敗しました（${res.status}）`);
-	}
-	const total = Number(res.headers.get('content-length') ?? 0);
-	if (!res.body || !total) {
-		return res.arrayBuffer();
-	}
-	const reader = res.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let received = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		if (value) {
-			chunks.push(value);
-			received += value.length;
-			onProgress(Math.min(1, received / total));
-		}
-	}
-	const out = new Uint8Array(received);
-	let offset = 0;
-	for (const c of chunks) {
-		out.set(c, offset);
-		offset += c.length;
-	}
-	return out.buffer;
-}
-
 async function getSession(
 	quality: QualityMode,
 	onProgress: (p: ProgressInfo) => void,
@@ -127,9 +97,17 @@ async function getSession(
 	const spec = MODELS[quality];
 	const ort = await loadOrt(spec.device);
 	onProgress({ status: 'loading', progress: 0 });
-	const modelBuf = await fetchModel(spec.url, (p) =>
-		onProgress({ status: 'loading', progress: p }),
-	);
+	const asset =
+		quality === 'fast'
+			? modelFile('realesr-general-x4v3', 'realesr-general-x4v3.onnx')
+			: modelFile('realesrgan-x4plus', 'real-esrgan-x4plus-128.onnx');
+	const response = await fetchVerifiedAsset(asset, {
+		origin: location.origin,
+		cache: await modelCache,
+		onProgress: (loaded, total) =>
+			onProgress({ status: 'loading', progress: loaded / total }),
+	});
+	const modelBuf = await response.arrayBuffer();
 	const providers = spec.device === 'webgpu' ? ['webgpu', 'wasm'] : ['wasm'];
 	const session = await ort.InferenceSession.create(modelBuf, {
 		executionProviders: providers,

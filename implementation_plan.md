@@ -1,5 +1,9 @@
 # AI開発フロー整理の実装計画
 
+## 2026-10-14: 現行画像モデルのサプライチェーン安全化（ユーザー承認済み）
+
+[実装計画](docs/supply-chain-hardening-plan.md) / [検証と公開前手順](docs/supply-chain-hardening-walkthrough.md)。現行モデルを維持し、自前ランタイム配信とSHA・hash検証を実装。承認範囲は実装・検証・Draft PRまで。モデル差し替え・R2投入・Merge・本番公開は別判断。
+
 正本: [Notion計画](https://app.notion.com/p/3dadfd3603368134963dfd657f36d562)（2026-09-17取得）。
 基点: `origin/main` / `674d787`。開始時の未コミット変更なし。
 

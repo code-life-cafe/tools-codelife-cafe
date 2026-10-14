@@ -1,19 +1,42 @@
 import { createHash } from 'node:crypto';
 import { readFile, unlink } from 'node:fs/promises';
-import { resolve, join } from 'node:path';
-import {
-	ONNX_WASM_BASE_PATH,
-	RUNTIME_ARTIFACT,
-} from '../src/lib/transcribe/model-manifest.ts';
+import { join, resolve } from 'node:path';
+import { MODEL_FILES } from '../src/lib/model-assets/manifest.ts';
+import { RUNTIMES } from '../src/lib/model-assets/runtime-manifest.ts';
 
-// publicのローカル検証用runtimeは維持し、Pages出力だけからmanifest一致実体を除外。
+// publicのローカル検証用資産は維持。大容量配信資産は既存R2ルートへ。
+// 動作確認でpublicへ置いたモデルもPagesの静的成果物へ混ぜない。
 const root = resolve('dist');
-for (const file of RUNTIME_ARTIFACT.files) {
-	const target = join(root, ONNX_WASM_BASE_PATH.slice(1), file.path);
-	const bytes = await readFile(target);
-	if (bytes.length !== file.bytes || createHash('sha256').update(bytes).digest('hex') !== file.sha256) {
-		throw new Error(`Pages runtime differs from manifest: ${file.path}`);
+const files = [
+	...RUNTIMES.flatMap((runtime) =>
+		runtime.files.map((file) => ({
+			...file,
+			url: `/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${file.path}`,
+			required: true,
+		})),
+	),
+	...MODEL_FILES.filter(
+		(file) =>
+			file.url.startsWith('/models/bg-remove/') ||
+			file.url.startsWith('/models/upscale/'),
+	).map((file) => ({ ...file, required: false })),
+];
+for (const file of files) {
+	const target = join(root, file.url.slice(1));
+	let bytes;
+	try {
+		bytes = await readFile(target);
+	} catch (error) {
+		if (!file.required && error.code === 'ENOENT') continue;
+		throw error;
 	}
+	if (
+		bytes.length !== file.bytes ||
+		createHash('sha256').update(bytes).digest('hex') !== file.sha256
+	)
+		throw new Error(`Pages asset differs from manifest: ${file.path}`);
 	await unlink(target);
 }
-console.log('[pages-runtime] Runtime served by same-origin R2 route; static copies excluded');
+console.log(
+	'[pages-runtime] Verified assets served by same-origin R2 routes; static copies excluded',
+);

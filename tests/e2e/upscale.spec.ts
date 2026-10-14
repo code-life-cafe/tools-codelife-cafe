@@ -1,7 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures/base';
+import { modelAssetServer } from './helpers/model-asset-server';
 
-// 推論は重く CDN からモデル/ランタイムを取得するため、待機時間を長めに確保する。
+// 本物の固定モデルと自前runtimeをローカル配信し、実推論を検証する。
 const RESULT_TIMEOUT = 120_000;
 
 /**
@@ -48,9 +49,15 @@ async function uploadGeneratedImage(page: Page, w: number, h: number) {
 }
 
 test.describe('画像アップスケール', () => {
-	test.beforeEach(async ({ createToolPage }) => {
-		const toolPage = createToolPage('upscale');
-		await toolPage.goto();
+	let server: Awaited<ReturnType<typeof modelAssetServer>>;
+	test.beforeAll(async () => {
+		server = await modelAssetServer();
+	});
+	test.afterAll(async () => {
+		await server.close();
+	});
+	test.beforeEach(async ({ page }) => {
+		await page.goto(`${server.base}/upscale/`);
 	});
 
 	test('ページ表示・SafetyBadge・プライバシー注記', async ({
@@ -82,7 +89,7 @@ test.describe('画像アップスケール', () => {
 			'アップロード時点ではモデル/ランタイム未取得',
 		).toBe(false);
 
-		// 実行時にモデル(/models/*.onnx)またはランタイム(jsdelivr)を取得する
+		// 実行時に同一originの固定モデル/自前ランタイムを取得する
 		const modelReq = page.waitForRequest(
 			(r) => /realesr-general-x4v3\.onnx|onnxruntime-web/.test(r.url()),
 			{ timeout: RESULT_TIMEOUT },

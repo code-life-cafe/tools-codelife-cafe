@@ -66,6 +66,8 @@
 
 ## 2. AIモデルの配信と推論 (背景削除・画像アップスケールツール)
 
+> この節のremoteHost/resolve/main配信・旧アップロード手順は旧設計です。今回の安全化後の正本は末尾の「現行画像モデルの固定配信と検証」と検証記録を参照してください。
+
 「背景削除」および「画像アップスケール・ノイズ除去」ツールでは、ブラウザ内でONNXモデルを動かすAI推論技術を採用しています。
 
 ### 2.1 推論の構成要素
@@ -265,3 +267,12 @@ npm run transcribe:verify -- --full             # 全ファイルの SHA-256 ま
 - `scripts/fetch-transcribe-models.mjs` / `scripts/copy-onnx-wasm.mjs`: ローカル取得・版ずれ検出。
 - `functions/models/transcribe/[[path]].ts`: 同一オリジン配信の Pages Function。
 - `src/workers/transcribe.worker.ts`: 推論 Worker（`allowRemoteModels = false`、`wasmPaths` 固定）。
+
+
+## 現行画像モデルの固定配信と検証（2026-10-14）
+
+背景削除・画像拡大は `src/lib/model-assets/manifest.ts` の固定revision・サイズ・SHA-256を正本とする。取得元のmainへ直接依存せず、同一originのマニフェスト許可パスから取得する。新規/キャッシュ双方のモデル・設定ファイルを検証してから推論へ渡し、不一致では停止する。
+
+ランタイムはTransformersが解決する版とupscaleが直接解決する版を分離してビルド時に照合し、自前MJS/WASMを配信する。大容量資産は既存R2バインディングを使い、hash付きキーに配置する。通常ビルドは期待hashを更新しない。
+
+取得・検証・投入一覧準備・read-back・未確認事項は [検証記録と公開前手順](supply-chain-hardening-walkthrough.md) を参照。R2投入と公開は別承認。新規キーの配置前にコードだけを本番へ公開してはいけない。旧mutable main取得のアップロードスクリプトは廃止し、明示失敗する。

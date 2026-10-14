@@ -3,6 +3,7 @@
 // 検証・寸法・タイル分割・ファイル名・モデル定義など、推論を伴わない処理を集約する。
 
 import { BYTES_PER_MB, FILE_SIZE_LIMITS_MB } from '../constants.ts';
+import { modelFile } from '../model-assets/manifest.ts';
 
 // --- 定数 ---
 export const SUPPORTED_INPUT_TYPES = [
@@ -46,7 +47,7 @@ export type ImageInputValidation =
 
 /** 推論モデルの定義 */
 export type ModelSpec = {
-	/** モデル ONNX の取得 URL（self ホスト or HF CDN。CSP connect-src で許可済み） */
+	/** モデル ONNX の取得 URL（同一オリジンの固定マニフェスト） */
 	url: string;
 	/** モデルが拡大する倍率（両モデルとも x4 ネイティブ） */
 	nativeScale: 4;
@@ -61,7 +62,7 @@ export type ModelSpec = {
 };
 
 // --- モデルレジストリ ---
-// fast は public/models 同梱（~5MB, BSD-3-Clause）。max は HF CDN から取得（~67MB, WebGPU 推奨）。
+// fast は public/models 同梱（~5MB, BSD-3-Clause）。max は同一オリジンの固定R2資産を取得（~67MB, WebGPU 推奨）。
 export const MODELS: Record<QualityMode, ModelSpec> = {
 	fast: {
 		url: '/models/realesr-general-x4v3.onnx',
@@ -72,7 +73,7 @@ export const MODELS: Record<QualityMode, ModelSpec> = {
 		device: 'wasm',
 	},
 	max: {
-		url: 'https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx',
+		url: modelFile('realesrgan-x4plus', 'real-esrgan-x4plus-128.onnx').url,
 		nativeScale: 4,
 		core: 128,
 		overlap: 0,
