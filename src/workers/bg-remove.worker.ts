@@ -2,6 +2,7 @@
 // Transformers.js v4 の background-removal パイプラインを使用
 import { env, pipeline, RawImage } from '@huggingface/transformers';
 import { MODEL_ASSETS, modelAsset } from '../lib/model-assets/manifest.ts';
+import { createPipelineLifecycle } from '../lib/model-assets/pipeline-lifecycle.ts';
 import {
 	createVerifiedModelFetch,
 	fetchVerifiedAsset,
@@ -133,13 +134,7 @@ export type WorkerResponse =
 	| WorkerReadyMessage;
 
 // --- パイプライン管理 ---
-// biome-ignore lint/suspicious/noExplicitAny: Transformers.js pipeline type is complex
-let remover: any = null;
-let currentMode: ModelMode | null = null;
-
-async function ensurePipeline(mode: ModelMode, id: string) {
-	if (remover && currentMode === mode) return remover;
-
+async function loadPipeline(mode: ModelMode, id: string) {
 	const model = MODELS[mode];
 	assetLoadError = null;
 	loadingRequestId = id;
@@ -158,75 +153,80 @@ async function ensurePipeline(mode: ModelMode, id: string) {
 	// env.fetchが取得進捗を通知する。library側progress_callbackは指定せず、
 	// 検証済みResponse.arrayBuffer()から同じbufferを受け取り再確保を避ける。
 	// Worker 内は WebGPU 不安定を避け wasm 固定
-	try {
-		remover = await pipeline('background-removal', model.id, {
+	const createRemover = () =>
+		pipeline('background-removal', model.id, {
 			device: 'wasm',
 			dtype: model.dtype,
 		});
+	let remover: Awaited<ReturnType<typeof createRemover>>;
+	try {
+		remover = await createRemover();
 	} catch {
 		throw new Error(assetLoadError ?? 'モデルの読み込みに失敗しました。');
 	}
 	if (assetLoadError) {
 		await remover.dispose();
-		remover = null;
 		throw new Error(assetLoadError);
 	}
-	currentMode = mode;
 	return remover;
 }
+
+const lifecycle = createPipelineLifecycle(loadPipeline);
 
 // --- メッセージハンドラ ---
 self.onmessage = async (e: MessageEvent<WorkerRequest>) => {
 	const { id, mode, imageData, mimeType, preloadOnly } = e.data;
 
 	try {
-		const pipe = await ensurePipeline(mode, id);
+		await lifecycle.run(mode, id, async (pipe) => {
+			// キャッシュ済みの場合は progress_callback が発火しないため、
+			// 毎回 'ready' を送って UI の loading→processing 遷移を保証する
+			self.postMessage({
+				type: 'progress',
+				id,
+				payload: { status: 'ready' },
+			} satisfies WorkerProgressMessage);
 
-		// キャッシュ済みの場合は progress_callback が発火しないため、
-		// 毎回 'ready' を送って UI の loading→processing 遷移を保証する
-		self.postMessage({
-			type: 'progress',
-			id,
-			payload: { status: 'ready' },
-		} satisfies WorkerProgressMessage);
+			// preload のみ: パイプライン初期化だけして終了
+			if (preloadOnly) {
+				self.postMessage({ type: 'ready', id } satisfies WorkerReadyMessage);
+				return;
+			}
 
-		// preload のみ: パイプライン初期化だけして終了
-		if (preloadOnly) {
-			self.postMessage({ type: 'ready', id } satisfies WorkerReadyMessage);
-			return;
-		}
+			if (!imageData) {
+				throw new Error('画像データが指定されていません');
+			}
 
-		if (!imageData) {
-			throw new Error('画像データが指定されていません');
-		}
+			// 入力画像はローカルBlobからRawImageへ変換する
+			const blob = new Blob([imageData], {
+				type: mimeType ?? 'application/octet-stream',
+			});
+			const image = await RawImage.fromBlob(blob);
 
-		// 入力画像はローカルBlobからRawImageへ変換する
-		const blob = new Blob([imageData], {
-			type: mimeType ?? 'application/octet-stream',
+			{
+				// background-removal パイプラインは RawImage (RGBA) を返す
+				const output = await pipe(image);
+
+				// RawImage から RGBA ピクセルデータを取得
+				const { width, height, data } = output;
+
+				// ArrayBuffer として transferable 送信
+				const buffer = (data as Uint8ClampedArray).buffer.slice(
+					0,
+				) as ArrayBuffer;
+
+				self.postMessage(
+					{
+						type: 'result',
+						id,
+						width,
+						height,
+						data: buffer,
+					} satisfies WorkerResultMessage,
+					{ transfer: [buffer] },
+				);
+			}
 		});
-		const image = await RawImage.fromBlob(blob);
-
-		{
-			// background-removal パイプラインは RawImage (RGBA) を返す
-			const output = await pipe(image);
-
-			// RawImage から RGBA ピクセルデータを取得
-			const { width, height, data } = output;
-
-			// ArrayBuffer として transferable 送信
-			const buffer = (data as Uint8ClampedArray).buffer.slice(0) as ArrayBuffer;
-
-			self.postMessage(
-				{
-					type: 'result',
-					id,
-					width,
-					height,
-					data: buffer,
-				} satisfies WorkerResultMessage,
-				{ transfer: [buffer] },
-			);
-		}
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);
 		self.postMessage({

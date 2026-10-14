@@ -181,6 +181,69 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 			),
 		).toBe(true);
 	});
+	test('背景削除の同時要求を直列化し、初期化は1回だけ行う', async ({
+		page,
+	}) => {
+		await open(page, 'bg-remove');
+		const workerFile = (await readdir('dist/_astro')).find(
+			(file) => file.startsWith('bg-remove.worker-') && file.endsWith('.js'),
+		);
+		if (!workerFile) throw Error('Production Worker missing');
+		const results = await page.evaluate(async (path) => {
+			const canvas = document.createElement('canvas');
+			canvas.width = 32;
+			canvas.height = 32;
+			const ctx = canvas.getContext('2d');
+			if (!ctx) throw Error('No canvas');
+			ctx.fillRect(8, 8, 16, 16);
+			const blob = await new Promise<Blob>((resolve) =>
+				canvas.toBlob((x) => {
+					if (x) resolve(x);
+				}, 'image/png'),
+			);
+			const imageData = await blob.arrayBuffer();
+			return new Promise<{ id: string; type: string }[]>((resolve, reject) => {
+				const worker = new Worker(path, { type: 'module' });
+				const messages: { id: string; type: string }[] = [];
+				const timeout = setTimeout(() => {
+					worker.terminate();
+					reject(Error('timeout'));
+				}, 30000);
+				worker.onerror = (event) => {
+					clearTimeout(timeout);
+					worker.terminate();
+					reject(Error(event.message));
+				};
+				worker.onmessage = ({ data }) => {
+					if (data.type !== 'result' && data.type !== 'error') return;
+					messages.push({ id: data.id, type: data.type });
+					if (messages.length === 2) {
+						clearTimeout(timeout);
+						worker.terminate();
+						resolve(messages);
+					}
+				};
+				for (const id of ['first', 'second'])
+					worker.postMessage({
+						id,
+						mode: 'fast',
+						imageData,
+						mimeType: 'image/png',
+					});
+			});
+		}, `/_astro/${workerFile}`);
+		expect(results).toEqual([
+			{ id: 'first', type: 'result' },
+			{ id: 'second', type: 'result' },
+		]);
+		expect(
+			server.requests.filter(
+				(request) =>
+					request.path === modelFile('modnet', 'onnx/model.onnx').url,
+			),
+		).toHaveLength(1);
+	});
+
 	test('ONNXが1byte改変された場合は推論結果を返さず停止', async ({ page }) => {
 		await open(page, 'upscale');
 		server.faults.set(

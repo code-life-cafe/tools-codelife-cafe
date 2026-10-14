@@ -93,3 +93,16 @@ Mobile Chrome projectはPC上のモバイル幅/UAエミュレーション。実
 修正後の通常実モデルE2E: PC/モバイル幅の14件すべて成功、skipなし（2.8分）。外部HF/jsDelivrへの通信なし。BEN2の1秒間隔CDP dumpは各6サンプル、最大観測private footprint合計はPC 4,326,023,168 bytes / mobile project 4,331,061,248 bytes（約4.03GiB）。観測JS heap上限は両方293,601,280 bytes（280MiB）。これはV8以外のメモリが大きいことを示し、実スマートフォンでOOMしない根拠にはならない。実機のメモリ余裕と旧版同条件比較は公開前の判断事項として残す。
 
 既存背景削除・拡大・文字起こしの対象回帰E2E: 46件成功（52.1秒）、skipなし。文字起こしは既存mockを含む。lint成功（既存15 warnings/1 info）。
+
+## 2026-10-15: ユーザー承認済みのセッション管理改善
+
+モデルmanifest・dtype・入力解像度・推論providerは変更しない。初期化・推論・切替を同じFIFOに入れ、旧pipelineのdispose完了前に新pipelineを確保しない。同一modeは再利用。解放開始後は旧modeへ戻ってもそのpipelineを使わず、解放を再試行してから再ロード。1件の失敗で後続キューを止めない。
+
+- ライフサイクルunit5件成功。直列化を壊した変異体は失敗、disposeのawaitを除去した変異体は3件失敗し、回帰テストが問題を検出することを確認。変異体はignored cacheだけに置き、Productionを壊して検証していない。
+- 全unit1,554件成功。Astro check 0 errors/0 warnings、lint成功（既存15 warnings/1 info）、build成功。
+- 独立読み取りレビューで途中解放後の旧mode再利用へのP2を検出し、retiring状態と直接回帰テストで修正。再レビューで解消、追加defectなし。
+- 実Workerへ同時に2要求を送り、順序どおり2結果・モデル取得1回を確認するE2Eを通常gateに追加。最新ビルドの全4モデル・背景削除UIを含む対象E2E22件すべて成功（3.2分）、skipなし。
+- 変更前58aa235のビルドとsourceをignored比較領域に保持。モデル比較の候補はstudioludens/birefnet-lite-512 revision 962e67969ec6acec9c19fab76acee4f5e22e990c、FP1698,484,532bytes、SHA-256 eff9216bb2f9d3f023d9c2b7196845a7485739ab1f231593633e4d2344ffc516。local専用、製品manifestへの追加・モデル差し替えなし。
+- 比較は固定revisionの同一6素材、同一WASM runtime/1thread、同一V8制限、モデルごとの独立browserで行う。BEN2前後/MODNet/BiRefNet512のcold初期化・推論・mode切替を記録。正解alphaなしのため目視評価と出力差分を報告し、定量的な品質優位を主張しない。測定の生データ・出力画像はlocal比較領域に保存し、結果はPR本文とユーザー報告に記録する。
+
+Draft維持。R2投入・Merge・本番公開は実施しない。
