@@ -48,26 +48,30 @@ export default function UnicodeConverter() {
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center gap-3 mb-4">
-				<span id="unicode-mode-switch-name" className="sr-only">
-					変換モード切替
-				</span>
 				<Label
 					id="unicode-mode-switch-label"
 					htmlFor="unicode-mode-switch"
 					className="text-sm font-medium whitespace-nowrap"
 				>
-					{direction === 'encode'
-						? 'テキスト → ユニコード'
-						: 'ユニコード → テキスト'}
+					変換モード切替
 				</Label>
 				<Switch
 					id="unicode-mode-switch"
-					aria-labelledby="unicode-mode-switch-name unicode-mode-switch-label"
+					aria-labelledby="unicode-mode-switch-label"
+					aria-describedby="unicode-mode-switch-direction"
 					checked={direction === 'decode'}
 					onCheckedChange={(checked) =>
 						setDirection(checked ? 'decode' : 'encode')
 					}
 				/>
+				<span
+					id="unicode-mode-switch-direction"
+					className="text-sm text-muted-foreground whitespace-nowrap"
+				>
+					{direction === 'encode'
+						? 'テキスト → ユニコード'
+						: 'ユニコード → テキスト'}
+				</span>
 				<ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
 			</div>
 

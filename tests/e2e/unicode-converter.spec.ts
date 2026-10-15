@@ -32,19 +32,21 @@ test.describe('Unicode Converter Tool', () => {
 		const toolPage = createToolPage('unicode-converter');
 		await toolPage.goto();
 
-		const modeSwitch = page.getByRole('switch', { name: /変換モード切替/ });
+		const modeSwitch = page.getByRole('switch', { name: '変換モード切替' });
 		await expect(modeSwitch).toHaveCount(1);
 		await expect(modeSwitch).toHaveAttribute('aria-checked', 'false');
-		// 可視ラベル（現在のモード名）もアクセシブル名に含まれる
-		await expect(modeSwitch).toHaveAccessibleName(
-			/変換モード切替.*テキスト → ユニコード/,
+		// アクセシブル名は状態（モード）が変わっても不変。方向は説明として別に公開する
+		await expect(modeSwitch).toHaveAccessibleName('変換モード切替');
+		await expect(modeSwitch).toHaveAccessibleDescription(
+			'テキスト → ユニコード',
 		);
 
-		// 可視ラベルのクリックで切り替わる
-		await page.getByText('テキスト → ユニコード', { exact: true }).click();
+		// 可視ラベルのクリックで切り替わる。名前は変わらず、説明だけが更新される
+		await page.getByText('変換モード切替', { exact: true }).click();
 		await expect(modeSwitch).toHaveAttribute('aria-checked', 'true');
-		await expect(modeSwitch).toHaveAccessibleName(
-			/変換モード切替.*ユニコード → テキスト/,
+		await expect(modeSwitch).toHaveAccessibleName('変換モード切替');
+		await expect(modeSwitch).toHaveAccessibleDescription(
+			'ユニコード → テキスト',
 		);
 
 		// キーボードのTabだけでスイッチへ到達し（直接focus()に頼らない）、Spaceで戻してもフォーカスが維持される
@@ -81,7 +83,7 @@ test.describe('Unicode Converter Tool', () => {
 		const toolPage = createToolPage('unicode-converter');
 		await toolPage.goto();
 
-		const modeSwitch = page.getByRole('switch', { name: /変換モード切替/ });
+		const modeSwitch = page.getByRole('switch', { name: '変換モード切替' });
 		await modeSwitch.click();
 		await expect(modeSwitch).toHaveAttribute('aria-checked', 'true');
 		await toolPage.fillInput('\\u{110000}');
