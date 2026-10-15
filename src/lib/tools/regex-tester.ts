@@ -33,6 +33,27 @@ function isSupportedFlags(flags: string): boolean {
 	}
 }
 
+function isValidFlags(flags: string): boolean {
+	return (
+		VALID_FLAGS_PATTERN.test(flags) &&
+		hasUniqueFlags(flags) &&
+		isSupportedFlags(flags)
+	);
+}
+
+const SYNTAX_ERROR_MESSAGE =
+	'正規表現の構文が正しくありません。括弧や [ ]、{ } の対応、エスケープ（\\）を確認してください。';
+const FLAGS_ERROR_MESSAGE =
+	'フラグが正しくありません。使えるのは d g i m s u v y で、同じ文字の重複や u と v の併用はできません。';
+const UNEXPECTED_ERROR_MESSAGE =
+	'正規表現を評価できませんでした。パターンを見直してください。';
+
+// ブラウザ由来の英語例外文や入力原文は表示せず、日本語の安全な通知へ変換する
+export function toRegexErrorMessage(err: unknown): string {
+	if (err instanceof SyntaxError) return SYNTAX_ERROR_MESSAGE;
+	return UNEXPECTED_ERROR_MESSAGE;
+}
+
 export interface RegexTesterSettings {
 	pattern: string;
 	flags: string;
@@ -54,10 +75,7 @@ export function sanitizeRegexTesterSettings(
 			? v.pattern
 			: defaults.pattern;
 	const flags =
-		typeof v.flags === 'string' &&
-		VALID_FLAGS_PATTERN.test(v.flags) &&
-		hasUniqueFlags(v.flags) &&
-		isSupportedFlags(v.flags)
+		typeof v.flags === 'string' && isValidFlags(v.flags)
 			? v.flags
 			: defaults.flags;
 	const showReplace =
@@ -105,6 +123,9 @@ export function execRegexSync(
 	replacement?: string,
 ): RegexResult {
 	if (!pattern) return { matches: [] };
+	if (!isValidFlags(flags)) {
+		return { matches: [], error: FLAGS_ERROR_MESSAGE };
+	}
 
 	try {
 		const regex = new RegExp(pattern, flags);
@@ -151,10 +172,7 @@ export function execRegexSync(
 			? { matches, replacedText, truncated }
 			: { matches, replacedText };
 	} catch (err: unknown) {
-		return {
-			matches: [],
-			error: err instanceof Error ? err.message : String(err),
-		};
+		return { matches: [], error: toRegexErrorMessage(err) };
 	}
 }
 
@@ -182,10 +200,10 @@ export async function testRegex(
 			resolve(event.data);
 		};
 
-		worker.onerror = (event: ErrorEvent) => {
+		worker.onerror = () => {
 			clearTimeout(timeoutId);
 			worker.terminate();
-			resolve({ matches: [], error: event.message });
+			resolve({ matches: [], error: UNEXPECTED_ERROR_MESSAGE });
 		};
 
 		worker.postMessage({ pattern, flags, text, replacement });
