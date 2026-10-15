@@ -1,0 +1,4 @@
+The quick brown fox jumps over the lazy dog.
+Static files are served from the same origin.
+Please review the report before Friday afternoon.
+Version 7.0.0 was released in December 2025.
