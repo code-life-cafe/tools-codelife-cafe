@@ -4,6 +4,7 @@ import {
 	execRegexSync,
 	MAX_MATCHES,
 	sanitizeRegexTesterSettings,
+	toRegexErrorMessage,
 } from '../../src/lib/tools/regex-tester.ts';
 
 test('execRegexSync: グローバル空文字マッチ（^ や .* 等）でフリーズせず安全に停止・列挙される', () => {
@@ -113,4 +114,49 @@ test('execRegexSync: 非グローバルは常に最大1件で truncated にな�
 	const result = execRegexSync('a', '', 'a'.repeat(6000));
 	assert.strictEqual(result.matches.length, 1);
 	assert.ok(!result.truncated);
+});
+
+const JA_ERROR = /[\u3040-\u30ff\u4e00-\u9fff]/;
+
+test('execRegexSync: 不正パターン（[）は日本語の安全な通知になり英語例外・入力原文を含まない', () => {
+	for (const pattern of ['[', '(secret', 'a{2,1}']) {
+		const result = execRegexSync(pattern, 'g', 'abc');
+		assert.deepStrictEqual(result.matches, []);
+		assert.ok(result.error, pattern);
+		assert.match(result.error, JA_ERROR);
+		assert.doesNotMatch(
+			result.error,
+			/Invalid|Unterminated|regular expression/i,
+		);
+		assert.ok(!result.error.includes('secret'));
+	}
+});
+
+test('execRegexSync: 不正フラグ（重複・未対応・u/v併用）は日本語通知になり、構文エラーとは別の文言', () => {
+	const syntaxError = execRegexSync('(', 'g', 'abc').error;
+	for (const flags of ['gg', 'x', 'uv']) {
+		const result = execRegexSync('a', flags, 'abc');
+		assert.deepStrictEqual(result.matches, []);
+		assert.ok(result.error, flags);
+		assert.match(result.error, JA_ERROR);
+		assert.doesNotMatch(result.error, /Invalid|flags supplied|RegExp/i);
+		assert.ok(!result.error.includes(flags) || flags.length === 0);
+		assert.notStrictEqual(result.error, syntaxError);
+	}
+});
+
+test('execRegexSync: 不正パターンの後に有効パターンへ戻すとエラーが消えマッチが復帰する', () => {
+	assert.ok(execRegexSync('[', 'g', 'a[b').error);
+	const recovered = execRegexSync('\\[', 'g', 'a[b');
+	assert.strictEqual(recovered.error, undefined);
+	assert.strictEqual(recovered.matches.length, 1);
+	assert.strictEqual(recovered.matches[0].value, '[');
+});
+
+test('toRegexErrorMessage: SyntaxError以外の予期しない例外も日本語の一般メッセージにフォールバックする', () => {
+	for (const err of [new Error('boom: secret input'), 'str', null, undefined]) {
+		const message = toRegexErrorMessage(err);
+		assert.match(message, JA_ERROR);
+		assert.doesNotMatch(message, /boom|secret|str\b/);
+	}
 });

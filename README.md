@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全57種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全58種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（57種）
+## 📦 収録ツール（58種）
 
 ### テキスト処理
 
@@ -79,6 +79,7 @@
 | [PDF結合](https://tools.codelife.cafe/pdf-merge) | 複数のPDF・画像（JPEG/PNG）を1つのPDFに結合。並べ替え対応（完全ローカル実行） |
 | [PDF分割・ページ抽出](https://tools.codelife.cafe/pdf-split) | 範囲指定で分割・抽出・1ページずつ分割。ZIP一括ダウンロード対応（完全ローカル実行） |
 | [PDF圧縮](https://tools.codelife.cafe/pdf-compress) | 文字・リンクを保ったままの最適化と、スキャンPDF向けの画像化圧縮（明示選択）。縮まない場合は元ファイルを保持（完全ローカル実行） |
+| [PDFテキスト抽出](https://tools.codelife.cafe/pdf-to-text) | PDFの文字データをページ指定で取り出し、確認・編集してコピーまたはUTF-8のTXT保存。OCRはせず、文字を取得できないページは警告（完全ローカル実行） |
 | [PDF→JPG/PNG変換](https://tools.codelife.cafe/pdf-to-image) | ページ範囲・72/96/144dpi・JPEG品質を指定してページを画像化。回転ページは見たままの向きで連番出力（完全ローカル実行） |
 
 ### 開発者向け
@@ -186,4 +187,4 @@ MIT
 
 画像形式変換ツール（`/image-convert`）は HEIC デコードに [libheif-js](https://github.com/catdad-experiments/libheif-js)（LGPL-3.0）、AVIF エンコードに [@jsquash/avif](https://github.com/jamsinclair/jSquash)（Apache-2.0）を、いずれも当該ページで必要時のみ動的にロードして利用しています。詳細は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照してください。
 
-PDF圧縮（`/pdf-compress`）のプレビュー・画像化モードとPDF→JPG/PNG変換（`/pdf-to-image`）は、ページ描画に [PDF.js](https://github.com/mozilla/pdf.js)（pdfjs-dist、Apache-2.0）を当該ページで必要時のみ動的にロードして利用しています。
+PDF圧縮（`/pdf-compress`）のプレビュー・画像化モード、PDF→JPG/PNG変換（`/pdf-to-image`）、PDFテキスト抽出（`/pdf-to-text`）は、ページ描画・文字データの取得に [PDF.js](https://github.com/mozilla/pdf.js)（pdfjs-dist、Apache-2.0）を当該ページで必要時のみ動的にロードして利用しています。

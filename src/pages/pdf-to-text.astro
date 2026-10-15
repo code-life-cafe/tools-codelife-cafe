@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import PdfToText from '../components/tools/PdfToText.tsx';
+
+const toolEntry = await getEntry('tools', 'pdf-to-text');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: pdf-to-text');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <PdfToText client:load />
+</ToolLayout>
