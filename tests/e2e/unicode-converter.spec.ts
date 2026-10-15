@@ -47,11 +47,25 @@ test.describe('Unicode Converter Tool', () => {
 			/変換モード切替.*ユニコード → テキスト/,
 		);
 
-		// Tab移動 + Space で戻り、フォーカスが維持される
-		await modeSwitch.focus();
+		// キーボードのTabだけでスイッチへ到達し（直接focus()に頼らない）、Spaceで戻してもフォーカスが維持される
+		await page.locator('body').click({ position: { x: 1, y: 1 } });
+		let reached = false;
+		for (let i = 0; i < 60 && !reached; i++) {
+			await page.keyboard.press('Tab');
+			reached = await modeSwitch.evaluate(
+				(el) => el === document.activeElement,
+			);
+		}
+		expect(reached).toBe(true);
 		await expect(modeSwitch).toBeFocused();
 		await page.keyboard.press('Space');
 		await expect(modeSwitch).toHaveAttribute('aria-checked', 'false');
+		await expect(modeSwitch).toBeFocused();
+
+		// Shift+Tabで離れてTabで戻っても到達できる
+		await page.keyboard.press('Shift+Tab');
+		await expect(modeSwitch).not.toBeFocused();
+		await page.keyboard.press('Tab');
 		await expect(modeSwitch).toBeFocused();
 
 		// 切替後も変換は既存どおり（日😀A）
