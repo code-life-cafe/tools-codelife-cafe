@@ -99,6 +99,21 @@ function loadPdfjs(): Promise<PdfjsModule> {
 
 export type RenderBackground = 'white' | 'transparent';
 
+/**
+ * ページから逐次取得したテキスト片。座標は回転（/Rotate）適用後の表示座標（pt、左上原点・下向き）。
+ * 座標や寸法を取得できない場合は null とし、呼び出し側は内部順へ戻せる。
+ */
+export type PdfTextChunkItem = {
+	str: string;
+	hasEOL: boolean;
+	x: number | null;
+	y: number | null;
+	width: number | null;
+	fontSize: number | null;
+	/** 表示上で左→右へ進む横書き（回転・反転・縦書きは false） */
+	horizontal: boolean;
+};
+
 export type PdfRenderSession = {
 	readonly pageCount: number;
 	readonly flags: PdfDocumentFlags;
@@ -126,6 +141,15 @@ export type PdfRenderSession = {
 		quality: number,
 		signal?: AbortSignal,
 	): Promise<Blob>;
+	/**
+	 * 指定ページの文字データを streamTextContent でチャンクごとに逐次返す。
+	 * signal の中断・呼び出し側の中断（break/throw）では読み取りを止め、キャンセルは PdfToolError('cancelled')。
+	 * ページの文字データを持たない場合は空の列を返す（OCRはしない）。
+	 */
+	streamPageText(
+		pageNumber: number,
+		signal?: AbortSignal,
+	): AsyncGenerator<PdfTextChunkItem[], void, void>;
 	destroy(): Promise<void>;
 };
 
@@ -309,6 +333,118 @@ export async function openPdfRenderSession(
 		return new Uint8Array(await blob.arrayBuffer());
 	}
 
+	const finite = (v: number) => Number.isFinite(v);
+
+	async function* streamPageText(
+		pageNumber: number,
+		signal?: AbortSignal,
+	): AsyncGenerator<PdfTextChunkItem[], void, void> {
+		throwIfAborted(signal);
+		let page: Awaited<ReturnType<typeof doc.getPage>>;
+		try {
+			page = await doc.getPage(pageNumber);
+		} catch (error) {
+			throw toPdfToolError(error);
+		}
+		const cancelReason = new Error('text extraction cancelled');
+		let reader: ReadableStreamDefaultReader<unknown> | null = null;
+		let finished = false;
+		const onAbort = () => {
+			// PDF.js は理由なしの cancel() を拒否するため Error を渡す
+			void reader?.cancel(cancelReason).catch(() => undefined);
+		};
+		try {
+			throwIfAborted(signal);
+			// 表示上の座標へ変換するため、/Rotate 適用後のビューポート行列を使う
+			const [a, b, c, d, e, f] = page.getViewport({ scale: 1 }).transform;
+			// 互換正規化（NFKC等）はかけず、PDFの文字をそのまま返す。リンク・注釈は実行しない
+			reader = page
+				.streamTextContent({
+					includeMarkedContent: false,
+					disableNormalization: true,
+				})
+				.getReader();
+			signal?.addEventListener('abort', onAbort, { once: true });
+			for (;;) {
+				const { done, value } = await reader.read();
+				throwIfAborted(signal);
+				if (done) {
+					finished = true;
+					return;
+				}
+				const items: PdfTextChunkItem[] = [];
+				for (const item of (value as { items: unknown[] }).items) {
+					const text = item as {
+						str?: unknown;
+						hasEOL?: unknown;
+						transform?: unknown;
+						width?: unknown;
+					};
+					if (typeof text.str !== 'string') continue;
+					const m = Array.isArray(text.transform)
+						? (text.transform as number[])
+						: [];
+					const valid =
+						m.length >= 6 && m.slice(0, 6).every((v) => finite(v as number));
+					let x: number | null = null;
+					let y: number | null = null;
+					let fontSize: number | null = null;
+					let horizontal = false;
+					if (valid) {
+						x = a * m[4] + c * m[5] + e;
+						y = b * m[4] + d * m[5] + f;
+						// 文字の進行方向・縦方向を表示座標へ写して向きと大きさを得る
+						const dirX = a * m[0] + c * m[1];
+						const dirY = b * m[0] + d * m[1];
+						fontSize = Math.hypot(a * m[2] + c * m[3], b * m[2] + d * m[3]);
+						horizontal =
+							dirX > 0 &&
+							Math.abs(dirY) <= Math.abs(dirX) * 0.1 &&
+							fontSize > 0;
+						if (!finite(x) || !finite(y) || !finite(fontSize)) {
+							x = null;
+							y = null;
+							fontSize = null;
+							horizontal = false;
+						}
+					}
+					const width =
+						typeof text.width === 'number' && finite(text.width)
+							? Math.abs(text.width) * Math.hypot(a, b)
+							: null;
+					items.push({
+						str: text.str,
+						hasEOL: text.hasEOL === true,
+						x,
+						y,
+						width,
+						fontSize,
+						horizontal,
+					});
+				}
+				yield items;
+			}
+		} catch (error) {
+			if (signal?.aborted) {
+				throw new PdfToolError('cancelled', CANCELLED_MESSAGE);
+			}
+			throw toPdfToolError(error);
+		} finally {
+			signal?.removeEventListener('abort', onAbort);
+			// 途中で止める場合（上限超過・中断・呼び出し側の break）は読み取りを取り消す。
+			// PDF.js は Worker 側で完了済みのストリームへの cancel に応答しないことがあるため、
+			// 完了を待たない（待つと上限超過エラーが永久に返らない）。
+			if (reader && !finished) {
+				void reader.cancel(cancelReason).catch(() => undefined);
+			}
+			try {
+				page.cleanup();
+			} catch {
+				// セッション破棄済みなら何もしない
+			}
+		}
+	}
+
 	return {
 		pageCount,
 		flags,
@@ -316,6 +452,7 @@ export async function openPdfRenderSession(
 		renderToCanvas,
 		renderJpeg,
 		renderImage,
+		streamPageText,
 		destroy: () => loadingTask.destroy(),
 	};
 }
