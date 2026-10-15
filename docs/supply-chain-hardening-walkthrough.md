@@ -176,3 +176,14 @@ build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 
 追加した回帰テストは旧SWのcache動作を復元した配布物で失敗することを確認後、配布物を復元。修正後は実SW下でMJS/WASMの同長破損200を実行前に拒否し、配信修復後は同じWorkerで実推論成功。origin GET2回・Worker生成1回・汎用cacheにruntimeなしをassertする。PC/mobile viewportの8ケースに加え、503復旧と既存実モデル/実SW offline回帰を維持する。画像関連E2E全60件が成功（skip0）。
 
 build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。最新headの必須CIとCode/Security Reviewを再確認後にのみ、承認済みMerge・公開へ進む。旧R2資産は削除しない。
+
+
+### 公開前の第6修正ループ（人間の個別承認、2026-10-15）
+
+6dce0e3のCode Reviewで、runtime一律SW bypassが文字起こしのPWA offline cacheを遮断するP2を指摘。実SW control下で文字起こしruntime4資産をPWA Cache Storageへ格納し、CDPでHTTP cacheを消してofflineにすると4件とも取得失敗を再現。SHA検証付きfetchへ固定ヘッダーX-Codelife-Asset-Verification: sha256を付け、runtime bypassはこの要求だけに限定。通常の文字起こし要求は既存汎用cache経路を維持する。ヘッダーはcacheを迂回する意図の識別子であり、検証成功や権限を示さない。実際のbytes検証は取得・再利用の双方で従来どおり行う。
+
+新規回帰は実配信runtimeをPRECACHE_ALLと同じCache Storageへ格納後、HTTP cache削除・offlineで4資産のstatus200/サイズ/固定SHA一致・origin追加取得0を確認する（全ツールprecache UIや音声認識自体の実行を証明するテストではない）。旧SW動作ではPC/mobile viewport両方で失敗、修正後は成功。画像側の破損200→配信修復→同じWorkerで実推論成功、汎用cache非依存も維持する。
+
+R2・旧資産・CSP/権限/CI gate変更なし。最新CIと独立両レビューを照合してから、承認済みMerge・本番公開へ進む。
+
+第6周のsource適用後: build成功、unit1680 pass/skip0、画像/実SW E2E62 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。

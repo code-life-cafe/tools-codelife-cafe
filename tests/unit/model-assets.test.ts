@@ -68,6 +68,10 @@ test('取得とキャッシュ再利用の両方で検証し、追加通信な�
 		assert.equal(init?.redirect, 'error');
 		assert.equal(init?.credentials, 'omit');
 		assert.equal(init?.cache, 'no-store');
+		assert.equal(
+			new Headers(init?.headers).get('X-Codelife-Asset-Verification'),
+			'sha256',
+		);
 		return new Response(copy());
 	};
 	const options = { origin, cache, fetcher };

@@ -243,6 +243,82 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		server.requests.length = 0;
 		await page.goto(`${server.base}/${tool}/`);
 	}
+	test('文字起こしruntimeはHTTP cache削除後も実SWのPWA cacheからoffline取得できる', async ({
+		page,
+		context,
+	}) => {
+		await open(page, 'transcribe');
+		await page.evaluate(async () => {
+			await navigator.serviceWorker.ready;
+			if (!navigator.serviceWorker.controller)
+				await new Promise<void>((resolve) =>
+					navigator.serviceWorker.addEventListener(
+						'controllerchange',
+						() => resolve(),
+						{ once: true },
+					),
+				);
+		});
+		expect(
+			await page.evaluate(() => !!navigator.serviceWorker.controller),
+		).toBe(true);
+		const files = RUNTIME_ARTIFACT.files.map((file) => ({
+			...file,
+			url: `/vendor/onnx-wasm/${RUNTIME_ARTIFACT.onnxRuntimeVersion}/${file.path}`,
+		}));
+		// PRECACHE_ALLと同じCache Storageへ実配信bytesを格納。HTTP cacheには依存しない。
+		await page.evaluate(async (files) => {
+			const name = (await caches.keys()).find((name) =>
+				name.startsWith('cl-tools-'),
+			);
+			if (!name) throw Error('PWA cache missing');
+			const cache = await caches.open(name);
+			for (const file of files) await cache.add(file.url);
+		}, files);
+		const requestsBeforeOffline = server.requests.filter((request) =>
+			files.some((file) => file.url === request.path),
+		).length;
+		const cdp = await context.newCDPSession(page);
+		await cdp.send('Network.clearBrowserCache');
+		await cdp.detach();
+		await context.setOffline(true);
+		try {
+			const results = await page.evaluate(async (files) => {
+				const results = [];
+				for (const file of files) {
+					// 文字起こしのraw URL要求。画像の検証用ヘッダーを付けない。
+					const response = await fetch(file.url);
+					const bytes = await response.arrayBuffer();
+					const digest = Array.from(
+						new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)),
+						(value) => value.toString(16).padStart(2, '0'),
+					).join('');
+					results.push({
+						path: file.path,
+						status: response.status,
+						bytes: bytes.byteLength,
+						sha256: digest,
+					});
+				}
+				return results;
+			}, files);
+			expect(results).toEqual(
+				files.map((file) => ({
+					path: file.path,
+					status: 200,
+					bytes: file.bytes,
+					sha256: file.sha256,
+				})),
+			);
+			expect(
+				server.requests.filter((request) =>
+					files.some((file) => file.url === request.path),
+				),
+			).toHaveLength(requestsBeforeOffline);
+		} finally {
+			await context.setOffline(false);
+		}
+	});
 	test('fast拡大は実モデルで成功し、初回と検証済cacheの双方が同一originのみ', async ({
 		page,
 		context,

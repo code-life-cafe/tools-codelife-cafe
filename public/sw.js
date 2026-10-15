@@ -159,16 +159,18 @@ self.addEventListener('fetch', (event) => {
 
 	const reqUrl = event.request.url;
 	const url = new URL(reqUrl);
-	// モデルとruntimeは取得時にSHA検証する専用Cacheへ任せる。
+	// SHA検証付き取得は専用Cacheへ任せる。通常の文字起こしruntimeはPWA cacheを維持。
 	if (
 		url.pathname.startsWith('/models/bg-remove/') ||
 		url.pathname.startsWith('/models/upscale/') ||
-		url.pathname.startsWith('/vendor/onnx-wasm/')
+		(url.pathname.startsWith('/vendor/onnx-wasm/') &&
+			event.request.headers.get('X-Codelife-Asset-Verification') === 'sha256')
 	) return;
 
 	// 静的アセット: Cache First
 	if (
 		url.pathname.startsWith('/_astro/') ||
+		url.pathname.startsWith('/vendor/onnx-wasm/') ||
 		url.pathname.match(
 			/\.(svg|png|jpg|jpeg|gif|woff|woff2|css|js|json|webmanifest)$/,
 		)

@@ -121,6 +121,8 @@ export async function fetchVerifiedBytes(
 			mode: 'same-origin',
 			credentials: 'omit',
 			redirect: 'error',
+			// 検証前の汎用SW cacheを迂回する要求の識別子。検証成功を意味しない。
+			headers: { 'X-Codelife-Asset-Verification': 'sha256' },
 			cache: 'no-store',
 		});
 	} catch {
