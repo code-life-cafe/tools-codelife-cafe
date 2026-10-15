@@ -36,6 +36,12 @@ export async function modelAssetServer() {
 			);
 	const faults = new Map<string, 'corrupt' | 'missing'>();
 	const requests: { path: string; method: string }[] = [];
+	const wasmMutations: {
+		path: string;
+		originalValid: boolean;
+		mutatedValid: boolean;
+		bytes: number;
+	}[] = [];
 	async function object(key: string, head: boolean) {
 		let path = objects.get(key);
 		if (!path) return null;
@@ -112,6 +118,23 @@ export async function modelAssetServer() {
 					body.write(
 						"self.postMessage({type:'runtime-executed'});export default ()=>{};",
 					);
+					res.end(body);
+					return;
+				}
+				if (path.endsWith('.wasm') && faults.get(path) === 'corrupt') {
+					const body = new Uint8Array(await response.arrayBuffer());
+					const originalValid = WebAssembly.validate(body);
+					// 固定ORT資産はいずれもdata sectionで終わる。末尾のデータだけを変更。
+					body[body.length - 1] ^= 1;
+					const mutatedValid = WebAssembly.validate(body);
+					wasmMutations.push({
+						path,
+						originalValid,
+						mutatedValid,
+						bytes: body.length,
+					});
+					if (!originalValid || !mutatedValid)
+						throw Error('Invalid WASM mutation fixture');
 					res.end(body);
 					return;
 				}
@@ -227,6 +250,7 @@ export async function modelAssetServer() {
 		base: `http://127.0.0.1:${address.port}`,
 		faults,
 		requests,
+		wasmMutations,
 		close: async () => {
 			server.closeAllConnections();
 			await new Promise<void>((done) => server.close(() => done()));

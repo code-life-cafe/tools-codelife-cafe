@@ -527,6 +527,14 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 				expect(result).toMatchObject({ type: 'error', runtimeExecuted: false });
 				expect(result.message).toContain('実行資産の検証に失敗');
 				expect(result.message).toContain('ハッシュが一致しません');
+				if (extension === 'wasm')
+					expect(server.wasmMutations.at(-1)).toMatchObject({
+						path,
+						originalValid: true,
+						mutatedValid: true,
+						bytes: runtime.files.find((file) => file.path === `${base}.wasm`)
+							?.bytes,
+					});
 				expect(
 					server.requests.filter(
 						(request) => request.path === path && request.method === 'GET',

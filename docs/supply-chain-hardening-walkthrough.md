@@ -151,3 +151,10 @@ Firefox/WebKitのローカル実行バイナリは未導入。Safari・実iOS/An
 cb65d50のSecurity Reviewで、同長のR2 runtime差替えはサイズ検査のみでは防げないP2指摘。画像WorkerのMJS/WASMを固定SHA-256で検証してから、その同じbytesのBlob URLをORTへ渡す。元URLを再取得せず、SWに不正bytesが残っても再検証で拒否する。BlobはWorkerごとに一度だけ保持し終了時に解放。CSP・権限・依存は変更しない。/transcribeの実行経路は今回の変更対象外。
 
 単体テストでは同長MJS/WASM改変をBlob作成前に拒否し、成功時のBlob本文と検証対象の一致を確認。実E2Eでは同長かつ構文的に有効なMJSの実行マーカーが出ずハッシュエラーになること、WASM同長改変もハッシュエラーになることを両画像Workerで確認。実モデルの成功経路も維持。追加cache IOに対し、アップスケールのcache再利用テストでも書込み完了を観測してからWorkerを終了する。
+
+
+### 有効なWASM改変の追加回帰検証
+
+1103e9cのCode Review指摘に対応。実ORT WASMの末尾data sectionの1byteを変更し、同長・変更前後のWebAssembly.validate成功を確認してから配信する。両画像Workerでハッシュエラー拒否を確認する。unitの最小WASMもcustom section本文を変更し、有効性を保持したままBlob作成前に拒否。製品コードの追加変更はなし。
+
+最終runtime検証付きWorkerの14素材再計測は中央値11.69秒、最大観測private footprint3.35GiB。採用前Lite WASMとRGBA14/14完全一致、high→fast→high→fast→high成功、外部/BEN2取得0。前段7.05秒との差をhash処理だけに帰属せず、最終測定を最新値として扱う。

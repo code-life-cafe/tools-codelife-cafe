@@ -16,7 +16,7 @@ test('実行資産は同じ検証済bytesのBlobを返し、同長改変はBlob�
 	});
 	const bytes = [
 		new TextEncoder().encode('export default ()=>{};'),
-		new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]),
+		new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 0, 3, 1, 120, 1]),
 	];
 	const files = await Promise.all(
 		bytes.map(async (value, index) => ({
@@ -39,7 +39,14 @@ test('実行資産は同じ検証済bytesのBlobを返し、同長改変はBlob�
 			globalThis.fetch = async (input) => {
 				const index = String(input).endsWith('.mjs') ? 0 : 1;
 				const value = bytes[index].slice();
-				if (index === corrupt) value[0] ^= 1;
+				if (index === corrupt) {
+					if (index === 0) value[value.length - 1] = 32;
+					else value[value.length - 1] ^= 1;
+				}
+				if (index === 1) {
+					assert.equal(WebAssembly.validate(bytes[1]), true);
+					assert.equal(WebAssembly.validate(value), true);
+				}
 				return new Response(value);
 			};
 			if (corrupt >= 0) {
