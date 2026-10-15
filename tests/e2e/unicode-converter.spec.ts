@@ -91,4 +91,26 @@ test.describe('Unicode Converter Tool', () => {
 		await toolPage.fillInput('\\u{1F600}\\u65e5');
 		await toolPage.expectOutputContains('😀日');
 	});
+
+	for (const width of [320, 375]) {
+		test(`モード切替の行は${width}pxで横にはみ出さない`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize({ width, height: 800 });
+			const toolPage = createToolPage('unicode-converter');
+			await toolPage.goto();
+
+			const row = page.locator('#unicode-mode-switch').locator('..');
+			const sizes = await row.evaluate((el) => ({
+				client: el.clientWidth,
+				scroll: el.scrollWidth,
+				doc: document.documentElement.scrollWidth,
+				win: window.innerWidth,
+			}));
+			expect(sizes.scroll).toBeLessThanOrEqual(sizes.client);
+			expect(sizes.doc).toBeLessThanOrEqual(sizes.win);
+			await expect(page.locator('#unicode-mode-switch')).toBeVisible();
+		});
+	}
 });

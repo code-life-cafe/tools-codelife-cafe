@@ -47,7 +47,7 @@ export default function UnicodeConverter() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center gap-3 mb-4">
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
 				<Label
 					id="unicode-mode-switch-label"
 					htmlFor="unicode-mode-switch"
