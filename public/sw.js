@@ -63,7 +63,10 @@ self.addEventListener('activate', (event) => {
 			.keys()
 			.then((names) =>
 				Promise.all(
-					names.filter((n) => n.startsWith('cl-tools-') && n !== CACHE_NAME).map((n) => caches.delete(n)),
+					// SHA未検証の文字起こしcacheは配信復旧後も残さない。
+					names
+						.filter((n) => n === 'transformers-cache' || (n.startsWith('cl-tools-') && n !== CACHE_NAME))
+						.map((n) => caches.delete(n)),
 				),
 			)
 			.then(() => self.clients.claim()),

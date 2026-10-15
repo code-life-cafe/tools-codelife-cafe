@@ -83,7 +83,10 @@ function prepareRuntime(): Promise<void> {
 			isSafari ? 'ort-wasm-simd-threaded' : 'ort-wasm-simd-threaded.asyncify',
 			await cachePromise,
 		);
-	})();
+	})().catch((error) => {
+		runtimeReady = undefined;
+		throw error;
+	});
 	return runtimeReady;
 }
 

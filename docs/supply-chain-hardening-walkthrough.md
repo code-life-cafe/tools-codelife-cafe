@@ -158,3 +158,12 @@ cb65d50のSecurity Reviewで、同長のR2 runtime差替えはサイズ検査の
 1103e9cのCode Review指摘に対応。実ORT WASMの末尾data sectionの1byteを変更し、同長・変更前後のWebAssembly.validate成功を確認してから配信する。両画像Workerでハッシュエラー拒否を確認する。unitの最小WASMもcustom section本文を変更し、有効性を保持したままBlob作成前に拒否。製品コードの追加変更はなし。
 
 最終runtime検証付きWorkerの14素材再計測は中央値11.69秒、最大観測private footprint3.35GiB。採用前Lite WASMとRGBA14/14完全一致、high→fast→high→fast→high成功、外部/BEN2取得0。前段7.05秒との差をhash処理だけに帰属せず、最終測定を最新値として扱う。
+
+
+### 公開前の第4修正ループ（人間の個別承認、2026-10-15）
+
+最新main d09d949を通常mergeで統合した2223dd2の独立Code Reviewで、初回runtime取得が503になると失敗Promiseを保持し、同じWorkerでは復旧後も再試行できないP2を確認。両画像Workerの失敗Promiseだけを破棄する。修正前の実Worker診断は両方で2回目もerror、runtime GET1回。修正後はMJS/WASMそれぞれ初回503→同じWorkerで実推論result、GET2回・Worker生成1回をPC/mobile viewportで検証した（8ケース）。画像Worker関連E2E全52件成功。
+
+同headのSecurity Reviewは、SWがSHA未検証transformers-cacheも更新後に保持するP2を指摘。人間が同じ第4周の範囲追加を承認。activate時に当該文字起こしcacheを明示削除し、検証済み画像cacheと現行shell cacheは保持する。実SWソースのactivateハンドラに対する回帰テストは修正前1 fail→修正後1 pass。文字起こしモデルの読取時SHA検証追加は今回行わない。
+
+build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。最新headのGitHub必須CIと独立Code/Security Reviewの解消確認をMerge条件として維持する。旧R2資産は削除・変更しない。

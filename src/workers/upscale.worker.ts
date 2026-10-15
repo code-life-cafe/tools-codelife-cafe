@@ -85,7 +85,12 @@ function loadOrt(runtime: OrtRuntime): Promise<Ort> {
 		runtime === 'webgpu'
 			? import('onnxruntime-web/webgpu')
 			: import('onnxruntime-web/wasm')
-	).then((ort) => configureOrt(ort, runtime));
+	)
+		.then((ort) => configureOrt(ort, runtime))
+		.catch((error) => {
+			ortPromises.delete(runtime);
+			throw error;
+		});
 	ortPromises.set(runtime, promise);
 	return promise;
 }

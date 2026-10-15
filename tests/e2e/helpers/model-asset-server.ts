@@ -34,7 +34,7 @@ export async function modelAssetServer() {
 					file.path,
 				),
 			);
-	const faults = new Map<string, 'corrupt' | 'missing'>();
+	const faults = new Map<string, 'corrupt' | 'missing' | 'unavailable'>();
 	const requests: { path: string; method: string }[] = [];
 	const wasmMutations: {
 		path: string;
@@ -84,8 +84,11 @@ export async function modelAssetServer() {
 			res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
 			const path = new URL(req.url ?? '/', 'http://localhost').pathname;
 			requests.push({ path, method: req.method ?? 'GET' });
-			if (faults.get(path) === 'missing') {
-				res.writeHead(404);
+			if (
+				faults.get(path) === 'missing' ||
+				faults.get(path) === 'unavailable'
+			) {
+				res.writeHead(faults.get(path) === 'missing' ? 404 : 503);
 				res.end();
 				return;
 			}

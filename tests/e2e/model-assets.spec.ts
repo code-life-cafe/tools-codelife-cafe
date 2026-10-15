@@ -42,6 +42,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		name: 'upscale' | 'bg-remove',
 		mode: string,
 		keepAlive = false,
+		reuseWorker = false,
 	) {
 		const assets = await readdir('dist/_astro');
 		const worker = assets.find(
@@ -49,7 +50,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		);
 		if (!worker) throw Error('Production Worker missing');
 		return page.evaluate(
-			async ({ path, name, mode, keepAlive }) => {
+			async ({ path, name, mode, keepAlive, reuseWorker }) => {
 				const canvas = document.createElement('canvas');
 				canvas.width = 32;
 				canvas.height = 32;
@@ -82,10 +83,23 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					ms: number;
 				}>((resolve) => {
 					let runtimeExecuted = false;
-					const worker = new Worker(
-						keepAlive ? `${path}?observe-cache-writes=1` : path,
-						{ type: 'module' },
-					);
+					const scope = globalThis as typeof globalThis & {
+						modelRetryWorker?: Worker;
+						modelRetryWorkerCreations?: number;
+					};
+					const createWorker = () => {
+						scope.modelRetryWorkerCreations =
+							(scope.modelRetryWorkerCreations ?? 0) + 1;
+						return new Worker(
+							keepAlive ? `${path}?observe-cache-writes=1` : path,
+							{ type: 'module' },
+						);
+					};
+					if (reuseWorker) scope.modelRetryWorker ??= createWorker();
+					const worker =
+						reuseWorker && scope.modelRetryWorker
+							? scope.modelRetryWorker
+							: createWorker();
 					const timeout = setTimeout(() => {
 						worker.terminate();
 						resolve({ type: 'timeout', ms: performance.now() - start });
@@ -124,7 +138,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 							};
 							scope.modelTestWorkers ??= [];
 							scope.modelTestWorkers.push(worker);
-						} else worker.terminate();
+						} else if (!reuseWorker) worker.terminate();
 						const pixels = data.data ? new Uint8Array(data.data) : null;
 						const alpha = (inside: boolean) => {
 							if (!pixels) return undefined;
@@ -180,7 +194,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					);
 				});
 			},
-			{ path: `/_astro/${worker}`, name, mode, keepAlive },
+			{ path: `/_astro/${worker}`, name, mode, keepAlive, reuseWorker },
 		);
 	}
 	function expectForegroundSeparation(result: {
@@ -517,6 +531,52 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		['upscale', 'fast', UPSCALE_RUNTIME, 'ort-wasm-simd-threaded'],
 	] as const) {
 		for (const extension of ['mjs', 'wasm']) {
+			test(`${tool}は実行資産${extension}の503復旧後に同じWorkerで再試行できる`, async ({
+				page,
+			}) => {
+				await open(page, tool);
+				const path = `/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${base}.${extension}`;
+				try {
+					server.faults.set(path, 'unavailable');
+					const first = await infer(page, tool, mode, false, true);
+					expect(first).toMatchObject({ type: 'error' });
+					expect(first.message).toContain('実行資産の検証に失敗');
+					server.faults.delete(path);
+					const second = await infer(page, tool, mode, false, true);
+					const size = tool === 'bg-remove' ? 32 : 64;
+					expect(second, JSON.stringify(second)).toMatchObject({
+						type: 'result',
+						width: size,
+						height: size,
+						bytes: size * size * 4,
+					});
+					if (tool === 'bg-remove') expectForegroundSeparation(second);
+					expect(
+						server.requests.filter(
+							(request) => request.path === path && request.method === 'GET',
+						),
+					).toHaveLength(2);
+					expect(
+						await page.evaluate(
+							() =>
+								(
+									globalThis as typeof globalThis & {
+										modelRetryWorkerCreations?: number;
+									}
+								).modelRetryWorkerCreations,
+						),
+					).toBe(1);
+				} finally {
+					server.faults.delete(path);
+					await page.evaluate(() => {
+						const scope = globalThis as typeof globalThis & {
+							modelRetryWorker?: Worker;
+						};
+						scope.modelRetryWorker?.terminate();
+						delete scope.modelRetryWorker;
+					});
+				}
+			});
 			test(`${tool}は同長改変された実行資産${extension}を実行前に拒否する`, async ({
 				page,
 			}) => {
