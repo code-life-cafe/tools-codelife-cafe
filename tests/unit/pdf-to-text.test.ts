@@ -780,3 +780,18 @@ describe('拡張漢字の語間', () => {
 		);
 	});
 });
+
+it('幅が欠損・非有限の文字片があれば内部順へ戻し、単語内へ空白を足さない', () => {
+	for (const width of [null, Number.NaN, Number.POSITIVE_INFINITY]) {
+		assert.equal(
+			formatPageText(
+				[
+					item('Hello', { x: 0, y: 10, width, fontSize: 12, horizontal: true }),
+					at('World', 27, 10, 30),
+				],
+				'lines',
+			),
+			'HelloWorld',
+		);
+	}
+});

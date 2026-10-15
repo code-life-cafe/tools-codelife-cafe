@@ -172,6 +172,9 @@ function isPositioned(item: TextChunkItem): boolean {
 		item.x !== null &&
 		item.y !== null &&
 		item.fontSize !== null &&
+		item.width !== null &&
+		Number.isFinite(item.width) &&
+		item.width >= 0 &&
 		Number.isFinite(item.x) &&
 		Number.isFinite(item.y) &&
 		Number.isFinite(item.fontSize) &&

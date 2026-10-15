@@ -15,9 +15,10 @@
 | npm run lint | 成功。既存警告15件・info1件、エラーなし |
 | npm run check | 成功。Astro型エラーなし、既存警告あり |
 | npm run build | 成功。新規ページとOG生成、Pagesアセット上限検査成功 |
-| 全体単体テスト（build後） | 1,651件すべて成功・skipなし |
-| 対象単体テスト | 45件すべて成功 |
+| 全体単体テスト（build後） | 1,652件すべて成功・skipなし |
+| 対象単体テスト | 46件すべて成功 |
 | PDF/検索/SEO E2E（Chromium＋Pixel 7エミュレーション） | 175件成功・13件既存skip。追加delivery2件は後述の最終再実行で両方成功（合計177成功・13skip） |
+| 最後の幅欠損修正後の対象E2E | PDFテキスト抽出64件＋通常配信2件、計66件すべて成功（PC/モバイル）。共有描画を変更していないため既存PDF/検索の前回111件は再実行せず、全体は最新CIへ |
 | 通常配信・SW E2Eの最終再実行 | 2件成功（PC/モバイルプロジェクト）。新規context・routeなし・SW許可で検証 |
 | ネイティブの内蔵ブラウザ | 合成text-ja.pdfの3ページを抽出し、TXTを実保存。3,679バイト・1,423UTF-16単位・日本語・見出し3件・BOMなし・CRなしをファイル側で確認 |
 
@@ -47,13 +48,14 @@ Claude Code Makerで初期実装。別セッションのClaude Codeとagy（Gemi
 | 通常配信のprivacy/SW証拠不足 | test inadequacy/P2。遮断なしの独立contextで通信とオフラインを追加検証 |
 | 拡張漢字の間の不要な空白 | actionable defect/P2。𠮷/𠮟と英字隣接を再現。Unicode Han判定へ拡張。修正前unit失敗→修正後成功 |
 | UserUnit2で隣接英単語に空白 | actionable defect/P2。表示座標に合わせ文字幅をスケール。修正前E2EでHello World→修正後HelloWorldを確認 |
+| 幅情報欠損時の行整形 | actionable defect/P2。幅がnull/NaN/Infinityなら内部順へ戻す。unitで修正前失敗→修正後成功。PR修正ループ1/3 |
 | ゼロ幅文字だけのページ | informational。元文字保持の仕様上、不可視文字を勝手に消さない |
 | 8MiBの前に文字数上限へ達する | informational。追加の独立容量制限であり、8MiBまで入力可能とはしない |
 | 傾斜/段組み等の行クラスタリング | documented limitation。完全な読み順復元は範囲外、内部順へ切替可能 |
 | 共通validatePdfInputのテストが新unitにない | informational。既存の共通unitと新E2Eの入力境界で検証済み。重複テストを増やさない |
 | contentとcatalogのrelated差・件数への疑問 | informational。新ツールは既存登録方式に従い、READMEは57→58。Production不具合の証拠なし |
 
-agyの修正後再レビュー（895bf13b-a587-4712-8c81-4c20d76a5c7e）は具体的不具合の追加なし。Claude Codeの最終再レビュー結果はPR本文/追記で記録する。
+agyの修正後再レビュー（895bf13b-a587-4712-8c81-4c20d76a5c7e）は具体的不具合の追加なし。Claude Code最終レビュー（527c3cc6-bd10-488d-a936-3d49bd18a6c3）で原findingを解消確認後、新たに幅欠損時のフォールバック不足を指摘。修正後の再レビューでは残るblockerなし。同じ最終差分をagyも再レビューし、具体的な残存欠陥なし（b10a0839-68a8-4541-a7a9-fc567f79bf43）。どちらも読み取り専用で、テスト結果は主担当の実行証拠と区別する。
 
 ## 途中の失敗と切り分け
 
