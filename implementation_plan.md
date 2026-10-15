@@ -170,3 +170,8 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 ## Unicode WebMCP承認済み実装
 
 approved-unicode-plan.mdのAPI/予算/変更範囲に従う。Codex実装・agy独立レビュー。R3、Draft PRまで。
+
+
+## CSV抽出・並べ替え WebMCP（2026-10-15承認）
+
+approved-csv-query-plan.mdをACとして、Codex実装・agy独立レビュー。単一フィルタ/ソート、型明示、UI不変、100kコードポイント/1000行/50列/20kセル/1MiB。Draft PR/CIまで。
