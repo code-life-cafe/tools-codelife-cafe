@@ -39,6 +39,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		page: import('@playwright/test').Page,
 		name: 'upscale' | 'bg-remove',
 		mode: string,
+		keepAlive = false,
 	) {
 		const assets = await readdir('dist/_astro');
 		const worker = assets.find(
@@ -46,7 +47,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		);
 		if (!worker) throw Error('Production Worker missing');
 		return page.evaluate(
-			async ({ path, name, mode }) => {
+			async ({ path, name, mode, keepAlive }) => {
 				const canvas = document.createElement('canvas');
 				canvas.width = 32;
 				canvas.height = 32;
@@ -68,9 +69,13 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					width?: number;
 					height?: number;
 					bytes?: number;
+					digest?: string;
 					ms: number;
 				}>((resolve) => {
-					const worker = new Worker(path, { type: 'module' });
+					const worker = new Worker(
+						keepAlive ? `${path}?observe-cache-writes=1` : path,
+						{ type: 'module' },
+					);
 					const timeout = setTimeout(() => {
 						worker.terminate();
 						resolve({ type: 'timeout', ms: performance.now() - start });
@@ -84,16 +89,43 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 							ms: performance.now() - start,
 						});
 					};
-					worker.onmessage = ({ data }) => {
+					worker.onmessage = async ({ data }) => {
+						if (data.type === 'model-cache-write') {
+							const scope = globalThis as typeof globalThis & {
+								modelTestCacheWrites?: {
+									key: string;
+									success: boolean;
+									message?: string;
+								}[];
+							};
+							scope.modelTestCacheWrites ??= [];
+							scope.modelTestCacheWrites.push(data);
+							return;
+						}
 						if (data.type !== 'result' && data.type !== 'error') return;
 						clearTimeout(timeout);
-						worker.terminate();
+						if (keepAlive && data.type === 'result') {
+							const scope = globalThis as typeof globalThis & {
+								modelTestWorkers?: Worker[];
+							};
+							scope.modelTestWorkers ??= [];
+							scope.modelTestWorkers.push(worker);
+						} else worker.terminate();
 						resolve({
 							type: data.type,
 							message: data.message,
 							width: data.width,
 							height: data.height,
 							bytes: data.data?.byteLength,
+							digest: data.data
+								? Array.from(
+										new Uint8Array(
+											await crypto.subtle.digest('SHA-256', data.data),
+										),
+									)
+										.map((x) => x.toString(16).padStart(2, '0'))
+										.join('')
+								: undefined,
 							ms: performance.now() - start,
 						});
 					};
@@ -114,7 +146,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					);
 				});
 			},
-			{ path: `/_astro/${worker}`, name, mode },
+			{ path: `/_astro/${worker}`, name, mode, keepAlive },
 		);
 	}
 	async function open(page: import('@playwright/test').Page, tool: string) {
@@ -276,9 +308,136 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		const result = await infer(page, 'bg-remove', 'fast');
 		expect(result.type).toBe('error');
 	});
+
+	for (const file of [
+		'config.json',
+		'preprocessor_config.json',
+		'onnx/model_fp16.onnx',
+	]) {
+		for (const fault of ['corrupt', 'missing'] as const) {
+			test(`Lite高精度の${file} ${fault}を拒否する`, async ({ page }) => {
+				await open(page, 'bg-remove');
+				const url = modelFile('birefnet-lite-512', file).url;
+				server.faults.set(url, fault);
+				const result = await infer(page, 'bg-remove', 'high');
+				expect(result.type, JSON.stringify(result)).toBe('error');
+				if (fault === 'corrupt') expect(result.message).toContain('ハッシュ');
+				expect(
+					server.requests.filter((request) => request.path === url),
+				).toHaveLength(1);
+				expect(
+					server.requests.some((request) => request.path.includes('/ben2/')),
+				).toBe(false);
+			});
+		}
+	}
+	test('Lite高精度は実SWと検証済cacheでoffline再推論し同じRGBAを返す', async ({
+		page,
+		context,
+	}) => {
+		await open(page, 'bg-remove');
+		await page.evaluate(async () => {
+			await navigator.serviceWorker.ready;
+			if (!navigator.serviceWorker.controller)
+				await new Promise<void>((resolve) =>
+					navigator.serviceWorker.addEventListener(
+						'controllerchange',
+						() => resolve(),
+						{ once: true },
+					),
+				);
+		});
+		expect(
+			await page.evaluate(() => !!navigator.serviceWorker.controller),
+		).toBe(true);
+		const originalWorker = (await readdir('dist/_astro')).find(
+			(file) => file.startsWith('bg-remove.worker-') && file.endsWith('.js'),
+		);
+		if (!originalWorker) throw Error('Missing Worker');
+		await page.evaluate(async (path) => {
+			const response = await fetch(path);
+			if (!response.ok) throw Error('Worker fetch failed');
+			await response.arrayBuffer();
+		}, `/_astro/${originalWorker}`);
+		const first = await infer(page, 'bg-remove', 'high', true);
+		expect(first).toMatchObject({
+			type: 'result',
+			width: 32,
+			height: 32,
+			bytes: 4096,
+		});
+		expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
+
+		// 通常UIと同様にWorkerを維持し、非同期cache.putの完了後に終了する。
+		// 結果直後のterminateは未完了のstream書込みを中断する。
+		const cacheKeys = MODEL_ASSETS.find(
+			(model) => model.name === 'birefnet-lite-512',
+		)
+			?.files.filter((file) => file.path !== 'LICENSE')
+			.map((file) => {
+				const key = new URL(file.url, server.base);
+				key.searchParams.set('verified-sha256', file.sha256);
+				return key.href;
+			});
+		if (!cacheKeys) throw Error('Missing Lite manifest');
+
+		// Cache.matchのmetadataや本文が読めてもput完了前のことがある。
+		// テスト配信だけでCache.putを観測し、promise解決を待ってからWorkerを終了。
+		await page.waitForFunction(
+			(keys) => {
+				const events =
+					(
+						globalThis as typeof globalThis & {
+							modelTestCacheWrites?: {
+								key: string;
+								success: boolean;
+								message?: string;
+							}[];
+						}
+					).modelTestCacheWrites ?? [];
+				const failed = events.find((event) => !event.success);
+				if (failed) throw Error(`Cache write failed: ${failed.message}`);
+				return keys.every((key) =>
+					events.some((event) => event.key === key && event.success),
+				);
+			},
+			cacheKeys,
+			{ timeout: 30000 },
+		);
+		await page.evaluate(() => {
+			const scope = globalThis as typeof globalThis & {
+				modelTestWorkers?: Worker[];
+			};
+			for (const worker of scope.modelTestWorkers ?? []) worker.terminate();
+			scope.modelTestWorkers = [];
+		});
+		await context.setOffline(true);
+		try {
+			const cached = await infer(page, 'bg-remove', 'high');
+			expect(cached, JSON.stringify(cached)).toMatchObject({
+				type: 'result',
+				width: 32,
+				height: 32,
+				digest: first.digest,
+			});
+		} finally {
+			await context.setOffline(false);
+		}
+		expect(
+			server.requests.filter(
+				(request) =>
+					request.path ===
+					modelFile('birefnet-lite-512', 'onnx/model_fp16.onnx').url,
+			),
+		).toHaveLength(1);
+		expect(
+			server.requests.some((request) => request.path.includes('/ben2/')),
+		).toBe(false);
+	});
+
 	for (const [tool, mode, model] of [
 		['bg-remove', 'fast', 'modnet'],
-		['bg-remove', 'high', 'ben2'],
+		['bg-remove', 'high', 'birefnet-lite-512'],
 		['upscale', 'max', 'realesrgan-x4plus'],
 	] as const) {
 		test(`実モデル推論・通信: ${model}`, async ({ page, context }) => {
@@ -289,7 +448,9 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					external.push(request.url());
 			});
 			const stopProfile =
-				model === 'ben2' ? await startMemoryProfile(context) : null;
+				model === 'birefnet-lite-512'
+					? await startMemoryProfile(context)
+					: null;
 			const result = await infer(page, tool, mode);
 			const memory = await stopProfile?.();
 			const observedJsHeapLimitBytes = await page.evaluate(
@@ -300,13 +461,13 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 						}
 					).memory?.jsHeapSizeLimit ?? null,
 			);
-			if (memory) {
-				expect(memory.samples).toBeGreaterThan(0);
-				expect(observedJsHeapLimitBytes).toBeLessThan(320 * 1024 * 1024);
-			}
 
 			expect(result, JSON.stringify(result)).toMatchObject({ type: 'result' });
 			expect(external).toEqual([]);
+			if (tool === 'bg-remove')
+				expect(
+					server.requests.some((request) => request.path.includes('/ben2/')),
+				).toBe(false);
 			const asset = MODEL_ASSETS.find((item) => item.name === model);
 			expect(
 				server.requests.some(
@@ -315,6 +476,10 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 						asset?.files.find((file) => file.path.endsWith('.onnx'))?.url,
 				),
 			).toBe(true);
+			if (memory) {
+				expect(memory.samples).toBeGreaterThan(0);
+				expect(observedJsHeapLimitBytes).toBeLessThan(320 * 1024 * 1024);
+			}
 			await appendFile(
 				join('test-results', 'model-performance.jsonl'),
 				`${JSON.stringify({

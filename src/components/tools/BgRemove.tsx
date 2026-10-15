@@ -376,10 +376,16 @@ export default function BgRemove() {
 					{mode === 'fast' ? (
 						<span>MODNet（人物特化・高速）≈ 25.9MB</span>
 					) : (
-						<span>BEN2（高精度・アニメ対応）≈ 209MB</span>
+						<span>BiRefNet Lite 512（人物・商品など）≈ 98.5MB</span>
 					)}
 				</div>
 			</div>
+
+			{mode === 'high' && (
+				<p className="text-xs text-muted-foreground">
+					細い線や半透明部分は一部欠けることがあります。結果を確認してください。
+				</p>
+			)}
 
 			{/* エラー表示 */}
 			{error && (
@@ -452,7 +458,7 @@ export default function BgRemove() {
 									</p>
 									<p className="text-xs text-muted-foreground mt-0.5">
 										{status === 'loading'
-											? `AIモデル（${mode === 'high' ? '高精度: 約209MB' : '人物特化高速: 約25.9MB'}）を準備しています。これには数十秒かかる場合があります。`
+											? `AIモデル（${mode === 'high' ? '高精度: 約98.5MB' : '人物特化高速: 約25.9MB'}）を準備しています。これには数十秒かかる場合があります。`
 											: `AIモデル（${mode === 'high' ? '高精度' : '人物特化高速'}）の準備が完了しました。画像から背景を自動で切り抜いています。`}
 									</p>
 								</div>
@@ -677,8 +683,8 @@ export default function BgRemove() {
 						</p>
 						<p>
 							初回はモデルのダウンロードが必要です（高精度モード:
-							約209MB、高速モード〈人物特化〉: 約25.9MB）。
-							2回目以降はキャッシュされ即座に処理できます。
+							約98.5MB、高速モード〈人物特化〉: 約25.9MB）。
+							初回は実行ファイルも取得します。2回目以降は検証済みキャッシュを利用します。
 						</p>
 					</div>
 				</div>

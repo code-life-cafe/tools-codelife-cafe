@@ -160,6 +160,25 @@ export async function modelAssetServer() {
 				'.png': 'image/png',
 				'.svg': 'image/svg+xml',
 			};
+
+			// Test-only observer: execute the real built Worker while exposing Cache.put
+			// completion. No model/inference/network mock; normal asset responses are unchanged.
+			if (
+				path.startsWith('/_astro/bg-remove.worker-') &&
+				path.endsWith('.js') &&
+				new URL(req.url ?? '/', 'http://localhost').search ===
+					'?observe-cache-writes=1'
+			) {
+				const observer =
+					"const originalCachePut=Cache.prototype.put;Cache.prototype.put=async function(key,response){try{await originalCachePut.call(this,key,response);self.postMessage({type:'model-cache-write',key:String(key),success:true});}catch(error){self.postMessage({type:'model-cache-write',key:String(key),success:false,message:String(error)});throw error;}};\n";
+				const source = observer + (await readFile(target, 'utf8'));
+				res.writeHead(200, {
+					'content-type': 'text/javascript',
+					'content-length': Buffer.byteLength(source),
+				});
+				res.end(source);
+				return;
+			}
 			res.writeHead(200, {
 				'content-type': mime[extname(target)] ?? 'application/octet-stream',
 				'content-length': info.size,

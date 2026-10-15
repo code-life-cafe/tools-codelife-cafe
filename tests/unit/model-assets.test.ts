@@ -7,6 +7,7 @@ import { modelDelivery } from '../../src/lib/model-assets/delivery.ts';
 import {
 	type AssetFile,
 	MODEL_ASSETS,
+	modelAsset,
 } from '../../src/lib/model-assets/manifest.ts';
 import {
 	type AssetCache,
@@ -200,10 +201,16 @@ test('cache使用不能でも検証は必須で、正常資産のみ返す', asy
 		/サイズ/,
 	);
 });
-test('固定モデル一覧は完全SHA・サイズ・ハッシュ付きで必要な既存モデルだけ', () => {
+test('固定モデル一覧は完全SHA・サイズ・ハッシュ付きで現行モデルと旧版互換資産だけ', () => {
 	assert.deepEqual(
 		MODEL_ASSETS.map((model) => model.name),
-		['modnet', 'ben2', 'realesrgan-x4plus', 'realesr-general-x4v3'],
+		[
+			'modnet',
+			'birefnet-lite-512',
+			'ben2',
+			'realesrgan-x4plus',
+			'realesr-general-x4v3',
+		],
 	);
 	for (const model of MODEL_ASSETS) {
 		assert.match(model.revision, /^[a-f0-9]{40}$/);
@@ -349,4 +356,48 @@ test('cache書込みが未完了でも検証済みbytesを推論へ返す', asyn
 	finish?.();
 	assert(result, 'cache IO must not block inference');
 	assert.equal(result.byteLength, asset.bytes);
+});
+
+test('Liteは固定fp16/config/LICENSEで配信し、BEN2の旧URL定義も保持する', async () => {
+	const lite = modelAsset('birefnet-lite-512');
+	assert.equal(lite.revision, '962e67969ec6acec9c19fab76acee4f5e22e990c');
+	assert.equal(lite.dtype, 'fp16');
+	assert.deepEqual(
+		lite.files.map((file) => file.path),
+		[
+			'config.json',
+			'preprocessor_config.json',
+			'onnx/model_fp16.onnx',
+			'LICENSE',
+		],
+	);
+	const license = lite.files.find((file) => file.path === 'LICENSE');
+	assert(license);
+	assert.equal(license.bytes, 1106);
+	assert.equal(
+		license.sha256,
+		'b5cd5faac84a0acb8a6bdb8aeef0919e528891be27216df84eab398d7c8bd2aa',
+	);
+	let actualKey = '';
+	const response = await bgDelivery({
+		request: new Request(origin + license.url, { method: 'HEAD' }),
+		env: {
+			TRANSCRIBE_MODELS: {
+				get: async () => null,
+				head: async (key) => {
+					actualKey = key;
+					return { size: license.bytes, httpEtag: 'license', body: null };
+				},
+			},
+		},
+	});
+	assert.equal(response.status, 200);
+	assert.equal(
+		actualKey,
+		`bg-remove/birefnet-lite-512/${lite.revision}/${license.sha256}/LICENSE`,
+	);
+	assert.equal(
+		modelAsset('ben2').revision,
+		'c552aa82688edce09f0ac9d2e31ad53d9d629010',
+	);
 });

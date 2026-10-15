@@ -1,5 +1,9 @@
 # AI開発フロー整理の実装計画
 
+## 2026-10-15: 背景削除高精度モードのLite 512 WASM採用（ユーザー承認済み）
+
+[実装計画・品質差・WebGPU選択式の評価](docs/bg-remove-lite512-adoption-plan.md)。高精度はBiRefNet Lite 512 WASM、高速は現行MODNetを維持する方針。2026-10-15に実装・検証・Draft #451更新とCode/Security Review確認を承認済み。WebGPUは今回対象外。R2投入・Merge・本番公開は未承認。
+
 ## 2026-10-14: 現行画像モデルのサプライチェーン安全化（ユーザー承認済み）
 
 [実装計画](docs/supply-chain-hardening-plan.md) / [検証と公開前手順](docs/supply-chain-hardening-walkthrough.md)。現行モデルを維持し、自前ランタイム配信とSHA・hash検証を実装。承認範囲は実装・検証・Draft PRまで。モデル差し替え・R2投入・Merge・本番公開は別判断。

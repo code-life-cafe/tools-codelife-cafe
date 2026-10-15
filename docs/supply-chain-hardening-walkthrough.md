@@ -106,3 +106,31 @@ Mobile Chrome projectはPC上のモバイル幅/UAエミュレーション。実
 - 比較は固定revisionの同一6素材、同一WASM runtime/1thread、同一V8制限、モデルごとの独立browserで行う。BEN2前後/MODNet/BiRefNet512のcold初期化・推論・mode切替を記録。正解alphaなしのため目視評価と出力差分を報告し、定量的な品質優位を主張しない。測定の生データ・出力画像はlocal比較領域に保存し、結果はPR本文とユーザー報告に記録する。
 
 Draft維持。R2投入・Merge・本番公開は実施しない。
+
+
+## 2026-10-15: 高精度モードをBiRefNet Lite 512 WASMへ移行
+
+ユーザーが採用計画の実装・検証・Draft #451更新とCode/Security Review確認を承認。R2投入・Merge・公開は未承認。
+
+- high: BiRefNet Lite 512 fp16、revision 962e67969ec6acec9c19fab76acee4f5e22e990c、ONNX 98,484,532 bytes、SHA-256 eff9216bb2f9d3f023d9c2b7196845a7485739ab1f231593633e4d2344ffc516。config/preprocessor/LICENSEも固定検証。
+- fast: 既存MODNet fp32のrevision/重みを維持。WebGPUは追加せずWASM/1thread。mode値、既定high、UIラッパー、FIFOとsession解放は維持。
+- BEN2の配信manifestは旧Worker互換用に保持。新Workerの取得許可はMODNet/Liteだけに限定。旧cache/R2キーの削除なし。
+- UI3箇所のモデル/容量とFAQを更新。細線・半透明部分の欠落と、初回runtimeの別途取得を明記。BEN2完全上位互換やアニメ全般の保証はしない。
+- THIRD-PARTY-NOTICESへMIT原文と両著作権者を保持。LICENSE本体も固定配信候補へ追加。
+- ローカル資産準備とprepare-only一覧生成まで。新規R2キーは未投入のため、このまま本番へ公開してはいけない。
+
+### ローカル検証
+
+- build成功、Pagesの25MiB制限検査成功。モデル実体はGit/build静的配布へ混入しない。
+- unit 1573件成功、skipなし。関連のmanifest/ライフサイクル/ラッパーも確認。
+- 対象E2E 36件成功、PC/mobile幅、skipなし。実モデル推論、Liteの各config/ONNXの改ざん・欠落拒否、BEN2への取得0、実SWでoffline再推論のRGBA一致を確認。
+- lint exit0、既存15 warnings/1 info（今回無関係、修正なし）。Astro checkは0 errors/0 warnings/107 hints。
+- mutation: ローカルbuildのhigh registryをMODNetへ向けると、Liteの実ONNX取得assertで失敗。build Workerはbyte単位で復元済み。意図的な失敗であり、通常検証の失敗を隠したものではない。
+- 既存4321のpreviewが旧UIを返したため専用4371で確認した。preview設定/CIを変更していない。
+- offlineテストは結果直後のWorker terminateで未完了Cache.putが中断された。Cache.matchでmetadata/本文が読めてもput promise完了とは限らないことを診断した。テスト専用ローカル配信だけで実Cache.putの完了を観測し、実書込み後にWorkerを終了してofflineを確認。model/inference/networkのmockではなく、製品cache処理を変更していない。
+
+### 品質・公開前の境界
+
+採用前比較は[採用計画](bg-remove-lite512-adoption-plan.md)の14素材と提供GT7素材。ネットのalpha回収率はBEN2約99.4%に対しLite約93.0%。髪・商品は近い品質、煙/グラスはLiteのalpha MAEが小さい。完全上位互換・4K細部復元を主張しない。製品Workerの同素材比較と切替記録はPR本文/ローカル成果物で区別して報告する。
+
+Firefox/WebKitのローカル実行バイナリは未導入。Safari・実iOS/Androidの連続/4Kとメモリ適合は未確認。PC上mobile viewportの合格で代替しない。新headのCI/独立Code・Security Reviewの結果はPR履歴で照合し、旧headの完了を流用しない。Draft維持、R2 read-backと実機の確認/未確認の公開判断は別承認。

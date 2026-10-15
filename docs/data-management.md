@@ -276,3 +276,9 @@ npm run transcribe:verify -- --full             # 全ファイルの SHA-256 ま
 ランタイムはTransformersが解決する版とupscaleが直接解決する版を分離してビルド時に照合し、自前MJS/WASMを配信する。大容量資産は既存R2バインディングを使い、hash付きキーに配置する。通常ビルドは期待hashを更新しない。
 
 取得・検証・投入一覧準備・read-back・未確認事項は [検証記録と公開前手順](supply-chain-hardening-walkthrough.md) を参照。R2投入と公開は別承認。新規キーの配置前にコードだけを本番へ公開してはいけない。旧mutable main取得のアップロードスクリプトは廃止し、明示失敗する。
+
+### 背景削除高精度モードのLite 512移行（2026-10-15）
+
+highはBiRefNet Lite 512 fp16/WASM、fastは現行MODNet fp32/WASM。WebGPUは追加しない。固定資産とLICENSEはmanifestの同一origin URL/hashを正本とする。BEN2のmanifestは旧Worker URL互換用に残すが、新Workerの取得許可集合・high選択には含めない。旧cache/R2資産の一括削除はしない。
+
+モデル本体は約98.5MB（10進）、初回はruntime等も必要。細線の一部欠落は既知差として説明し、実機モバイル・Safariのメモリ適合は未確認。新規R2資産は未投入であり、投入とread-back確認・別承認前にMerge/本番公開しない。詳細は[採用計画](bg-remove-lite512-adoption-plan.md)。

@@ -1,7 +1,7 @@
 // bg-remove.worker.ts — 背景削除推論を Web Worker に隔離
 // Transformers.js v4 の background-removal パイプラインを使用
 import { env, pipeline, RawImage } from '@huggingface/transformers';
-import { MODEL_ASSETS, modelAsset } from '../lib/model-assets/manifest.ts';
+import { modelAsset } from '../lib/model-assets/manifest.ts';
 import { createPipelineLifecycle } from '../lib/model-assets/pipeline-lifecycle.ts';
 import {
 	createVerifiedModelFetch,
@@ -19,9 +19,24 @@ env.useBrowserCache = false;
 env.useCustomCache = false;
 env.useWasmCache = false;
 env.experimental_useCrossOriginStorage = false;
-const modelFiles = MODEL_ASSETS.filter(
-	(model) => model.tool === 'bg-remove',
-).flatMap((model) => model.files);
+// --- モデルレジストリ ---
+const MODELS = {
+	fast: {
+		assetName: 'modnet',
+		id: `modnet/${modelAsset('modnet').revision}`,
+		dtype: 'fp32' as const, // float32: ~25.9MB（高精度化）
+	},
+	high: {
+		assetName: 'birefnet-lite-512',
+		id: `birefnet-lite-512/${modelAsset('birefnet-lite-512').revision}`,
+		dtype: 'fp16' as const, // fp16: 約98.5MB（10進）
+	},
+} as const;
+
+// 旧版配信用BEN2は新Workerの取得許可に含めない。
+const modelFiles = Object.values(MODELS).flatMap(
+	(model) => modelAsset(model.assetName).files,
+);
 const cachePromise =
 	typeof caches === 'undefined'
 		? Promise.resolve(null)
@@ -70,18 +85,6 @@ if (wasmBackend) {
 self.addEventListener('unhandledrejection', (event) => {
 	event.preventDefault();
 });
-
-// --- モデルレジストリ ---
-const MODELS = {
-	fast: {
-		id: `modnet/${modelAsset('modnet').revision}`,
-		dtype: 'fp32' as const, // float32: ~25.9MB（高精度化）
-	},
-	high: {
-		id: `ben2/${modelAsset('ben2').revision}`,
-		dtype: 'fp16' as const, // fp16: ~209MB
-	},
-} as const;
 
 export type ModelMode = 'fast' | 'high';
 
@@ -139,7 +142,7 @@ async function loadPipeline(mode: ModelMode, id: string) {
 	assetLoadError = null;
 	loadingRequestId = id;
 	// 任意扱いの設定ファイルも先に検証し、ライブラリのoptional fallbackを許さない。
-	const asset = modelAsset(mode === 'fast' ? 'modnet' : 'ben2');
+	const asset = modelAsset(model.assetName);
 	for (const file of asset.files.filter((file) =>
 		file.path.endsWith('.json'),
 	)) {

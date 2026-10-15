@@ -55,6 +55,45 @@ export const MODEL_ASSETS: readonly ModelAsset[] = [
 		license: 'Apache-2.0',
 	},
 	{
+		name: 'birefnet-lite-512',
+		sourceRepository: 'studioludens/birefnet-lite-512',
+		revision: '962e67969ec6acec9c19fab76acee4f5e22e990c',
+		files: [
+			{
+				path: 'config.json',
+				bytes: 81,
+				sha256:
+					'561965f7aa366c48b95ab1c24220d59a718df4025c2ecb359dd5736ceb49e912',
+				url: '/models/bg-remove/birefnet-lite-512/962e67969ec6acec9c19fab76acee4f5e22e990c/config.json',
+			},
+			{
+				path: 'preprocessor_config.json',
+				bytes: 389,
+				sha256:
+					'a79663b311d8404dfb329f7b45bc9f970a0c155aeedae8ac15b6b77d76789613',
+				url: '/models/bg-remove/birefnet-lite-512/962e67969ec6acec9c19fab76acee4f5e22e990c/preprocessor_config.json',
+			},
+			{
+				path: 'onnx/model_fp16.onnx',
+				bytes: 98484532,
+				sha256:
+					'eff9216bb2f9d3f023d9c2b7196845a7485739ab1f231593633e4d2344ffc516',
+				url: '/models/bg-remove/birefnet-lite-512/962e67969ec6acec9c19fab76acee4f5e22e990c/onnx/model_fp16.onnx',
+			},
+			{
+				path: 'LICENSE',
+				bytes: 1106,
+				sha256:
+					'b5cd5faac84a0acb8a6bdb8aeef0919e528891be27216df84eab398d7c8bd2aa',
+				url: '/models/bg-remove/birefnet-lite-512/962e67969ec6acec9c19fab76acee4f5e22e990c/LICENSE',
+			},
+		],
+		tool: 'bg-remove',
+		dtype: 'fp16',
+		license: 'MIT',
+	},
+	// 旧Workerの固定URL互換用。現行highではロードしない。
+	{
 		name: 'ben2',
 		sourceRepository: 'onnx-community/BEN2-ONNX',
 		revision: 'c552aa82688edce09f0ac9d2e31ad53d9d629010',

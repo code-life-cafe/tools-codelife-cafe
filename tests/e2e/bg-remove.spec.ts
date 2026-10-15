@@ -33,8 +33,15 @@ test.describe('背景削除ツール', () => {
 		const modeLabel = page.locator('label[for="mode-switch"]');
 		await expect(modeLabel).toContainText('高精度モード');
 		await expect(
-			page.getByText('BEN2（高精度・アニメ対応）≈ 209MB'),
+			page.getByText('BiRefNet Lite 512（人物・商品など）≈ 98.5MB'),
 		).toBeVisible();
+
+		await expect(
+			page.getByText(
+				'細い線や半透明部分は一部欠けることがあります。結果を確認してください。',
+			),
+		).toBeVisible();
+		await expect(page.getByText(/約98\.5MB、高速モード/)).toBeVisible();
 
 		// スイッチをOFFにして高速モードに切り替え
 		await modeSwitch.click();
