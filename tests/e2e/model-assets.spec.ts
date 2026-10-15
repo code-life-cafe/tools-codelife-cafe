@@ -531,52 +531,88 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		['upscale', 'fast', UPSCALE_RUNTIME, 'ort-wasm-simd-threaded'],
 	] as const) {
 		for (const extension of ['mjs', 'wasm']) {
-			test(`${tool}は実行資産${extension}の503復旧後に同じWorkerで再試行できる`, async ({
-				page,
-			}) => {
-				await open(page, tool);
-				const path = `/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${base}.${extension}`;
-				try {
-					server.faults.set(path, 'unavailable');
-					const first = await infer(page, tool, mode, false, true);
-					expect(first).toMatchObject({ type: 'error' });
-					expect(first.message).toContain('実行資産の検証に失敗');
-					server.faults.delete(path);
-					const second = await infer(page, tool, mode, false, true);
-					const size = tool === 'bg-remove' ? 32 : 64;
-					expect(second, JSON.stringify(second)).toMatchObject({
-						type: 'result',
-						width: size,
-						height: size,
-						bytes: size * size * 4,
-					});
-					if (tool === 'bg-remove') expectForegroundSeparation(second);
-					expect(
-						server.requests.filter(
-							(request) => request.path === path && request.method === 'GET',
-						),
-					).toHaveLength(2);
-					expect(
-						await page.evaluate(
-							() =>
-								(
-									globalThis as typeof globalThis & {
-										modelRetryWorkerCreations?: number;
-									}
-								).modelRetryWorkerCreations,
-						),
-					).toBe(1);
-				} finally {
-					server.faults.delete(path);
-					await page.evaluate(() => {
-						const scope = globalThis as typeof globalThis & {
-							modelRetryWorker?: Worker;
-						};
-						scope.modelRetryWorker?.terminate();
-						delete scope.modelRetryWorker;
-					});
-				}
-			});
+			for (const fault of ['unavailable', 'corrupt'] as const) {
+				test(`${tool}は実行資産${extension}の${fault}復旧後に同じWorkerで再試行できる`, async ({
+					page,
+				}) => {
+					await open(page, tool);
+					if (fault === 'corrupt') {
+						await page.evaluate(async () => {
+							await navigator.serviceWorker.ready;
+							if (!navigator.serviceWorker.controller)
+								await new Promise<void>((resolve) =>
+									navigator.serviceWorker.addEventListener(
+										'controllerchange',
+										() => resolve(),
+										{ once: true },
+									),
+								);
+						});
+						expect(
+							await page.evaluate(() => !!navigator.serviceWorker.controller),
+						).toBe(true);
+					}
+					const path = `/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${base}.${extension}`;
+					try {
+						server.faults.set(path, fault);
+						const first = await infer(page, tool, mode, false, true);
+						expect(first).toMatchObject({
+							type: 'error',
+							runtimeExecuted: false,
+						});
+						if (fault === 'corrupt')
+							expect(first.message).toContain('ハッシュが一致しません');
+						expect(first.message).toContain('実行資産の検証に失敗');
+						server.faults.delete(path);
+						const second = await infer(page, tool, mode, false, true);
+						const size = tool === 'bg-remove' ? 32 : 64;
+						expect(second, JSON.stringify(second)).toMatchObject({
+							type: 'result',
+							width: size,
+							height: size,
+							bytes: size * size * 4,
+						});
+						if (tool === 'bg-remove') expectForegroundSeparation(second);
+						if (fault === 'corrupt') {
+							const shellCached = await page.evaluate(async (path) => {
+								for (const name of await caches.keys())
+									if (
+										name.startsWith('cl-tools-') &&
+										(await (await caches.open(name)).match(path))
+									)
+										return true;
+								return false;
+							}, path);
+							expect(shellCached).toBe(false);
+						}
+						expect(
+							server.requests.filter(
+								(request) => request.path === path && request.method === 'GET',
+							),
+						).toHaveLength(2);
+						expect(
+							await page.evaluate(
+								() =>
+									(
+										globalThis as typeof globalThis & {
+											modelRetryWorkerCreations?: number;
+										}
+									).modelRetryWorkerCreations,
+							),
+						).toBe(1);
+					} finally {
+						server.faults.delete(path);
+						await page.evaluate(() => {
+							const scope = globalThis as typeof globalThis & {
+								modelRetryWorker?: Worker;
+							};
+							scope.modelRetryWorker?.terminate();
+							delete scope.modelRetryWorker;
+						});
+					}
+				});
+			}
+
 			test(`${tool}は同長改変された実行資産${extension}を実行前に拒否する`, async ({
 				page,
 			}) => {

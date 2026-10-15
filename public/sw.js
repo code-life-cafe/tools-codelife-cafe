@@ -159,13 +159,16 @@ self.addEventListener('fetch', (event) => {
 
 	const reqUrl = event.request.url;
 	const url = new URL(reqUrl);
-	// 検証付きモデル取得は専用Cacheで管理し、破損SWキャッシュの再利用を防ぐ。
-	if (url.pathname.startsWith('/models/bg-remove/') || url.pathname.startsWith('/models/upscale/')) return;
+	// モデルとruntimeは取得時にSHA検証する専用Cacheへ任せる。
+	if (
+		url.pathname.startsWith('/models/bg-remove/') ||
+		url.pathname.startsWith('/models/upscale/') ||
+		url.pathname.startsWith('/vendor/onnx-wasm/')
+	) return;
 
 	// 静的アセット: Cache First
 	if (
 		url.pathname.startsWith('/_astro/') ||
-		url.pathname.startsWith('/vendor/onnx-wasm/') ||
 		url.pathname.match(
 			/\.(svg|png|jpg|jpeg|gif|woff|woff2|css|js|json|webmanifest)$/,
 		)

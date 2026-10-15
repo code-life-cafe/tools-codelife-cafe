@@ -167,3 +167,12 @@ cb65d50のSecurity Reviewで、同長のR2 runtime差替えはサイズ検査の
 同headのSecurity Reviewは、SWがSHA未検証transformers-cacheも更新後に保持するP2を指摘。人間が同じ第4周の範囲追加を承認。activate時に当該文字起こしcacheを明示削除し、検証済み画像cacheと現行shell cacheは保持する。実SWソースのactivateハンドラに対する回帰テストは修正前1 fail→修正後1 pass。文字起こしモデルの読取時SHA検証追加は今回行わない。
 
 build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。最新headのGitHub必須CIと独立Code/Security Reviewの解消確認をMerge条件として維持する。旧R2資産は削除・変更しない。
+
+
+### 公開前の第5修正ループ（人間の個別承認、2026-10-15）
+
+5cb6dedの独立Code Reviewで、同長破損runtimeを200で取得すると汎用SW cacheが保持し、origin修復後も再試行がhash errorとなるP2を指摘。実SW登録/control下の両Workerでorigin GET1回・2回目もerrorを再現。汎用SW cacheから/vendor/onnx-wasm/を除外し、取得時SHA検証をする専用cacheへ委ねる。旧SW cacheにruntimeが残っていても読まない。R2・権限・CSP・CI gate変更なし。
+
+追加した回帰テストは旧SWのcache動作を復元した配布物で失敗することを確認後、配布物を復元。修正後は実SW下でMJS/WASMの同長破損200を実行前に拒否し、配信修復後は同じWorkerで実推論成功。origin GET2回・Worker生成1回・汎用cacheにruntimeなしをassertする。PC/mobile viewportの8ケースに加え、503復旧と既存実モデル/実SW offline回帰を維持する。画像関連E2E全60件が成功（skip0）。
+
+build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。最新headの必須CIとCode/Security Reviewを再確認後にのみ、承認済みMerge・公開へ進む。旧R2資産は削除しない。
