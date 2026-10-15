@@ -50,6 +50,7 @@
 
 | ツール | 説明 |
 |--------|------|
+| [動画圧縮・リサイズ](https://tools.codelife.cafe/video-compress) | 動画を端末内で圧縮。品質・目標容量・解像度指定、トリミング、MP4保存（完全ローカル実行） |
 | [OGP画像ジェネレーター](https://tools.codelife.cafe/ogp) | SNSシェア用のOGP画像（1200×630）をテンプレートとテキストから作成（完全ローカル実行） |
 | [背景削除](https://tools.codelife.cafe/bg-remove) | AIがブラウザ内で画像の背景を自動削除。差し替えにも対応（完全ローカル実行） |
 | [画像アップスケール・ノイズ除去](https://tools.codelife.cafe/upscale) | Real-ESRGAN（ONNX）でブラウザ内アップスケール（2x/4x）・ノイズ除去。データは外部送信なし（完全ローカル実行） |
