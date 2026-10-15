@@ -969,6 +969,34 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'pdf-to-text',
+		title: 'PDFテキスト抽出',
+		description: 'PDFの文字データを取り出してコピー・TXT保存。外部送信なし。',
+		href: '/pdf-to-text',
+		icon: 'FileText',
+		categories: ['PDF', 'テキスト解析'],
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF テキスト抽出',
+			'PDF 文字抽出',
+			'PDF テキスト 変換',
+			'PDF TXT',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-split', 'pdf-to-image', 'char-count'],
+		llmsFull: {
+			useCase:
+				'PDFの文字データ（テキストレイヤー）をページ指定で取り出し、確認・編集してコピーまたはTXT保存（OCRはしない）',
+			inputs:
+				'pdfFile（PDF、50MiB・100ページ以下。暗号化・電子署名・フォーム付きは非対応）, pages（例: 1-3,5）',
+			outputs:
+				'編集できるテキスト（コピー／UTF-8・BOMなし・LFのTXT保存。文字を取得できなかったページを警告。全ページ空なら保存不可）',
+			options:
+				'改行の扱い（PDFの順序のまま | 横書きの行を整える）, ページ区切りの見出し（ON | OFF）, 抽出テキスト100万文字相当（UTF-16コード単位）・TXT 8MiBまで',
+		},
+	},
+	{
 		id: 'tax',
 		title: '消費税・税込計算',
 		description:
