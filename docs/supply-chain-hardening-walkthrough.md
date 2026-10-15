@@ -134,3 +134,13 @@ Draft維持。R2投入・Merge・本番公開は実施しない。
 採用前比較は[採用計画](bg-remove-lite512-adoption-plan.md)の14素材と提供GT7素材。ネットのalpha回収率はBEN2約99.4%に対しLite約93.0%。髪・商品は近い品質、煙/グラスはLiteのalpha MAEが小さい。完全上位互換・4K細部復元を主張しない。製品Workerの同素材比較と切替記録はPR本文/ローカル成果物で区別して報告する。
 
 Firefox/WebKitのローカル実行バイナリは未導入。Safari・実iOS/Androidの連続/4Kとメモリ適合は未確認。PC上mobile viewportの合格で代替しない。新headのCI/独立Code・Security Reviewの結果はPR履歴で照合し、旧headの完了を流用しない。Draft維持、R2 read-backと実機の確認/未確認の公開判断は別承認。
+
+
+### Lite採用の独立レビュー修正（2026-10-15）
+
+- 最新main d6a80f8を通常mergeで統合。ライセンス表記は双方を保持。ビルド・unit1625・Astro check（0 errors/0 warnings/107 hints）成功、lintは既存15 warnings/1 info。
+- 製品Workerの14素材は採用前Lite WASMのRGBAと14/14完全一致。中央値7.05秒、最大観測private footprint3.28GiB。high→fast→high→fast→high成功、BEN2取得0。計測時とmain統合後の配布WorkerはSHA-256 01e4051d94a7e90bce0f0b92a93d55311fb6ad34a626d2a6e3dfc26032e8cadaで同一。
+- Code ReviewのP2 test inadequacy: 入力が既に透明だとecho/全透明でも成功する問題を修正。高精度の実モデル・offline再推論は不透明な白背景と赤い前景を使い、中央8×8の平均alpha >0.9、外周4pxの平均alpha <0.05を検証する。実測は前景約0.995、背景0。固定の意味的条件であり、今回出力の自己由来digestだけを合格条件にしない。
+- Security Reviewは6affc52で指摘なし。修正後のheadでもCIと両レビューを再確認する。Draft維持、R2投入・Merge・公開なし。
+
+- 修正後対象E2Eは36 pass/skip0。配布Workerだけを一時変更するmutationで、全透明（前景alpha=0）は前景条件、RGBA入力echo（背景alpha=1）は背景条件が失敗することを確認。配布物は元のSHA-256へ復元。製品コード変更は追加していない。

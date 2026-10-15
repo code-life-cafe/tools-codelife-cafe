@@ -53,6 +53,10 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 				canvas.height = 32;
 				const ctx = canvas.getContext('2d');
 				if (!ctx) throw Error('No canvas');
+				if (name === 'bg-remove' && mode === 'high') {
+					ctx.fillStyle = '#fff';
+					ctx.fillRect(0, 0, 32, 32);
+				}
 				ctx.fillStyle = '#f00';
 				ctx.fillRect(8, 8, 16, 16);
 				const blob = await new Promise<Blob>((resolve, reject) =>
@@ -70,6 +74,8 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					height?: number;
 					bytes?: number;
 					digest?: string;
+					foregroundAlpha?: number;
+					backgroundAlpha?: number;
 					ms: number;
 				}>((resolve) => {
 					const worker = new Worker(
@@ -111,7 +117,26 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 							scope.modelTestWorkers ??= [];
 							scope.modelTestWorkers.push(worker);
 						} else worker.terminate();
+						const pixels = data.data ? new Uint8Array(data.data) : null;
+						const alpha = (inside: boolean) => {
+							if (!pixels) return undefined;
+							let sum = 0;
+							let count = 0;
+							for (let y = 0; y < data.height; y++)
+								for (let x = 0; x < data.width; x++) {
+									const selected = inside
+										? x >= 12 && x < 20 && y >= 12 && y < 20
+										: x < 4 || x >= 28 || y < 4 || y >= 28;
+									if (selected) {
+										sum += pixels[(y * data.width + x) * 4 + 3];
+										count++;
+									}
+								}
+							return sum / count / 255;
+						};
 						resolve({
+							foregroundAlpha: alpha(true),
+							backgroundAlpha: alpha(false),
 							type: data.type,
 							message: data.message,
 							width: data.width,
@@ -148,6 +173,14 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 			},
 			{ path: `/_astro/${worker}`, name, mode, keepAlive },
 		);
+	}
+	function expectForegroundSeparation(result: {
+		foregroundAlpha?: number;
+		backgroundAlpha?: number;
+	}) {
+		// 不透明な赤い前景を保持し、白背景を除去する。echo/all-zeroを拒否。
+		expect(result.foregroundAlpha).toBeGreaterThan(0.9);
+		expect(result.backgroundAlpha).toBeLessThan(0.05);
 	}
 	async function open(page: import('@playwright/test').Page, tool: string) {
 		server.faults.clear();
@@ -367,6 +400,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 			bytes: 4096,
 		});
 		expect(first.digest).toMatch(/^[a-f0-9]{64}$/);
+		expectForegroundSeparation(first);
 
 		// 通常UIと同様にWorkerを維持し、非同期cache.putの完了後に終了する。
 		// 結果直後のterminateは未完了のstream書込みを中断する。
@@ -420,6 +454,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 				height: 32,
 				digest: first.digest,
 			});
+			expectForegroundSeparation(cached);
 		} finally {
 			await context.setOffline(false);
 		}
@@ -476,6 +511,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 						asset?.files.find((file) => file.path.endsWith('.onnx'))?.url,
 				),
 			).toBe(true);
+			if (model === 'birefnet-lite-512') expectForegroundSeparation(result);
 			if (memory) {
 				expect(memory.samples).toBeGreaterThan(0);
 				expect(observedJsHeapLimitBytes).toBeLessThan(320 * 1024 * 1024);
