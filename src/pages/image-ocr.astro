@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import ImageOcr from '../components/tools/ImageOcr.tsx';
+
+const toolEntry = await getEntry('tools', 'image-ocr');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: image-ocr');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <ImageOcr client:load />
+</ToolLayout>

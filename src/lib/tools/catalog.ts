@@ -997,6 +997,35 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'image-ocr',
+		title: '画像文字起こし（OCR）',
+		description:
+			'画像の日本語・英語の文字を読み取ってコピー・TXT保存。外部送信なし。',
+		href: '/image-ocr',
+		icon: 'ScanText',
+		categories: ['画像', 'テキスト解析'],
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'画像 文字起こし',
+			'画像 OCR',
+			'画像 テキスト 抽出',
+			'スクリーンショット 文字',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-to-image', 'pdf-to-text', 'image-edit', 'char-count'],
+		llmsFull: {
+			useCase:
+				'スクリーンショットや印刷物の画像（日本語・英語の横書き活字）から文字を読み取り、確認・編集してコピーまたはTXT保存',
+			inputs:
+				'imageFile（PNG・JPEG・WebPの静止画1枚、20MiB・1辺8192px・1,200万画素以下。アニメーションは非対応）',
+			outputs:
+				'編集できる認識結果（コピー／UTF-8・BOMなし・LFのTXT保存。読み取れない場合はコピー・保存不可。誤認識を含む可能性あり）',
+			options:
+				'言語（日本語＋英語 | 英語のみ）。手書き・縦書き・段組み・表構造は非保証。認識開始から120秒で停止、出力10万文字相当（UTF-16コード単位）まで',
+		},
+	},
+	{
 		id: 'tax',
 		title: '消費税・税込計算',
 		description:

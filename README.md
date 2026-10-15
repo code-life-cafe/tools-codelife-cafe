@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全58種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全59種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（58種）
+## 📦 収録ツール（59種）
 
 ### テキスト処理
 
@@ -55,6 +55,7 @@
 | [画像アップスケール・ノイズ除去](https://tools.codelife.cafe/upscale) | Real-ESRGAN（ONNX）でブラウザ内アップスケール（2x/4x）・ノイズ除去。データは外部送信なし（完全ローカル実行） |
 | [画像モザイク・ぼかし](https://tools.codelife.cafe/image-mosaic) | 四角形/円形の範囲にモザイク・ぼかしを適用し、絵文字・任意画像スタンプも配置（完全ローカル実行） |
 | [画像テキスト挿入](https://tools.codelife.cafe/image-text) | 画像への文字入れ・注釈。縁取り・背景ボックス対応（完全ローカル実行） |
+| [画像文字起こし（OCR）](https://tools.codelife.cafe/image-ocr) | 画像の日本語・英語の横書き活字を読み取り、確認・編集してコピーまたはUTF-8のTXT保存。誤認識あり・手書き/縦書き非対応（完全ローカル実行） |
 | [画像圧縮・リサイズ](https://tools.codelife.cafe/image-compress) | JPEG/PNG/WebPの圧縮・リサイズ・変換。一括処理・目標サイズ指定・ZIP出力（完全ローカル実行） |
 | [画像形式変換](https://tools.codelife.cafe/image-convert) | HEIC・WebP・AVIF・PNG・JPEGを相互変換。HEIC→JPEG一括・品質指定・EXIF保持/削除・ZIP出力（完全ローカル実行） |
 | [画像メタデータ削除](https://tools.codelife.cafe/image-metadata) | JPEG・PNG・WebP画像のExif・GPS位置情報などを削除。形式変換・一括ZIP出力対応（完全ローカル実行） |
@@ -188,3 +189,5 @@ MIT
 画像形式変換ツール（`/image-convert`）は HEIC デコードに [libheif-js](https://github.com/catdad-experiments/libheif-js)（LGPL-3.0）、AVIF エンコードに [@jsquash/avif](https://github.com/jamsinclair/jSquash)（Apache-2.0）を、いずれも当該ページで必要時のみ動的にロードして利用しています。詳細は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照してください。
 
 PDF圧縮（`/pdf-compress`）のプレビュー・画像化モード、PDF→JPG/PNG変換（`/pdf-to-image`）、PDFテキスト抽出（`/pdf-to-text`）は、ページ描画・文字データの取得に [PDF.js](https://github.com/mozilla/pdf.js)（pdfjs-dist、Apache-2.0）を当該ページで必要時のみ動的にロードして利用しています。
+
+画像文字起こし（`/image-ocr`）は、文字認識に [Tesseract.js](https://github.com/naptha/tesseract.js) 7.0.0 のWorkerと [tesseract.js-core](https://github.com/naptha/tesseract.js-core) 7.0.0（いずれもApache-2.0）、言語データに [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)（Apache-2.0）の日本語・英語を、同一オリジンの固定ファイルとして配信して利用しています。詳細は [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) を参照してください。
