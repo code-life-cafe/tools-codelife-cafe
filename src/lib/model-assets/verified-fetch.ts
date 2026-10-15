@@ -41,7 +41,9 @@ async function readAsset(
 	let offset = 0;
 	try {
 		for (;;) {
-			const { done, value } = await reader.read();
+			const { done, value } = await reader.read().catch(() => {
+				throw new Error('モデル資産を取得できません。');
+			});
 			if (done) break;
 			if (offset + value.length > output.length)
 				throw new Error('モデル資産のサイズが一致しません。');

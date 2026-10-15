@@ -405,3 +405,66 @@ test('Liteは固定fp16/config/LICENSEで配信し、BEN2の旧URL定義も保�
 		'c552aa82688edce09f0ac9d2e31ad53d9d629010',
 	);
 });
+
+function interruptedAsset(error: Error): Response {
+	let chunks = 0;
+	return new Response(
+		new ReadableStream<Uint8Array>({
+			pull(controller) {
+				if (chunks++ === 0) controller.enqueue(good.slice(0, 4));
+				else controller.error(error);
+			},
+		}),
+		{ headers: { 'Content-Length': String(good.length) } },
+	);
+}
+
+for (const [name, error] of [
+	['TypeError', new TypeError('Failed to fetch')],
+	[
+		'DOMException',
+		new DOMException('The network connection was lost.', 'NetworkError'),
+	],
+] as const) {
+	test(`本文途中切断${name}は日本語エラーになり、不完全cacheを残さず再試行できる`, async () => {
+		const { cache, values } = cacheFixture();
+		let requests = 0;
+		const progress: number[] = [];
+		const options = {
+			origin,
+			cache,
+			onProgress: (loaded: number) => progress.push(loaded),
+			fetcher: async () =>
+				++requests === 1 ? interruptedAsset(error) : new Response(copy()),
+		};
+		await assert.rejects(fetchVerifiedBytes(asset, options), {
+			message: 'モデル資産を取得できません。',
+		});
+		assert.deepEqual(progress, [4]);
+		assert.equal(values.size, 0);
+		assert.deepEqual(await fetchVerifiedBytes(asset, options), copy());
+		assert.equal(requests, 2);
+		assert.deepEqual(await fetchVerifiedBytes(asset, options), copy());
+		assert.equal(requests, 2);
+	});
+}
+
+test('本文読み取りに失敗するcacheは対象キーだけを破棄し、正常な再取得で復旧する', async () => {
+	const { cache, values, deleted } = cacheFixture();
+	const key = assetCacheKey(asset, origin);
+	values.set(key, interruptedAsset(new TypeError('Failed to fetch')));
+	values.set(`${origin}/unrelated`, new Response('keep'));
+	let requests = 0;
+	const result = await fetchVerifiedBytes(asset, {
+		origin,
+		cache,
+		fetcher: async () => {
+			requests++;
+			return new Response(copy());
+		},
+	});
+	assert.deepEqual(result, copy());
+	assert.deepEqual(deleted, [key]);
+	assert.equal(requests, 1);
+	assert.equal(await values.get(`${origin}/unrelated`)?.text(), 'keep');
+});

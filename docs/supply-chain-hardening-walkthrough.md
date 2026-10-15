@@ -187,3 +187,14 @@ build成功、unit1680 pass/skip0、lint既存15 warnings/1 info、Astro check0 
 R2・旧資産・CSP/権限/CI gate変更なし。最新CIと独立両レビューを照合してから、承認済みMerge・本番公開へ進む。
 
 第6周のsource適用後: build成功、unit1680 pass/skip0、画像/実SW E2E62 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。
+
+
+### 公開前の第7修正ループ（人間の個別承認、2026-10-15）
+
+34a1f78は必須CIと手動の両レビューを通過したが、Draft解除後のCode Reviewで本文途中切断時のエラー日本語化漏れを指摘。4bytes受信後にTypeErrorで切断すると英語Failed to fetchを露出することを再現。reader.readのrejectだけを既存の日本語取得エラーへ変換し、サイズ/ハッシュの既存エラーとcache破棄・再試行を維持する。
+
+新規回帰はTypeError/DOMException双方の途中切断で、日本語メッセージ・不完全cacheなし・再取得成功・正常cache再利用を確認。別ケースで読み取りに失敗するcacheの対象キーだけを削除し、無関係cacheを保持して再取得成功することを確認。旧実装の隔離コピーで日本語化2件が失敗（15pass/2fail）、修正後17件成功。Productionソースや配布物を旧版へ戻すことなく確認した。
+
+build成功、全unit1683 pass/skip0、lint既存15 warnings/1 info、Astro check0 errors/0 warnings/107 hints。旧R2資産・CSP/権限/CI gate変更なし。最新CIと独立Code/Securityを確認後のみMerge・本番公開へ進む。
+
+第7周の最終ローカル画像/実SW E2Eは62 pass/skip0（2.4m）。正常推論、同長改変拒否、503/破損200復旧、両offline経路を維持。
