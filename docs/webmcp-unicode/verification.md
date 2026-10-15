@@ -14,3 +14,10 @@
 - agy初回:needs-attention。390pxをテスト内に明示して対応。既存unitファイル未変更の指摘は、必要な固定例が新unitに存在し既存純粋関数も未変更のためコード不具合としては不採用、集約意図を計画追記。PWA pendingの記録は完了結果へ更新。初回raw structured reportはagy-review-initial.json。最終差分の再レビューを実施する。修正ループ1/3、Production修正0。
 - 元のD:/tools-codelife-cafeの未コミット変更は含めない。完了済みtext-diffのclean worktreeを新Unicodeブランチへ再利用したためcheckoutのパス名はwebmcp-text-diffのまま。
 - Merge/Deployの承認は今回に含まれず、Draft PR/CIまで。GitHub正式Code/Security Review、必須CI、本番受入は別の証拠として扱う。
+
+
+### 最新main追従・agy最終結果
+
+- mainのPDF追加0d9f1bbを通常mergeで取り込み。依存はmainのlockに同期し、npmのlibc metadata正規化差分は復元（今回の依存変更なし）。最新build成功・全unit1606/1606。
+- agy再レビュー gemini-3.8-flash-high / plan read-only: approve、findings=[]。初回指摘解消とAC1〜8を確認。コード/追加テスト/manifestの全文が再レビューsnapshotと一致することをmain取り込み後に照合した。ハッシュと結果はdocs/webmcp-unicode/agy-review-final.json。正式Code/Security bot review・CI・Merge承認とは別。
+- 最終Unicode E2E12/12（明示1280px/390px）成功。最新main上でも関連78件を再確認。
