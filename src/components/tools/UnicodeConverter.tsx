@@ -7,8 +7,18 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { textToUnicode, unicodeToText } from '@/lib/tools/unicode-converter';
+import { unicodeConverterMcpTool } from '@/lib/tools/unicode-converter.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 export default function UnicodeConverter() {
+	useEffect(
+		() =>
+			provideToolsFromFactory([
+				generateWebMcpDescriptor(unicodeConverterMcpTool),
+			]),
+		[],
+	);
 	const { trackRunDebounced } = useToolAnalytics('unicode-converter');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('encode');

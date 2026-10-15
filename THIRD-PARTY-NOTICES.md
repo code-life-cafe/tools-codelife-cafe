@@ -84,3 +84,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## PDF.js と同梱フォント・コーデック
+
+- **用途**: PDF圧縮のプレビュー・画像化、PDF→JPG/PNGのページ描画。Worker・CMap・フォント・WASMは同一オリジンから配信します。
+- **バージョン**: pdfjs-dist 6.4.299（固定）。
+- **本体**: Mozilla Foundation、Apache-2.0。
+- **同梱素材**: Foxit/PDFiumフォント、Liberationフォント、OpenJPEG、JBIG2、QCMS等は、それぞれの同梱ライセンス条件によります。本体のApache-2.0と同一とは扱いません。
+- **原文の配布**: `public/vendor/pdfjs-dist/6.4.299/NOTICE.txt` に、パッケージ本体・standard_fonts・wasmの全LICENSEファイルを変更せず連結して収録しています。
+- **参照**: [PDF.jsリポジトリ](https://github.com/mozilla/pdf.js)、[配布するライセンス原文](https://tools.codelife.cafe/vendor/pdfjs-dist/6.4.299/NOTICE.txt)。

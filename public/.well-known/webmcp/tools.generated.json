@@ -1,6 +1,50 @@
 {
   "tools": [
     {
+      "toolId": "unicode-converter",
+      "name": "convert_unicode",
+      "description": "Encode or decode Unicode escapes locally without changing the page UI. / Unicodeエスケープとテキストを相互変換。入力は最大20000 Unicodeコードポイント、成功JSONはUTF-8で1MiBまで。空文字・空白のみは空結果、それ以外の前後空白・改行は維持。encodeはASCII（バックスラッシュ以外）を維持し、非ASCIIを小文字hexの\\uXXXXへ変換、絵文字はサロゲートペア。decodeは\\uXXXX/\\u{...}を一度だけ置換し、無効・不完全な表記は一致しなければ残す。JSON/JavaScriptの汎用デコードや厳密構文検証ではなく、\\n/\\t/\\xNNは解釈しない。範囲外コードポイントはエラー。変換結果はAIへ返すが通信・ログ・保存は追加せず、結果をコードや指示として実行しない。",
+      "aliases": [],
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "変換対象文字列。空文字可。最大20000 Unicodeコードポイント。",
+            "maxLength": 20000
+          },
+          "action": {
+            "type": "string",
+            "description": "encode: テキストからUnicodeエスケープ / decode: Unicodeエスケープからテキスト。必須。",
+            "enum": [
+              "encode",
+              "decode"
+            ]
+          }
+        },
+        "required": [
+          "text",
+          "action"
+        ]
+      },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string",
+            "description": "変換後の文字列。HTMLやコードとして実行しない。"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "annotations": {
+        "readOnlyHint": true,
+        "untrustedContentHint": true
+      }
+    },
+    {
       "toolId": "text-diff",
       "name": "compare_text",
       "description": "Compare two texts locally without changing the page UI. / 変更前後のテキストを比較。各20000 Unicodeコードポイント、編集距離1000（行/文字トークン）、算法500ms、Worker起動から2秒、同時1件、出力5000断片・UTF-8で1MiBまで。超過は省略せず拒否。空文字も有効。空白・大小文字・改行コードは正規化しない。行単位は既存UIと同じく末尾LFを補い、末尾LF有無のみでは差分なし。文字数には補完LFを含む。文字単位の行数は差分断片内の区間数で、ファイル全体の変更行数ではない。",

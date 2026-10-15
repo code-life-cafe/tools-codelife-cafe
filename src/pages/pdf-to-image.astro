@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import PdfToImage from '../components/tools/PdfToImage.tsx';
+
+const toolEntry = await getEntry('tools', 'pdf-to-image');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: pdf-to-image');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <PdfToImage client:load />
+</ToolLayout>
