@@ -7,7 +7,8 @@ import {
 	createVerifiedModelFetch,
 	fetchVerifiedAsset,
 } from '../lib/model-assets/verified-fetch.ts';
-import { ONNX_WASM_BASE_PATH } from '../lib/transcribe/model-manifest.ts';
+import { prepareVerifiedRuntime } from '../lib/model-assets/verified-runtime.ts';
+import { RUNTIME_ARTIFACT } from '../lib/transcribe/model-manifest.ts';
 
 // 同一originの固定資産のみ。内蔵キャッシュ/外部フォールバックを無効化。
 env.allowRemoteModels = false;
@@ -71,14 +72,19 @@ if (wasmBackend) {
 	wasmBackend.numThreads = 1;
 	wasmBackend.simd = true;
 	wasmBackend.proxy = false;
-	const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-	const base = isSafari
-		? 'ort-wasm-simd-threaded'
-		: 'ort-wasm-simd-threaded.asyncify';
-	wasmBackend.wasmPaths = {
-		mjs: `${ONNX_WASM_BASE_PATH}${base}.mjs`,
-		wasm: `${ONNX_WASM_BASE_PATH}${base}.wasm`,
-	};
+}
+let runtimeReady: Promise<void> | undefined;
+function prepareRuntime(): Promise<void> {
+	runtimeReady ??= (async () => {
+		if (!wasmBackend) throw Error('WASM実行環境がありません。');
+		const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+		wasmBackend.wasmPaths = await prepareVerifiedRuntime(
+			RUNTIME_ARTIFACT,
+			isSafari ? 'ort-wasm-simd-threaded' : 'ort-wasm-simd-threaded.asyncify',
+			await cachePromise,
+		);
+	})();
+	return runtimeReady;
 }
 
 // フェッチが中断された場合などのWorker内未処理拒否をサイレントに抑制
@@ -156,6 +162,7 @@ async function loadPipeline(mode: ModelMode, id: string) {
 	// env.fetchが取得進捗を通知する。library側progress_callbackは指定せず、
 	// 検証済みResponse.arrayBuffer()から同じbufferを受け取り再確保を避ける。
 	// Worker 内は WebGPU 不安定を避け wasm 固定
+	await prepareRuntime();
 	const createRemover = () =>
 		pipeline('background-removal', model.id, {
 			device: 'wasm',

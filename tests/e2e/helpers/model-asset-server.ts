@@ -102,6 +102,19 @@ export async function modelAssetServer() {
 					res.end();
 					return;
 				}
+				if (path.endsWith('.mjs') && faults.get(path) === 'corrupt') {
+					// 同長かつ構文的に有効なJS。ハッシュ検証なしならWorker内で実行される。
+					await response.body.cancel();
+					const body = Buffer.alloc(
+						Number(response.headers.get('content-length')),
+						32,
+					);
+					body.write(
+						"self.postMessage({type:'runtime-executed'});export default ()=>{};",
+					);
+					res.end(body);
+					return;
+				}
 				const input = Readable.fromWeb(
 					response.body as import('node:stream/web').ReadableStream,
 				);
@@ -164,7 +177,8 @@ export async function modelAssetServer() {
 			// Test-only observer: execute the real built Worker while exposing Cache.put
 			// completion. No model/inference/network mock; normal asset responses are unchanged.
 			if (
-				path.startsWith('/_astro/bg-remove.worker-') &&
+				(path.startsWith('/_astro/bg-remove.worker-') ||
+					path.startsWith('/_astro/upscale.worker-')) &&
 				path.endsWith('.js') &&
 				new URL(req.url ?? '/', 'http://localhost').search ===
 					'?observe-cache-writes=1'

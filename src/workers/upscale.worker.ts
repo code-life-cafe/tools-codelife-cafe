@@ -3,8 +3,9 @@
 // メインスレッドは Blob 入出力のみで UI を固めない。
 
 import { modelFile } from '../lib/model-assets/manifest.ts';
-import { UPSCALE_WASM_BASE_PATH } from '../lib/model-assets/runtime-manifest.ts';
+import { UPSCALE_RUNTIME } from '../lib/model-assets/runtime-manifest.ts';
 import { fetchVerifiedBytes } from '../lib/model-assets/verified-fetch.ts';
+import { prepareVerifiedRuntime } from '../lib/model-assets/verified-runtime.ts';
 import {
 	computeOutputDimensions,
 	MODELS,
@@ -62,8 +63,14 @@ type Ort = any;
 type OrtRuntime = 'wasm' | 'webgpu';
 const ortPromises = new Map<OrtRuntime, Promise<Ort>>();
 
-function configureOrt(ort: Ort): Ort {
-	ort.env.wasm.wasmPaths = UPSCALE_WASM_BASE_PATH;
+async function configureOrt(ort: Ort, runtime: OrtRuntime): Promise<Ort> {
+	ort.env.wasm.wasmPaths = await prepareVerifiedRuntime(
+		UPSCALE_RUNTIME,
+		runtime === 'webgpu'
+			? 'ort-wasm-simd-threaded.jsep'
+			: 'ort-wasm-simd-threaded',
+		await modelCache,
+	);
 	ort.env.wasm.numThreads = 1; // SharedArrayBuffer 不要（COOP/COEP 変更なし）
 	ort.env.wasm.simd = true;
 	ort.env.wasm.proxy = false;
@@ -78,7 +85,7 @@ function loadOrt(runtime: OrtRuntime): Promise<Ort> {
 		runtime === 'webgpu'
 			? import('onnxruntime-web/webgpu')
 			: import('onnxruntime-web/wasm')
-	).then(configureOrt);
+	).then((ort) => configureOrt(ort, runtime));
 	ortPromises.set(runtime, promise);
 	return promise;
 }

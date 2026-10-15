@@ -6,6 +6,8 @@ import {
 	MODEL_ASSETS,
 	modelFile,
 } from '../../src/lib/model-assets/manifest.ts';
+import { UPSCALE_RUNTIME } from '../../src/lib/model-assets/runtime-manifest.ts';
+import { RUNTIME_ARTIFACT } from '../../src/lib/transcribe/model-manifest.ts';
 import { expect, test } from './fixtures/base';
 import { modelAssetServer } from './helpers/model-asset-server';
 import { startMemoryProfile } from './helpers/model-memory-profile';
@@ -76,8 +78,10 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 					digest?: string;
 					foregroundAlpha?: number;
 					backgroundAlpha?: number;
+					runtimeExecuted?: boolean;
 					ms: number;
 				}>((resolve) => {
+					let runtimeExecuted = false;
 					const worker = new Worker(
 						keepAlive ? `${path}?observe-cache-writes=1` : path,
 						{ type: 'module' },
@@ -96,6 +100,10 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 						});
 					};
 					worker.onmessage = async ({ data }) => {
+						if (data.type === 'runtime-executed') {
+							runtimeExecuted = true;
+							return;
+						}
 						if (data.type === 'model-cache-write') {
 							const scope = globalThis as typeof globalThis & {
 								modelTestCacheWrites?: {
@@ -135,6 +143,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 							return sum / count / 255;
 						};
 						resolve({
+							runtimeExecuted,
 							foregroundAlpha: alpha(true),
 							backgroundAlpha: alpha(false),
 							type: data.type,
@@ -182,6 +191,39 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		expect(result.foregroundAlpha).toBeGreaterThan(0.9);
 		expect(result.backgroundAlpha).toBeLessThan(0.05);
 	}
+	async function finishCacheWrites(
+		page: import('@playwright/test').Page,
+		keys: string[],
+	) {
+		await page.waitForFunction(
+			(keys) => {
+				const events =
+					(
+						globalThis as typeof globalThis & {
+							modelTestCacheWrites?: {
+								key: string;
+								success: boolean;
+								message?: string;
+							}[];
+						}
+					).modelTestCacheWrites ?? [];
+				const failed = events.find((event) => !event.success);
+				if (failed) throw Error(`Cache write failed: ${failed.message}`);
+				return keys.every((key) =>
+					events.some((event) => event.key === key && event.success),
+				);
+			},
+			keys,
+			{ timeout: 30000 },
+		);
+		await page.evaluate(() => {
+			const scope = globalThis as typeof globalThis & {
+				modelTestWorkers?: Worker[];
+			};
+			for (const worker of scope.modelTestWorkers ?? []) worker.terminate();
+			scope.modelTestWorkers = [];
+		});
+	}
 	async function open(page: import('@playwright/test').Page, tool: string) {
 		server.faults.clear();
 		server.requests.length = 0;
@@ -198,13 +240,40 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 			if (/huggingface|jsdelivr|hf.co|xethub/.test(url)) external.push(url);
 		});
 		for (let attempt = 0; attempt < 2; attempt++) {
-			const result = await infer(page, 'upscale', 'fast');
+			const result = await infer(page, 'upscale', 'fast', attempt === 0);
 			expect(result, JSON.stringify(result)).toMatchObject({
 				type: 'result',
 				width: 64,
 				height: 64,
 				bytes: 64 * 64 * 4,
 			});
+			if (attempt === 0) {
+				const model = modelFile(
+					'realesr-general-x4v3',
+					'realesr-general-x4v3.onnx',
+				);
+				const files = [
+					model,
+					...UPSCALE_RUNTIME.files
+						.filter(
+							(file) =>
+								file.path === 'ort-wasm-simd-threaded.mjs' ||
+								file.path === 'ort-wasm-simd-threaded.wasm',
+						)
+						.map((file) => ({
+							...file,
+							url: `/vendor/onnx-wasm/${UPSCALE_RUNTIME.onnxRuntimeVersion}/${file.path}`,
+						})),
+				];
+				await finishCacheWrites(
+					page,
+					files.map((file) => {
+						const key = new URL(file.url, server.base);
+						key.searchParams.set('verified-sha256', file.sha256);
+						return key.href;
+					}),
+				);
+			}
 			await appendFile(
 				join('test-results', 'model-performance.jsonl'),
 				`${JSON.stringify({
@@ -417,34 +486,7 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 
 		// Cache.matchのmetadataや本文が読めてもput完了前のことがある。
 		// テスト配信だけでCache.putを観測し、promise解決を待ってからWorkerを終了。
-		await page.waitForFunction(
-			(keys) => {
-				const events =
-					(
-						globalThis as typeof globalThis & {
-							modelTestCacheWrites?: {
-								key: string;
-								success: boolean;
-								message?: string;
-							}[];
-						}
-					).modelTestCacheWrites ?? [];
-				const failed = events.find((event) => !event.success);
-				if (failed) throw Error(`Cache write failed: ${failed.message}`);
-				return keys.every((key) =>
-					events.some((event) => event.key === key && event.success),
-				);
-			},
-			cacheKeys,
-			{ timeout: 30000 },
-		);
-		await page.evaluate(() => {
-			const scope = globalThis as typeof globalThis & {
-				modelTestWorkers?: Worker[];
-			};
-			for (const worker of scope.modelTestWorkers ?? []) worker.terminate();
-			scope.modelTestWorkers = [];
-		});
+		await finishCacheWrites(page, cacheKeys);
 		await context.setOffline(true);
 		try {
 			const cached = await infer(page, 'bg-remove', 'high');
@@ -470,6 +512,29 @@ test.describe('固定モデルと自前ランタイムの実Worker検証', () =>
 		).toBe(false);
 	});
 
+	for (const [tool, mode, runtime, base] of [
+		['bg-remove', 'high', RUNTIME_ARTIFACT, 'ort-wasm-simd-threaded.asyncify'],
+		['upscale', 'fast', UPSCALE_RUNTIME, 'ort-wasm-simd-threaded'],
+	] as const) {
+		for (const extension of ['mjs', 'wasm']) {
+			test(`${tool}は同長改変された実行資産${extension}を実行前に拒否する`, async ({
+				page,
+			}) => {
+				await open(page, tool);
+				const path = `/vendor/onnx-wasm/${runtime.onnxRuntimeVersion}/${base}.${extension}`;
+				server.faults.set(path, 'corrupt');
+				const result = await infer(page, tool, mode);
+				expect(result).toMatchObject({ type: 'error', runtimeExecuted: false });
+				expect(result.message).toContain('実行資産の検証に失敗');
+				expect(result.message).toContain('ハッシュが一致しません');
+				expect(
+					server.requests.filter(
+						(request) => request.path === path && request.method === 'GET',
+					),
+				).toHaveLength(1);
+			});
+		}
+	}
 	for (const [tool, mode, model] of [
 		['bg-remove', 'fast', 'modnet'],
 		['bg-remove', 'high', 'birefnet-lite-512'],

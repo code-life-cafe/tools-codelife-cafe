@@ -144,3 +144,10 @@ Firefox/WebKitのローカル実行バイナリは未導入。Safari・実iOS/An
 - Security Reviewは6affc52で指摘なし。修正後のheadでもCIと両レビューを再確認する。Draft維持、R2投入・Merge・公開なし。
 
 - 修正後対象E2Eは36 pass/skip0。配布Workerだけを一時変更するmutationで、全透明（前景alpha=0）は前景条件、RGBA入力echo（背景alpha=1）は背景条件が失敗することを確認。配布物は元のSHA-256へ復元。製品コード変更は追加していない。
+
+
+### Security Review修正: 実行前のruntime検証
+
+cb65d50のSecurity Reviewで、同長のR2 runtime差替えはサイズ検査のみでは防げないP2指摘。画像WorkerのMJS/WASMを固定SHA-256で検証してから、その同じbytesのBlob URLをORTへ渡す。元URLを再取得せず、SWに不正bytesが残っても再検証で拒否する。BlobはWorkerごとに一度だけ保持し終了時に解放。CSP・権限・依存は変更しない。/transcribeの実行経路は今回の変更対象外。
+
+単体テストでは同長MJS/WASM改変をBlob作成前に拒否し、成功時のBlob本文と検証対象の一致を確認。実E2Eでは同長かつ構文的に有効なMJSの実行マーカーが出ずハッシュエラーになること、WASM同長改変もハッシュエラーになることを両画像Workerで確認。実モデルの成功経路も維持。追加cache IOに対し、アップスケールのcache再利用テストでも書込み完了を観測してからWorkerを終了する。

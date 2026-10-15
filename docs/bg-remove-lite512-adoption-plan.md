@@ -180,3 +180,10 @@ src/lib/tools/bg-remove.tsの公開API、lifecycle本体、配信ハンドラ本
 この計画は将来実装の合格報告ではない。計画作成時の差分は本計画とimplementation_plan.mdの索引だけだった。実装後の結果は検証記録に追記する。
 
 計画作成後の確認: npm run lintはexit 0（既存の警告15件・info1件、修正なし）。文書のみの変更で、実装後のunit/E2E/build・実機確認はまだ実施していない。
+
+
+### Security Review修正: 実行前のruntime検証
+
+cb65d50のSecurity Reviewで、同長のR2 runtime差替えはサイズ検査のみでは防げないP2指摘。画像WorkerのMJS/WASMを固定SHA-256で検証してから、その同じbytesのBlob URLをORTへ渡す。元URLを再取得せず、SWに不正bytesが残っても再検証で拒否する。BlobはWorkerごとに一度だけ保持し終了時に解放。CSP・権限・依存は変更しない。/transcribeの実行経路は今回の変更対象外。
+
+単体テストでは同長MJS/WASM改変をBlob作成前に拒否し、成功時のBlob本文と検証対象の一致を確認。実E2Eでは同長かつ構文的に有効なMJSの実行マーカーが出ずハッシュエラーになること、WASM同長改変もハッシュエラーになることを両画像Workerで確認。実モデルの成功経路も維持。追加cache IOに対し、アップスケールのcache再利用テストでも書込み完了を観測してからWorkerを終了する。
