@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import PdfCompress from '../components/tools/PdfCompress.tsx';
+
+const toolEntry = await getEntry('tools', 'pdf-compress');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: pdf-compress');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <PdfCompress client:load />
+</ToolLayout>
