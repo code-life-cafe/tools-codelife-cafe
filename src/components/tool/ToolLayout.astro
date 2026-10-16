@@ -9,6 +9,7 @@ import RelatedTools from './RelatedTools.astro';
 import { getCategoryId, toolCatalog, type ToolCategory } from '../../lib/tools/catalog';
 import { generateJsonLd } from '../../lib/jsonld';
 import { normalizeCanonicalPath } from '../../lib/seo/url';
+import { isAnalyticsDisabledTool } from '../../lib/analytics-policy';
 
 interface Props {
 	tool: CollectionEntry<'tools'>;
@@ -32,7 +33,7 @@ const heroTitle = displayTitle || title;
 
 const toolId = entry.id;
 const catalogTool = toolCatalog.find((t) => t.id === toolId);
-const path = customPath || catalogTool?.href || `/tools/${toolId}`;
+const path = customPath || catalogTool?.href || `/${toolId}`;
 const canonicalPath = normalizeCanonicalPath(canonical || path);
 
 // パンくずリスト用
@@ -44,7 +45,7 @@ const jsonLdData = generateJsonLd(
 	{
 		title,
 		breadcrumbTitle: heroTitle,
-		path,
+		path: canonicalPath,
 		summary,
 		category,
 		howto,
@@ -54,7 +55,7 @@ const jsonLdData = generateJsonLd(
 );
 ---
 
-<BaseLayout title={title} description={description} path={canonicalPath} ogImage={ogImage} disableAnalytics={disableAnalytics}>
+<BaseLayout title={title} description={description} path={canonicalPath} ogImage={ogImage} disableAnalytics={disableAnalytics || isAnalyticsDisabledTool(toolId)}>
 	<Fragment slot="head">
 		<script is:inline type="application/ld+json" set:html={JSON.stringify(jsonLdData).replace(/</g, '\\u003c')} />
 		<slot name="head" />

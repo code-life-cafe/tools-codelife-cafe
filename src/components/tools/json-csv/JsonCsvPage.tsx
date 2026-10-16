@@ -16,6 +16,9 @@ import {
 	type JsonToCsvOptions,
 	jsonToCsv,
 } from '@/lib/tools/json-csv';
+import { csvToJsonMcpTool, jsonToCsvMcpTool } from '@/lib/tools/json-csv.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 import { ConvertOptionsPanel, type Direction } from './ConvertOptionsPanel';
 
 // 1MB以上の入力は自動変換を停止し、手動の「変換」ボタンに切り替える
@@ -58,6 +61,14 @@ type ConvertedState = {
 };
 
 export function JsonCsvPage() {
+	useEffect(
+		() =>
+			provideToolsFromFactory([
+				generateWebMcpDescriptor(jsonToCsvMcpTool),
+				generateWebMcpDescriptor(csvToJsonMcpTool),
+			]),
+		[],
+	);
 	const { trackRun, trackRunDebounced } = useToolAnalytics('json-csv');
 	const [direction, setDirection] = useState<Direction>('json-to-csv');
 	const [input, setInput] = useState('');

@@ -91,7 +91,8 @@ test.describe('YAML ⇔ JSON ⇔ TOML 変換ツール', () => {
 
 		await page.getByLabel('TOML入力').fill('a = [1, 2\nb = 3');
 		const error = page.getByTestId('yaml-json-toml-error');
-		await expect(error).toContainText('L1:C9');
+		// smol-toml 1.9以降は閉じ括弧が無い配列を、不正トークンのある2行目先頭に報告する
+		await expect(error).toContainText('L2:C1');
 		await expect(error).toContainText('TOML');
 	});
 

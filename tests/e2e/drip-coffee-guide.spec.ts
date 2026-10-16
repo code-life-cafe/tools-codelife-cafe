@@ -412,4 +412,78 @@ test.describe('ドリップコーヒー抽出ガイド', () => {
 			expect(body).not.toContain('絶対に送信されてはいけない秘密のメモ');
 		}
 	});
+
+	test('旧データ（V60 NEO・Switch新ハイブリッド追加前）のユーザーにも2つのプリセットが補完され、重複しないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('drip-coffee-guide');
+		const step = (
+			order: number,
+			time: number,
+			ml: number,
+			label: string,
+			type: string,
+		) => ({
+			step_order: order,
+			time_sec: time,
+			pour_amount_ml: ml,
+			label,
+			action_type: type,
+		});
+		const legacy = {
+			version: 1,
+			recipes: [
+				{
+					id: 'drip-coffee-guide-preset-4-6',
+					name: '4:6メソッド',
+					method: 'v60',
+					dose_g: 20,
+					total_water_ml: 300,
+					is_preset: true,
+					steps: [
+						step(1, 0, 300, '注ぐ', 'pour'),
+						step(2, 180, 0, '完了', 'finish'),
+					],
+					updated_at: '2026-08-13T00:00:00.000Z',
+				},
+				{
+					id: 'my-recipe-1',
+					name: '旧マイレシピ',
+					method: 'v60',
+					dose_g: 15,
+					total_water_ml: 250,
+					is_preset: false,
+					steps: [
+						step(1, 0, 250, '注ぐ', 'pour'),
+						step(2, 150, 0, '完了', 'finish'),
+					],
+					updated_at: '2026-08-20T00:00:00.000Z',
+				},
+			],
+			brews: [],
+		};
+		await page.addInitScript((data) => {
+			const key = 'tools.codelife.cafe:drip-coffee-guide:v1';
+			if (!localStorage.getItem(key)) {
+				localStorage.setItem(key, JSON.stringify(data));
+			}
+		}, legacy);
+		await toolPage.goto();
+
+		const recipeList = page.getByRole('list', { name: 'レシピ一覧' });
+		await expect(recipeList.getByText('THE NEO BREW（V60 NEO）')).toHaveCount(
+			1,
+		);
+		await expect(recipeList.getByText('Switch 新ハイブリッド')).toHaveCount(1);
+		await expect(recipeList.getByText('旧マイレシピ')).toHaveCount(1);
+
+		// 再読み込みしても重複せず、ユーザー自身のレシピも残る
+		await page.reload();
+		await expect(recipeList.getByText('THE NEO BREW（V60 NEO）')).toHaveCount(
+			1,
+		);
+		await expect(recipeList.getByText('Switch 新ハイブリッド')).toHaveCount(1);
+		await expect(recipeList.getByText('旧マイレシピ')).toHaveCount(1);
+	});
 });
