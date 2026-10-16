@@ -833,7 +833,8 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		llmsFull: {
 			useCase:
 				'iPhoneのHEIC形式やWebP/AVIF画像を汎用的なJPEG/PNG形式に相互変換',
-			inputs: 'imageFiles（画像ファイル群）, targetFormat（jpeg | png | webp）',
+			inputs:
+				'imageFiles（画像ファイル群）, targetFormat（jpeg | png | webp | avif）',
 			outputs: '変換済み画像ファイル群',
 		},
 	},

@@ -79,8 +79,13 @@
 - **対応モデル (背景削除):**
   - **高速モード (`fast`):** `onnx-community/modnet-webnn` (FP32版、約25.9MB)
   - **高精度モード (`high`):** `onnx-community/BEN2-ONNX` (FP16版、約219MB)
+- **対応モデル (画像アップスケール):**
+  - **高速モード (`fast`):** `/models/realesr-general-x4v3.onnx`（`public/models` 同梱、約5MB、同一オリジン配信の静的ファイル）
+  - **最高画質モード (`max`):** Real-ESRGAN x4plus（HuggingFace CDN から取得、約67MB、WebGPU 推奨）
 
 ### 2.2 モデルの配信プラットフォーム (Cloudflare R2)
+> **注意:** §2.2〜§2.5 で説明する Cloudflare R2 によるモデル配信は「背景削除」ツールのモデルに適用されます（画像アップスケールは同一オリジンの静的ファイルおよび HuggingFace CDN を使用するため、R2 は利用しません）。
+
 200MBを超える大容量のAIモデルを HuggingFace から都度ダウンロードすると、帯域制限やダウンロードの遅延が発生し、ユーザー体験が著しく低下します。
 そのため、本番環境では Cloudflare R2 ストレージから独自にカスタムドメイン経由でモデルを高速配信しています。
 
