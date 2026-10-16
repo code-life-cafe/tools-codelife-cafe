@@ -7,8 +7,18 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { textToUnicode, unicodeToText } from '@/lib/tools/unicode-converter';
+import { unicodeConverterMcpTool } from '@/lib/tools/unicode-converter.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 export default function UnicodeConverter() {
+	useEffect(
+		() =>
+			provideToolsFromFactory([
+				generateWebMcpDescriptor(unicodeConverterMcpTool),
+			]),
+		[],
+	);
 	const { trackRunDebounced } = useToolAnalytics('unicode-converter');
 	const [input, setInput] = useState('');
 	const [direction, setDirection] = useState<'encode' | 'decode'>('encode');
@@ -37,18 +47,31 @@ export default function UnicodeConverter() {
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center gap-3 mb-4">
-				<Label className="text-sm font-medium whitespace-nowrap">
-					{direction === 'encode'
-						? 'テキスト → ユニコード'
-						: 'ユニコード → テキスト'}
+			<div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-4">
+				<Label
+					id="unicode-mode-switch-label"
+					htmlFor="unicode-mode-switch"
+					className="text-sm font-medium whitespace-nowrap"
+				>
+					変換モード切替
 				</Label>
 				<Switch
+					id="unicode-mode-switch"
+					aria-labelledby="unicode-mode-switch-label"
+					aria-describedby="unicode-mode-switch-direction"
 					checked={direction === 'decode'}
 					onCheckedChange={(checked) =>
 						setDirection(checked ? 'decode' : 'encode')
 					}
 				/>
+				<span
+					id="unicode-mode-switch-direction"
+					className="text-sm text-muted-foreground whitespace-nowrap"
+				>
+					{direction === 'encode'
+						? 'テキスト → ユニコード'
+						: 'ユニコード → テキスト'}
+				</span>
 				<ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
 			</div>
 

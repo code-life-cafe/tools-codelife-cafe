@@ -10,6 +10,8 @@ export interface RegexResult {
 	matches: RegexMatch[];
 	error?: string;
 	replacedText?: string;
+	// MAX_MATCHES を超える一致が存在し、matches が打ち切られている場合 true
+	truncated?: boolean;
 }
 
 const MAX_PATTERN_LENGTH = 1000;
@@ -29,6 +31,27 @@ function isSupportedFlags(flags: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+function isValidFlags(flags: string): boolean {
+	return (
+		VALID_FLAGS_PATTERN.test(flags) &&
+		hasUniqueFlags(flags) &&
+		isSupportedFlags(flags)
+	);
+}
+
+const SYNTAX_ERROR_MESSAGE =
+	'正規表現の構文が正しくありません。括弧や [ ]、{ } の対応、エスケープ（\\）を確認してください。';
+const FLAGS_ERROR_MESSAGE =
+	'フラグが正しくありません。使えるのは d g i m s u v y で、同じ文字の重複や u と v の併用はできません。';
+const UNEXPECTED_ERROR_MESSAGE =
+	'正規表現を評価できませんでした。パターンを見直してください。';
+
+// ブラウザ由来の英語例外文や入力原文は表示せず、日本語の安全な通知へ変換する
+export function toRegexErrorMessage(err: unknown): string {
+	if (err instanceof SyntaxError) return SYNTAX_ERROR_MESSAGE;
+	return UNEXPECTED_ERROR_MESSAGE;
 }
 
 export interface RegexTesterSettings {
@@ -52,10 +75,7 @@ export function sanitizeRegexTesterSettings(
 			? v.pattern
 			: defaults.pattern;
 	const flags =
-		typeof v.flags === 'string' &&
-		VALID_FLAGS_PATTERN.test(v.flags) &&
-		hasUniqueFlags(v.flags) &&
-		isSupportedFlags(v.flags)
+		typeof v.flags === 'string' && isValidFlags(v.flags)
 			? v.flags
 			: defaults.flags;
 	const showReplace =
@@ -89,7 +109,9 @@ export const COMMON_PATTERNS = [
 ];
 
 const TIMEOUT_MS = 500;
-const MAX_MATCHES = 5000;
+export const MAX_MATCHES = 5000;
+// マッチ詳細リストの表示上限（件数表示・置換の対象範囲とは独立）
+export const MAX_DISPLAY_MATCHES = 500;
 
 /**
  * 正規表現を評価する同期純粋関数（Web Worker内およびテストで共有）
@@ -101,23 +123,28 @@ export function execRegexSync(
 	replacement?: string,
 ): RegexResult {
 	if (!pattern) return { matches: [] };
+	if (!isValidFlags(flags)) {
+		return { matches: [], error: FLAGS_ERROR_MESSAGE };
+	}
 
 	try {
 		const regex = new RegExp(pattern, flags);
 		const matches: RegexMatch[] = [];
+		let truncated = false;
 
 		if (regex.global) {
 			let match: RegExpExecArray | null = regex.exec(text);
 			while (match !== null) {
+				// 上限件数に達した後にさらに一致がある場合のみ「打ち切り」とする
+				if (matches.length >= MAX_MATCHES) {
+					truncated = true;
+					break;
+				}
 				matches.push({
 					value: match[0],
 					index: match.index,
 					groups: match.slice(1),
 				});
-
-				if (matches.length >= MAX_MATCHES) {
-					break;
-				}
 
 				if (match.index === regex.lastIndex) {
 					regex.lastIndex = getNextCodePointIndex(text, regex.lastIndex);
@@ -141,12 +168,11 @@ export function execRegexSync(
 			replacedText = text.replace(regex, replacement);
 		}
 
-		return { matches, replacedText };
+		return truncated
+			? { matches, replacedText, truncated }
+			: { matches, replacedText };
 	} catch (err: unknown) {
-		return {
-			matches: [],
-			error: err instanceof Error ? err.message : String(err),
-		};
+		return { matches: [], error: toRegexErrorMessage(err) };
 	}
 }
 
@@ -174,10 +200,10 @@ export async function testRegex(
 			resolve(event.data);
 		};
 
-		worker.onerror = (event: ErrorEvent) => {
+		worker.onerror = () => {
 			clearTimeout(timeoutId);
 			worker.terminate();
-			resolve({ matches: [], error: event.message });
+			resolve({ matches: [], error: UNEXPECTED_ERROR_MESSAGE });
 		};
 
 		worker.postMessage({ pattern, flags, text, replacement });

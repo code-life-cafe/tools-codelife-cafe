@@ -179,6 +179,7 @@ function toolTemplate(tool) {
 			style: {
 				width: '100%',
 				height: '100%',
+				boxSizing: 'border-box',
 				display: 'flex',
 				flexDirection: 'column',
 				backgroundImage: `linear-gradient(135deg, ${COLORS.background} 0%, ${COLORS.backgroundEnd} 100%)`,
