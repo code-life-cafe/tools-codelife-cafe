@@ -176,4 +176,25 @@ test.describe('Markdownプレビュー Tool', () => {
 		await expect(page.getByLabel('Markdown入力')).toBeVisible();
 		await expect(page.getByTestId('markdown-preview')).toBeVisible();
 	});
+
+	test('FAQと画面の注意書きでシンタックスハイライトの対応可否が矛盾しないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('markdown');
+		await toolPage.goto();
+
+		await expect(
+			page.getByText('シンタックスハイライトには対応していません'),
+		).toBeVisible();
+		// FAQの回答は、ハイライト非対応であることを明記する
+		await expect(
+			page.getByText('コードブロックの色分け（シンタックスハイライト）', {
+				exact: false,
+			}),
+		).toContainText('対応していません');
+		await expect(
+			page.getByText('コードブロック（シンタックスハイライト）に対応'),
+		).toHaveCount(0);
+	});
 });

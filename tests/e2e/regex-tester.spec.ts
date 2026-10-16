@@ -27,6 +27,71 @@ test.describe('Regex Tester Tool', () => {
 		await expect(matchCount).toHaveText('4');
 	});
 
+	test('マッチ数が5000件を超えたら確定件数ではなく「5000+」と打ち切りを表示し、置換は全件に適用される', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('regex-tester');
+		await toolPage.goto();
+
+		const matchCount = page.locator('.text-4xl.font-bold');
+		const textarea = page.locator('#regex-test-string-textarea');
+		const patternInput = page.locator('input').first();
+		await patternInput.fill('a');
+
+		// 境界: ちょうど5000件は確定件数として表示（打ち切り注記なし）
+		await textarea.fill('a'.repeat(5000));
+		await expect(matchCount).toHaveText('5000');
+		await expect(page.getByTestId('regex-truncated-note')).toHaveCount(0);
+
+		// 境界: 5001件は上限超過として「5000+」表示
+		await textarea.fill('a'.repeat(5001));
+		await expect(matchCount).toHaveText('5000+');
+		await expect(page.getByTestId('regex-truncated-note')).toBeVisible();
+
+		// 置換は表示上限に関係なく全一致が対象
+		await page.locator('#replace-mode-switch').click();
+		await page.getByPlaceholder('***-**** または $1 など').fill('b');
+		await expect(page.locator('#regex-replace-output-textarea')).toHaveValue(
+			'b'.repeat(5001),
+		);
+		await expect(page.getByTestId('regex-replace-scope-note')).toBeVisible();
+	});
+
+	test('不正なパターン・フラグは日本語の通知になり、有効な入力へ戻すとマッチが復帰する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('regex-tester');
+		await toolPage.goto();
+
+		const patternInput = page.locator('input').first();
+		const flagsInput = page.locator('input').nth(1);
+		const matchCount = page.locator('.text-4xl.font-bold');
+		const errorMessage = page.locator('p.text-red-500');
+
+		// 不正パターン: 英語のブラウザ例外文や入力原文を表示しない
+		await patternInput.fill('[secret');
+		await expect(errorMessage).toContainText(
+			'正規表現の構文が正しくありません',
+		);
+		await expect(errorMessage).not.toContainText(
+			/Invalid|Unterminated|regular expression|secret/i,
+		);
+		await expect(matchCount).toHaveText('0');
+
+		// 不正フラグ（重複）: 構文エラーとは別の日本語通知
+		await patternInput.fill('\\d+');
+		await flagsInput.fill('gg');
+		await expect(errorMessage).toContainText('フラグが正しくありません');
+		await expect(errorMessage).not.toContainText(/Invalid|flags supplied/i);
+
+		// 有効な入力へ戻すとエラーが消えてマッチが復帰する
+		await flagsInput.fill('g');
+		await expect(errorMessage).toHaveCount(0);
+		await expect(matchCount).toHaveText('4');
+	});
+
 	test('replace output textarea allows vertical resize with min/max height on desktop', async ({
 		page,
 		createToolPage,

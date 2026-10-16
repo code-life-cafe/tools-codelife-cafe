@@ -912,6 +912,120 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'pdf-compress',
+		title: 'PDF圧縮',
+		description:
+			'文字を保ったまま最適化。スキャンPDFは画像化圧縮も選択可。外部送信なし。',
+		href: '/pdf-compress',
+		icon: 'Shrink',
+		categories: ['PDF'],
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF圧縮',
+			'PDF軽量化',
+			'容量を小さく',
+			'スキャン',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-to-image', 'pdf-merge', 'pdf-split'],
+		llmsFull: {
+			useCase:
+				'PDFのファイルサイズをブラウザ内で削減（標準は文字・リンクを保持した構造最適化、スキャン向けに明示選択の画像化圧縮）',
+			inputs:
+				'pdfFile（PDF、50MiB・100ページ以下。暗号化・電子署名・フォーム付きは非対応）',
+			outputs:
+				'圧縮済みPDF（元より小さくならない場合は元ファイルを保持し、その旨を表示）',
+			options:
+				'mode（標準 | 画像化）, 画像化時のみ dpi（72 | 96 | 144）と JPEG品質（50 | 70 | 85 | 92%）',
+		},
+	},
+	{
+		id: 'pdf-to-image',
+		title: 'PDF→JPG/PNG変換',
+		description: 'PDFのページを画像に。範囲・解像度を指定。外部送信なし。',
+		href: '/pdf-to-image',
+		icon: 'Image',
+		categories: ['PDF', '画像'],
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF JPG',
+			'PDF PNG',
+			'PDF 画像化',
+			'PDF 画像 変換',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-compress', 'pdf-split', 'image-compress'],
+		llmsFull: {
+			useCase:
+				'PDFの指定ページを見たままの向き・縦横でJPG/PNG画像に変換（埋め込み画像の抽出ではない）',
+			inputs:
+				'pdfFile（PDF、50MiB・100ページ以下。暗号化は非対応）, pages（例: 1-3,5）',
+			outputs:
+				'ページごとの画像ファイル（連番ファイル名、個別保存。JPGは白背景・PNGは透過背景）',
+			options:
+				'format（jpeg | png）, dpi（72 | 96 | 144、1ページ16メガピクセルまで）, JPEG品質（50 | 70 | 85 | 92%）',
+		},
+	},
+	{
+		id: 'pdf-to-text',
+		title: 'PDFテキスト抽出',
+		description: 'PDFの文字データを取り出してコピー・TXT保存。外部送信なし。',
+		href: '/pdf-to-text',
+		icon: 'FileText',
+		categories: ['PDF', 'テキスト解析'],
+		categoryColor: 'border-l-destructive',
+		keywords: [
+			'PDF テキスト抽出',
+			'PDF 文字抽出',
+			'PDF テキスト 変換',
+			'PDF TXT',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-split', 'pdf-to-image', 'char-count'],
+		llmsFull: {
+			useCase:
+				'PDFの文字データ（テキストレイヤー）をページ指定で取り出し、確認・編集してコピーまたはTXT保存（OCRはしない）',
+			inputs:
+				'pdfFile（PDF、50MiB・100ページ以下。暗号化・電子署名・フォーム付きは非対応）, pages（例: 1-3,5）',
+			outputs:
+				'編集できるテキスト（コピー／UTF-8・BOMなし・LFのTXT保存。文字を取得できなかったページを警告。全ページ空なら保存不可）',
+			options:
+				'改行の扱い（PDFの順序のまま | 横書きの行を整える）, ページ区切りの見出し（ON | OFF）, 抽出テキスト100万文字相当（UTF-16コード単位）・TXT 8MiBまで',
+		},
+	},
+	{
+		id: 'image-ocr',
+		title: '画像文字起こし（OCR）',
+		description:
+			'画像の日本語・英語の文字を読み取ってコピー・TXT保存。外部送信なし。',
+		href: '/image-ocr',
+		icon: 'ScanText',
+		categories: ['画像', 'テキスト解析'],
+		categoryColor: 'border-l-chart-5',
+		keywords: [
+			'画像 文字起こし',
+			'画像 OCR',
+			'画像 テキスト 抽出',
+			'スクリーンショット 文字',
+			'アップロードしない',
+			'安全',
+		],
+		related: ['pdf-to-image', 'pdf-to-text', 'image-edit', 'char-count'],
+		llmsFull: {
+			useCase:
+				'スクリーンショットや印刷物の画像（日本語・英語の横書き活字）から文字を読み取り、確認・編集してコピーまたはTXT保存',
+			inputs:
+				'imageFile（PNG・JPEG・WebPの静止画1枚、20MiB・1辺8192px・1,200万画素以下。アニメーションは非対応）',
+			outputs:
+				'編集できる認識結果（コピー／UTF-8・BOMなし・LFのTXT保存。読み取れない場合はコピー・保存不可。誤認識を含む可能性あり）',
+			options:
+				'言語（日本語＋英語 | 英語のみ）。手書き・縦書き・段組み・表構造は非保証。認識開始から120秒で停止、出力10万文字相当（UTF-16コード単位）まで',
+		},
+	},
+	{
 		id: 'tax',
 		title: '消費税・税込計算',
 		description:

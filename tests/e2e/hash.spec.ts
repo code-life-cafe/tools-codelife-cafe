@@ -16,10 +16,24 @@ const KONNICHIWA_SHA256 =
 	'125aeadf27b0459b8760c13a3d80912dfa8a81a68261906f60d87f4a0268646c';
 
 test.describe('Hash Generator Tool', () => {
-	test('ページが正しく表示されること', async ({ createToolPage }) => {
+	test('ページが正しく表示されること', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('hash');
 		await toolPage.goto();
-		await toolPage.expectTitle('ハッシュ値計算ツール');
+		await expect(page).toHaveTitle(
+			'ハッシュ値計算・確認・照合ツール｜SHA-256・MD5対応 | CODE:LIFE Tools',
+		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'ハッシュ値計算・確認ツール',
+		);
+		await expect(
+			page
+				.getByRole('navigation', { name: 'パンくずリスト' })
+				.locator('[aria-current="page"]'),
+		).toHaveText('ハッシュ値計算・確認ツール');
+		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+			'content',
+			'ファイルやテキストのハッシュ値を計算・確認できる無料ツール。SHA-256・MD5・SHA-1・SHA-512・CRC32に対応し、配布元のハッシュ値と照合できます。入力内容やファイルは外部に送信せず、ブラウザ内で処理します。',
+		);
 		await toolPage.expectSafetyBadge();
 	});
 
@@ -161,6 +175,55 @@ test.describe('Hash Generator Tool', () => {
 		await expect(verifyResult).toContainText(
 			'対象アルゴリズムを選択してください',
 		);
+	});
+
+	test('期待値照合: GNU形式のチェックサム行を貼り付けて照合できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('hash');
+		await toolPage.goto();
+
+		await page.getByLabel('ハッシュ計算するテキスト').fill('abc');
+		await expect(page.getByTestId('hash-result-sha256')).toContainText(
+			ABC_SHA256,
+		);
+
+		const expectedInput = page.getByLabel('期待値との照合', { exact: false });
+		const verifyResult = page.getByTestId('hash-verify-result');
+		const extracted = page.getByTestId('hash-verify-extracted');
+
+		// テキストモード（空白2個）: 一致し、抽出値とファイル名が表示される
+		await expectedInput.fill(`${ABC_SHA256}  sample.txt\n`);
+		await expect(verifyResult).toContainText('一致');
+		await expect(verifyResult).not.toContainText('不一致');
+		await expect(extracted).toContainText(ABC_SHA256);
+		await expect(extracted).toContainText('SHA-256');
+		await expect(extracted).toContainText('sample.txt');
+
+		// バイナリモード（空白＋*）
+		await expectedInput.fill(`${ABC_SHA256} *sample.txt`);
+		await expect(verifyResult).toContainText('一致');
+
+		// 値を変更すると不一致
+		await expectedInput.fill(`${ABC_SHA256.slice(0, 63)}0  sample.txt`);
+		await expect(verifyResult).toContainText('不一致');
+
+		// ファイル名はエスケープされテキストとして表示される
+		await expectedInput.fill(`${ABC_SHA256}  <b>x</b>.txt`);
+		await expect(extracted).toContainText('<b>x</b>.txt');
+		await expect(extracted.locator('b')).toHaveCount(0);
+
+		// 複数行は成功扱いにしない
+		await expectedInput.fill(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`);
+		await expect(verifyResult).toContainText('複数行は照合できません');
+		await expect(verifyResult).not.toContainText('一致');
+		await expect(extracted).toHaveCount(0);
+
+		// 不完全な行は拒否
+		await expectedInput.fill(`${ABC_SHA256} sample.txt`);
+		await expect(verifyResult).toContainText('形式が正しくありません');
+		await expect(extracted).toHaveCount(0);
 	});
 
 	test('コピーと大文字トグルが動作すること', async ({

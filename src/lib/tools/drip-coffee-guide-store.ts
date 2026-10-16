@@ -14,6 +14,7 @@ import {
 	STORE_VERSION,
 	validateBrewInput,
 	validateBrewLogStore,
+	withMissingPresets,
 } from './drip-coffee-guide.ts';
 
 export const STORAGE_KEY = 'tools.codelife.cafe:drip-coffee-guide:v1';
@@ -57,6 +58,7 @@ export function getRawStoreString(): string | null {
 
 /**
  * ストアを読み込む。未保存なら初期値（プリセットのみ）で初期化して永続化する。
+ * 保存済みで後から追加されたプリセットが無い場合は、不足分だけを補完して永続化する。
  * 破損JSONは初期化せず CorruptedStoreError を投げる。
  */
 export function loadStore(): BrewLogStore {
@@ -71,7 +73,17 @@ export function loadStore(): BrewLogStore {
 
 	try {
 		const parsed = JSON.parse(raw);
-		return validateBrewLogStore(parsed);
+		const validated = validateBrewLogStore(parsed);
+		// 後から追加されたプリセットが無い旧データへ不足分を補完する
+		const store = withMissingPresets(validated);
+		if (store !== validated) {
+			try {
+				persist(store);
+			} catch {
+				// 容量不足でも補完済みの表示は継続し、次回の読み込みで再試行する
+			}
+		}
+		return store;
 	} catch (e) {
 		const message =
 			e instanceof InvalidBrewLogStoreError
