@@ -265,3 +265,42 @@ npm run transcribe:verify -- --full             # 全ファイルの SHA-256 ま
 - `scripts/fetch-transcribe-models.mjs` / `scripts/copy-onnx-wasm.mjs`: ローカル取得・版ずれ検出。
 - `functions/models/transcribe/[[path]].ts`: 同一オリジン配信の Pages Function。
 - `src/workers/transcribe.worker.ts`: 推論 Worker（`allowRemoteModels = false`、`wasmPaths` 固定）。
+
+---
+
+## 4. 画像OCRの資産配信 (/image-ocr)
+
+画像文字起こし（`/image-ocr`）の文字認識エンジンと言語データは、**リポジトリにコミットした固定ファイル**を同一オリジンの静的アセットとして配信する。R2・Pages Functions・プロキシは使わない。CDN（jsDelivr 等）へのフォールバックはない。
+
+### 4.1 配置と版
+
+| パス | 内容 | 版 |
+| --- | --- | --- |
+| `/vendor/ocr/7.0.0/worker.min.js` | Tesseract.js の Worker | tesseract.js 7.0.0（Apache-2.0） |
+| `/vendor/ocr/7.0.0/core/tesseract-core-{relaxedsimd-,simd-,}lstm.wasm.js` | LSTM専用core（WASM埋め込み）。実行環境のSIMD対応で1つだけ取得される | tesseract.js-core 7.0.0（Apache-2.0） |
+| `/models/ocr/<revision>/{jpn,eng}.traineddata` | 言語データ（fast・整数化） | tessdata_fast コミット `87416418657359cb625c412a48b6e1d6d41c29bd`（Apache-2.0） |
+| 各ディレクトリの `LICENSE-*.txt` | 配布元ライセンス原文 | 同上 |
+
+- 正本は `src/lib/ocr/assets.ts`（パス・bytes・SHA-256・取得元・npm tarball の integrity）。内容を変えるときは**パス（版/revision）も変える**。固定URLの内容を差し替えない。
+- `node scripts/prepare-ocr-assets.mjs` が公式配布元（npm レジストリ・tessdata_fast の固定コミット）から取得し、SHA-256 で検証してから書き出す。`--check` は配置済みファイルの検証のみ（接続しない）。取得物はコミットして配信する（CI/Deploy は取得処理を持たない）。
+- 最大ファイルは `eng.traineddata`（4.1 MB）。初回の転送は日本語＋英語で約10.1 MiB（無圧縮の実バイト）。Pages の 25 MiB/ファイル制限内。
+- Service Worker の precache（`scripts/generate-sw.mjs`）は `vendor` / `models` を全ページ一括キャッシュの対象にしない。ページを開くだけではエンジンも言語データも取得しない（`文字を読み取る` を押したときに取得）。
+- `public/_headers` にこれらのパスの `Cache-Control: immutable` は設定していない（現行設定のまま）。
+
+### 4.2 言語データの専用CacheStorage（オフライン再認識）
+
+既存のService Workerは `.traineddata` を保存しない。そのため `src/lib/ocr/model-cache.ts` が、言語データ（静的モデル）だけを専用の CacheStorage（`ocr-models-v1`）へ保存する。
+
+- 取得先はマニフェストの固定URL（同一オリジン）のみ。`credentials: 'omit'`。
+- 取得したバイト列は、**サイズと SHA-256 をマニフェストと照合してから**使用・保存する。不一致なら使わず保存もしない。キャッシュ内の破損データは削除して取得し直す。
+- 現行マニフェストに無い古い revision のキャッシュは削除する。
+- キャッシュが使えない（無効・容量不足など）場合も、オンラインなら認識は成功する。そのときは日本語で「保存できなかった」旨を表示する。
+- 保存するのは言語データだけ。**画像・ファイル名・認識結果は一切保存しない**（ユーザー入力の保存ではない）。エンジン独自のIndexedDBキャッシュは使わない（`cacheMethod: 'none'`）。
+- 既存のService Worker（`public/sw.js`）は有効化時に `CACHE_NAME` 以外のキャッシュを全削除する。サイト更新で新しいService Workerが有効化されると `ocr-models-v1` も消えるため、**オフライン再認識が保証されるのは同じサイト版のあいだ**。消えた場合は次回の読み取り時に再取得して再検証する（SW変更は本ツールの範囲外）。
+
+### 4.3 エンジンの接続（`src/lib/ocr/client.ts`）
+
+- 公式の `createWorker` は使わない。7.0.0 では言語データを `{code,data}` で渡すと `initialize` が言語名に `l.data` を連結して失敗する（実測）。また `createWorker` は初期化完了まで Worker を返さず、キャンセル・タイムアウト時に終了できない。
+- 固定した `worker.min.js` を直接 Worker として起動し、公式Workerのメッセージ（`load` / `loadLanguage` / `initialize` / `recognize`）だけを送る。`loadLanguage` に検証済みデータ、`initialize` に言語名の文字列を渡す。
+- 認識1回ごとに Worker を作り、成功・失敗・キャンセル・タイムアウト（認識開始から120秒）・画面離脱のすべてで `terminate` する。terminate後は応答が来ないため、自前の Promise を必ず確定させ、以後のメッセージは無視する。
+- Worker の `message` プロトコルは tesseract.js 7.0.0 の内部形式に依存する。SHA-256 で固定した版でのみ動作を確認している。版を上げるときは `tests/unit/ocr-client.test.ts` と `tests/e2e/image-ocr.spec.ts`（実Worker）で再確認する。
