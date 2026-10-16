@@ -8,6 +8,24 @@ test.describe('UNIXタイムスタンプ⇔日時変換ツール', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
+	test('ハイドレーションエラーが発生せず現在のUNIX秒が数値で表示されること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const errors: string[] = [];
+		page.on('pageerror', (error) => errors.push(error.message));
+
+		const toolPage = createToolPage('unix-time');
+		await toolPage.goto();
+
+		const nowButton = page.getByRole('button', {
+			name: '現在のUNIX秒をコピー',
+		});
+		await expect(nowButton).toHaveText(/^\d+$/);
+
+		expect(errors).toEqual([]);
+	});
+
 	test('UNIX秒を入力するとリアルタイムにISO 8601/UNIXミリ秒が表示されること', async ({
 		page,
 		createToolPage,
