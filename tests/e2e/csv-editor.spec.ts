@@ -147,4 +147,122 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 			page.getByRole('button', { name: 'パースして編集へ' }),
 		).toBeVisible();
 	});
+
+	for (const viewport of [
+		{ name: 'PC', width: 1280, height: 800 },
+		{ name: '390px', width: 390, height: 844 },
+	]) {
+		test.describe(`操作名と全消去の確認 (${viewport.name})`, () => {
+			test.use({
+				viewport: { width: viewport.width, height: viewport.height },
+			});
+
+			const setup = async (
+				page: import('@playwright/test').Page,
+				createToolPage: (slug: string) => { goto: () => Promise<void> },
+			) => {
+				await createToolPage('csv-editor').goto();
+				await page
+					.getByRole('textbox')
+					.first()
+					.fill('商品,個数\nりんご,2\nみかん,3');
+				await page.getByRole('button', { name: 'パースして編集へ' }).click();
+				const cell = page.locator('table tbody input[type="text"]').first();
+				await cell.fill('りんご（編集）');
+			};
+
+			test('5操作に日本語の操作名と表示がある', async ({
+				page,
+				createToolPage,
+			}) => {
+				await setup(page, createToolPage);
+				for (const name of [
+					/^ファイル読込/,
+					'コピー',
+					'JSON',
+					'エクスポート',
+					/^全消去/,
+				]) {
+					const button = page.getByRole('button', { name });
+					await expect(button).toBeVisible();
+					// アイコンのみではなく、文字ラベルが表示されている
+					expect((await button.innerText()).trim().length).toBeGreaterThan(0);
+				}
+				const box = await page
+					.getByRole('button', { name: /^全消去/ })
+					.boundingBox();
+				expect(box).not.toBeNull();
+				expect(box?.x ?? 0).toBeGreaterThanOrEqual(0);
+				expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
+					viewport.width,
+				);
+				const overflow = await page.evaluate(
+					() =>
+						document.documentElement.scrollWidth >
+						document.documentElement.clientWidth,
+				);
+				expect(overflow).toBe(false);
+			});
+
+			test('キャンセル/Escapeで入力・編集・Undoを保持し、フォーカスが戻る', async ({
+				page,
+				createToolPage,
+			}) => {
+				await setup(page, createToolPage);
+				const clear = page.getByRole('button', { name: /^全消去/ });
+				const cell = page.locator('table tbody input[type="text"]').first();
+
+				await clear.click();
+				const dialog = page.getByRole('dialog', { name: '全消去の確認' });
+				await expect(dialog).toContainText('入力と編集内容をすべて消去します');
+				await dialog.getByRole('button', { name: 'キャンセル' }).click();
+				await expect(dialog).toBeHidden();
+				await expect(clear).toBeFocused();
+				await expect(cell).toHaveValue('りんご（編集）');
+
+				await clear.click();
+				await page.keyboard.press('Escape');
+				await expect(dialog).toBeHidden();
+				await expect(clear).toBeFocused();
+				await expect(cell).toHaveValue('りんご（編集）');
+
+				await page.getByRole('button', { name: 'Undo' }).click();
+				await expect(cell).toHaveValue('りんご');
+			});
+
+			test('確認した場合だけ初期化される', async ({ page, createToolPage }) => {
+				await setup(page, createToolPage);
+				await page.getByRole('button', { name: /^全消去/ }).click();
+				await page
+					.getByRole('dialog', { name: '全消去の確認' })
+					.getByRole('button', { name: 'すべて消去する' })
+					.click();
+				await expect(page.getByRole('dialog')).toBeHidden();
+				await expect(page.getByRole('textbox').first()).toHaveValue('');
+				await expect(page.getByRole('textbox').first()).toBeFocused();
+				await expect(
+					page.getByRole('button', { name: /^全消去/ }),
+				).toBeDisabled();
+				await expect(
+					page.getByRole('tab', { name: /テーブル/ }),
+				).toBeDisabled();
+			});
+
+			test('キーボードだけで開いて取り消せる', async ({
+				page,
+				createToolPage,
+			}) => {
+				await setup(page, createToolPage);
+				await page.getByRole('button', { name: /^全消去/ }).focus();
+				await page.keyboard.press('Enter');
+				const dialog = page.getByRole('dialog', { name: '全消去の確認' });
+				await expect(dialog).toBeVisible();
+				await page.keyboard.press('Escape');
+				await expect(dialog).toBeHidden();
+				await expect(
+					page.locator('table tbody input[type="text"]').first(),
+				).toHaveValue('りんご（編集）');
+			});
+		});
+	}
 });
