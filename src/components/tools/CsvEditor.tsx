@@ -529,9 +529,10 @@ export default function CsvEditor() {
 								disabled={undoStack.length === 0}
 								className="h-8 flex-1 sm:flex-none"
 								title="元に戻す (Undo)"
+								aria-label="元に戻す (Undo)"
 							>
 								<RotateCcw className="h-4 w-4 mr-1 sm:mr-2" />
-								<span>Undo</span>
+								<span>元に戻す</span>
 							</Button>
 							<Button
 								variant="outline"
@@ -549,7 +550,7 @@ export default function CsvEditor() {
 								className="h-8 flex-1 sm:flex-none"
 							>
 								<Braces className="h-4 w-4 mr-1 sm:mr-2" />
-								<span>JSON</span>
+								<span>JSONを保存</span>
 							</Button>
 							<Button
 								variant="default"
@@ -558,7 +559,7 @@ export default function CsvEditor() {
 								className="h-8 flex-1 sm:flex-none"
 							>
 								<Download className="h-4 w-4 mr-1 sm:mr-2" />
-								<span>エクスポート</span>
+								<span>{delimiter === '\t' ? 'TSV' : 'CSV'}を保存</span>
 							</Button>
 						</>
 					)}

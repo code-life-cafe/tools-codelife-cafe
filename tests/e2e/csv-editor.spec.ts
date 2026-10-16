@@ -176,18 +176,29 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 				createToolPage,
 			}) => {
 				await setup(page, createToolPage);
+				// 表示ラベルとアクセシブル名を完全一致で検証する（Undoは日本語名+英語併記）
 				for (const name of [
-					/^ファイル読込/,
+					/^ファイル読込 \(\.csv \/ \.tsv \/ \.xlsx\)$/,
+					'元に戻す (Undo)',
 					'コピー',
-					'JSON',
-					'エクスポート',
-					/^全消去/,
+					'JSONを保存',
+					'CSVを保存',
+					/^全消去（入力と編集内容をすべて消去）$/,
 				]) {
 					const button = page.getByRole('button', { name });
 					await expect(button).toBeVisible();
 					// アイコンのみではなく、文字ラベルが表示されている
 					expect((await button.innerText()).trim().length).toBeGreaterThan(0);
 				}
+				await expect(
+					page.getByRole('button', { name: '元に戻す (Undo)' }),
+				).toContainText('元に戻す');
+				await expect(
+					page.getByRole('button', { name: 'JSONを保存' }),
+				).toHaveText('JSONを保存');
+				await expect(
+					page.getByRole('button', { name: 'CSVを保存' }),
+				).toHaveText('CSVを保存');
 				const box = await page
 					.getByRole('button', { name: /^全消去/ })
 					.boundingBox();
