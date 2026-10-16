@@ -31,6 +31,49 @@ export const MAX_REPAIR_INPUT_LENGTH = 100_000;
 const DIAGRAM_HEADER_REGEX =
 	/^(?:(?:flowchart|graph)\s+(?:TB|TD|BT|RL|LR)\b|sequenceDiagram\b|classDiagram(?:-v2)?\b|stateDiagram(?:-v2)?\b|erDiagram\b|gantt\b|pie(?:\s+title)?\b|gitGraph\b|mindmap\b|quadrantChart\b|timeline\b|c4Context\b|sankey-beta\b|kanban\b|architecture-beta\b|block-beta\b|packet-beta\b|requirementDiagram\b)/i;
 
+/** Mermaidが解釈するfrontmatterのトップレベルキー */
+const FRONTMATTER_KEY_REGEX =
+	/^(?:"(?:title|config|displayMode)"|'(?:title|config|displayMode)'|title|config|displayMode)\s*:(?:\s|$)/;
+
+/**
+ * `---` で囲まれたブロックが、Mermaidのfrontmatterとして保持してよいか判定する。
+ * 会話文の区切り線と区別するため、先頭の字下げ位置にある行はすべてMermaidのキー
+ * （title / config / displayMode）であること、それより深い字下げ行は値の続きとして許容する。
+ * キー行・コメント行・空行以外の字下げなし行（会話文など）が含まれる場合は保持しない。
+ */
+function isMermaidFrontmatterBody(body: string[]): boolean {
+	const content = body.filter((l) => l.trim() !== '' && !/^\s*#/.test(l));
+	if (content.length === 0) return false;
+	const indentOf = (l: string) => l.length - l.trimStart().length;
+	const baseIndent = indentOf(content[0]);
+	let hasKey = false;
+	for (const line of content) {
+		const indent = indentOf(line);
+		if (indent < baseIndent) return false;
+		if (indent > baseIndent) continue;
+		if (!FRONTMATTER_KEY_REGEX.test(line.trimStart())) return false;
+		hasKey = true;
+	}
+	return hasKey;
+}
+
+/**
+ * ダイアグラム宣言の直前にあるYAML frontmatter（--- ... ---）の開始行indexを返す。
+ * 宣言行(headerIndex)の直前が閉じ `---` で、それより上に開き `---` がある場合のみ該当。
+ */
+function findFrontmatterStart(lines: string[], headerIndex: number): number {
+	let end = headerIndex - 1;
+	// 宣言との間の空行・Mermaidコメント(%%)は読み飛ばす
+	while (end >= 0 && /^(?:%%.*)?$/.test(lines[end].trim())) end--;
+	if (end < 1 || lines[end].trim() !== '---') return -1;
+	for (let start = end - 1; start >= 0; start--) {
+		if (lines[start].trim() === '---') {
+			return isMermaidFrontmatterBody(lines.slice(start + 1, end)) ? start : -1;
+		}
+	}
+	return -1;
+}
+
 /**
  * AIが出力したMarkdownコードフェンスや前後の会話テキストを検出し、
  * 純粋なMermaidコードブロックを抽出する
@@ -93,7 +136,9 @@ export function extractMermaidCode(rawText: string): {
 	}
 
 	if (startIndex > 0) {
-		lines.splice(0, startIndex);
+		// 正常なYAML frontmatter（図タイトル・config）は図の一部として残す
+		const frontmatterStart = findFrontmatterStart(lines, startIndex);
+		lines.splice(0, frontmatterStart >= 0 ? frontmatterStart : startIndex);
 		extracted = true;
 	}
 
@@ -1123,10 +1168,22 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 				? 'sequence'
 				: 'other';
 	const processedLines: string[] = [];
+	const headerIndex = rawLines.findIndex((line) =>
+		DIAGRAM_HEADER_REGEX.test(line.trim()),
+	);
+	// 先頭のYAML frontmatterは修復対象外（タイトル等の文言を改変しない）
+	const frontmatterEnd =
+		headerIndex > 0 && findFrontmatterStart(rawLines, headerIndex) === 0
+			? headerIndex
+			: 0;
 
 	for (let i = 0; i < rawLines.length; i++) {
 		const origLine = rawLines[i];
 		let curLine = origLine;
+		if (i < frontmatterEnd) {
+			processedLines.push(curLine);
+			continue;
+		}
 
 		// Step 2: スマートクォート正規化
 		const normalizedQuote = normalizeSmartQuotes(curLine);
@@ -1173,15 +1230,18 @@ export function repairMermaidCode(rawInput: string): MermaidRepairResult {
 		processedLines.push(curLine);
 	}
 
-	// Step 5: ブロックの閉じ忘れ補完
-	const { lines: finalLines, added } = autoCloseBlocks(processedLines);
+	// Step 5: ブロックの閉じ忘れ補完（frontmatterは対象外、図本文のみに適用）
+	const frontmatterLines = processedLines.slice(0, frontmatterEnd);
+	const bodyLines = processedLines.slice(frontmatterEnd);
+	const { lines: closedBody, added } = autoCloseBlocks(bodyLines);
+	const finalLines = [...frontmatterLines, ...closedBody];
 	for (const [index, addMsg] of added.entries()) {
 		changes.push({
 			lineNumber: processedLines.length + index + 1,
 			rule: 'auto-close',
 			description: addMsg,
 			original: '(未終了ブロック)',
-			fixed: finalLines[processedLines.length + index],
+			fixed: closedBody[bodyLines.length + index],
 		});
 	}
 
