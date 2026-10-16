@@ -31,11 +31,21 @@ R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基
 
 - PRの実際の全差分がR0/R1であり、ACと合意スコープ内。ラベル・自己申告だけで判定せず、R2以上の対象が混在する場合や判定が曖昧な場合は人間へ返す。Constitution・CI・依存・Analytics・WebMCP・PWA・権限変更を軽微扱いしない。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
-- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。
+- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。Grok Bot運用ループによるR0/R1自動Mergeに限り、ローカルCodex CLIレビューをGitHub Codex botのCode Review / Codex Security Reviewの代替として許容する。条件: モデル`gpt-6.1-sol`・`model_reasoning_effort=low`・`--sandbox read-only`で実行し、編集は行わずfindingのみを出力し、同じhead SHAの差分に対して実行し、結果（blocking findingなし、またはblocking findingが再レビューで解消済み）とモデル名・対象head SHAをMerge前にPRへ記録する。それ以外は両レビュー完了の要件を維持する。
 - 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
 - Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeせず人間へ返す。admin/bypass・force push・gate変更は使わない。
 
 実行前にPR履歴へRisk Class・判定理由・対象head・CI・独立レビュー根拠・修正周回数を記録する。Merge後は既存Deployの対象SHAと結果を確認してNotionへ記録し、失敗時は人間へ通知する。新しいWorkflowやマージ専用Agentは追加しない。R2/R3の人間承認とR4の個別承認は維持し、今回の方針をそれらの承認へ拡張しない。
+
+### Grok Bot運用ループ（オペレーター）
+
+1. Grok Botが本番smoke・CI/deploy状態・Cloudflareを調査し、`bug` + `auto`ラベルとRisk ClassをつけてGitHub Issueを作成する。
+2. Claude Code CLIが新規branchで実装し、regression testを追加し、該当issueをlinkするPRを作成する。
+3. Codex CLIがレビューする（上記の条件を満たすローカルレビューを含む）。findingはClaudeへ返却し、修正は既存の3周上限内で行う。
+4. Grok Botが最終確認を行い、必須CIの`lint`・`e2e`が最新mainを含むheadで成功している場合のみ、head SHAを固定してsquash-mergeする。
+5. Merge後にmainの`deploy.yml`成功を確認する。deployが失敗した場合はそれ以降のMergeを停止し、人間へエスカレーションする。
+
+R2/R3はissue/PR作成のみとし、Merge・適用には人間承認を残す。R4は常に自動化しない（調査・報告のみ）。本ループは新しいWorkflowを追加せず、既存のgateを変更しない。
 
 ---
 
