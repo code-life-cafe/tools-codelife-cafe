@@ -176,29 +176,32 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 				createToolPage,
 			}) => {
 				await setup(page, createToolPage);
-				// 表示ラベルとアクセシブル名を完全一致で検証する（Undoは日本語名+英語併記）
-				for (const name of [
-					/^ファイル読込 \(\.csv \/ \.tsv \/ \.xlsx\)$/,
-					'元に戻す (Undo)',
-					'コピー',
-					'JSONを保存',
-					'CSVを保存',
-					/^全消去（入力と編集内容をすべて消去）$/,
-				]) {
-					const button = page.getByRole('button', { name });
+				// アクセシブル名と表示ラベルを、全操作・両viewportで完全一致検証する
+				const isMobile = viewport.width < 640;
+				const operations = [
+					{
+						name: 'ファイル読込 (.csv / .tsv / .xlsx)',
+						text: isMobile ? '読込' : 'ファイル読込 (.csv / .tsv / .xlsx)',
+					},
+					{ name: '元に戻す (Undo)', text: '元に戻す' },
+					{ name: 'コピー', text: 'コピー' },
+					{ name: 'JSONを保存', text: 'JSONを保存' },
+					{ name: 'CSVを保存', text: 'CSVを保存' },
+					{
+						name: '全消去（入力と編集内容をすべて消去）',
+						text: '全消去',
+					},
+				];
+				for (const { name, text } of operations) {
+					const button = page.getByRole('button', { name, exact: true });
+					await expect(button).toHaveCount(1);
 					await expect(button).toBeVisible();
-					// アイコンのみではなく、文字ラベルが表示されている
-					expect((await button.innerText()).trim().length).toBeGreaterThan(0);
+					await expect(button).toHaveAccessibleName(name);
+					// 表示中のテキストのみ（hiddenのspanは除外）を完全一致で検証する
+					await expect
+						.poll(async () => (await button.innerText()).trim())
+						.toBe(text);
 				}
-				await expect(
-					page.getByRole('button', { name: '元に戻す (Undo)' }),
-				).toContainText('元に戻す');
-				await expect(
-					page.getByRole('button', { name: 'JSONを保存' }),
-				).toHaveText('JSONを保存');
-				await expect(
-					page.getByRole('button', { name: 'CSVを保存' }),
-				).toHaveText('CSVを保存');
 				const box = await page
 					.getByRole('button', { name: /^全消去/ })
 					.boundingBox();
