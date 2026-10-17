@@ -109,6 +109,9 @@ export function CipherPage() {
 
 	return (
 		<div className="space-y-6">
+			<p className="text-sm text-muted-foreground">
+				遊び・パズル・学習向けの変換と簡易難読化です。秘密情報を保護する安全な暗号化には使えません。
+			</p>
 			<Tabs
 				defaultValue="caesar"
 				value={activeTab}
@@ -159,14 +162,14 @@ export function CipherPage() {
 								className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'encode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
 								onClick={() => setMorseDirection('encode')}
 							>
-								エンコード（暗号化）
+								エンコード（符号化）
 							</button>
 							<button
 								type="button"
 								className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'decode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
 								onClick={() => setMorseDirection('decode')}
 							>
-								デコード（復号）
+								デコード（文字に戻す）
 							</button>
 						</div>
 					</div>
@@ -197,7 +200,10 @@ export function CipherPage() {
 						<BruteForcePanel
 							input={input}
 							currentShift={caesarShift}
-							onSelectShift={setCaesarShift}
+							onSelectShift={(shift) => {
+								setCaesarShift(shift);
+								setCaesarDirection('decode');
+							}}
 						/>
 					</div>
 				)}
