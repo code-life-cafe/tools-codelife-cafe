@@ -17,7 +17,8 @@ const webMcpCatalog = toolCatalog
     id: t.id,
     title: t.title,
     description: t.description,
-    url: `https://tools.codelife.cafe${t.href}`,
+    // WebMCPの出力URLは互換性維持のため従来形式（末尾スラッシュなし）のまま。変更はR3として別途判断
+    url: `https://tools.codelife.cafe${t.href.replace(/\/$/, '')}`,
     category: t.categories.join(' / '),
     keywords: t.keywords,
   }));
