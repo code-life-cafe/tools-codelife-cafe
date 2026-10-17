@@ -23,7 +23,7 @@ Routineの外部指示に一律の「自動マージ禁止」が残っている�
 - サマリーの `codex-security-review:v1` メタデータで `repository`・`pullRequestNumber` が対象PR、`headSha` が最新headの完全SHA、`status` が `completed` であることを確認する。
 - 同じサマリーのCode ReviewとSecurity Reviewの両行が `Completed` で、両行の対象コミットがそのheadと一致することを確認する。片方がRunning、旧コミット、失敗、形式不明なら停止する。
 - 完了は指摘なしを意味しない。PRのレビュー本文・inline comments・未解決threadを合わせて確認し、blocking findingには同じ最新headでの解消確認が必要。👍は補助信号に留める。`mergeGateEnabled: false` でもこの運用条件を省略しない。
-- **代替: ローカルCLIレビュー（Grok Bot運用ループのR0/R1のみ）** Grok Bot運用ループがR0/R1をMergeする場合に限り、次を満たすPRコメントを完了信号として扱う。Merge前にGrok Bot運用ループが投稿し、実装と異なるモデルでの実行（Claude実装PRはCodex CLI: モデル`gpt-6.1-sol`・reasoning effort `low`・`--sandbox read-only`、Codex実装PRはClaude Code CLI: Sonnet・編集ツールを許可しない読み取り専用）、レビュー対象head SHAの完全一致（最新headと同一であること）、findingの一覧と分類、判定（blocking findingなし、または同じ最新headの再レビューでblocking findingが解消済み）を記録している。
+- **代替: ローカルCLIレビュー（Grok Bot運用ループのR0/R1のみ）** Grok Bot運用ループがR0/R1をMergeする場合に限り、次を満たすPRコメントを完了信号として扱う。Merge前にGrok Bot運用ループが投稿し、実装と異なるモデルでの実行（Claude実装PRはCodex CLI: モデル`gpt-6.1-sol`・reasoning effort `medium`・`--sandbox read-only`、Codex実装PRはClaude Code CLI: Sonnet・編集ツールを許可しない読み取り専用）、レビュー対象head SHAの完全一致（最新headと同一であること）、findingの一覧と分類、判定（blocking findingなし、または同じ最新headの再レビューでblocking findingが解消済み）を記録している。
 - 優先順位: 最新headについて上記Codex bot信号が存在し未解決のblocking findingがある場合、ローカルレビューの記録があってもその指摘は解消したことにならず、Mergeを止める。bot信号がない、またはbot信号に未解決のblocking findingがない場合は、bot信号とこのローカルレビュー信号のいずれかで完了とみなす。bot信号で完了を確認できず、ローカルレビューも実行できない、またはその結果・対象headを確認できない場合はR0/R1も自動Mergeしない（bot信号で完了を確認できる場合、ローカルレビューは必須ではない。ただしCodex実装PRでは、実装と異なるモデルのレビューとしてClaude Codeのレビュー記録が別途必要）。
 
 これはPR #384/#385で観測した既存Codex連携の信号であり、新規checkやWorkflowではない。CI内の `npm audit` は必要な依存検査だが、Codex Security Reviewの代用にはしない。botや出力形式が変わった場合は推測で通さず、人間へ確認して手順を更新する。
@@ -50,7 +50,7 @@ Routineの外部指示に一律の「自動マージ禁止」が残っている�
 3. 不足する境界値・異常系・回帰・privacy/a11y等の検証と、その根拠を提案として返す。原則読み取り専用、直接commit・修正はしない。
 4. Makerが提案を通常の分類に従って取り込み、CIと必要な再レビューへ戻す。QA起動で3周上限をリセットしない。
 
-R3の追加リスクレビューは必要な領域を対象とし、Notion計画のGPT-6 AstraによるHigh-Risk Reviewを必要時に利用する。通常PRには追加しない。
+R3の追加リスクレビューは必要な領域を対象とし、必要時に[モデル選択](../AGENTS.md#モデル選択agyworktree)の重の段階（Claude Opus / Codex reasoning effort `high`、実装と異なるモデル）でHigh-Risk Reviewを行い、理由を報告に残す。通常PRには追加しない。
 
 ## Manual Setup Checklist
 
@@ -59,9 +59,9 @@ R3の追加リスクレビューは必要な領域を対象とし、Notion計画
 2026-09-17の読み取り調査ではmainの有効rulesetにPR必須・required checks `lint` / `e2e` が存在した。承認必須人数は0、レビューthread解決・最新pushへの承認は必須ではない。R2/R3の人間承認は現行設定だけで強制されているとはいえない。bypass権限やRoutine側条件は未確認。
 
 - [ ] Codex Webの対象repoのAuto Review設定とモデル（GPT-5.6 Sol）を確認する。このPRではON/OFFを変更しない。
-- [ ] 対象repoのCode Review / Security Review両方が有効で、代表PRの最新headについて上記サマリー信号を取得できることを確認する。R0/R1の自動マージは、このbot信号、または上記「代替: ローカルCodex CLIレビュー」の信号のいずれかを確認できた場合に限り行い、いずれも確認できない場合は保留する。
-- [ ] 既存Claude Routineが最新CLAUDE.md/AGENTS.mdを読み、Sonnet 5でNotion取得・Production/Tests編集・PR・Codexコメント/CI対応できることを確認する。スケジュールやUI設定は変更しない。
-- [ ] 代表PRでCodex finding → Claudeによる分類 → 修正と周回記録 → 最新headのCI → 必要なCodex再レビューを確認する。Draftでレビューが起動するかも実際に確認する。自動再レビューがない場合は人間または既存Routineから `@codex review` を依頼する。
+- [ ] 対象repoのCode Review / Security Review両方が有効で、代表PRの最新headについて上記サマリー信号を取得できることを確認する。R0/R1の自動マージは、このbot信号、または上記「代替: ローカルCLIレビュー」の信号のいずれかを確認できた場合に限り行い、いずれも確認できない場合は保留する。
+- [ ] 既存Claude Routineが最新CLAUDE.md/AGENTS.mdを読み、Sonnetで、UI・日本語文言PRのMakerとしてのNotion取得・Production/Tests編集・PR・Codexコメント/CI対応と、Codex実装PRのレビューができることを確認する。スケジュールやUI設定は変更しない。
+- [ ] 代表PRでレビューfinding → Makerによる分類 → 修正と周回記録 → 最新headのCI → 必要な再レビュー（実装と異なるモデル）を確認する。Draftでレビューが起動するかも実際に確認する。自動再レビューがない場合は人間または既存Routineから `@codex review` を依頼する。
 - [ ] 確認済みのrequired checks `lint` / `e2e` を維持し、mainへの直接pushやbypassで失敗を迂回できない運用か確認する。branch protection・repository permissionsはこのPRでは変更しない。
 - [ ] R2/R3の人間承認とR4の自動変更禁止、最大3周・重複イベント・再起動後の履歴確認をRoutine運用で確認する。文書による規則であり、独自カウンターや機械的ロックは追加していない。
 - [ ] Scoutの既存ChatGPT Scheduled Task、Cloudflare MCP、Notion Task Board、Deploy後のAnalytics参照が継続していることを確認する。新しいschedule、Board schema、Cloudflare設定、secrets、deployment permissionsは不要。
