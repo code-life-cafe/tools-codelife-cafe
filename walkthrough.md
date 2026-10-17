@@ -137,3 +137,55 @@ compare_textを追加し、既存computeDiffは任意の内部予算引数だけ
 - mainのPDF追加0d9f1bbを通常mergeで取り込み。依存はmainのlockに同期し、npmのlibc metadata正規化差分は復元（今回の依存変更なし）。最新build成功・全unit1606/1606。
 - agy再レビュー gemini-3.8-flash-high / plan read-only: approve、findings=[]。初回指摘解消とAC1〜8を確認。コード/追加テスト/manifestの全文が再レビューsnapshotと一致することをmain取り込み後に照合した。ハッシュと結果はdocs/webmcp-unicode/agy-review-final.json。正式Code/Security bot review・CI・Merge承認とは別。
 - 最終Unicode E2E12/12（明示1280px/390px）成功。最新main上でも関連78件を再確認。
+
+
+## issue #469 Mermaid / upscale CLS改善（2026-10-17、Risk R1）
+
+修正ループ2/3で完了。コーディネータによる修正後のE2E・CLS実測を確認済みで、ループ3は不要。
+
+### 変更と原因への対策
+
+- Mermaidの修正済み実装（ToolLayoutのMermaid専用初期幅、ページ描画前のURL→保存設定→既定値の同期復元、操作時のみtransition）は維持。今回これらのProductionコードは追加変更していない。
+- `src/components/upscale/UpscalePage.tsx`: 設定・注意書き・実行ボタンを選択前から表示し、未選択時は設定と実行を無効化。ファイル名行を50px、ドロップゾーンとプレビューの共通枠をmin(60vh,320px)で固定し、同じ位置で入れ替える。共通FileDropzoneは変更せず、既存classNameで高さを指定。
+- 処理前・完了後の画像は元画像の縦横比を維持した同一矩形にobject-containで重ねる。進捗32px、非表示DL、比較スライダー、説明文32pxを予約。出力予定寸法は常時1行を確保し、実行ボタンは幅固定で完了時の折り返し変更を防ぐ。比較・再処理・クリア・DLの処理は保持。結果表示時の最初のimgは拡大画像。
+- 常時表示する処理前注意はrole=noteとし、エラーのみrole=alertにする。未選択時の解像度上限エラーに関する既存E2Eのalert検索が複数要素にならないよう対応。
+- `tests/e2e/layout-shift.spec.ts`: 375×900・393×851・1440×900で選択前後の枠位置・寸法、完了前後とクリア後の枠寸法、未選択時の無効化、256px結果、横はみ出し、フローCLS≤0.1を検証。選択後1.5秒待機を維持。実行クリックによるスクロールがあるため完了後は位置ではなく寸法を比較する。
+- Mermaid 375pxは保存幅・URL優先を検証し、幅切替操作は省略。実装を確認したところボタンにはモバイル専用の非表示・無効化条件はない。既存横はみ出しと報告されたclick timeoutへの対応であり、1440pxでは切替・保存・transition検証を維持。
+- `implementation_plan.md`と本ファイルの#469記録を更新。
+
+### ローカル検証（今回修正後）
+
+すべて`~/.local/node22/bin`をPATH先頭に追加して実行。
+
+| 検証 | 結果 |
+| --- | --- |
+| `npm run lint` | 成功。既存19 warnings / 1 info（webmcp.spec.tsのnon-null assertion等）。今回変更した2コードファイルは警告なし |
+| `npm run check` | 成功。Astro 0 errors / 0 warnings / 227 hints。Biomeは上記既存警告のみ |
+| `npm run build` | 成功、アセット検査まで完了 |
+| `npm run test:unit` | ファイル単位106成功・2失敗。前回と同じmermaid-repair.test.ts / webmcp-top3.test.ts。直接実行で既存隔離テストのspawnSync EPERMを確認。今回これらは変更していない |
+| 関連E2Eの`--list` | 成功、3ファイル50件を認識。テスト本体は実行していない |
+| `npx tsc --noEmit --pretty false --ignoreDeprecations 6.0` | 成功 |
+| `git diff --check` | 成功 |
+
+### コーディネータによる実測（修正ループ2/3適用後）
+
+PerformanceObserverは各条件3回計測。upscaleの操作フローはsetInputFiles→1.5秒→実行→DL表示。
+
+| 検証・対象 | viewport / 条件 | main → 修正後 |
+| --- | --- | --- |
+| 関連E2E（layout-shift / mermaid / upscale） | chromium + mobile-chrome | 50 passed |
+| PerformanceObserver: upscale操作フロー | 393×851（4xCPU） | 0.150 → 0, 0, 0 |
+| PerformanceObserver: upscale操作フロー | 1440×900 | 0.019 → 0.0024 ×3 |
+| PerformanceObserver: upscale操作フロー | 375×900 | 0.187 → 0〜0.0007 |
+| PerformanceObserver: Mermaid初期表示 | 1440×900 | 0.37〜0.41 → 0.0022 ×3 |
+| PerformanceObserver: Mermaid初期表示 | 375×900 | 修正後 ≤0.0007 |
+| PerformanceObserver: Mermaid初期表示 | 393×851 | 修正後 0 |
+| PerformanceObserver: upscale初期表示 | 全viewport | 修正後 ≤0.0024 |
+| Lighthouse 12 CLS: Mermaid | モバイル / デスクトップ | 0.0007 → 0.0007 / 0.4245 → 0.0011 |
+| Lighthouse 12 CLS: upscale | モバイル / デスクトップ | 0.0007 → 0.0007 / 0.0087 → 0.0087 |
+
+Lighthouse 12はローカルpreview・Playwright Chromiumで初期表示のみを計測し、upscaleの操作フローは対象外。
+
+Mermaid 375pxの横はみ出し（scrollWidth 419〜443px）は本番mainでも発生する既存問題で、本issueの対象外。全体E2E・CI・独立レビュー（Claude Code Sonnet）はPR上で記録。
+
+Worker・モデル配信・PWA/SW・WebMCP・CI・依存設定は変更なし。
