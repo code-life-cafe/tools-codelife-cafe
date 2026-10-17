@@ -74,7 +74,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		id: 'zenkaku-hankaku',
 		title: '全角↔半角変換',
 		description:
-			'カタカナ・英数字・記号の全角半角を一括変換。カテゴリ別に細かく制御できます。',
+			'全角・半角を相互変換。カナ・英字・数字・記号を選択。スペースは記号と連動します。',
 		href: '/zenkaku-hankaku/',
 		icon: 'ArrowLeftRight',
 		categories: ['テキスト変換'],
@@ -86,7 +86,8 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			useCase: 'カタカナ・英数字・記号の全角と半角を相互変換',
 			inputs: 'text（変換対象文字列）',
 			outputs: '変換後の文字列',
-			options: 'カタカナ、英数字、記号ごとの個別変換フラグ切替',
+			options:
+				'カナ・英字・数字・記号の4項目を選択。スペースは記号と連動。英数字を半角・カナを全角などの用途設定',
 		},
 	},
 	{

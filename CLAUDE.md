@@ -4,7 +4,7 @@
 
 ## Makerの責任
 
-Claude Code / Sonnet 5は通常フローのMaker。Productionコードとテストの両方を作成・修正する。Risk Classとレビュー規則は[AGENTS.md](AGENTS.md)、全体フローと手動設定は[運用手順](docs/ai-development-flow.md)を参照する。
+通常フローのメインMakerはCodex CLI。Claude Code（Claude Pro）はCodex実装PRのレビューと、UI・日本語文言（タイトル・説明文・言い回し）を含むPRのMakerを担当し、Makerの場合はProductionコードとテストの両方を作成・修正する。以下はClaudeがMakerの場合の手順。Risk Classとレビュー規則は[AGENTS.md](AGENTS.md)、全体フローと手動設定は[運用手順](docs/ai-development-flow.md)を参照する。
 
 1. Notion Task Boardから対象タスク・親タスク・状態・ACを取得する。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
 2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をImplementation Planに残す。新規tool・大幅改修は既存の計画承認手順に従う。R4は自動着手しない。
