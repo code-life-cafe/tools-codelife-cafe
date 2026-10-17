@@ -35,7 +35,7 @@ R4はAgent Readyやレビューコメントだけでは変更しない。人間�
 
 ### 軽微PRのマージ判断と実行
 
-R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断はCodex、客観的検証はGitHub Actions、条件の照合とMerge操作は既存Claude Routineが担当する（例外として、下記[Grok Bot運用ループ](#grok-bot運用ループオペレーター)もR0/R1に限り同じ条件で照合・Mergeを担当できる）。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
+R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断は実装と異なるモデル（通常Codex実装ならClaude Code、Claude実装ならCodex）、客観的検証はGitHub Actions、条件の照合とMerge操作は既存Claude Routineが担当する（例外として、下記[Grok Bot運用ループ](#grok-bot運用ループオペレーター)もR0/R1に限り同じ条件で照合・Mergeを担当できる）。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
 
 - PRの実際の全差分がR0/R1であり、ACと合意スコープ内。ラベル・自己申告だけで判定せず、R2以上の対象が混在する場合や判定が曖昧な場合は人間へ返す。Constitution・CI・依存・Analytics・WebMCP・PWA・権限変更を軽微扱いしない。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
