@@ -49,7 +49,7 @@
 
 ```bash
 npm run dev          # 開発サーバー起動 (localhost:4321)
-npm run build        # 本番ビルド（Astroビルド ＋ sw.js のプレースホルダー置換）
+npm run build        # 本番ビルド（WASM/WebMCP準備・Astro・OGP/SW生成・アセット検証）
 npm run preview      # ビルド成果物のローカルプレビュー
 npm run check        # Astro型チェック ＋ Biome静的解析
 npm run lint         # Biome 静的解析の実行 (src/, tests/)
