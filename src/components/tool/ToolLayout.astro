@@ -20,6 +20,8 @@ interface Props {
 	hideRelatedTools?: boolean;
 	/** 初回描画の幅をページ側で復元する場合に使用する */
 	initialExpanded?: boolean;
+	/** ワークフロー所属ツールでも明示的に併記したい関連ツール（カニバリ対策の相互リンク等） */
+	extraRelatedSlugs?: string[];
 }
 
 const {
@@ -28,6 +30,7 @@ const {
 	disableAnalytics = false,
 	hideRelatedTools = false,
 	initialExpanded = false,
+	extraRelatedSlugs,
 } = Astro.props;
 const { title, displayTitle, description, canonical, category, summary, useCases, howto, faq, related, updated } =
 	entry.data;
@@ -102,7 +105,7 @@ const jsonLdData = generateJsonLd(
 		<!-- 5. FAQ セクション -->
 		<Faq faq={faq} />
 		<!-- 7. Related Tools セクション -->
-		{!hideRelatedTools && <RelatedTools toolId={toolId} relatedSlugs={related} />}
+		{!hideRelatedTools && <RelatedTools toolId={toolId} relatedSlugs={related} extraRelatedSlugs={extraRelatedSlugs} />}
 	</div>
 
 	<script is:inline define:vars={{ toolId }}>

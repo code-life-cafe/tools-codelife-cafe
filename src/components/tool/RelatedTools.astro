@@ -8,9 +8,14 @@ interface Props {
 	toolId?: string;
 	relatedSlugs?: string[];
 	excludeIds?: string[];
+	/**
+	 * ワークフロー所属ツールでも明示的に併記したい関連ツール（ワークフロー表示時は
+	 * frontmatter の related が隠れてしまうため、カニバリ対策等で個別に補う用途）。
+	 */
+	extraRelatedSlugs?: string[];
 }
 
-const { toolId, relatedSlugs, excludeIds = [] } = Astro.props;
+const { toolId, relatedSlugs, excludeIds = [], extraRelatedSlugs = [] } = Astro.props;
 
 // ワークフローコンテキストの取得
 const workflowCtx = toolId ? getWorkflowContext(toolId) : null;
@@ -21,6 +26,7 @@ const relatedWorkflowSteps = workflowCtx
 			.map((step, position) => ({ step, position }))
 			.filter(({ step }) => step.id !== toolId)
 	: [];
+const workflowStepIds = new Set(relatedWorkflowSteps.map(({ step }) => step.id));
 
 // ワークフロー導線で既に表示済みのツールIDを除外対象に含める
 const excludeSet = new Set(excludeIds);
@@ -53,6 +59,11 @@ if (toolId && validTools.length < LIMIT) {
 	const found = findBySlug(relatedSlugs[0]);
 	if (found) validTools = getRelatedTools(found.id, LIMIT);
 }
+
+// ワークフロー表示中は上記 validTools が使われないため、個別に明示した補完分のみ別途解決する
+const extraWorkflowTools = extraRelatedSlugs
+	.map((slug) => findBySlug(slug))
+	.filter((tool): tool is ToolCatalogItem => !!tool && tool.id !== toolId && !workflowStepIds.has(tool.id));
 ---
 
 {workflowCtx ? (
@@ -76,6 +87,18 @@ if (toolId && validTools.length < LIMIT) {
 						href={step.href}
 						icon={step.icon}
 						categories={step.categories.map((c) => ({ name: c }))}
+					/>
+				</div>
+			))}
+			{extraWorkflowTools.map((tool, i) => (
+				<div data-track-related-click data-from={toolId ?? ''} data-to={tool.id} data-position={relatedWorkflowSteps.length + i}>
+					<ToolCard
+						id={tool.id}
+						title={tool.title}
+						description={tool.description}
+						href={tool.href}
+						icon={tool.icon}
+						categories={tool.categories.map((c) => ({ name: c }))}
 					/>
 				</div>
 			))}
