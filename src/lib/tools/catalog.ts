@@ -233,8 +233,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		keywords: ['和暦', '西暦', '元号', '年齢'],
 		related: ['tax', 'cipher'],
 		llmsFull: {
-			useCase:
-				'和暦（明治・大正・昭和・平成・令和）と西暦の相互変換および年齢・干支計算',
+			useCase: '和暦（弘化〜令和）と西暦の相互変換および年齢・干支計算',
 			inputs: 'year（年数値または和暦表記）',
 			outputs:
 				'{ westernYear: number, japaneseYear: string, eto: string, age: number }',
