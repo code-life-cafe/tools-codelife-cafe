@@ -1,10 +1,12 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('Unicode Converter Tool', () => {
-	test('should load the page correctly', async ({ createToolPage }) => {
+	test('should load the page correctly', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('unicode-converter');
 		await toolPage.goto();
-		await toolPage.expectTitle('ユニコード変換 | CODE:LIFE Tools');
+		await expect(page).toHaveTitle(
+			'ユニコード変換｜\\uXXXXエスケープを日本語にデコード・相互変換 | CODE:LIFE Tools',
+		);
 		await toolPage.expectSafetyBadge();
 	});
 
