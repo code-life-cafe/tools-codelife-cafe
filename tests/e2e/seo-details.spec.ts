@@ -11,9 +11,11 @@ test.describe('twitter:image', () => {
 			'content',
 			'https://tools.codelife.cafe/og-image.png',
 		);
+		const twitterImageContent = await twitterImage.getAttribute('content');
+		expect(twitterImageContent).not.toBeNull();
 		await expect(ogImage).toHaveAttribute(
 			'content',
-			await twitterImage.getAttribute('content'),
+			twitterImageContent as string,
 		);
 	});
 
@@ -29,9 +31,11 @@ test.describe('twitter:image', () => {
 			'content',
 			'https://tools.codelife.cafe/og/hash.png',
 		);
+		const twitterImageContent = await twitterImage.getAttribute('content');
+		expect(twitterImageContent).not.toBeNull();
 		await expect(ogImage).toHaveAttribute(
 			'content',
-			await twitterImage.getAttribute('content'),
+			twitterImageContent as string,
 		);
 	});
 });
