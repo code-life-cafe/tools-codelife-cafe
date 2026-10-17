@@ -56,7 +56,7 @@ MIT ライセンスは影響を受けません。LGPL-3.0 の全文は上記リ�
 
 ## PDF.js と同梱フォント・コーデック
 
-- **用途**: PDF圧縮のプレビュー・画像化、PDF→JPG/PNGのページ描画。Worker・CMap・フォント・WASMは同一オリジンから配信します。
+- **用途**: PDF圧縮のプレビュー・画像化、PDF→JPG/PNGのページ描画、PDFテキスト抽出（/pdf-to-text）。Worker・CMap・フォント・WASMは同一オリジンから配信します。
 - **バージョン**: pdfjs-dist 6.4.299（固定）。
 - **本体**: Mozilla Foundation、Apache-2.0。
 - **同梱素材**: Foxit/PDFiumフォント、Liberationフォント、OpenJPEG、JBIG2、QCMS等は、それぞれの同梱ライセンス条件によります。本体のApache-2.0と同一とは扱いません。

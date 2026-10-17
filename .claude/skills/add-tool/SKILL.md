@@ -14,7 +14,7 @@ description: tools.codelife.cafe に新しいWebツールを追加する（4フ�
 以下を含む実装計画を提示し、承認を得てから実装を開始する：
 
 - **ツール名**（日本語・英語）と **slug**（URLパス、例：`url-encoder`）
-- **カテゴリ**・**アイコン**（絵文字1文字）・**related**（catalog.ts 上の関連ツール候補）
+- **カテゴリ**（`categories` 配列）・**アイコン**（Lucideアイコン名 / `ToolIconName`）・**related**（catalog.ts 上の関連ツール候補）
 - **主な機能**（箇条書き3〜5項目）
 - **作成ファイル一覧**
 
@@ -23,7 +23,7 @@ description: tools.codelife.cafe に新しいWebツールを追加する（4フ�
 1. `src/lib/tools/{slug}.ts` — DOM/React非依存の純粋ロジック。エラーメッセージは日本語。ローカルimportは `.ts` 拡張子付き（node --test 対応）
 2. `src/components/tools/{Name}.tsx` — React UI。shadcn/ui・Lucide使用、日本語UIファースト、`CopyButton` を出力部に配置
 3. `src/content/tools/{slug}.md` と `src/pages/{slug}.astro` — LPコンテンツをcontent collectionから取得し、`ToolLayout`へ渡すページシェルを作る。UIは`client:load`で配置
-4. **`src/lib/tools/catalog.ts` に1エントリ登録**（id・title・description・href・category・icon・related）— index・ナビ・検索・SEO・OG・sitemap はここから自動連動する。**index.astro や Navigation・SearchModal への手書き追加はしない**
+4. **`src/lib/tools/catalog.ts` に1エントリ登録**（id・title・description・href・categories・icon・categoryColor・keywords・related・llmsFull）— index・ナビ・検索・SEO・OG・sitemap はここから自動連動する。**index.astro や Navigation・SearchModal への手書き追加はしない**
 5. 関連ツールリンクをページに手書きしない（catalog の `related` に集約）
 
 ### 3. テスト
