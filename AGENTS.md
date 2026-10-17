@@ -4,12 +4,20 @@
 
 ## AI開発の責任境界
 
-- 通常フローは **ChatGPT Product Scout → Notion Task Board → Claude Maker → GitHub Actions → Codex Independent Review → Claude fix → CI → 必要時再レビュー → Merge → Deploy → Analytics → Scout**。
-- Claude Code / Sonnet 5はPlan・Productionコード・unit/E2E/regression test・PR・レビュー修正・CI failure修正を担当する。手順は[CLAUDE.md](CLAUDE.md)。
-- Codex / GPT-5.6 SolはPrimary ReviewerとしてProductionとテストの両方を独立レビューする。通常のAuto Reviewでは編集・コミット・修正・自己承認を行わず、findingをClaudeへ返す。
+- 通常フローは **ChatGPT Product Scout → Notion Task Board → Codex Maker（UI・日本語文言はClaude Maker）→ GitHub Actions → 実装と異なるモデルのIndependent Review → Maker fix → CI → 必要時再レビュー → Merge → Deploy → Analytics → Scout**。
+- Codex CLI（ChatGPT Pro）がメインのMakerとしてPlan・Productionコード・unit/E2E/regression test・PR・レビュー修正・CI failure修正を担当する。UIや日本語文言（タイトル・説明文・言い回し）を含むPRはClaude Code（Claude Pro）がMakerを担当する。Claude Makerの手順は[CLAUDE.md](CLAUDE.md)。
+- 実装モデルとレビューモデルは必ず別にする（Codex実装 → Claude Codeがレビュー、Claude実装 → Codexがレビュー）。Claude CodeはCodex実装PRのレビューとUI・日本語文言を含むPRに温存する。レビュアーはProductionとテストの両方を独立レビューし、通常のレビューでは編集・コミット・修正・自己承認を行わず、findingをMakerへ返す。
+- プランの利用上限に達した場合は、作業を止めないよう実装者を Codex → Claude → Gemini の順に切り替える。切り替え後も実装モデルとレビューモデルは別にする。
 - GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
 - 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
 - Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
+
+### モデル選択・agy・worktree
+
+- 上位モデルを常用しない。調査・確認・docs・文言修正・R0/R1の小修正・レビューは軽量/標準モデルを使う（Claude Sonnet / Haiku（Opusは使わない）、agyではGemini Flash、Codexはreasoning effort `low`）。
+- 上位モデルや高いreasoning effortは、R2の複雑な新機能の設計・実装、または軽量モデルが2回失敗した場合に限る。使用した場合はその理由を報告に記載する。
+- agy（Gemini CLI / Google AI Pro）は編集を伴わない大量作業（docs drift sweep、一括チェック、QA結果の整理）に限って使う。agy内でClaudeモデルは使わない（Google側のquotaを消費し、すぐ上限に達するため）。`agy -p` は権限確認で停止するため、使い捨てworktreeで `--sandbox --dangerously-skip-permissions` を付けてのみ実行し、生成された変更は人間またはbotのレビューを経てからPRにする。
+- 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各botは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<bot>-<branch>`）を作成して作業し、完了したら削除する。PRのレビューとMergeはmaintainer botのみが行う。
 
 ### Risk Class
 
@@ -31,7 +39,7 @@ R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基
 
 - PRの実際の全差分がR0/R1であり、ACと合意スコープ内。ラベル・自己申告だけで判定せず、R2以上の対象が混在する場合や判定が曖昧な場合は人間へ返す。Constitution・CI・依存・Analytics・WebMCP・PWA・権限変更を軽微扱いしない。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
-- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。Grok Bot運用ループによるR0/R1自動Mergeに限り、ローカルCodex CLIレビューをGitHub Codex botのCode Review / Codex Security Reviewの代替として許容する。条件: モデル`gpt-6.1-sol`・`model_reasoning_effort=low`・`--sandbox read-only`で実行し、編集は行わずfindingのみを出力し、同じhead SHAの差分に対して実行し、結果（blocking findingなし、またはblocking findingが再レビューで解消済み）とモデル名・対象head SHAをMerge前にPRへ記録する。それ以外は両レビュー完了の要件を維持する。
+- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。Grok Bot運用ループによるR0/R1自動Mergeに限り、実装と異なるモデルのローカルCLIレビューをGitHub Codex botのCode Review / Codex Security Reviewの代替として許容する。Claude実装PRではローカルCodex CLIレビュー（モデル`gpt-6.1-sol`・`model_reasoning_effort=low`・`--sandbox read-only`）、Codex実装PRではローカルClaude Code CLIレビュー（Sonnet・編集ツールを許可しない読み取り専用）とする。条件: 上記の設定で実行し、編集は行わずfindingのみを出力し、同じhead SHAの差分に対して実行し、結果（blocking findingなし、またはblocking findingが再レビューで解消済み）とモデル名・対象head SHAをMerge前にPRへ記録する。それ以外は両レビュー完了の要件を維持する。
 - 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
 - Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeせず人間へ返す。admin/bypass・force push・gate変更は使わない。
 
@@ -40,8 +48,8 @@ R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基
 ### Grok Bot運用ループ（オペレーター）
 
 1. Grok Botが本番smoke・CI/deploy状態・Cloudflareを調査し、`bug` + `auto`ラベルとRisk ClassをつけてGitHub Issueを作成する。
-2. Claude Code CLIが新規branchで実装し、regression testを追加し、該当issueをlinkするPRを作成する。
-3. Codex CLIがレビューする（上記の条件を満たすローカルレビューを含む）。findingはClaudeへ返却し、修正は既存の3周上限内で行う。
+2. Codex CLI（UI・日本語文言を含む場合はClaude Code CLI）が自分のworktreeの新規branchで実装し、regression testを追加し、該当issueをlinkするPRを作成する。
+3. 実装と異なるモデルのCLIがレビューする（Codex実装 → Claude Code CLI、Claude実装 → Codex CLI。上記の条件を満たすローカルレビューを含む）。findingはMakerへ返却し、修正は既存の3周上限内で行う。
 4. Grok Botが最終確認を行い、必須CIの`lint`・`e2e`が最新mainを含むheadで成功している場合のみ、head SHAを固定してsquash-mergeする。
 5. Merge後にmainの`deploy.yml`成功を確認する。deployが失敗した場合はそれ以降のMergeを停止し、人間へエスカレーションする。
 
