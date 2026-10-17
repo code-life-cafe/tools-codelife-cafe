@@ -729,7 +729,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		id: 'image-metadata',
 		title: '画像メタデータ削除',
 		description:
-			'Exif・GPS位置情報などをブラウザ内で削除。画像はアップロードされません。',
+			'複数画像のExif・GPS位置情報などを一括削除。画像はアップロードされません。',
 		href: '/image-metadata/',
 		icon: 'Eraser',
 		categories: ['画像'],
@@ -1217,7 +1217,8 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 	{
 		id: 'exif',
 		title: 'EXIF確認・削除',
-		description: '写真の位置情報・撮影情報を確認して削除。データは外部送信なし',
+		description:
+			'写真の位置情報・撮影情報を1枚ずつ確認して削除。データは外部送信なし',
 		href: '/exif/',
 		icon: 'ScanSearch',
 		categories: ['画像'],
