@@ -44,14 +44,28 @@ test.describe('Character Counter', () => {
 		const toolPage = createToolPage('char-count');
 		await toolPage.goto();
 
-		const newFaqQuestions = [
-			'全角と半角でバイト数はどう変わる？',
-			'改行や空白は文字数に含まれる？',
-			'Shift-JISで表せない文字（絵文字・一部のUnicode漢字）はどう扱われる？',
-			'Wordやスプレッドシートの文字数と結果が違うのはなぜ？',
+		const newFaqs = [
+			{
+				question: '全角と半角でバイト数はどう変わる？',
+				// frontmatterの回答文中の特徴的な一部（docs/content/tools/char-count.md参照）
+				answerFragment: '全角（ひらがな・カタカナ・漢字など）が2バイト',
+			},
+			{
+				question: '改行や空白は文字数に含まれる？',
+				answerFragment: '改行で区切った行の数',
+			},
+			{
+				question:
+					'Shift-JISで表せない文字（絵文字・一部のUnicode漢字）はどう扱われる？',
+				answerFragment: '0バイト扱い',
+			},
+			{
+				question: 'Wordやスプレッドシートの文字数と結果が違うのはなぜ？',
+				answerFragment: 'コードポイント単位',
+			},
 		];
 
-		for (const question of newFaqQuestions) {
+		for (const { question } of newFaqs) {
 			await expect(page.getByText(question)).toBeVisible();
 		}
 
@@ -62,12 +76,14 @@ test.describe('Character Counter', () => {
 		const faqPage = jsonLd['@graph'].find(
 			(node: { '@type': string }) => node['@type'] === 'FAQPage',
 		);
-		const faqQuestionNames = faqPage.mainEntity.map(
-			(item: { name: string }) => item.name,
-		);
+		const faqEntries: { name: string; acceptedAnswer: { text: string } }[] =
+			faqPage.mainEntity;
 
-		for (const question of newFaqQuestions) {
-			expect(faqQuestionNames).toContain(question);
+		for (const { question, answerFragment } of newFaqs) {
+			const entry = faqEntries.find((item) => item.name === question);
+			expect(entry).toBeDefined();
+			expect(entry?.acceptedAnswer.text).not.toHaveLength(0);
+			expect(entry?.acceptedAnswer.text).toContain(answerFragment);
 		}
 	});
 
