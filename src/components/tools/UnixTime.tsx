@@ -81,14 +81,13 @@ export default function UnixTime() {
 	const [mode, setMode] = useState<'single' | 'batch'>('single');
 	const [input, setInput] = useState('');
 	const [selectedFormat, setSelectedFormat] = useState<string | null>(null);
-	const [nowSeconds, setNowSeconds] = useState(() =>
-		Math.floor(Date.now() / 1000),
-	);
+	const [nowSeconds, setNowSeconds] = useState<number | null>(null);
 	const [nowCopied, setNowCopied] = useState(false);
 	const [nowCopyFailed, setNowCopyFailed] = useState(false);
 	const [batchText, setBatchText] = useState('');
 
 	useEffect(() => {
+		setNowSeconds(Math.floor(Date.now() / 1000));
 		const timer = setInterval(() => {
 			setNowSeconds(Math.floor(Date.now() / 1000));
 		}, 1000);
@@ -149,6 +148,7 @@ export default function UnixTime() {
 	};
 
 	const handleCopyNow = async () => {
+		if (nowSeconds === null) return;
 		const ok = await copyText(String(nowSeconds));
 		if (ok) {
 			setNowCopyFailed(false);
@@ -171,14 +171,17 @@ export default function UnixTime() {
 					<button
 						type="button"
 						onClick={handleCopyNow}
-						className={`font-mono font-semibold hover:underline ${nowCopyFailed ? 'text-destructive' : 'text-foreground'}`}
+						disabled={nowSeconds === null}
+						className={`font-mono font-semibold hover:underline disabled:cursor-default disabled:no-underline ${nowCopyFailed ? 'text-destructive' : 'text-foreground'}`}
 						aria-label="現在のUNIX秒をコピー"
 					>
 						{nowCopyFailed
 							? 'コピーに失敗しました'
 							: nowCopied
 								? 'コピーしました'
-								: nowSeconds}
+								: nowSeconds === null
+									? '—'
+									: nowSeconds}
 					</button>
 				</div>
 				<Button variant="outline" size="sm" onClick={handleNowClick}>

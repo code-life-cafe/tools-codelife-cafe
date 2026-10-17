@@ -1,7 +1,7 @@
 // ビルド後に実行し、dist/ を走査して dist/sw.js へページ・アセット URL リストを注入する
 
 import { createHash } from 'crypto';
-import { readdir, readFile, writeFile } from 'fs/promises';
+import { readdir, readFile, stat, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { listAllowedRuntimePaths } from '../src/lib/transcribe/model-manifest.ts';
 
@@ -15,21 +15,30 @@ const DIST = './dist';
 // ページではないため除外。runtimeは下のassetURLsで明示的にprecacheへ追加する。
 // モデルはブラウザ Cache に乗るが precache には含めない。
 const entries = await readdir(DIST, { withFileTypes: true });
-const pageURLs = [
-	'/',
-	...entries
-		.filter(
-			(d) =>
-				d.isDirectory() &&
-				!d.name.startsWith('_') &&
-				!d.name.startsWith('.') &&
-				d.name !== 'data' &&
-				d.name !== 'og' &&
-				d.name !== 'models' &&
-				d.name !== 'vendor',
-		)
-		.map((d) => `/${d.name}/`),
-];
+const pageDirectories = entries.filter(
+	(d) =>
+		d.isDirectory() &&
+		!d.name.startsWith('_') &&
+		!d.name.startsWith('.') &&
+		d.name !== 'data' &&
+		d.name !== 'og' &&
+		d.name !== 'models' &&
+		d.name !== 'vendor',
+);
+// /tools/ のような親ディレクトリをページとしてキャッシュしない。
+const existingPages = await Promise.all(
+	pageDirectories.map(async (directory) => {
+		try {
+			return (await stat(join(DIST, directory.name, 'index.html'))).isFile()
+				? `/${directory.name}/`
+				: undefined;
+		} catch (error) {
+			if (error.code === 'ENOENT') return undefined;
+			throw error;
+		}
+	}),
+);
+const pageURLs = ['/', ...existingPages.filter((page) => page !== undefined)];
 
 // dist/_astro/ 配下の全ファイルを収集
 // AVIF エンコーダ（@jsquash/avif）や libheif（HEICデコード）の WASM チャンクも含めて
@@ -46,7 +55,10 @@ try {
 // precache 対象に含める。OfflineBadge の「全ツールをオフラインで利用可能にする」という
 // 前提に合わせ、オフライン化前に一度も /qr-reader を開いていなくても初回デコードが
 // WASM取得失敗で落ちないようにする。
-const assetURLs = [...assetFiles.map((f) => `/_astro/${f}`), ...listAllowedRuntimePaths()];
+const assetURLs = [
+	...assetFiles.map((f) => `/_astro/${f}`),
+	...listAllowedRuntimePaths(),
+];
 
 // ページHTML内容 + アセットURLからキャッシュバージョンハッシュを計算（内容変更時に自動失効）
 const pageContents = await Promise.all(

@@ -1,0 +1,30 @@
+{
+  "findings": [
+    {
+      "body": "承認済み計画書 approved-unicode-plan.md の受入条件 AC 4 に明記されている「PC/390pxでページ登録から両モードを実行し、通常UI出力と全文一致」のうち、390px（モバイルビューポート）での検証が tests/e2e/unicode-converter-webmcp.spec.ts に実装されていません。PC幅のみがテストされています。",
+      "classification": "test inadequacy",
+      "file": "tests/e2e/unicode-converter-webmcp.spec.ts",
+      "line": 70,
+      "severity": "P2",
+      "verification": "page.setViewportSize({ width: 390, height: 844 }) を設定したモバイルビューポート環境でもWebMCP実行とUI出力の一致、画面・保存領域不変性を検証するテストケースを追加し、E2Eテストがパスすることを確認する。"
+    },
+    {
+      "body": "approved-unicode-plan.md セクション5の変更ファイル一覧に記載されていた「tests/unit/unicode-converter.test.ts: 必要な既存仕様の固定例を追加。既存テストは維持」が実施されておらず、差分に含まれていません（テストケースは unicode-converter-mcp.test.ts 側のみに追加されています）。",
+      "classification": "test inadequacy",
+      "file": "tests/unit/unicode-converter.test.ts",
+      "line": 1,
+      "severity": "P2",
+      "verification": "tests/unit/unicode-converter.test.ts に純粋関数単体の固定例を反映するか、計画書側で unicode-converter-mcp.test.ts への統合集約として差分意図を明記・更新する。"
+    },
+    {
+      "body": "snapshot.md 冒頭のステータス記述（PWA verification pending）および受入条件 AC 7 に規定された、実WebMCPクライアント受入、ならびにPWA静的配信・オフライン検証（使い捨てcontext破棄・復元）が保留（pending）状態です。",
+      "classification": "informational",
+      "file": "approved-unicode-plan.md",
+      "line": 239,
+      "severity": "P2",
+      "verification": "Draft PR作成後、ローカルプレビュー環境で実WebMCPクライアントでの検出・引数実行受入、およびPWA静的配信・オフライン復元検証を実施し、結果を記録する。"
+    }
+  ],
+  "summary": "Unicode WebMCP対応（convert_unicode）の独立コードレビューを実施しました。プロダクションコード（単一ソース定義、上限設定、空白前処理、エラーマスキング、ライフサイクル）および基本単体・E2Eテストは安全予算と仕様を満たし極めて堅牢です。ただし、AC 4で明記された390pxモバイル幅でのE2Eテスト欠落（Finding 1）、計画書記載の既存unitテスト更新漏れ（Finding 2）、保留中のPWA受入検証（Finding 3）があるため、判定は needs-attention となります。",
+  "verdict": "needs-attention"
+}

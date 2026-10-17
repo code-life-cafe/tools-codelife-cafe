@@ -19,8 +19,15 @@ import {
 	type DiffMode,
 	readFileAsText,
 } from '@/lib/tools/text-diff';
+import { textDiffMcpTool } from '@/lib/tools/text-diff.mcp';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 export default function TextDiff() {
+	useEffect(
+		() => provideToolsFromFactory([generateWebMcpDescriptor(textDiffMcpTool)]),
+		[],
+	);
 	const { trackRunDebounced } = useToolAnalytics('text-diff');
 	const [textA, setTextA] = useState('');
 	const [textB, setTextB] = useState('');

@@ -27,6 +27,8 @@ import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
 import {
 	COMMON_PATTERNS,
+	MAX_DISPLAY_MATCHES,
+	MAX_MATCHES,
 	sanitizeRegexTesterSettings,
 	testRegex,
 } from '@/lib/tools/regex-tester';
@@ -281,7 +283,17 @@ export default function RegexTester() {
 						className={`text-4xl font-bold ${result.matches.length > 0 ? 'text-primary' : 'text-muted-foreground'}`}
 					>
 						{result.matches.length}
+						{result.truncated ? '+' : ''}
 					</div>
+					{result.truncated && (
+						<div
+							className="mt-2 text-xs text-muted-foreground text-center"
+							data-testid="regex-truncated-note"
+						>
+							{MAX_MATCHES}
+							件を超える一致があります（正確な総数は集計していません）
+						</div>
+					)}
 				</div>
 			</div>
 
@@ -385,6 +397,15 @@ export default function RegexTester() {
 							キャプチャグループは <code>$1</code>, <code>$2</code>{' '}
 							などで参照できます。
 						</p>
+						{result.truncated && (
+							<p
+								className="text-xs text-muted-foreground mt-1"
+								data-testid="regex-replace-scope-note"
+							>
+								置換はマッチ数の表示上限（{MAX_MATCHES}
+								件）に関係なく、すべての一致が対象です。
+							</p>
+						)}
 					</div>
 					<div>
 						<div className="flex items-center justify-between mb-2">
@@ -430,59 +451,63 @@ export default function RegexTester() {
 									variant="secondary"
 									className="rounded-full px-2.5 font-mono"
 								>
-									{result.matches.length}件
+									{result.matches.length}件{result.truncated ? '以上' : ''}
 								</Badge>
 							</div>
 						</AccordionTrigger>
 						<AccordionContent className="pt-2">
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto px-1 pb-2 scrollbar-thin">
-								{result.matches.slice(0, 500).map((match, i) => (
-									<Card
-										key={`match-${match.index}`}
-										className="rounded-xl overflow-hidden text-sm"
-									>
-										<div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center text-xs">
-											<span className="font-semibold text-muted-foreground">
-												Match #{i + 1}
-											</span>
-											<span className="text-muted-foreground">
-												Index: {match.index}
-											</span>
-										</div>
-										<CardContent className="p-3 bg-card font-mono-tool">
-											<div className="break-all font-medium text-foreground">
-												{match.value}
+								{result.matches
+									.slice(0, MAX_DISPLAY_MATCHES)
+									.map((match, i) => (
+										<Card
+											key={`match-${match.index}`}
+											className="rounded-xl overflow-hidden text-sm"
+										>
+											<div className="bg-muted px-3 py-1.5 border-b flex justify-between items-center text-xs">
+												<span className="font-semibold text-muted-foreground">
+													Match #{i + 1}
+												</span>
+												<span className="text-muted-foreground">
+													Index: {match.index}
+												</span>
 											</div>
-
-											{match.groups.length > 0 && (
-												<div className="mt-3 space-y-1.5 border-t pt-2 border-border/50">
-													{Array.from(match.groups.entries()).map(
-														([gi, group]) => (
-															<div
-																key={`group-${gi}`}
-																className="flex gap-2 text-xs items-start"
-															>
-																<Badge
-																	variant="secondary"
-																	className="px-1 text-[10px] h-4 leading-4 flex-shrink-0"
-																>
-																	Group {gi + 1}
-																</Badge>
-																<span className="break-all opacity-80">
-																	{group ?? '(undefined)'}
-																</span>
-															</div>
-														),
-													)}
+											<CardContent className="p-3 bg-card font-mono-tool">
+												<div className="break-all font-medium text-foreground">
+													{match.value}
 												</div>
-											)}
-										</CardContent>
-									</Card>
-								))}
-								{result.matches.length > 500 && (
+
+												{match.groups.length > 0 && (
+													<div className="mt-3 space-y-1.5 border-t pt-2 border-border/50">
+														{Array.from(match.groups.entries()).map(
+															([gi, group]) => (
+																<div
+																	key={`group-${gi}`}
+																	className="flex gap-2 text-xs items-start"
+																>
+																	<Badge
+																		variant="secondary"
+																		className="px-1 text-[10px] h-4 leading-4 flex-shrink-0"
+																	>
+																		Group {gi + 1}
+																	</Badge>
+																	<span className="break-all opacity-80">
+																		{group ?? '(undefined)'}
+																	</span>
+																</div>
+															),
+														)}
+													</div>
+												)}
+											</CardContent>
+										</Card>
+									))}
+								{result.matches.length > MAX_DISPLAY_MATCHES && (
 									<div className="col-span-full text-center text-xs text-muted-foreground py-4">
-										... 以降の {result.matches.length - 500}{' '}
-										件は省略されています（最大500件表示）
+										... 以降の {result.matches.length - MAX_DISPLAY_MATCHES}
+										{result.truncated ? '件以上' : '件'}
+										は一覧で省略されています（一覧は最大{MAX_DISPLAY_MATCHES}
+										件表示）
 									</div>
 								)}
 							</div>

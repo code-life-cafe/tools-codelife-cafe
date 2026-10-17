@@ -1,0 +1,100 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>ocr spike</title>
+<script type="module">
+	import Tesseract from '/spike-lib/tesseract.esm.min.js';
+	const { createWorker } = Tesseract;
+
+	const VENDOR = window.__cfg.vendor;
+	const MODELS = window.__cfg.models;
+	let worker;
+	const events = [];
+
+	window.spike = {
+		async init({ langs, corePath }) {
+			const t0 = performance.now();
+			let rejectInit;
+			const failed = new Promise((_, rej) => {
+				rejectInit = rej;
+			});
+			const creating = createWorker(langs, 1, {
+				workerPath: new URL(`${VENDOR}worker.min.js`, location.origin).href,
+				corePath: new URL(corePath ?? `${VENDOR}core/`, location.origin).href,
+				langPath: new URL(MODELS, location.origin).href,
+				gzip: false,
+				cacheMethod: 'none',
+				logger: (m) => events.push({ t: Math.round(performance.now()), ...m }),
+				errorHandler: (e) => {
+					events.push({ t: Math.round(performance.now()), error: String(e).slice(0, 200) });
+					rejectInit(e instanceof Error ? e : new Error(String(e)));
+				},
+			});
+			creating.then((w) => {
+				worker ??= w;
+			}, () => {});
+			try {
+				worker = await Promise.race([creating, failed]);
+			} catch (e) {
+				// 初期化失敗時はWorkerを破棄して復帰可能にする
+				creating.then((w) => w.terminate(), () => {});
+				throw e;
+			}
+			return { initMs: Math.round(performance.now() - t0) };
+		},
+		async recognize(url) {
+			const blob = await (await fetch(url)).blob();
+			const t0 = performance.now();
+			const { data } = await worker.recognize(blob);
+			return { ms: Math.round(performance.now() - t0), text: data.text };
+		},
+		// 認識を開始して放置（キャンセル検証用）
+		startRecognize(url) {
+			window.__pending = (async () => {
+				const blob = await (await fetch(url)).blob();
+				try {
+					await worker.recognize(blob);
+					return 'resolved';
+				} catch (e) {
+					return `rejected:${String(e).slice(0, 80)}`;
+				}
+			})();
+		},
+		async terminate() {
+			const t0 = performance.now();
+			await worker.terminate();
+			return Math.round(performance.now() - t0);
+		},
+		pendingState() {
+			return Promise.race([
+				window.__pending,
+				new Promise((r) => setTimeout(() => r('still-pending-after-3s'), 3000)),
+			]);
+		},
+		// メインスレッドの応答性（timerのずれ）を測る
+		startLagProbe() {
+			window.__lag = 0;
+			let last = performance.now();
+			window.__probe = setInterval(() => {
+				const now = performance.now();
+				window.__lag = Math.max(window.__lag, now - last - 50);
+				last = now;
+			}, 50);
+		},
+		stopLagProbe() {
+			clearInterval(window.__probe);
+			return Math.round(window.__lag);
+		},
+		async storageState() {
+			const dbs = indexedDB.databases ? await indexedDB.databases() : [];
+			return {
+				indexedDB: dbs.map((d) => d.name),
+				cacheStorage: await caches.keys(),
+				localStorage: Object.keys(localStorage),
+				sessionStorage: Object.keys(sessionStorage),
+				url: location.href,
+			};
+		},
+		events: () => events,
+	};
+	window.__ready = true;
+</script>
