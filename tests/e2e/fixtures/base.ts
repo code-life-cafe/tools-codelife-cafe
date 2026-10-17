@@ -18,7 +18,15 @@ async function waitForClientLoadIslands(page: Page) {
 
 export const test = baseTest.extend<MyFixtures>({
 	page: async ({ page }, use) => {
-		// Block analytics to prevent test timeouts/flakiness
+		// Block production analytics at the test boundary. Individual analytics tests
+		// may override the API route to capture payloads without persisting events.
+		await page
+			.context()
+			.route('**/api/event', (route) => route.fulfill({ status: 204 }));
+		await page
+			.context()
+			.route('**/*cloudflareinsights.com/**', (route) => route.abort());
+		await page.context().route('**/cdn-cgi/rum*', (route) => route.abort());
 		await page.route('**/*googletagmanager*', (route) => route.abort());
 		const originalGoto = page.goto.bind(page);
 		page.goto = async (...args: Parameters<Page['goto']>) => {

@@ -246,3 +246,31 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 2026-10-12作成のP1修正は収集を縮小する変更。実際のデプロイ時刻・対象SHAを運用記録に残し、前後の同じ期間・tool・source・traffic_typeを比較する。初期run除外の対象は上記6ツールで、旧データから初期表示とユーザー再計算を正確に分離する材料はない。件数の減少を利用減少と断定せず、この変更点を系列に注記する。JSONの不正入力試行を含む既存runの意味は前後で維持する。page_viewから解析停止2ツールを除くため、全体比較は前後ともそれらの正規・旧パスを除いた同じ対象で行う。
 
 event名、Allowlist、blobの配置、既存sessionId・dedupeKey・sourceは変更しない。document全体のengage定義も維持する。成功率の計測やトップ到達のセッション結合には別の設計判断が必要であり、successイベント・新規ID・未計測ツールへの導入はこの変更では実装しない。
+
+## Synthetic monitoring and verification limits (2026-10-17)
+
+Automated tests and our own monitors must opt out before their first navigation. Send `X-CLC-Synthetic: 1` on same-origin requests: middleware skips Analytics Engine page_view and `/api/event` returns 204 without writing. The header is an opt-out, not authentication or proof of bot identity; it is never stored. Normal requests without that exact value keep the existing event schema and classification. This change does not retroactively remove historic test traffic.
+
+`playwright.config.ts` applies the header to every configured test context. The shared fixture also intercepts `/api/event` with a local 204 and blocks Cloudflare Insights scripts/collectors plus `/cdn-cgi/rum`. Analytics tests may override the API interception to inspect payloads locally. These tests prove payload behavior, not production persistence. External chief/engineer/maintainer smoke runners must adopt both the header and browser request blocking before using production. The header alone cannot stop the separately hosted RUM collector. Block before creating/navigating pages, include popups, and block Service Workers (as the current test config does) so interception cannot be bypassed. Do not change Cloudflare access settings to accomplish this.
+
+The page_view writer now invokes `EVENTS.writeDataPoint` through its binding object, preserving the receiver. A receiver-sensitive test fails on the previous implementation and covers immediate and waitUntil execution. This is a code-level correction; it does not establish the cause or duration of a production data gap. HEAD/error HTML behavior is unchanged: page_view still means an HTML response, not a successful tool execution. This site currently has no Astro ClientRouter; do not infer SPA navigation counts or equate cached/offline page display with a new server response.
+
+`tool_run` remains the existing attempt/recalculation event, with a mixture of pre-success and post-result call sites. It is never a cross-tool success metric. There is no common success or returning-user event. Session IDs are tab-scoped; neither repeated runs nor sessions establish a returning person. Preserve missing keys as missing; raw count includes duplicates, and distinct nonempty blob8 counts distinct reported run keys, not guaranteed successful or unique physical operations. Beacon acceptance and HTTP 204 do not acknowledge durable storage; invalid, excluded, unbound or failed writes also return 204. No success event, new identifier, input data or file metadata is added by this change.
+
+For a production read-only investigation, retain the deployed SHA/time, actual account/dataset binding, exact UTC interval, SQL and unmodified aggregate response. Independently inspect RUM with its hostname and interval filters; RUM and Analytics Engine are different pipelines. The EVENTS binding in wrangler.jsonc names `tools_codelife_cafe_events`; verify that the deployed Pages environment has the same binding rather than assuming local config proves production state. Check the earliest/latest available timestamps, event names (`index1` and `blob1`) and blob2 values before claiming a duration with zero events. Account for the dataset's actual retention and sampling; historical records outside retention cannot prove a 92-day outage. Use `_sample_interval` weighted counts for sampled event volume; raw COUNT(*) counts returned rows. Distinct counts under sampling are only observed distinct values. `human` in blob6 means unmatched UA heuristics, not verified human traffic. A reported 159 bots or residual 13 does not establish a human count without the actual classification field, query and source response.
+
+Example first-pass aggregate (replace UTC bounds with the recorded investigation interval; confirm the supported SQL against the live API):
+
+```sql
+SELECT index1 AS event_name, blob1 AS payload_event, blob6 AS traffic_type,
+       COUNT(*) AS returned_rows, SUM(_sample_interval) AS estimated_events,
+       MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
+FROM tools_codelife_cafe_events
+WHERE timestamp >= toDateTime('2026-10-16 09:00:00')
+  AND timestamp < toDateTime('2026-10-17 09:00:00')
+GROUP BY event_name, payload_event, traffic_type
+```
+
+Production persistence remains unverified until an authorized reader obtains stored aggregates for the deployed version. Do not generate extra production tool runs to validate this draft. `/transcribe/` and `/video-compress/` remain excluded pending their separate approval.
+
+References for runtime receiver handling and aggregate interpretation: [Cloudflare runtime errors](https://developers.cloudflare.com/workers/observability/errors/#illegal-invocation-errors), [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/), [sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/), [retention limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/). The published retention is three months; verify the applicable production limits when collecting evidence.

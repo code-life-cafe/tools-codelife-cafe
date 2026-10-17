@@ -58,6 +58,9 @@ export const onRequestPost = async (context: {
 	request: Request;
 	env: Env;
 }): Promise<Response> => {
+	if (context.request.headers.get('X-CLC-Synthetic') === '1') {
+		return new Response(null, { status: 204 });
+	}
 	const origin = context.request.headers.get('origin');
 
 	// CORS / Origin チェック
@@ -119,10 +122,7 @@ export const onRequestPost = async (context: {
 				props.dedupeKey.length <= MAX_DEDUPE_KEY_LENGTH
 					? props.dedupeKey
 					: '';
-		} else if (
-			eventName === 'tool_engage' ||
-			eventName === 'shared_url_open'
-		) {
+		} else if (eventName === 'tool_engage' || eventName === 'shared_url_open') {
 			if (typeof props.tool !== 'string')
 				return new Response(null, { status: 204, headers });
 			toolSlug = props.tool;
