@@ -23,7 +23,7 @@ async function observeLayoutShifts(page: Page) {
 	});
 }
 
-async function expectStableLayout(page: Page, checkOverflow = true) {
+async function expectStableLayout(page: Page) {
 	await page.evaluate(async () => {
 		await document.fonts.ready;
 		await Promise.all(
@@ -37,11 +37,9 @@ async function expectStableLayout(page: Page, checkOverflow = true) {
 	);
 	console.log(`CLS ${new URL(page.url()).pathname}: ${cls}`);
 	expect(cls).toBeLessThanOrEqual(0.1);
-	if (checkOverflow) {
-		expect(
-			await page.evaluate(() => document.documentElement.scrollWidth),
-		).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0);
-	}
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+	).toBeLessThanOrEqual(page.viewportSize()?.width ?? 0);
 }
 
 test('Mermaidのデスクトップ初期表示でCLSが0.1以下', async ({ page }) => {
@@ -145,8 +143,7 @@ for (const width of [375, 1440]) {
 		const container = page.locator('#tool-layout-container');
 		await expect(container).toHaveClass(/max-w-\[800px\]/);
 		await expect(page.getByRole('button', { name: 'SVG保存' })).toBeEnabled();
-		// 375pxの既存Mermaid横はみ出しは #469 の対象外。
-		await expectStableLayout(page, width !== 375);
+		await expectStableLayout(page);
 
 		// URL設定は保存設定より優先される。
 		const settings = Buffer.from(JSON.stringify({ isExpanded: true })).toString(
@@ -154,11 +151,7 @@ for (const width of [375, 1440]) {
 		);
 		await page.goto(`/mermaid/?settings=${encodeURIComponent(settings)}`);
 		await expect(container).toHaveClass(/max-w-full/);
-		// 375pxの既存Mermaid横はみ出しは #469 の対象外。
-		await expectStableLayout(page, width !== 375);
-		// 375pxは既存の横はみ出しがあるため、操作検証は1440pxで行う。
-		// ボタン実装にはモバイル専用の非表示・無効化条件はない。
-		if (width === 375) return;
+		await expectStableLayout(page);
 		await page.getByRole('button', { name: '標準幅', exact: true }).click();
 		await expect(container).toHaveClass(/max-w-\[800px\]/);
 		await expect(container).toHaveClass(/transition-all/);
