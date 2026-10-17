@@ -58,7 +58,7 @@ test('全旧URLでGET/HEADを301転送しクエリを保持、旧page_viewを記
 				assert.equal(response.status, 301);
 				assert.equal(
 					response.headers.get('Location'),
-					`https://tools.codelife.cafe${target}/${query}`,
+					`https://tools.codelife.cafe${normalizeCanonicalPath(target)}${query}`,
 				);
 				assert.equal(response.headers.get('X-Robots-Tag'), 'noindex, follow');
 				assert.equal(await response.text(), '');

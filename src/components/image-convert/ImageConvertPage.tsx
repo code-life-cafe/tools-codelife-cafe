@@ -206,7 +206,7 @@ export function ImageConvertPage() {
 
 			<p className="text-xs text-muted-foreground">
 				リサイズ・圧縮率の最適化は{' '}
-				<a href="/image-compress" className="text-primary hover:underline">
+				<a href="/image-compress/" className="text-primary hover:underline">
 					画像圧縮・リサイズ
 				</a>{' '}
 				をご利用ください。HEICは入力のみ対応（HEIC出力は不可）。

@@ -15,7 +15,10 @@ export default defineConfig({
 	integrations: [
 		react(),
 		sitemap({
-			filter: (page) => !new URL(page).pathname.startsWith('/tools/'),
+			filter: (page) => {
+				const pathname = new URL(page).pathname;
+				return !pathname.startsWith('/tools/') && pathname !== '/offline/';
+			},
 			serialize: (item) => {
 				item.url = toCanonicalUrl(item.url);
 				return item;
