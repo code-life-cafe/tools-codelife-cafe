@@ -56,8 +56,8 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
   - `trackRun(source)` は明示的に起点を渡せる呼び出し元（`Base64Converter.tsx`、`BgRemove.tsx`、`CsvEditor.tsx` 等）でのみ意味のある値を送る。それ以外の呼び出し元は既定値 `button` のまま横展開されており、必要に応じて個別に置き換えていく。
 - **`dedupeKey` の生成単位**: 原則として「1ユーザー操作につき1 UUID」。`trackRun()` は呼び出しごとに `crypto.randomUUID()`（`generateDedupeKey()`）を新規発行する。`trackRunDebounced()` は `DEBOUNCE_MS`（500ms）以内の連続呼び出しを1回にまとめてから内部の `trackRun('debounced-input')` を呼ぶため、**確定発火ごとに1 UUID**が発行される（デバウンス中の各キー入力ごとには発行されない）。`sessionId`（`blob5`）と異なり `dedupeKey` はストレージに保持しない使い捨て値。
 - **同一操作の二重発火対策**: ドロップ領域とfile inputが重なるUI（例: `Base64Converter.tsx`）では、直前のファイル署名を300ms記憶する既存対策がある。`dedupeKey`はtrackRun呼び出しごとに新しくなるため、同じ物理操作から別々に呼ばれた二重発火は`COUNT(DISTINCT dedupeKey)`でも除去できない。同じキーを持つ再送だけを重複排除できる。
-- **集計時の `COUNT(*)` と `COUNT(DISTINCT dedupeKey)` の使い分け**:
-  - `COUNT(*)`: 送信されたデータポイントの総数（＝ネットワーク到達数）。二重発火や再送があれば水増しされうる。
+- **集計時の `COUNT()` と `COUNT(DISTINCT dedupeKey)` の使い分け**:
+  - `COUNT()`: クエリが返す保存済み行数。送信試行数・ネットワーク到達数・成功数ではない。サンプリング時の推定イベント量は SUM(_sample_interval) を使う。二重発火や再送の影響も受ける。
   - `COUNT(DISTINCT dedupeKey)`: 一意な計測呼び出しキーの数。ユーザー操作数や成功数を保証しない。空キーは除外する。raw件数との差は同一キーの再送等を調べる参考となるが、別キーで発火するUI二重呼び出しは検出できない。
 
 ### 匿名セッションID（プライバシー方針との整合性）
@@ -137,14 +137,14 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 3. データセット `tools_codelife_cafe_events` を選択し、SQL クエリを実行して集計データを確認する。
    ```sql
    -- イベント別の発火件数集計
-   SELECT index1 AS event_name, COUNT(*) AS count
+   SELECT index1 AS event_name, COUNT() AS count
    FROM tools_codelife_cafe_events
    GROUP BY event_name
    ORDER BY count DESC
    ```
    ```sql
    -- ツール別の既存計測件数 (tool_run)。成功回数ではない。
-   SELECT blob2 AS tool_slug, COUNT(*) AS count
+   SELECT blob2 AS tool_slug, COUNT() AS count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run'
    GROUP BY tool_slug
@@ -152,7 +152,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- 関連ツール回遊：セット別クリック数・位置別平均
-   SELECT blob4 AS set_id, COUNT(*) AS click_count, AVG(double1) AS avg_position
+   SELECT blob4 AS set_id, COUNT() AS click_count, AVG(double1) AS avg_position
    FROM tools_codelife_cafe_events
    WHERE index1 = 'related_click'
    GROUP BY set_id
@@ -160,7 +160,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- トップ目的別ブロック：ブロック別クリック数・位置別平均（トップ→ツール遷移導線の効果検証）
-   SELECT blob3 AS block_id, COUNT(*) AS click_count, AVG(double1) AS avg_position
+   SELECT blob3 AS block_id, COUNT() AS click_count, AVG(double1) AS avg_position
    FROM tools_codelife_cafe_events
    WHERE index1 = 'top_block_click'
    GROUP BY block_id
@@ -170,7 +170,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    -- セッションあたりの tool_run 数（匿名セッションID = blob5）
    SELECT AVG(runs) AS avg_runs_per_session
    FROM (
-     SELECT blob5 AS session_id, COUNT(*) AS runs
+     SELECT blob5 AS session_id, COUNT() AS runs
      FROM tools_codelife_cafe_events
      WHERE index1 = 'tool_run' AND blob5 != ''
      GROUP BY session_id
@@ -187,7 +187,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- 【human セグメント限定】ツール別の既存run計測件数（成功数ではない）
-   SELECT blob2 AS tool_slug, COUNT(*) AS count
+   SELECT blob2 AS tool_slug, COUNT() AS count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run' AND blob6 = 'human'
    GROUP BY tool_slug
@@ -195,7 +195,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- 【ai_agent セグメント限定】JSクライアントrun件数（全AI利用・成功数ではない）
-   SELECT blob2 AS tool_slug, COUNT(*) AS ai_run_event_count
+   SELECT blob2 AS tool_slug, COUNT() AS ai_run_event_count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run' AND blob6 = 'ai_agent'
    GROUP BY tool_slug
@@ -203,14 +203,14 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- traffic_type 別の全イベント件数分布（human / ai_agent / crawler / unknown）
-   SELECT blob6 AS traffic_type, COUNT(*) AS count
+   SELECT blob6 AS traffic_type, COUNT() AS count
    FROM tools_codelife_cafe_events
    GROUP BY traffic_type
    ORDER BY count DESC
    ```
    ```sql
    -- 【page_view限定】非ブラウザ流入の内訳（JSを実行しないクライアントを含む）
-   SELECT blob6 AS traffic_type, COUNT(*) AS count
+   SELECT blob6 AS traffic_type, COUNT() AS count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'page_view'
    GROUP BY traffic_type
@@ -218,7 +218,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    ```
    ```sql
    -- tool_run の発火起点（source）別の内訳（blob7）
-   SELECT blob7 AS source, COUNT(*) AS count
+   SELECT blob7 AS source, COUNT() AS count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run'
    GROUP BY source
@@ -229,7 +229,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    -- 別キーを持つUI二重呼び出しはこの比較で除去・検出できない（dedupeKey = blob8）。
    SELECT
      blob2 AS tool_slug,
-     COUNT(*) AS raw_count,
+     COUNT() AS raw_count,
      COUNT(DISTINCT IF(blob8 != '', blob8, NULL)) AS distinct_run_count
    FROM tools_codelife_cafe_events
    WHERE index1 = 'tool_run'
@@ -257,21 +257,22 @@ The page_view writer now invokes `EVENTS.writeDataPoint` through its binding obj
 
 `tool_run` remains the existing attempt/recalculation event, with a mixture of pre-success and post-result call sites. It is never a cross-tool success metric. There is no common success or returning-user event. Session IDs are tab-scoped; neither repeated runs nor sessions establish a returning person. Preserve missing keys as missing; raw count includes duplicates, and distinct nonempty blob8 counts distinct reported run keys, not guaranteed successful or unique physical operations. Beacon acceptance and HTTP 204 do not acknowledge durable storage; invalid, excluded, unbound or failed writes also return 204. No success event, new identifier, input data or file metadata is added by this change.
 
-For a production read-only investigation, retain the deployed SHA/time, actual account/dataset binding, exact UTC interval, SQL and unmodified aggregate response. Independently inspect RUM with its hostname and interval filters; RUM and Analytics Engine are different pipelines. The EVENTS binding in wrangler.jsonc names `tools_codelife_cafe_events`; verify that the deployed Pages environment has the same binding rather than assuming local config proves production state. Check the earliest/latest available timestamps, event names (`index1` and `blob1`) and blob2 values before claiming a duration with zero events. Account for the dataset's actual retention and sampling; historical records outside retention cannot prove a 92-day outage. Use `_sample_interval` weighted counts for sampled event volume; raw COUNT(*) counts returned rows. Distinct counts under sampling are only observed distinct values. `human` in blob6 means unmatched UA heuristics, not verified human traffic. A reported 159 bots or residual 13 does not establish a human count without the actual classification field, query and source response.
+For a production read-only investigation, retain the deployed SHA/time, actual account/dataset binding, exact UTC interval, SQL and unmodified aggregate response. Independently inspect RUM with its hostname and interval filters; RUM and Analytics Engine are different pipelines. The EVENTS binding in wrangler.jsonc names `tools_codelife_cafe_events`; verify that the deployed Pages environment has the same binding rather than assuming local config proves production state. Check the earliest/latest available timestamps, event names (`index1` and `blob1`) and blob2 values before claiming a duration with zero events. Account for the dataset's actual retention and sampling; historical records outside retention cannot prove a 92-day outage. Use `_sample_interval` weighted counts for sampled event volume; raw COUNT() counts returned rows. Distinct counts under sampling are only observed distinct values. `human` in blob6 means unmatched UA heuristics, not verified human traffic. A reported 159 bots or residual 13 does not establish a human count without the actual classification field, query and source response.
 
-Example first-pass aggregate (replace UTC bounds with the recorded investigation interval; confirm the supported SQL against the live API):
+Example first-pass aggregate (replace UTC bounds with the recorded investigation interval): the parent read-only investigation on 2026-10-17 confirmed `COUNT()`; `COUNT(*)` returned HTTP 422. For the connected API tool, submit raw SQL as `text/plain` with rawBody enabled and explicit `FORMAT TabSeparated`; its JSON/default-format path errored even when the API responded HTTP 200. This is the observed connector/API behavior, not a request to alter credentials or network settings. The earlier query examples are illustrative raw-row counts; apply explicit UTC bounds and sampling weights before reporting usage.
 
 ```sql
 SELECT index1 AS event_name, blob1 AS payload_event, blob6 AS traffic_type,
-       COUNT(*) AS returned_rows, SUM(_sample_interval) AS estimated_events,
+       COUNT() AS returned_rows, SUM(_sample_interval) AS estimated_events,
        MIN(timestamp) AS first_seen, MAX(timestamp) AS last_seen
 FROM tools_codelife_cafe_events
 WHERE timestamp >= toDateTime('2026-10-16 09:00:00')
   AND timestamp < toDateTime('2026-10-17 09:00:00')
 GROUP BY event_name, payload_event, traffic_type
+FORMAT TabSeparated
 ```
 
-Production persistence remains unverified until an authorized reader obtains stored aggregates for the deployed version. Do not generate extra production tool runs to validate this draft. `/transcribe/` and `/video-compress/` remain excluded pending their separate approval.
+Post-fix production persistence remains unverified until the patch is approved, deployed and an authorized reader obtains stored aggregates for that deployed version. The parent obtained pre-change baseline aggregates; those do not verify this draft's effect. Do not generate extra production tool runs to validate this draft. `/transcribe/` and `/video-compress/` remain excluded pending their separate approval.
 
 References for runtime receiver handling and aggregate interpretation: [Cloudflare runtime errors](https://developers.cloudflare.com/workers/observability/errors/#illegal-invocation-errors), [Analytics Engine SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/), [sampling](https://developers.cloudflare.com/analytics/analytics-engine/sampling/), [retention limits](https://developers.cloudflare.com/analytics/analytics-engine/limits/). The published retention is three months; verify the applicable production limits when collecting evidence.
 
