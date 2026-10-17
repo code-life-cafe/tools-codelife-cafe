@@ -324,6 +324,15 @@ test.describe('SQL Formatter Tool - レイアウト切替と出力欄リサイ�
 			);
 		await expect(page.locator('.shimmer code')).toBeVisible();
 
+		// 読み込みとフォントの準備が完了し、レイアウトが反映されてから計測する
+		await page.waitForLoadState('load');
+		await page.evaluate(async () => {
+			await document.fonts.ready;
+			await new Promise<void>((resolve) => {
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			});
+		});
+
 		// 数px程度の誤差はスクロールバー計算のブラウザ差異として許容する
 		const overflow = await page.evaluate(
 			() =>

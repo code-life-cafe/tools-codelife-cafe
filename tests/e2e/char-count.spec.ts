@@ -9,9 +9,82 @@ test.describe('Character Counter', () => {
 		await toolPage.goto();
 
 		// Verify the character count UI elements are present
-		await expect(page.getByText('文字数（空白含む）')).toBeVisible();
-		await expect(page.getByText('バイト数（UTF-8）')).toBeVisible();
+		await expect(
+			page.getByText('文字数（空白含む）', { exact: true }),
+		).toBeVisible();
+		await expect(
+			page.getByText('バイト数（UTF-8）', { exact: true }),
+		).toBeVisible();
 		await expect(page.getByRole('textbox').first()).toBeVisible();
+	});
+
+	test('SEO文言（title/meta description/H1）が最新のfrontmatterと一致すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('char-count');
+		await toolPage.goto();
+
+		await expect(page).toHaveTitle(
+			'文字数カウント・バイト数計算｜Shift-JIS/UTF-8対応 | CODE:LIFE Tools',
+		);
+		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+			'content',
+			'文字数カウントとバイト数計算が同時にできる無料ツール。Shift-JIS・UTF-8のバイト数、空白を除く文字数、行数を入力と同時にリアルタイム表示。入力内容はブラウザ内だけで処理し、外部サーバーには一切送信しません。',
+		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'文字数カウント・バイト数計算（Shift-JIS対応）',
+		);
+	});
+
+	test('新しいFAQがページとFAQPage JSON-LDの両方に出力されること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('char-count');
+		await toolPage.goto();
+
+		const newFaqs = [
+			{
+				question: '全角と半角でバイト数はどう変わる？',
+				// frontmatterの回答文中の特徴的な一部（docs/content/tools/char-count.md参照）
+				answerFragment: '全角（ひらがな・カタカナ・漢字など）が2バイト',
+			},
+			{
+				question: '改行や空白は文字数に含まれる？',
+				answerFragment: '改行で区切った行の数',
+			},
+			{
+				question:
+					'Shift-JISで表せない文字（絵文字・一部のUnicode漢字）はどう扱われる？',
+				answerFragment: '0バイト扱い',
+			},
+			{
+				question: 'Wordやスプレッドシートの文字数と結果が違うのはなぜ？',
+				answerFragment: 'コードポイント単位',
+			},
+		];
+
+		for (const { question } of newFaqs) {
+			await expect(page.getByText(question)).toBeVisible();
+		}
+
+		const jsonLdRaw = await page
+			.locator('script[type="application/ld+json"]')
+			.innerHTML();
+		const jsonLd = JSON.parse(jsonLdRaw);
+		const faqPage = jsonLd['@graph'].find(
+			(node: { '@type': string }) => node['@type'] === 'FAQPage',
+		);
+		const faqEntries: { name: string; acceptedAnswer: { text: string } }[] =
+			faqPage.mainEntity;
+
+		for (const { question, answerFragment } of newFaqs) {
+			const entry = faqEntries.find((item) => item.name === question);
+			expect(entry).toBeDefined();
+			expect(entry?.acceptedAnswer.text).not.toHaveLength(0);
+			expect(entry?.acceptedAnswer.text).toContain(answerFragment);
+		}
 	});
 
 	test('should count characters and bytes in real-time', async ({
