@@ -1,3 +1,4 @@
 /image-crop /image-edit/ 301
 /image-crop/ /image-edit/ 301
 /image-crop/* /image-edit/ 301
+/sitemap.xml /sitemap-index.xml 301
