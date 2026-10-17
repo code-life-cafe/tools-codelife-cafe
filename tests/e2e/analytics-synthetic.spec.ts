@@ -2,6 +2,7 @@ import { expect, test } from './fixtures/base';
 
 test('synthetic contexts opt out on navigation and locally consume analytics POSTs', async ({
 	page,
+	excludedAnalyticsRequests,
 }) => {
 	const navigation = await page.goto('/color/');
 	expect(await navigation?.request().headerValue('X-CLC-Synthetic')).toBe('1');
@@ -14,11 +15,15 @@ test('synthetic contexts opt out on navigation and locally consume analytics POS
 		return response.status;
 	});
 	expect(status).toBe(204);
+	expect(excludedAnalyticsRequests).toContain(
+		new URL('/api/event', page.url()).href,
+	);
 	await expect(page.locator('#color-input')).toBeVisible();
 });
 
 test('RUM script and same-origin collector are blocked before network delivery', async ({
 	page,
+	excludedAnalyticsRequests,
 }) => {
 	await page.goto('/color/');
 	const results = await page.evaluate(async () => {
@@ -38,4 +43,16 @@ test('RUM script and same-origin collector are blocked before network delivery',
 		);
 	});
 	expect(results).toEqual(['blocked', 'blocked', 'blocked']);
+	// Handler evidence distinguishes interception from CORS/DNS failure.
+	for (const url of [
+		'https://static.cloudflareinsights.com/beacon.min.js',
+		'https://cloudflareinsights.com/cdn-cgi/rum',
+		new URL('/cdn-cgi/rum', page.url()).href,
+	]) {
+		expect(excludedAnalyticsRequests).toContain(url);
+	}
+	const scriptUrl =
+		'https://static.cloudflareinsights.com/beacon.min.js?synthetic-script-test';
+	await expect(page.addScriptTag({ url: scriptUrl })).rejects.toThrow();
+	expect(excludedAnalyticsRequests).toContain(scriptUrl);
 });
