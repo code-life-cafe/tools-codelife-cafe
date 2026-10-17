@@ -9,6 +9,27 @@ if (!toolEntry) {
 }
 ---
 
-<ToolLayout tool={toolEntry}>
+<ToolLayout tool={toolEntry} initialExpanded>
+	<script is:inline slot="layout-init">
+		// React の設定復元と同じ優先順。幅だけを初回 paint 前に適用する。
+		(() => {
+			let value;
+			const encoded = new URLSearchParams(location.search).get('settings');
+			if (encoded) {
+				try {
+					value = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded), c => c.charCodeAt(0))));
+				} catch {}
+			}
+			if (value === undefined) {
+				try { value = JSON.parse(localStorage.getItem('tool_settings_mermaid') || 'null'); } catch {}
+			}
+			const expanded = !(value && !Array.isArray(value) && typeof value === 'object' && value.isExpanded === false);
+			const container = document.getElementById('tool-layout-container');
+			if (container && !expanded) {
+				container.classList.remove('max-w-full');
+				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+			}
+		})();
+	</script>
 	<MermaidPreviewPage client:load />
 </ToolLayout>

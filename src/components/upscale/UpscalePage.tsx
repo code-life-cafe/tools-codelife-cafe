@@ -164,6 +164,7 @@ export function UpscalePage() {
 		? computeOutputDimensions(sourceDims.w, sourceDims.h, scale)
 		: null;
 	const maxNeedsWarning = quality === 'max' && webgpu === false;
+	const hasResult = status === 'done' && !!resultUrl;
 
 	return (
 		<div className="space-y-6">
@@ -173,21 +174,13 @@ export function UpscalePage() {
 				画像はサーバーに送信されません。すべてブラウザ内で処理されます。
 			</p>
 
-			{/* 入力 */}
+			{/* ファイル名の行も選択前から同じ高さを確保する */}
 			{!sourceFile ? (
-				<FileDropzone
-					onFileSelect={handleSelect}
-					onValidationError={setError}
-					accept={ACCEPT}
-					maxSizeBytes={MAX_FILE_SIZE}
-					validationMessage="ファイルサイズが20MBを超えています。"
-					label="画像をドラッグ＆ドロップ"
-					description="またはクリックして選択（PNG / JPEG / WebP・長辺2000pxまで）"
-					inputAriaLabel="画像を選択"
-					data-testid="upscale-file-input"
-				/>
+				<div className="flex h-[50px] items-center rounded-lg border border-border px-3 text-sm text-muted-foreground">
+					画像を選択してください
+				</div>
 			) : (
-				<div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
+				<div className="flex h-[50px] min-w-0 items-center justify-between gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm">
 					<span className="truncate font-mono" title={sourceFile.name}>
 						{sourceFile.name}
 						{sourceDims && (
@@ -198,14 +191,97 @@ export function UpscalePage() {
 					</span>
 					<Button
 						variant="ghost"
+						className="shrink-0"
 						size="sm"
 						onClick={handleClear}
-						disabled={busy}
+						disabled={busy || !sourceFile}
 					>
 						別の画像
 					</Button>
 				</div>
 			)}
+
+			{/* 元画像と結果を同じ高さ制限付きの枠に表示する */}
+			<div className="space-y-3" data-testid="upscale-result">
+				<div
+					className="flex h-[min(60vh,320px)] items-center justify-center"
+					data-testid="upscale-preview-frame"
+				>
+					{!sourceFile ? (
+						<FileDropzone
+							className="h-full w-full [&>button]:h-full"
+							onFileSelect={handleSelect}
+							onValidationError={setError}
+							accept={ACCEPT}
+							maxSizeBytes={MAX_FILE_SIZE}
+							validationMessage="ファイルサイズが20MBを超えています。"
+							label="画像をドラッグ＆ドロップ"
+							description="またはクリックして選択（PNG / JPEG / WebP・長辺2000pxまで）"
+							inputAriaLabel="画像を選択"
+							data-testid="upscale-file-input"
+						/>
+					) : sourceDims && outDims && sourceUrl ? (
+						<div
+							className="relative mx-auto select-none overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:20px_20px]"
+							style={{
+								aspectRatio: `${sourceDims.w} / ${sourceDims.h}`,
+								// 縦横比から幅も制限し、画像と仕切り線の表示矩形を揃える。
+								width: `min(100%, ${(320 * sourceDims.w) / sourceDims.h}px, ${(60 * sourceDims.w) / sourceDims.h}vh)`,
+							}}
+						>
+							{/* after（下層・拡大結果） */}
+							<img
+								src={hasResult ? resultUrl : sourceUrl}
+								width={outDims.width}
+								height={outDims.height}
+								alt={hasResult ? 'アップスケール結果' : '処理前の元画像'}
+								className="absolute inset-0 block h-full w-full object-contain"
+							/>
+							{hasResult && (
+								<>
+									{/* before（上層・clip-pathで左側のみ表示） */}
+									<img
+										src={sourceUrl}
+										width={sourceDims.w}
+										height={sourceDims.h}
+										alt="元画像"
+										className="absolute inset-0 block h-full w-full object-contain"
+										style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
+									/>
+									{/* 仕切り線 */}
+									<div
+										className="pointer-events-none absolute inset-y-0 w-0.5 bg-primary"
+										style={{ left: `${compare}%` }}
+									/>
+									<span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white">
+										元画像
+									</span>
+									<span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white">
+										拡大後
+									</span>
+								</>
+							)}
+						</div>
+					) : null}
+				</div>
+				<input
+					type="range"
+					min={0}
+					max={100}
+					value={compare}
+					onChange={(e) => setCompare(Number(e.target.value))}
+					aria-label="比較スライダー"
+					disabled={!hasResult}
+					className={hasResult ? 'w-full' : 'invisible w-full'}
+				/>
+				<p className="h-8 text-center text-xs leading-4 text-muted-foreground">
+					{hasResult && outDims
+						? `${outDims.width}×${outDims.height} に拡大しました`
+						: sourceFile
+							? '処理前プレビュー'
+							: '\u00a0'}
+				</p>
+			</div>
 
 			{error && (
 				<Alert variant="destructive">
@@ -214,227 +290,181 @@ export function UpscalePage() {
 				</Alert>
 			)}
 
-			{sourceFile && (
-				<>
-					{/* コントロール */}
-					<div className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-2">
-						{/* 品質 */}
-						<div className="space-y-2">
-							<Label>品質モデル</Label>
-							<div className="flex gap-2">
-								<Button
-									type="button"
-									variant={quality === 'fast' ? 'default' : 'outline'}
-									size="sm"
-									onClick={() => {
-										setQuality('fast');
-										resetResult();
-									}}
-									disabled={busy}
-								>
-									高速（全端末）
-								</Button>
-								<Button
-									type="button"
-									variant={quality === 'max' ? 'default' : 'outline'}
-									size="sm"
-									onClick={() => {
-										setQuality('max');
-										resetResult();
-									}}
-									disabled={busy}
-								>
-									<Sparkles className="h-3.5 w-3.5" />
-									最高品質
-								</Button>
-							</div>
-						</div>
-
-						{/* 倍率 */}
-						<div className="space-y-2">
-							<Label>拡大倍率</Label>
-							<div className="flex gap-2">
-								{([2, 4] as Scale[]).map((s) => (
-									<Button
-										key={s}
-										type="button"
-										variant={scale === s ? 'default' : 'outline'}
-										size="sm"
-										onClick={() => {
-											setScale(s);
-											resetResult();
-										}}
-										disabled={busy}
-										aria-label={`${s}倍`}
-									>
-										{s}倍
-									</Button>
-								))}
-							</div>
-						</div>
-
-						{/* ノイズ除去 */}
-						<div className="flex items-center justify-between">
-							<Label htmlFor="denoise-switch">ノイズ除去</Label>
-							<Switch
-								id="denoise-switch"
-								checked={denoise}
-								onCheckedChange={(c) => {
-									setDenoise(c);
-									resetResult();
-								}}
-								disabled={busy}
-								aria-label="ノイズ除去"
-							/>
-						</div>
-
-						{/* 出力形式 */}
-						<div className="flex items-center justify-between gap-2">
-							<Label htmlFor="output-format">出力形式</Label>
-							<Select
-								value={output}
-								onValueChange={(v) => {
-									setOutput(v as OutputFormat);
-									resetResult();
-								}}
-								disabled={busy}
-							>
-								<SelectTrigger
-									id="output-format"
-									className="w-28"
-									aria-label="出力形式"
-								>
-									<SelectValue />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="png">PNG</SelectItem>
-									<SelectItem value="webp">WebP</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					</div>
-
-					{/* 処理前の注意 */}
-					<Alert>
-						<TriangleAlert />
-						<AlertDescription>
-							<span>
-								AI処理は端末内で行われます。画像サイズ・端末性能により
-								<strong>数秒〜数十秒</strong>かかり、メモリを多く使用します。
-								モバイルや低スペック端末では時間がかかる場合があります。
-								{outDims && (
-									<>
-										{' '}
-										出力予定サイズ:{' '}
-										<strong>
-											{outDims.width}×{outDims.height}
-										</strong>
-									</>
-								)}
-							</span>
-							{maxNeedsWarning && (
-								<span className="mt-1 flex items-center gap-1 text-destructive">
-									<TriangleAlert
-										className="h-3.5 w-3.5 shrink-0"
-										aria-hidden="true"
-									/>
-									「最高品質」はWebGPU非対応の本端末では非常に低速です。「高速」を推奨します。
-								</span>
-							)}
-						</AlertDescription>
-					</Alert>
-
-					{/* 実行 / 再処理 */}
-					<div className="flex flex-wrap gap-2">
-						<Button onClick={run} disabled={busy} data-testid="upscale-run">
-							{busy ? (
-								<Loader2 className="h-4 w-4 animate-spin" />
-							) : (
-								<ImageUp className="h-4 w-4" />
-							)}
-							{status === 'done' ? 'この設定で再処理' : 'アップスケール実行'}
+			{/* コントロール */}
+			<div className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-2">
+				{/* 品質 */}
+				<div className="space-y-2">
+					<Label>品質モデル</Label>
+					<div className="flex gap-2">
+						<Button
+							type="button"
+							variant={quality === 'fast' ? 'default' : 'outline'}
+							size="sm"
+							onClick={() => {
+								setQuality('fast');
+								resetResult();
+							}}
+							disabled={busy || !sourceFile}
+						>
+							高速（全端末）
 						</Button>
-						{status === 'done' && resultUrl && (
-							<Button
-								variant="secondary"
-								onClick={handleDownload}
-								data-testid="upscale-download"
-							>
-								<Download className="h-4 w-4" />
-								ダウンロード
-							</Button>
-						)}
+						<Button
+							type="button"
+							variant={quality === 'max' ? 'default' : 'outline'}
+							size="sm"
+							onClick={() => {
+								setQuality('max');
+								resetResult();
+							}}
+							disabled={busy || !sourceFile}
+						>
+							<Sparkles className="h-3.5 w-3.5" />
+							最高品質
+						</Button>
 					</div>
+				</div>
 
-					{/* 進捗 */}
-					{busy && progress && (
-						<div className="space-y-2" data-testid="upscale-progress">
-							<div className="flex justify-between text-xs text-muted-foreground">
-								<span>
-									{progress.status === 'loading'
-										? 'モデルを読み込み中…'
-										: progress.tile
-											? `処理中… タイル ${progress.tile.done}/${progress.tile.total}`
-											: '処理中…'}
-								</span>
-								<span>{Math.round(progress.progress * 100)}%</span>
-							</div>
-							<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-								<div
-									className="h-full bg-primary transition-[width] duration-200"
-									style={{ width: `${Math.round(progress.progress * 100)}%` }}
-								/>
-							</div>
-						</div>
-					)}
+				{/* 倍率 */}
+				<div className="space-y-2">
+					<Label>拡大倍率</Label>
+					<div className="flex gap-2">
+						{([2, 4] as Scale[]).map((s) => (
+							<Button
+								key={s}
+								type="button"
+								variant={scale === s ? 'default' : 'outline'}
+								size="sm"
+								onClick={() => {
+									setScale(s);
+									resetResult();
+								}}
+								disabled={busy || !sourceFile}
+								aria-label={`${s}倍`}
+							>
+								{s}倍
+							</Button>
+						))}
+					</div>
+				</div>
 
-					{/* before/after 比較 */}
-					{status === 'done' && resultUrl && sourceUrl && (
-						<div className="space-y-3" data-testid="upscale-result">
-							<div className="relative w-full select-none overflow-hidden rounded-xl border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:20px_20px]">
-								{/* after（下層・拡大結果） */}
-								<img
-									src={resultUrl}
-									alt="アップスケール結果"
-									className="block w-full"
-								/>
-								{/* before（上層・clip-pathで左側のみ表示） */}
-								<img
-									src={sourceUrl}
-									alt="元画像"
-									className="absolute inset-0 block h-full w-full"
-									style={{ clipPath: `inset(0 ${100 - compare}% 0 0)` }}
-								/>
-								{/* 仕切り線 */}
-								<div
-									className="pointer-events-none absolute inset-y-0 w-0.5 bg-primary"
-									style={{ left: `${compare}%` }}
-								/>
-								<span className="absolute left-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white">
-									元画像
-								</span>
-								<span className="absolute right-2 top-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white">
-									拡大後
-								</span>
-							</div>
-							<input
-								type="range"
-								min={0}
-								max={100}
-								value={compare}
-								onChange={(e) => setCompare(Number(e.target.value))}
-								aria-label="比較スライダー"
-								className="w-full"
+				{/* ノイズ除去 */}
+				<div className="flex items-center justify-between">
+					<Label htmlFor="denoise-switch">ノイズ除去</Label>
+					<Switch
+						id="denoise-switch"
+						checked={denoise}
+						onCheckedChange={(c) => {
+							setDenoise(c);
+							resetResult();
+						}}
+						disabled={busy || !sourceFile}
+						aria-label="ノイズ除去"
+					/>
+				</div>
+
+				{/* 出力形式 */}
+				<div className="flex items-center justify-between gap-2">
+					<Label htmlFor="output-format">出力形式</Label>
+					<Select
+						value={output}
+						onValueChange={(v) => {
+							setOutput(v as OutputFormat);
+							resetResult();
+						}}
+						disabled={busy || !sourceFile}
+					>
+						<SelectTrigger
+							id="output-format"
+							className="w-28"
+							aria-label="出力形式"
+						>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="png">PNG</SelectItem>
+							<SelectItem value="webp">WebP</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			</div>
+
+			{/* 処理前の注意 */}
+			<Alert role="note">
+				<TriangleAlert />
+				<AlertDescription>
+					<span>
+						AI処理は端末内で行われます。画像サイズ・端末性能により
+						<strong>数秒〜数十秒</strong>かかり、メモリを多く使用します。
+						モバイルや低スペック端末では時間がかかる場合があります。
+					</span>
+					<span className="block h-5">
+						出力予定サイズ:{' '}
+						<strong>
+							{outDims ? `${outDims.width}×${outDims.height}` : '—'}
+						</strong>
+					</span>
+					{maxNeedsWarning && (
+						<span className="mt-1 flex items-center gap-1 text-destructive">
+							<TriangleAlert
+								className="h-3.5 w-3.5 shrink-0"
+								aria-hidden="true"
 							/>
-							{outDims && (
-								<p className="text-center text-xs text-muted-foreground">
-									{outDims.width}×{outDims.height} に拡大しました
-								</p>
-							)}
-						</div>
+							「最高品質」はWebGPU非対応の本端末では非常に低速です。「高速」を推奨します。
+						</span>
 					)}
-				</>
-			)}
+				</AlertDescription>
+			</Alert>
+
+			{/* 実行 / 再処理 */}
+			<div className="flex flex-wrap gap-2">
+				<Button
+					onClick={run}
+					disabled={busy || !sourceFile}
+					data-testid="upscale-run"
+					className="w-52"
+				>
+					{busy ? (
+						<Loader2 className="h-4 w-4 animate-spin" />
+					) : (
+						<ImageUp className="h-4 w-4" />
+					)}
+					{status === 'done' ? 'この設定で再処理' : 'アップスケール実行'}
+				</Button>
+				<Button
+					variant="secondary"
+					onClick={handleDownload}
+					data-testid="upscale-download"
+					disabled={status !== 'done'}
+					className={status === 'done' && resultUrl ? '' : 'invisible'}
+				>
+					<Download className="h-4 w-4" />
+					ダウンロード
+				</Button>
+			</div>
+
+			{/* 進捗 */}
+			<div className="min-h-8">
+				{busy && progress && (
+					<div className="space-y-2" data-testid="upscale-progress">
+						<div className="flex justify-between text-xs text-muted-foreground">
+							<span>
+								{progress.status === 'loading'
+									? 'モデルを読み込み中…'
+									: progress.tile
+										? `処理中… タイル ${progress.tile.done}/${progress.tile.total}`
+										: '処理中…'}
+							</span>
+							<span>{Math.round(progress.progress * 100)}%</span>
+						</div>
+						<div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+							<div
+								className="h-full bg-primary transition-[width] duration-200"
+								style={{ width: `${Math.round(progress.progress * 100)}%` }}
+							/>
+						</div>
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }
