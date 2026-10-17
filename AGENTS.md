@@ -14,8 +14,12 @@
 
 ### モデル選択・agy・worktree
 
-- 上位モデルを常用しない。調査・確認・docs・文言修正・R0/R1の小修正・レビューは軽量/標準モデルを使う（Claude Sonnet / Haiku（Opusは使わない）、agyではGemini Flash、Codexはreasoning effort `low`）。
-- 上位モデルや高いreasoning effortは、R2の複雑な新機能の設計・実装、または軽量モデルが2回失敗した場合に限る。使用した場合はその理由を報告に記載する。
+- モデルは作業内容に応じて次の3段階から選ぶ。上位の段階を常用しない。
+  - **軽**: 調査、点検、データ整理、ドキュメントのずれ探し、定型作業。agyはGemini Flash、ClaudeはHaiku、Codexはreasoning effort `low`。
+  - **標準**: R0/R1の修正、文言やSEOの変更、レビュー。ClaudeはSonnet、Codexはreasoning effort `medium`。
+  - **重**: R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査。ClaudeはOpus、Codexはreasoning effort `high`。
+- 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。
+- 節約: いずれかのプランの残りが2割を切ったら、その週はそのプランを軽・標準だけにして、他のプランに振り替える。
 - agy（Gemini CLI / Google AI Pro）は、上記のプラン上限時のGemini実装者切り替えを除き、編集を伴わない大量作業（docs drift sweep、一括チェック、QA結果の整理）に限って使う。agy内でClaudeモデルは使わない（Google側のquotaを消費し、すぐ上限に達するため）。`agy -p` は権限確認で停止するため、使い捨てworktreeで `--sandbox --dangerously-skip-permissions` を付けてのみ実行し、生成された変更は人間またはbotのレビューを経てからPRにする。
 - 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各botは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<bot>-<branch>`）を作成して作業し、完了したら削除する。PRのレビュー判定とMergeはmaintainer bot（本文書でMerge担当とされるbot）のみが行い、他のbotはレビュー判定・Mergeを行わない。
 
