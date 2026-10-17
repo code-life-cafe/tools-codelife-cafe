@@ -126,7 +126,7 @@ test.describe('Cipher Tool', () => {
 		);
 
 		// Decode
-		await page.getByRole('button', { name: 'デコード（復号）' }).click();
+		await page.getByRole('button', { name: 'デコード（文字に戻す）' }).click();
 		await inputArea.fill('... --- ...');
 		await expect(outputArea).toHaveValue('SOS');
 	});
@@ -153,7 +153,7 @@ test.describe('Cipher Tool', () => {
 		await page.getByTitle('クリア').click();
 		await expect(notice).toHaveCount(0);
 
-		await page.getByRole('button', { name: 'デコード（復号）' }).click();
+		await page.getByRole('button', { name: 'デコード（文字に戻す）' }).click();
 		await inputArea.fill('... ....... ---');
 		await expect(outputArea).toHaveValue('S?O');
 		await expect(notice).toContainText('1件');
@@ -179,7 +179,7 @@ test.describe('Cipher Tool', () => {
 
 		// Open brute force
 		await page
-			.getByRole('button', { name: 'Toggle brute force panel' })
+			.getByRole('button', { name: '鍵がわからないとき：全候補を見る' })
 			.click();
 
 		// The panel should show 25 items for ASCII
@@ -225,6 +225,102 @@ test.describe('Cipher Tool', () => {
 		// Algorithm Info
 		await page.getByRole('button', { name: 'Toggle info' }).click();
 		await expect(page.getByText('ジュリアス・シーザー')).toBeVisible();
+	});
+
+	test('鍵不明の日本語45候補をキーボードで選び、復号結果に反映する', async ({
+		page,
+	}) => {
+		const input = page.getByPlaceholder(
+			/「こんにちは」や「Hello World」を入力.../,
+		);
+		const output = page.getByPlaceholder('変換結果がここに表示されます');
+		await input.fill('いうえ');
+		const trigger = page.getByRole('button', {
+			name: '鍵がわからないとき：全候補を見る',
+		});
+		await trigger.focus();
+		await trigger.press('Enter');
+		await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+		const candidates = page.getByRole('button', { name: /^シフト \d+:/ });
+		await expect(candidates).toHaveCount(45);
+		const first = page.getByRole('button', {
+			name: 'シフト 1: あいう',
+			exact: true,
+		});
+		await first.focus();
+		await first.press('Enter');
+		await expect(page.getByLabel('シフト数:')).toHaveValue('1');
+		await expect(input).toHaveValue('いうえ');
+		await expect(output).toHaveValue('あいう');
+		await page.getByRole('button', { name: 'エンコード（暗号化）' }).click();
+		await expect(output).toHaveValue('うえお');
+		await input.fill('abc 漢字ゃーｶﾞ😀');
+		await expect(page.getByLabel('シフト数:')).toHaveAttribute('max', '25');
+		await expect(candidates).toHaveCount(25);
+		await input.fill('んンZz がぱゃー漢字ｶﾞ😀Ａ１');
+		await expect(output).toHaveValue('あアAa ぎぴゃー漢字ｶﾞ😀Ａ１');
+		await expect(candidates).toHaveCount(45);
+		await expect(
+			page
+				.getByText('秘密情報を保護する安全な暗号化には使えません。', {
+					exact: false,
+				})
+				.first(),
+		).toBeVisible();
+	});
+
+	test('鍵不明の入口と候補がPC・スマホで収まり、設定相当値を維持する', async ({
+		page,
+	}, testInfo) => {
+		const saved = JSON.stringify({
+			algorithm: 'caesar',
+			shift: 12,
+			direction: 'decode',
+		});
+		await page.evaluate(
+			(value) => localStorage.setItem('tool_settings_cipher', value),
+			saved,
+		);
+		await page.goto('/cipher?settings=existing-value');
+		const input = page.getByPlaceholder(
+			/「こんにちは」や「Hello World」を入力.../,
+		);
+		await input.fill('いうえ ABC');
+		await page
+			.getByRole('button', { name: '鍵がわからないとき：全候補を見る' })
+			.click();
+		await page
+			.getByRole('button', { name: 'シフト 1: あいう ZAB', exact: true })
+			.click();
+		await expect(
+			page.getByPlaceholder('変換結果がここに表示されます'),
+		).toHaveValue('あいう ZAB');
+		await expect(input).toHaveValue('いうえ ABC');
+		expect(
+			await page.evaluate(() => localStorage.getItem('tool_settings_cipher')),
+		).toBe(saved);
+		expect(new URL(page.url()).searchParams.get('settings')).toBe(
+			'existing-value',
+		);
+		for (const width of [375, 1440]) {
+			await page.setViewportSize({ width, height: 900 });
+			expect(
+				await page.evaluate(
+					() => document.documentElement.scrollWidth <= window.innerWidth,
+				),
+			).toBe(true);
+			await page
+				.locator('[data-slot="collapsible"]')
+				.filter({
+					has: page.getByRole('heading', {
+						name: 'ブルートフォース（全パターン表示）',
+					}),
+				})
+				.screenshot({
+					path: testInfo.outputPath(`cipher-ui-${width}.png`),
+					style: 'header { visibility: hidden !important; }',
+				});
+		}
 	});
 
 	test('Responsive display', async ({ page }) => {
