@@ -224,7 +224,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 	{
 		id: 'wareki-converter',
 		title: '和暦↔西暦変換',
-		description: '明治〜令和の和暦と西暦を相互変換。干支・年齢も同時表示。',
+		description: '弘化〜令和の和暦と西暦を相互変換。干支・年齢も同時表示。',
 		href: '/wareki-converter',
 		icon: 'CalendarDays',
 		categories: ['ユーティリティ'],
