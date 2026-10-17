@@ -170,3 +170,21 @@ Linux ChromiumのAACエンコード非対応を実確認。互換性と音質保
 ## Unicode WebMCP承認済み実装
 
 approved-unicode-plan.mdのAPI/予算/変更範囲に従う。Codex実装・agy独立レビュー。R3、Draft PRまで。
+
+## issue #469 Mermaid / upscale CLS改善（2026-10-17、R1）
+
+ユーザー指定の局所修正。commit・pushなし。color、Worker、モデル配信、PWA/SW、WebMCP、CI、依存は範囲外。
+
+1. `tests/e2e/layout-shift.spec.ts` で初期描画前からPerformanceObserverを登録し、Mermaid 1440pxとupscale 375/393/1440pxの実推論フローのCLS ≤ 0.1・横はみ出しなしを検証。Mermaid 375pxの既存横はみ出しはユーザー指定で対象外。E2E・CLS実測はコーディネータが担当する。
+2. `ToolLayout.astro` の既定挙動を保つオプションと初期化slot、`mermaid.astro` の同期スクリプトでSSR既定幅と保存設定（URL優先）をpaint前に適用。MermaidのReact側では初回適用後にtransitionを有効化し、トグル・保存・cleanupを維持する。
+3. `src/components/upscale/UpscalePage.tsx` でコントロールを常時表示し、未選択時は無効化。ドロップゾーン・処理前プレビュー・結果を同じ固定高（min(60vh,320px)）の枠に配置し、ファイル名・進捗・DL・説明行も予約。元画像・結果は同じ矩形にobject-containで重ね、既存の比較・再実行・ダウンロードを維持する。
+4. ローカルでlint / check / build / unitを実行。build後の既存2specと新規specのE2E・CLS実測はコーディネータが実施し、`walkthrough.md` に結果と限界を追記する。
+
+### #469 作業記録
+
+- Mermaid専用の初期幅オプションと描画前の同期復元、操作時だけの幅transitionを実装。URL優先・保存・cleanupを維持。
+- 修正ループ1/3: コーディネータの実測で、巨大なinvisible結果領域が選択時のデスクトップCLSを0.1106〜0.15へ悪化させたと判明。見える元画像プレビューと高さ上限制へ変更。完了前後の枠寸法・結果画像naturalWidthの検証と選択後1.5秒待機をE2Eへ追加。
+- 新規CLSテストに加え、375/1440pxの保存幅・URL優先・トグル保存の検証を追加。
+- lint / check / build / tsc成功。unitは既存2ファイルの隔離テストがspawnSync EPERMで失敗。ローカルE2Eはlocalhost待受け拒否（EPERM）で実行不可。コーディネータの初回E2E・CLS実測でMermaidは成功、upscaleは375px CLS 0・1440pxで閾値超過。今回修正後の再計測はコーディネータへ引き継ぐ。詳細はwalkthrough.mdの#469節。
+
+- 修正ループ2/3: コーディネータの選択時CLS（1440px 0.056、375px 0.151）を受けて上記の常時表示・固定高構成へ変更。実行ボタンは文言変更で折り返しが変わらないよう固定幅にした。E2Eは3画面サイズの選択前後・完了前後・クリア後の寸法を確認。Mermaid 375pxは保存幅・URL優先を維持し、幅切替操作だけ省略（非表示・無効化という実装上の条件はない）。今回修正後のE2E・CLS計測はコーディネータへ引き継ぐ。
