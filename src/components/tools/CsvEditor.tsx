@@ -20,6 +20,14 @@ import { SheetPicker } from '@/components/csv-editor/SheetPicker';
 import { SortPanel } from '@/components/csv-editor/SortPanel';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
 	Select,
@@ -104,6 +112,8 @@ export default function CsvEditor() {
 
 	// Undo stack for row/cell edits only
 	const [undoStack, setUndoStack] = useState<string[][][]>([]);
+	const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+	const clearButtonRef = useRef<HTMLButtonElement>(null);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -407,6 +417,7 @@ export default function CsvEditor() {
 	};
 
 	const clearData = () => {
+		setClearConfirmOpen(false);
 		setCsvData(null);
 		setSheets([]);
 		setInputText('');
@@ -482,8 +493,10 @@ export default function CsvEditor() {
 							size="sm"
 							onClick={() => fileInputRef.current?.click()}
 							className="h-8"
+							aria-label="ファイル読込 (.csv / .tsv / .xlsx)"
 						>
-							<Upload className="h-4 w-4 sm:mr-2" />
+							<Upload className="h-4 w-4 mr-1 sm:mr-2" />
+							<span className="sm:hidden">読込</span>
 							<span className="hidden sm:inline">
 								ファイル読込 (.csv / .tsv / .xlsx)
 							</span>
@@ -506,7 +519,7 @@ export default function CsvEditor() {
 					</div>
 				</div>
 
-				<div className="flex gap-2 w-full sm:w-auto">
+				<div className="flex flex-wrap gap-2 w-full sm:w-auto">
 					{csvData && (
 						<>
 							<Button
@@ -516,9 +529,10 @@ export default function CsvEditor() {
 								disabled={undoStack.length === 0}
 								className="h-8 flex-1 sm:flex-none"
 								title="元に戻す (Undo)"
+								aria-label="元に戻す (Undo)"
 							>
-								<RotateCcw className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">Undo</span>
+								<RotateCcw className="h-4 w-4 mr-1 sm:mr-2" />
+								<span>元に戻す</span>
 							</Button>
 							<Button
 								variant="outline"
@@ -526,10 +540,8 @@ export default function CsvEditor() {
 								onClick={handleCopy}
 								className={`h-8 flex-1 sm:flex-none ${copyFailed ? 'text-destructive border-destructive/50' : ''}`}
 							>
-								<Copy className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">
-									{copyFailed ? 'コピー失敗' : 'コピー'}
-								</span>
+								<Copy className="h-4 w-4 mr-1 sm:mr-2" />
+								<span>{copyFailed ? 'コピー失敗' : 'コピー'}</span>
 							</Button>
 							<Button
 								variant="outline"
@@ -537,8 +549,8 @@ export default function CsvEditor() {
 								onClick={handleDownloadJson}
 								className="h-8 flex-1 sm:flex-none"
 							>
-								<Braces className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">JSON</span>
+								<Braces className="h-4 w-4 mr-1 sm:mr-2" />
+								<span>JSONを保存</span>
 							</Button>
 							<Button
 								variant="default"
@@ -546,22 +558,58 @@ export default function CsvEditor() {
 								onClick={handleDownload}
 								className="h-8 flex-1 sm:flex-none"
 							>
-								<Download className="h-4 w-4 sm:mr-2" />
-								<span className="hidden sm:inline">エクスポート</span>
+								<Download className="h-4 w-4 mr-1 sm:mr-2" />
+								<span>{delimiter === '\t' ? 'TSV' : 'CSV'}を保存</span>
 							</Button>
 						</>
 					)}
 					<Button
-						variant="ghost"
+						ref={clearButtonRef}
+						variant="outline"
 						size="sm"
-						onClick={clearData}
+						onClick={() => setClearConfirmOpen(true)}
 						disabled={!inputText && !csvData}
-						className="h-8 text-muted-foreground"
+						className="h-8 flex-1 sm:flex-none text-destructive border-destructive/40 hover:text-destructive sm:ml-2"
+						aria-label="全消去（入力と編集内容をすべて消去）"
 					>
-						<Trash2 className="h-4 w-4" />
+						<Trash2 className="h-4 w-4 mr-1 sm:mr-2" />
+						<span>全消去</span>
 					</Button>
 				</div>
 			</div>
+
+			<Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+				<DialogContent
+					onCloseAutoFocus={(e) => {
+						// DialogTriggerを使わない制御ダイアログのため、戻り先を明示する。
+						// 全消去後はボタンが無効化されるので入力欄へ、取消時はボタンへ戻す
+						e.preventDefault();
+						if (clearButtonRef.current?.disabled) {
+							document.querySelector<HTMLTextAreaElement>('textarea')?.focus();
+						} else {
+							clearButtonRef.current?.focus();
+						}
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>全消去の確認</DialogTitle>
+						<DialogDescription>
+							入力と編集内容をすべて消去します。元に戻す（Undo）履歴も失われ、この操作は取り消せません。
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setClearConfirmOpen(false)}
+						>
+							キャンセル
+						</Button>
+						<Button variant="destructive" onClick={clearData}>
+							すべて消去する
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Main Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab}>

@@ -373,3 +373,79 @@ export function detectAlgorithmByLength(hex: string): HashAlgorithm | null {
 			return null;
 	}
 }
+
+export type ParsedExpectedHash =
+	| {
+			ok: true;
+			hash: string;
+			algorithm: HashAlgorithm;
+			/** GNU形式の1行から抽出したファイル名。裸のハッシュ値ならnull */
+			fileName: string | null;
+	  }
+	| {
+			ok: false;
+			reason: 'empty' | 'multi-line' | 'unknown-length' | 'invalid-line';
+	  };
+
+// [\\] + digest + 空白2個 + filename（テキストモード）／ digest + 空白 + * + filename（バイナリモード）
+// 行頭の \\ は、ファイル名に \\ や改行を含む場合にGNUが付けるエスケープ印
+const GNU_CHECKSUM_LINE = /^(\\)?([0-9a-fA-F]+)(?: {2}| \*)([\s\S]+)$/;
+
+/** GNUのファイル名エスケープ（\\\\・\\n・\\r）を戻す。未定義のエスケープはnull */
+function unescapeGnuFileName(raw: string): string | null {
+	let out = '';
+	for (let i = 0; i < raw.length; i++) {
+		if (raw[i] !== '\\') {
+			out += raw[i];
+			continue;
+		}
+		const next = raw[++i];
+		if (next === '\\') out += '\\';
+		else if (next === 'n') out += '\n';
+		else if (next === 'r') out += '\r';
+		else return null;
+	}
+	return out;
+}
+
+/**
+ * 期待値欄の入力を解析する。裸のハッシュ値（空白・ハイフン区切り許容）と
+ * GNU形式チェックサムの単一行のみ受け付け、複数行や不完全な行は暗黙に切り捨てず拒否する。
+ */
+export function parseExpectedHash(input: string): ParsedExpectedHash {
+	const lines = input.split(/\r\n|\r|\n/).filter((l) => l.trim() !== '');
+	if (lines.length === 0) return { ok: false, reason: 'empty' };
+	if (lines.length > 1) return { ok: false, reason: 'multi-line' };
+	// ファイル名末尾の空白を保持するため、行頭側のみtrimする
+	const line = lines[0].trimStart();
+
+	const gnu = GNU_CHECKSUM_LINE.exec(line);
+	// 先頭のハッシュ値が有効な長さならGNU形式を優先する
+	// （MD5行＋「  deadbeef」や「  -」が別アルゴリズムの裸ハッシュに化けないように）
+	if (gnu) {
+		const [, escaped, digest, rawName] = gnu;
+		const algorithm = detectAlgorithmByLength(digest);
+		if (algorithm) {
+			const fileName = escaped ? unescapeGnuFileName(rawName) : rawName;
+			if (fileName == null) return { ok: false, reason: 'invalid-line' };
+			return { ok: true, hash: normalizeHash(digest), algorithm, fileName };
+		}
+	}
+
+	const bare = detectAlgorithmByLength(line);
+	if (bare) {
+		return {
+			ok: true,
+			hash: normalizeHash(line),
+			algorithm: bare,
+			fileName: null,
+		};
+	}
+	if (gnu) return { ok: false, reason: 'invalid-line' };
+
+	// ハッシュ値以外の文字と空白が混在する場合は、不完全なチェックサム行として扱う
+	if (/\s/.test(line) && /[^0-9a-fA-F\s-]/.test(line)) {
+		return { ok: false, reason: 'invalid-line' };
+	}
+	return { ok: false, reason: 'unknown-length' };
+}

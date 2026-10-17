@@ -8,7 +8,19 @@ test.describe('Cipher Tool', () => {
 	test('Page loads correctly and defaults to Caesar cipher', async ({
 		page,
 	}) => {
-		await expect(page).toHaveTitle(/暗号化・難読化ツール/);
+		await expect(page).toHaveTitle(/シーザー暗号変換・解読ツール｜日本語対応/);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'シーザー暗号変換・解読ツール',
+		);
+		await expect(
+			page
+				.getByRole('navigation', { name: 'パンくずリスト' })
+				.locator('[aria-current="page"]'),
+		).toHaveText('シーザー暗号変換・解読ツール');
+		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+			'content',
+			'日本語（ひらがな・カタカナ）と英字のシーザー暗号を変換・解読できる無料ツール。シフト数の指定や全パターン表示に対応。ROT13・モールス信号・文字列反転も使えます。入力内容は外部に送信せず、ブラウザ内で処理します。',
+		);
 
 		// SafetyBadge component check (usually has text like 完全クライアントサイド処理)
 		await expect(page.locator('text=完全クライアントサイド処理')).toBeVisible();

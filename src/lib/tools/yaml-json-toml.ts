@@ -37,12 +37,12 @@ export const FORMAT_LABEL: Record<Format, string> = {
 // ---------------------------------------------------------------------------
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		!Array.isArray(value) &&
-		Object.getPrototypeOf(value) === Object.prototype
-	);
+	if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		return false;
+	}
+	// smol-toml 1.9 以降はパース結果が null プロトタイプのオブジェクトになる
+	const proto = Object.getPrototypeOf(value);
+	return proto === Object.prototype || proto === null;
 }
 
 /** オブジェクトキーを辞書順に再帰ソートする。配列要素の順序は維持する */

@@ -1,0 +1,2 @@
+解像度が低い画像でも読めるかを調べます。
+Low resolution sample text 12345

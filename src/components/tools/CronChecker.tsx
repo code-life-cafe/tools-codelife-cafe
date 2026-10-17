@@ -82,7 +82,12 @@ function severityBadgeVariant(
 }
 
 export default function CronChecker() {
-	const { trackRunDebounced } = useToolAnalytics('cron-checker');
+	const { trackRunDebounced, markRunInteraction } = useToolAnalytics(
+		'cron-checker',
+		{
+			requireInteractionForAutoRun: true,
+		},
+	);
 	const [settings, updateSettings] = useToolSettings<Settings>('cron-checker', {
 		extraTimeZone: 'UTC',
 	});
@@ -194,7 +199,12 @@ export default function CronChecker() {
 	};
 
 	return (
-		<div className="space-y-6">
+		<div
+			className="space-y-6"
+			onPointerDownCapture={markRunInteraction}
+			onKeyDownCapture={markRunInteraction}
+			onInputCapture={markRunInteraction}
+		>
 			<div>
 				<Label
 					htmlFor="cron-checker-input"

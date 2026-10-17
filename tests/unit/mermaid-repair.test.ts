@@ -1386,3 +1386,130 @@ test('未対応の閉じブロック10万文字を3回処理して2秒以内に�
 		timeout: 2000,
 	});
 });
+
+describe('YAML frontmatter の保持', () => {
+	const fm = '---\ntitle: 東京→大阪 “計画”\n---\n';
+	const body = 'flowchart TD\n  A[開始] --> B[終了]';
+
+	test('extractMermaidCode: 会話文＋frontmatter付き図でfrontmatterを残す', () => {
+		const { code, extracted } = extractMermaidCode(
+			`こちらです。\n${fm}${body}\n以上です`,
+		);
+		assert.equal(code, `${fm}${body}`);
+		assert.equal(extracted, true);
+	});
+
+	test('extractMermaidCode: ```mermaid フェンス内のfrontmatterを残す', () => {
+		const { code } = extractMermaidCode(`\`\`\`mermaid\n${fm}${body}\n\`\`\``);
+		assert.equal(code, `${fm}${body}`);
+	});
+
+	test('extractMermaidCode: 言語指定なしフェンスでもfrontmatter付き図を検出する', () => {
+		const { code, fenceRemoved } = extractMermaidCode(
+			`説明\n\`\`\`\n${fm}${body}\n\`\`\``,
+		);
+		assert.equal(code, `${fm}${body}`);
+		assert.equal(fenceRemoved, true);
+	});
+
+	test('extractMermaidCode: 図と無関係な --- 区切りは従来どおり除去する', () => {
+		const { code } = extractMermaidCode(`説明\n---\n補足\n---\n${body}`);
+		assert.equal(code, body);
+	});
+
+	test('repairMermaidCode: frontmatterを削除・改変せず本文だけ修復する', () => {
+		const result = repairMermaidCode(`${fm}flowchart TD\n  A → B`);
+		assert.ok(result.repairedCode.startsWith(fm));
+		assert.match(result.repairedCode, /A --> B/);
+		assert.ok(result.repairedCode.includes('title: 東京→大阪 “計画”'));
+	});
+
+	test('repairMermaidCode: 正常なfrontmatter付き図は変更なし', () => {
+		const input = `${fm}${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
+
+	test('extractMermaidCode: 引用符付きYAMLキーのfrontmatterも残す', () => {
+		for (const key of ['"title"', "'title'"]) {
+			const quoted = `---\n${key}: 東京大阪ルート\n---\n`;
+			const { code } = extractMermaidCode(`説明です\n${quoted}${body}`);
+			assert.equal(code, `${quoted}${body}`);
+		}
+	});
+
+	test('repairMermaidCode: 引用符付きキーのfrontmatter付き図は変更なし', () => {
+		const input = `---\n"title": 東京→大阪\n---\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
+
+	test('extractMermaidCode: frontmatterと宣言の間の%%コメントを跨いで保持する', () => {
+		const withComment = `---\ntitle: 図\n---\n%% 説明\n\n`;
+		const { code } = extractMermaidCode(`説明です\n${withComment}${body}`);
+		assert.equal(code, `${withComment}${body}`);
+	});
+
+	test('repairMermaidCode: %%コメント付きfrontmatterは変更なし', () => {
+		const input = `---\ntitle: 図\n---\n%% 説明\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.equal(result.isModified, false);
+	});
+
+	test('repairMermaidCode: 複数行titleのsubgraph風テキストで余計なendを足さない', () => {
+		const input = `---\ntitle: |\n  subgraph Heading\n---\n${body}`;
+		const result = repairMermaidCode(input);
+		assert.equal(result.repairedCode, input);
+		assert.ok(!result.changes.some((c) => c.rule === 'auto-close'));
+	});
+
+	test('repairMermaidCode: frontmatter付きでも図本文の未閉じブロックは補完する', () => {
+		const result = repairMermaidCode(
+			`${fm}flowchart TD\n  subgraph S\n    A --> B`,
+		);
+		assert.ok(result.repairedCode.startsWith(fm));
+		assert.ok(result.repairedCode.trimEnd().endsWith('end'));
+		assert.equal(
+			result.changes.filter((c) => c.rule === 'auto-close').length,
+			1,
+		);
+	});
+
+	test('extractMermaidCode/repairMermaidCode: インデント付きYAMLキーのfrontmatterも保持する', () => {
+		const indented = `---\n  title: 東京大阪ルート\n---\n`;
+		const { code } = extractMermaidCode(`説明です\n${indented}${body}`);
+		assert.equal(code, `${indented}${body}`);
+		const result = repairMermaidCode(`${indented}${body}`);
+		assert.equal(result.repairedCode, `${indented}${body}`);
+		assert.equal(result.isModified, false);
+	});
+
+	test('extractMermaidCode: key:風の行を含む非YAMLの会話文はfrontmatterとして保持しない', () => {
+		const prose =
+			'---\nNote: 次の図です\nこれはYAMLではない説明文です。\n---\n';
+		const { code } = extractMermaidCode(`${prose}${body}`);
+		assert.equal(code, body);
+	});
+
+	test('extractMermaidCode: Mermaidが解釈しないキーだけのブロックは保持しない', () => {
+		const other = '---\nauthor: 太郎\n---\n';
+		const { code } = extractMermaidCode(`説明\n${other}${body}`);
+		assert.equal(code, body);
+	});
+
+	test('extractMermaidCode: title/config/displayModeと入れ子のconfigは保持する', () => {
+		const rich =
+			'---\ntitle: 図\nconfig:\n  theme: dark\n  flowchart:\n    curve: basis\ndisplayMode: compact\n---\n';
+		const { code } = extractMermaidCode(`説明\n${rich}${body}`);
+		assert.equal(code, `${rich}${body}`);
+	});
+
+	test('extractMermaidCode: 有効なキーの後に会話文が混ざるブロックは保持しない', () => {
+		const mixed = '---\ntitle: 図\nこれは説明です\n---\n';
+		const { code } = extractMermaidCode(`${mixed}${body}`);
+		assert.equal(code, body);
+	});
+});

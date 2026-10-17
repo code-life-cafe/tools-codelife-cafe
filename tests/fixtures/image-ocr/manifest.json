@@ -1,0 +1,138 @@
+[
+	{
+		"id": "01-meiryo-prose",
+		"group": "clear",
+		"file": "clear/01-meiryo-prose.png",
+		"font": "meiryo",
+		"size": 28,
+		"chars": 88
+	},
+	{
+		"id": "02-mincho-prose",
+		"group": "clear",
+		"file": "clear/02-mincho-prose.png",
+		"font": "mincho",
+		"size": 30,
+		"chars": 86
+	},
+	{
+		"id": "03-biz-howto",
+		"group": "clear",
+		"file": "clear/03-biz-howto.png",
+		"font": "biz",
+		"size": 26,
+		"chars": 91
+	},
+	{
+		"id": "04-meiryo-mixed-jpeg",
+		"group": "clear",
+		"file": "clear/04-meiryo-mixed-jpeg.jpg",
+		"font": "meiryo",
+		"size": 26,
+		"chars": 109
+	},
+	{
+		"id": "05-mincho-jpeg",
+		"group": "clear",
+		"file": "clear/05-mincho-jpeg.jpg",
+		"font": "mincho",
+		"size": 28,
+		"chars": 94
+	},
+	{
+		"id": "06-biz-numbers",
+		"group": "clear",
+		"file": "clear/06-biz-numbers.png",
+		"font": "biz",
+		"size": 28,
+		"chars": 113
+	},
+	{
+		"id": "07-meiryo-english",
+		"group": "clear",
+		"file": "clear/07-meiryo-english.png",
+		"font": "meiryo",
+		"size": 28,
+		"chars": 182
+	},
+	{
+		"id": "08-mincho-news",
+		"group": "clear",
+		"file": "clear/08-mincho-news.png",
+		"font": "mincho",
+		"size": 26,
+		"chars": 100
+	},
+	{
+		"id": "09-biz-small-jpeg",
+		"group": "clear",
+		"file": "clear/09-biz-small-jpeg.jpg",
+		"font": "biz",
+		"size": 22,
+		"chars": 112
+	},
+	{
+		"id": "10-meiryo-large",
+		"group": "clear",
+		"file": "clear/10-meiryo-large.png",
+		"font": "meiryo",
+		"size": 40,
+		"chars": 35
+	},
+	{
+		"id": "11-mincho-symbols",
+		"group": "clear",
+		"file": "clear/11-mincho-symbols.png",
+		"font": "mincho",
+		"size": 28,
+		"chars": 97
+	},
+	{
+		"id": "12-biz-recipe",
+		"group": "clear",
+		"file": "clear/12-biz-recipe.png",
+		"font": "biz",
+		"size": 26,
+		"chars": 99
+	},
+	{
+		"id": "d1-lowres",
+		"group": "degraded",
+		"file": "degraded/d1-lowres.png",
+		"font": "meiryo",
+		"size": 28,
+		"chars": 52
+	},
+	{
+		"id": "d2-tilt",
+		"group": "degraded",
+		"file": "degraded/d2-tilt.png",
+		"font": "meiryo",
+		"size": 28,
+		"chars": 53
+	},
+	{
+		"id": "d3-jpeg-q20",
+		"group": "degraded",
+		"file": "degraded/d3-jpeg-q20.jpg",
+		"font": "mincho",
+		"size": 28,
+		"chars": 63
+	},
+	{
+		"id": "d4-vertical",
+		"group": "degraded",
+		"file": "degraded/d4-vertical.png",
+		"font": "mincho",
+		"size": 30,
+		"chars": 27
+	},
+	{
+		"id": "p1-3mp",
+		"group": "perf",
+		"file": "perf/p1-3mp.png",
+		"font": "meiryo",
+		"size": 36,
+		"chars": 747
+	}
+]
