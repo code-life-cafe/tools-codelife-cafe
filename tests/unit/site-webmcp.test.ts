@@ -10,7 +10,7 @@ const FIXTURE_CATALOG: SiteToolSummary[] = [
 		id: 'zenkaku-hankaku',
 		title: '全角↔半角変換',
 		description: 'カタカナ・英数字・記号の全角半角を一括変換。',
-		url: 'https://tools.codelife.cafe/zenkaku-hankaku',
+		url: 'https://tools.codelife.cafe/zenkaku-hankaku/',
 		category: 'テキスト変換',
 		keywords: ['全角', '半角', 'カタカナ'],
 	},
@@ -18,7 +18,7 @@ const FIXTURE_CATALOG: SiteToolSummary[] = [
 		id: 'hash',
 		title: 'ハッシュ生成',
 		description: 'MD5 / SHA-256 / SHA-512 のハッシュ値を計算。',
-		url: 'https://tools.codelife.cafe/hash',
+		url: 'https://tools.codelife.cafe/hash/',
 		category: '開発ツール',
 		keywords: ['hash', 'sha256', 'checksum'],
 	},
@@ -41,7 +41,7 @@ test('list_tools: 全ツールをkeywordsなしのサマリーで返す', async 
 		id: 'zenkaku-hankaku',
 		title: '全角↔半角変換',
 		description: 'カタカナ・英数字・記号の全角半角を一括変換。',
-		url: 'https://tools.codelife.cafe/zenkaku-hankaku',
+		url: 'https://tools.codelife.cafe/zenkaku-hankaku/',
 		category: 'テキスト変換',
 	});
 });

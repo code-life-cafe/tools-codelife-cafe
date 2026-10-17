@@ -6,6 +6,7 @@ import { History, Languages, LayoutGrid, Lock, ShieldCheck, Star, Target, Zap } 
 import { ToolIcon } from '../components/common/ToolIcon';
 import { getCategoryId, purposeCategories, toolCatalog, toolCategories } from '../lib/tools/catalog';
 import { getPopularTools } from '../lib/tools/popularity';
+import { toCanonicalUrl } from '../lib/seo/url';
 
 const popularTools = getPopularTools(toolCatalog);
 
@@ -17,8 +18,8 @@ const webMcpCatalog = toolCatalog
     id: t.id,
     title: t.title,
     description: t.description,
-    // WebMCPの出力URLは互換性維持のため従来形式（末尾スラッシュなし）のまま。変更はR3として別途判断
-    url: `https://tools.codelife.cafe${t.href.replace(/\/$/, '')}`,
+    // WebMCPの出力URLも各ページのcanonicalと同じ末尾スラッシュ付きに統一する。
+    url: toCanonicalUrl(t.href),
     category: t.categories.join(' / '),
     keywords: t.keywords,
   }));
