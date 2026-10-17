@@ -1,6 +1,7 @@
 import { base64McpTool } from '../tools/base64.mcp.ts';
 import { charCountMcpTool } from '../tools/char-count.mcp.ts';
 import { cronCheckerMcpTool } from '../tools/cron-checker.mcp.ts';
+import { csvEditorMcpTool } from '../tools/csv-editor.mcp.ts';
 import { hashMcpTool } from '../tools/hash.mcp.ts';
 import { csvToJsonMcpTool, jsonToCsvMcpTool } from '../tools/json-csv.mcp.ts';
 import { jsonFormatterMcpTool } from '../tools/json-formatter.mcp.ts';
@@ -27,6 +28,7 @@ import type { McpToolDefinition } from './define-tool.ts';
  */
 // biome-ignore lint/suspicious/noExplicitAny: 各ツールの McpToolDefinition<TParams, TOutput> はツールごとに型引数が異なるため、配列としてまとめる際は unknown 化する
 export const mcpToolDefinitions: readonly McpToolDefinition<any, unknown>[] = [
+	csvEditorMcpTool,
 	unicodeConverterMcpTool,
 	textDiffMcpTool,
 	mermaidMcpTool,
