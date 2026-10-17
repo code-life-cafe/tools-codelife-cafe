@@ -241,10 +241,9 @@ test('文字数カウントツールが正しく動作すること', async ({ pa
 	await expect(page.locator('text=文字数: 11')).toBeVisible();
 });
 ```
-E2Eテストを実行する前に、必ず本番ビルドを行い、プレビューサーバーを起動してください：
+E2Eテストは本番ビルドの成果物に対して実行されます。`playwright.config.ts` の `webServer` 設定によりプレビューサーバー（`npm run preview:ci`、port 4321）が自動起動され（手動で起動済みのサーバーがある場合は `reuseExistingServer: true` により再利用されます）、事前に必要なのは本番ビルドのみです：
 ```bash
 npm run build
-npm run preview
 npm test
 ```
 

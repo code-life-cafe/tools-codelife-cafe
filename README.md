@@ -138,18 +138,36 @@
 
 ## 🚀 Cloudflare R2 モデル配信
 
-背景削除ツールの AI モデルは **`models.tools.codelife.cafe`**（Cloudflare R2）から配信されます。
+AI モデルは Cloudflare R2 バケット **`codelife-models`** に配置し、ツールごとに配信経路を分けています。
 
 | バケット | `codelife-models` |
 |---|---|
-| カスタムドメイン | `https://models.tools.codelife.cafe` |
 | CORS | `tools.codelife.cafe`, `localhost:4321` |
+
+### 背景削除 (`/bg-remove`)
+
+カスタムドメイン **`models.tools.codelife.cafe`** から直接配信します。
+
+| カスタムドメイン | `https://models.tools.codelife.cafe` |
+|---|---|
 
 **配信済みモデル:**
 - `onnx-community/modnet-webnn/resolve/main/onnx/model.onnx` — 25.9MB (MODNet fp32)
 - `onnx-community/BEN2-ONNX/resolve/main/onnx/model_fp16.onnx` — 219MB (BEN2 fp16)
 
 ローカル開発時（`localhost`）は HuggingFace CDN に自動フォールバックします。
+
+### 文字起こし (`/transcribe`)
+
+同じ R2 バケット上の Whisper ONNX モデルを、同一オリジンのプロキシ経由で配信します（CSP の `connect-src 'self'` と両立するため）。
+
+| プロキシパス | `/models/transcribe/**` |
+|---|---|
+| Pages Function | `functions/models/transcribe/[[path]].ts` |
+| R2 バインディング | `TRANSCRIBE_MODELS`（`wrangler.jsonc`） |
+| オブジェクトキー | `transcribe/<model>/<revision>/...` |
+
+詳細は [docs/data-management.md](docs/data-management.md) §3 を参照してください。
 
 ### モデルを再アップロードする場合
 
