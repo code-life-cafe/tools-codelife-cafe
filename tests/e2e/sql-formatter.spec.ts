@@ -334,12 +334,52 @@ test.describe('SQL Formatter Tool - レイアウト切替と出力欄リサイ�
 		});
 
 		// 数px程度の誤差はスクロールバー計算のブラウザ差異として許容する
-		const overflow = await page.evaluate(
-			() =>
-				document.documentElement.scrollWidth -
-				document.documentElement.clientWidth,
-		);
-		expect(overflow).toBeLessThanOrEqual(5);
+		try {
+			await expect
+				.poll(
+					() =>
+						page.evaluate(
+							() =>
+								document.documentElement.scrollWidth -
+								document.documentElement.clientWidth,
+						),
+					{
+						timeout: 5000,
+						intervals: [100, 250, 500],
+						message: '狭い画面でページの横方向のはみ出しが5px以内になる',
+					},
+				)
+				.toBeLessThanOrEqual(5);
+		} catch (error) {
+			try {
+				const overflowingElements = await page.evaluate(() => {
+					const { clientWidth, scrollWidth } = document.documentElement;
+					return Array.from(document.querySelectorAll('*'))
+						.map((element) => {
+							const { width, right } = element.getBoundingClientRect();
+							const id = element.id ? `#${CSS.escape(element.id)}` : '';
+							const classes = Array.from(element.classList)
+								.slice(0, 3)
+								.map((name) => `.${CSS.escape(name)}`)
+								.join('');
+							return {
+								selector: `${element.tagName.toLowerCase()}${id}${classes}`,
+								width,
+								right,
+								clientWidth,
+								scrollWidth,
+							};
+						})
+						.filter(({ right }) => right > clientWidth)
+						.sort((a, b) => b.right - a.right)
+						.slice(0, 20);
+				});
+				console.log('横方向にはみ出している要素:', overflowingElements);
+			} catch (diagnosticError) {
+				console.log('はみ出し要素の診断に失敗:', diagnosticError);
+			}
+			throw error;
+		}
 	});
 
 	test('不正なレイアウト設定値を共有URLから読み込んでも左右レイアウトへフォールバックする', async ({
