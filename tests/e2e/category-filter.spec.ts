@@ -103,7 +103,7 @@ test.describe('トップページ カテゴリフィルタ', () => {
 
 		// JSON整形カードのカテゴリバッジ（開発ツール）をクリック
 		await page
-			.locator(`#tool-grid a[href="/json-formatter"] [data-category-badge]`)
+			.locator(`#tool-grid a[href="/json-formatter/"] [data-category-badge]`)
 			.click();
 
 		// 遷移せずトップページのままフィルタが適用される
@@ -161,10 +161,10 @@ test.describe('トップページ カテゴリフィルタ', () => {
 			.click();
 		await expect(visibleCards(page)).toHaveCount(aiCount);
 		await expect(
-			page.locator('#tool-grid a[href="/bg-remove"]:visible'),
+			page.locator('#tool-grid a[href="/bg-remove/"]:visible'),
 		).toHaveCount(1);
 		await expect(
-			page.locator('#tool-grid a[href="/upscale"]:visible'),
+			page.locator('#tool-grid a[href="/upscale/"]:visible'),
 		).toHaveCount(1);
 
 		// 「画像」タブ: 同じ2ツールに加えて他の画像処理ツールも表示される
@@ -174,10 +174,10 @@ test.describe('トップページ カテゴリフィルタ', () => {
 			.click();
 		await expect(visibleCards(page)).toHaveCount(imageCount);
 		await expect(
-			page.locator('#tool-grid a[href="/bg-remove"]:visible'),
+			page.locator('#tool-grid a[href="/bg-remove/"]:visible'),
 		).toHaveCount(1);
 		await expect(
-			page.locator('#tool-grid a[href="/upscale"]:visible'),
+			page.locator('#tool-grid a[href="/upscale/"]:visible'),
 		).toHaveCount(1);
 
 		// AIを使わない画像ツール（画像圧縮）は「AI」タブには含まれない
@@ -186,7 +186,7 @@ test.describe('トップページ カテゴリフィルタ', () => {
 			.getByRole('button', { name: 'AI', exact: true })
 			.click();
 		await expect(
-			page.locator('#tool-grid a[href="/image-compress"]:visible'),
+			page.locator('#tool-grid a[href="/image-compress/"]:visible'),
 		).toHaveCount(0);
 	});
 });

@@ -9,11 +9,11 @@ test('旧URL全件は正規URLへ移動しクエリ・ハッシュを維持す�
 	for (const tool of toolCatalog) {
 		await page.goto(`/tools/${tool.id}/?probe=%2B&probe=two#preview`);
 		await expect(page).toHaveURL(
-			new RegExp(`${tool.href}/\\?probe=%2B&probe=two#preview$`),
+			new RegExp(`${tool.href}\\?probe=%2B&probe=two#preview$`),
 		);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			'href',
-			`https://tools.codelife.cafe${tool.href}/`,
+			`https://tools.codelife.cafe${tool.href}`,
 		);
 	}
 });

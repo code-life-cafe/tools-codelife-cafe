@@ -356,7 +356,7 @@ test.describe('WebMCP Tool Registration — homepage', () => {
 
 		expect(result.tools.length).toBeGreaterThan(0);
 		const hashEntry = result.tools.find((t) => t.id === 'hash');
-		expect(hashEntry?.url).toBe('https://tools.codelife.cafe/hash');
+		expect(hashEntry?.url).toBe('https://tools.codelife.cafe/hash/');
 	});
 
 	test('search_tools execute returns matching tools', async ({ page }) => {
