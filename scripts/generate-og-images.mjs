@@ -1,10 +1,13 @@
 // ビルド後（astro build の後、generate-sw.mjs の前）に実行し、
-// ツールごとの OGP 画像（1200x630 PNG）を dist/og/ に静的生成する。
+// ツールごとの OGP 画像（1200x630 PNG）を dist/og/ に、
+// サイト全体の既定 OGP 画像（1200x630 PNG）を dist/og-image.png に静的生成する。
 //
 // - ツール一覧は src/lib/tools/catalog.ts から取得（Node の型ストリッピングで直接 import）
 // - 日本語フォント（Noto Sans JP）は Google Fonts からビルド時にダウンロードし、
 //   scripts/.cache/fonts/ にキャッシュする（.gitignore 済み）
 // - 生成画像はコミットせず、デプロイ成果物（dist/）にのみ含まれる
+// - dist/og-image.png は src/layouts/BaseLayout.astro の既定 ogImage='/og-image.png'
+//   （トップページ等で明示指定しない全ページ）が参照する
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -15,7 +18,9 @@ import { toolCatalog } from '../src/lib/tools/catalog.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FONT_CACHE_DIR = join(ROOT, 'scripts', '.cache', 'fonts');
-const OUT_DIR = join(ROOT, 'dist', 'og');
+const DIST_DIR = join(ROOT, 'dist');
+const OUT_DIR = join(DIST_DIR, 'og');
+const SITE_OG_IMAGE_PATH = join(DIST_DIR, 'og-image.png');
 
 const WIDTH = 1200;
 const HEIGHT = 630;
@@ -302,6 +307,135 @@ function toolTemplate(tool) {
 	);
 }
 
+/** サイト全体用（トップページ等の既定 og:image）の OG 画像レイアウト。ツール別テンプレートと同じデザイン言語を使う */
+function siteTemplate() {
+	return h(
+		'div',
+		{
+			style: {
+				width: '100%',
+				height: '100%',
+				boxSizing: 'border-box',
+				display: 'flex',
+				flexDirection: 'column',
+				backgroundImage: `linear-gradient(135deg, ${COLORS.background} 0%, ${COLORS.backgroundEnd} 100%)`,
+				padding: '56px 72px 0',
+				fontFamily: 'Noto Sans JP',
+			},
+		},
+		// ヘッダー: サイト名
+		h(
+			'div',
+			{ style: { display: 'flex', alignItems: 'center', gap: '16px' } },
+			h('div', {
+				style: {
+					display: 'flex',
+					width: '20px',
+					height: '20px',
+					borderRadius: '6px',
+					backgroundImage: `linear-gradient(135deg, ${COLORS.accent} 0%, ${COLORS.primary} 100%)`,
+				},
+			}),
+			h(
+				'div',
+				{
+					style: {
+						display: 'flex',
+						fontSize: '34px',
+						fontWeight: 700,
+						color: COLORS.foreground,
+					},
+				},
+				h('span', { style: { color: COLORS.accent } }, 'CODE:LIFE'),
+				h('span', { style: { marginLeft: '12px' } }, 'Tools'),
+			),
+		),
+		// 中央: キャッチコピー（トップページ H1 と同文言）
+		h(
+			'div',
+			{
+				style: {
+					display: 'flex',
+					flexDirection: 'column',
+					flexGrow: 1,
+					justifyContent: 'center',
+				},
+			},
+			h(
+				'div',
+				{
+					style: {
+						display: 'flex',
+						fontSize: '64px',
+						fontWeight: 700,
+						color: COLORS.foreground,
+						lineHeight: 1.3,
+						marginBottom: '8px',
+					},
+				},
+				'仕事で安心して使える',
+			),
+			h(
+				'div',
+				{
+					style: {
+						display: 'flex',
+						fontSize: '64px',
+						fontWeight: 700,
+						color: COLORS.foreground,
+						lineHeight: 1.3,
+						marginBottom: '28px',
+					},
+				},
+				'Webツール集',
+			),
+			h(
+				'div',
+				{
+					style: {
+						display: 'flex',
+						fontSize: '30px',
+						color: COLORS.muted,
+						lineHeight: 1.6,
+					},
+				},
+				`全${toolCatalog.length}種類のツールが完全ブラウザ内処理。入力データはサーバーへ送信されません。`,
+			),
+		),
+		// フッター: URL + 安全性の訴求
+		h(
+			'div',
+			{
+				style: {
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'space-between',
+					paddingBottom: '40px',
+				},
+			},
+			h(
+				'div',
+				{ style: { display: 'flex', fontSize: '26px', color: COLORS.muted } },
+				'tools.codelife.cafe',
+			),
+			h(
+				'div',
+				{ style: { display: 'flex', fontSize: '24px', color: COLORS.safety } },
+				'✓ データは外部送信されません',
+			),
+		),
+		// 最下部: ブランドカラーのグラデーションバー
+		h('div', {
+			style: {
+				display: 'flex',
+				height: '14px',
+				margin: '0 -72px',
+				backgroundImage: `linear-gradient(90deg, ${COLORS.primary} 0%, ${COLORS.accent} 100%)`,
+			},
+		}),
+	);
+}
+
 const { regular, bold } = await loadFonts();
 const fonts = [
 	{ name: 'Noto Sans JP', data: regular, weight: 400, style: 'normal' },
@@ -322,6 +456,11 @@ for (const tool of toolCatalog) {
 		.toFile(join(OUT_DIR, `${tool.id}.png`));
 }
 
+const siteSvg = await satori(siteTemplate(), { width: WIDTH, height: HEIGHT, fonts });
+await sharp(Buffer.from(siteSvg))
+	.png({ compressionLevel: 9 })
+	.toFile(SITE_OG_IMAGE_PATH);
+
 console.log(
-	`[generate-og] ${toolCatalog.length} 枚の OG 画像を dist/og/ に生成（${((Date.now() - started) / 1000).toFixed(1)}s）`,
+	`[generate-og] ${toolCatalog.length} 枚の OG 画像を dist/og/ に、サイト共通画像を dist/og-image.png に生成（${((Date.now() - started) / 1000).toFixed(1)}s）`,
 );
