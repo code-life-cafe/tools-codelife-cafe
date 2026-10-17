@@ -30,10 +30,10 @@ const LIMIT = 3;
 let validTools: ToolCatalogItem[] = [];
 const seen = new Set<string>();
 
-const normalizeSlug = (slug: string) => slug.replace(/^\//, '').replace(/^tools\//, '');
+const normalizeSlug = (slug: string) => slug.replace(/^\//, '').replace(/^tools\//, '').replace(/\/$/, '');
 const findBySlug = (slug: string) => {
 	const normalized = normalizeSlug(slug);
-	return toolCatalog.find((t) => t.id === normalized || t.href === `/${normalized}` || t.href === `/tools/${normalized}`);
+	return toolCatalog.find((t) => t.id === normalized || t.href.replace(/\/$/, '') === `/${normalized}`);
 };
 const pushTool = (tool: ToolCatalogItem | undefined) => {
 	if (!tool || tool.id === toolId || seen.has(tool.id) || excludeSet.has(tool.id) || validTools.length >= LIMIT) return;

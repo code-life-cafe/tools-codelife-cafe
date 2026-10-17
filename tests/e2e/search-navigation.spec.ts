@@ -60,10 +60,10 @@ test.describe('Search after page navigation', () => {
 		await page.goto('/');
 
 		// 2. ツールカードをクリックして内部遷移
-		const toolLink = page.locator('a[href="/char-count"]').first();
+		const toolLink = page.locator('a[href="/char-count/"]').first();
 		if (await toolLink.isVisible()) {
 			await toolLink.click();
-			await page.waitForURL('**/char-count');
+			await page.waitForURL('**/char-count/');
 			// View Transitionによるクライアントサイド遷移の完了を待つ
 			await page.waitForLoadState('networkidle');
 

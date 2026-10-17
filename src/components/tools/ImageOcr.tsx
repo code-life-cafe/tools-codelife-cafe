@@ -601,7 +601,7 @@ export default function ImageOcr() {
 
 			<p className="text-xs text-muted-foreground">
 				PDF・SVG・HEIC・GIFやアニメーション画像、複数画像の一括処理、検索可能PDFの出力、翻訳には対応していません。HEIC画像は
-				<a className="underline" href="/image-convert">
+				<a className="underline" href="/image-convert/">
 					画像形式変換
 				</a>
 				でJPEGやPNGにしてからお試しください。
