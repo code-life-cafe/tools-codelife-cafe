@@ -582,7 +582,7 @@ export function MermaidPreviewPage() {
 				</div>
 
 				{/* 共有・エクスポートボタン群 */}
-				<div className="flex items-center gap-1.5">
+				<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 					<Button
 						variant="outline"
 						size="sm"
