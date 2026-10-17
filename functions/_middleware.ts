@@ -1,6 +1,6 @@
-import { classifyTrafficType } from './lib/traffic-type.ts';
 import { isAnalyticsDisabledPath } from '../src/lib/analytics-policy.ts';
 import { legacyToolDestination } from '../src/lib/seo/legacy-tools.ts';
+import { classifyTrafficType } from './lib/traffic-type.ts';
 
 type Env = {
 	EVENTS?: {
@@ -40,8 +40,12 @@ function recordPageView(
 	context: PagesMiddlewareContext,
 	response: Response,
 ): void {
-	const writeDataPoint = context.env?.EVENTS?.writeDataPoint;
-	if (!writeDataPoint || !shouldRecordPageView(context.request, response))
+	const events = context.env?.EVENTS;
+	if (
+		!events?.writeDataPoint ||
+		context.request.headers.get('X-CLC-Synthetic') === '1' ||
+		!shouldRecordPageView(context.request, response)
+	)
 		return;
 
 	const write = () => {
@@ -51,7 +55,7 @@ function recordPageView(
 				context.request.headers.get('user-agent'),
 				undefined,
 			);
-			writeDataPoint({
+			events.writeDataPoint({
 				blobs: ['page_view', path, '', '', '', trafficType],
 				indexes: ['page_view'],
 			});
@@ -72,7 +76,10 @@ export const onRequest = async (
 ): Promise<Response> => {
 	const url = new URL(context.request.url);
 	const destination = legacyToolDestination(url.pathname);
-	if (destination && (context.request.method === 'GET' || context.request.method === 'HEAD')) {
+	if (
+		destination &&
+		(context.request.method === 'GET' || context.request.method === 'HEAD')
+	) {
 		url.pathname = destination;
 		const headers = new Headers({ Location: url.toString() });
 		if (url.searchParams.has('settings')) {
