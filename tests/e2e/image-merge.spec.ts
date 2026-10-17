@@ -53,7 +53,7 @@ test.describe('画像連結・コンタクトシート', () => {
 		createToolPage,
 	}) => {
 		const toolPage = createToolPage('image-merge');
-		await toolPage.expectTitle('画像の連結・結合');
+		await toolPage.expectTitle('画像結合ツール');
 		await toolPage.expectSafetyBadge();
 		await expect(
 			page
