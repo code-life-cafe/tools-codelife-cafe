@@ -24,7 +24,7 @@ Routineの外部指示に一律の「自動マージ禁止」が残っている�
 - 同じサマリーのCode ReviewとSecurity Reviewの両行が `Completed` で、両行の対象コミットがそのheadと一致することを確認する。片方がRunning、旧コミット、失敗、形式不明なら停止する。
 - 完了は指摘なしを意味しない。PRのレビュー本文・inline comments・未解決threadを合わせて確認し、blocking findingには同じ最新headでの解消確認が必要。👍は補助信号に留める。`mergeGateEnabled: false` でもこの運用条件を省略しない。
 - **代替: ローカルCLIレビュー（Grok Bot運用ループのR0/R1のみ）** Grok Bot運用ループがR0/R1をMergeする場合に限り、次を満たすPRコメントを完了信号として扱う。Merge前にGrok Bot運用ループが投稿し、実装と異なるモデルでの実行（Claude実装PRはCodex CLI: モデル`gpt-6.1-sol`・reasoning effort `low`・`--sandbox read-only`、Codex実装PRはClaude Code CLI: Sonnet・編集ツールを許可しない読み取り専用）、レビュー対象head SHAの完全一致（最新headと同一であること）、findingの一覧と分類、判定（blocking findingなし、または同じ最新headの再レビューでblocking findingが解消済み）を記録している。
-- 優先順位: 最新headについて上記Codex bot信号が存在し未解決のblocking findingがある場合、ローカルレビューの記録があってもその指摘は解消したことにならず、Mergeを止める。bot信号がない、またはbot信号に未解決のblocking findingがない場合は、bot信号とこのローカルレビュー信号のいずれかで完了とみなす。bot信号で完了を確認できず、ローカルレビューも実行できない、またはその結果・対象headを確認できない場合はR0/R1も自動Mergeしない（bot信号で完了を確認できる場合、ローカルレビューは必須ではない）。
+- 優先順位: 最新headについて上記Codex bot信号が存在し未解決のblocking findingがある場合、ローカルレビューの記録があってもその指摘は解消したことにならず、Mergeを止める。bot信号がない、またはbot信号に未解決のblocking findingがない場合は、bot信号とこのローカルレビュー信号のいずれかで完了とみなす。bot信号で完了を確認できず、ローカルレビューも実行できない、またはその結果・対象headを確認できない場合はR0/R1も自動Mergeしない（bot信号で完了を確認できる場合、ローカルレビューは必須ではない。ただしCodex実装PRでは、実装と異なるモデルのレビューとしてClaude Codeのレビュー記録が別途必要）。
 
 これはPR #384/#385で観測した既存Codex連携の信号であり、新規checkやWorkflowではない。CI内の `npm audit` は必要な依存検査だが、Codex Security Reviewの代用にはしない。botや出力形式が変わった場合は推測で通さず、人間へ確認して手順を更新する。
 
