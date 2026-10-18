@@ -1,6 +1,17 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('Base64 Converter Tool', () => {
+	test('テキストデコードは先頭U+FEFFを保持する', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('base64').goto();
+		await page.getByRole('switch').click();
+		await page.getByRole('textbox', { name: /^入力/ }).fill('77u/YWJj');
+		await expect(page.getByRole('textbox', { name: '変換結果' })).toHaveValue(
+			'\uFEFFabc',
+		);
+	});
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('base64');
 		await toolPage.goto();
