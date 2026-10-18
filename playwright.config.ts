@@ -9,6 +9,8 @@ export default defineConfig({
 	reporter: process.env.CI ? 'html' : 'list',
 	use: {
 		baseURL: 'http://localhost:4321',
+		// Explicit opt-out: never classify our test requests as user activity.
+		extraHTTPHeaders: { 'X-CLC-Synthetic': '1' },
 		trace: 'on-first-retry',
 		screenshot: 'only-on-failure',
 		// SW は context.route() を素通りし、並列実行時にハイドレーションを遅延させるため無効化
