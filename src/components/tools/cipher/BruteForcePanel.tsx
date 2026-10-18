@@ -6,6 +6,7 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { caesarBruteForce } from '@/lib/cipher/caesar';
 import {
 	type CaesarCandidateOrder,
 	scoredCaesarCandidates,
@@ -25,15 +26,12 @@ export function BruteForcePanel({
 	const [isOpen, setIsOpen] = useState(false);
 	const [order, setOrder] = useState<CaesarCandidateOrder>('shift');
 
-	const patterns = useMemo(() => {
+	const displayedPatterns = useMemo(() => {
 		if (!input) return [];
-		return scoredCaesarCandidates(input, 'score');
-	}, [input]);
-
-	const displayedPatterns =
-		order === 'score'
-			? patterns
-			: [...patterns].sort((a, b) => a.shift - b.shift);
+		return isOpen && order === 'score'
+			? scoredCaesarCandidates(input, 'score')
+			: caesarBruteForce(input);
+	}, [input, isOpen, order]);
 
 	return (
 		<Collapsible
