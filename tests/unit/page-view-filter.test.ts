@@ -14,6 +14,7 @@ async function observe({
 } = {}) {
 	const writes: Point[] = [];
 	const pending: Promise<unknown>[] = [];
+	let nextCalls = 0;
 	const headers = new Headers({ 'User-Agent': 'Mozilla/5.0', Accept: '*/*' });
 	if (synthetic) headers.set('X-CLC-Synthetic', '1');
 	const original = new Response(null, {
@@ -31,7 +32,10 @@ async function observe({
 			method,
 			headers,
 		}),
-		next: async () => original,
+		next: async () => {
+			nextCalls++;
+			return original;
+		},
 		env: { EVENTS: binding },
 		...(deferred
 			? {
@@ -42,7 +46,7 @@ async function observe({
 			: {}),
 	});
 	await Promise.all(pending);
-	return { response, original, writes };
+	return { response, original, writes, nextCalls };
 }
 
 test('successful complete HTML GET records exactly one existing-schema page_view', async () => {
@@ -129,14 +133,33 @@ for (const path of [
 	'/models/example',
 	'/transcribe/',
 	'/video-compress/',
-	'/tools/transcribe/',
-	'/tools/video-compress/',
+	'/tools%2Ftranscribe/',
+	'/tools%2Fvideo-compress/',
 ]) {
 	test(`successful HTML GET remains excluded at ${path}`, async () => {
-		const { writes } = await observe({ path });
+		const { response, original, writes, nextCalls } = await observe({ path });
+		assert.equal(nextCalls, 1);
+		assert.equal(response, original);
 		assert.deepEqual(writes, []);
 	});
 }
+
+test('legacy privacy URLs redirect without calling next or recording page_view', async () => {
+	for (const slug of ['transcribe', 'video-compress']) {
+		for (const suffix of ['', '/']) {
+			const { response, writes, nextCalls } = await observe({
+				path: `/tools/${slug}${suffix}`,
+			});
+			assert.equal(nextCalls, 0);
+			assert.equal(response.status, 301);
+			assert.equal(
+				response.headers.get('Location'),
+				`https://tools.codelife.cafe/${slug}/`,
+			);
+			assert.deepEqual(writes, []);
+		}
+	}
+});
 
 test('synthetic GET 200 still delivers HTML without persisting page_view', async () => {
 	const { response, original, writes } = await observe({
