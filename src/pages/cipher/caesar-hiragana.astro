@@ -1,0 +1,41 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import JsonLd from '../../components/common/JsonLd.astro';
+import ToolHero from '../../components/tool/ToolHero.astro';
+import Faq from '../../components/tool/Faq.astro';
+import { CipherPage } from '../../components/tools/cipher/CipherPage';
+import { generateJsonLd } from '../../lib/jsonld';
+import { normalizeCanonicalPath } from '../../lib/seo/url';
+
+const title = 'ひらがなのシーザー暗号｜日本語の変換・解読と例題';
+const description = 'ひらがなのシーザー暗号を日本語の例題で学び、その場で暗号化・復号できる無料ツール。かな46文字の循環や濁音の扱い、鍵が不明なときの総当たり解読と推測順の並べ替えを解説。入力はブラウザ内で処理します。';
+const path = normalizeCanonicalPath('/cipher/caesar-hiragana/');
+const faq = [
+  { q: 'ひらがなのシーザー暗号はどの順番でずらしますか？', a: '「あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん」の46文字を循環します。シフト3なら「こんにちは」は「すうのとへ」になります。カタカナも同じ順序で、英字は大文字・小文字それぞれ26文字を循環します。' },
+  { q: '濁音・半濁音や漢字も変換できますか？', a: '「が」「ぱ」などは基字と濁点・半濁点に分解し、基字をずらして、可能なら再結合します。シフト1で「がぱ」は「ぎぴ」になります。結合できない場合も濁点・半濁点は残ります。小書きかな・長音・漢字・数字・記号はシフトしません。Unicodeの分解・再結合で表現が正規化される場合があります。' },
+  { q: '鍵がわからないシーザー暗号を解読できますか？', a: '全候補を見ると、対応するかなを含む入力はシフト1〜45、それ以外は1〜25の復号候補を表示します。日本語らしさ順（推測）では文字頻度や短い頻出語で並べ替えます。英語らしさも評価しますが、スコアは推測で正解を保証しません。候補を選ぶとシフト数と復号方向が反映されます。' },
+  { q: '入力した文章は保存・送信されますか？', a: '入力本文は保存せず、変換と候補の評価はブラウザ内で完結します。本文を外部へ送信しません。シーザー暗号はパズル・学習向けで、秘密情報を保護する安全な暗号化には使えません。' },
+];
+const jsonLd = generateJsonLd({ title, path, summary: description, faq });
+---
+
+<BaseLayout title={title} description={description} path={path} ogImage="/og/cipher.png">
+  <JsonLd slot="head" data={jsonLd} />
+  <div class="mx-auto max-w-[800px] xl:max-w-5xl px-4 sm:px-6 py-8">
+    <nav aria-label="パンくずリスト" class="mb-6 text-sm text-muted-foreground">
+      <a href="/" class="underline">ホーム</a> › <span aria-current="page">ひらがなのシーザー暗号</span>
+    </nav>
+    <ToolHero title="ひらがなのシーザー暗号：日本語の変換・解読" summary={description} />
+    <p class="mb-6"><a href="/cipher/" class="text-primary underline">シーザー暗号変換・解読ツールへ</a>（ROT13・モールス信号・文字列反転も使えます）</p>
+    <section aria-labelledby="examples-heading" class="mb-8 space-y-4 leading-relaxed">
+      <h2 id="examples-heading" class="text-xl font-bold">ひらがなの暗号化・復号・総当たり解読の例題</h2>
+      <p>暗号化：「こんにちは」を入力し、シフト3で「エンコード（暗号化）」を選ぶと「すうのとへ」になります。下の例文ボタンでも試せます。</p>
+      <p>復号：「すうのとへ」を入力し、同じシフト3で「デコード（復号）」を選ぶと「こんにちは」に戻ります。</p>
+      <p>総当たり解読：「すうのとへ」の鍵が不明なら「鍵がわからないとき：全候補を見る」を開きます。45候補を確認し、「日本語らしさ順（推測）」で先頭の「シフト 3: こんにちは」を選ぶと復号結果に反映されます。スコアは推測で、正解を保証しません。</p>
+    </section>
+    <section aria-label="ツール操作エリア" class="my-8 min-w-0 rounded-2xl border border-border/80 bg-card p-4 sm:p-6 shadow-xs">
+      <CipherPage client:load />
+    </section>
+    <Faq faq={faq} />
+  </div>
+</BaseLayout>
