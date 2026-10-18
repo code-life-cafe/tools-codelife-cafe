@@ -3,6 +3,7 @@ import { ToolPage } from '../helpers/tool-page';
 
 type MyFixtures = {
 	createToolPage: (path: string) => ToolPage;
+	excludedAnalyticsRequests: string[];
 };
 
 // React Island のハイドレーション完了前に fill/click すると controlled component が
@@ -17,8 +18,25 @@ async function waitForClientLoadIslands(page: Page) {
 }
 
 export const test = baseTest.extend<MyFixtures>({
-	page: async ({ page }, use) => {
-		// Block analytics to prevent test timeouts/flakiness
+	// biome-ignore lint/correctness/noEmptyPattern: Playwright requires destructured fixture dependencies.
+	excludedAnalyticsRequests: async ({}, use) => {
+		await use([]);
+	},
+	page: async ({ page, excludedAnalyticsRequests }, use) => {
+		// Block production analytics at the test boundary. Individual analytics tests
+		// may override the API route to capture payloads without persisting events.
+		await page.context().route('**/api/event', (route) => {
+			excludedAnalyticsRequests.push(route.request().url());
+			return route.fulfill({ status: 204 });
+		});
+		await page.context().route('**/*cloudflareinsights.com/**', (route) => {
+			excludedAnalyticsRequests.push(route.request().url());
+			return route.abort();
+		});
+		await page.context().route('**/cdn-cgi/rum*', (route) => {
+			excludedAnalyticsRequests.push(route.request().url());
+			return route.abort();
+		});
 		await page.route('**/*googletagmanager*', (route) => route.abort());
 		const originalGoto = page.goto.bind(page);
 		page.goto = async (...args: Parameters<Page['goto']>) => {
