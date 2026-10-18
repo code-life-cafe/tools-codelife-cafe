@@ -1,0 +1,11 @@
+# Successful HTML page-view filter: local verification
+
+Risk: R3 (Analytics). Base: origin/main 7d1d332. Only middleware eligibility, synthetic unit coverage and analytics documentation change. Existing PR493 receiver preservation, synthetic opt-out, event schema, traffic classifier, privacy-path exclusions and settings noindex behavior remain intact. No new event/property, dependency, config or permission change.
+
+Definition: GET + HTTP 200 + HTML media type. Other 2xx are excluded intentionally (no-content/partial/accepted responses do not establish normal complete document delivery). Media type comparison ignores case and parameters, but not a different type containing the text/html substring. This is an HTTP-delivery count, never tool success or verified human activity.
+
+Regression evidence: before implementation, 39 initial synthetic tests ran: 14 passed and 25 failed (non-GET and non-200 HTML were recorded). After correction and additional MIME/noindex cases, the new file has 45 synthetic cases. Combined middleware, analytics reliability/policy and legacy-route tests: 79/79 pass, no skips, using Request/Response and captured binding writes with the original receiver.
+
+Local checks: npm run build passes; npm run lint passes with existing 19 warnings/1 info; npx tsc --noEmit --pretty false --ignoreDeprecations 6.0 passes. See PR for exact final-SHA full-unit and independent Claude Code review results. Browser E2E was not run for this server-only predicate: the local Astro static preview does not execute Pages Functions, so passing browser navigation would not validate middleware eligibility. Tests invoke the actual middleware handler, preserve response identity/status and cover immediate/waitUntil writes. No production access was made.
+
+Limitations: a 200 HTML soft 404 or SPA fallback remains counted. No ClientRouter/ViewTransitions was found in src; static 404.astro exists, but live platform rewrite behavior was not probed. No route allowlist/body inspection/client navigation event is added. Offline/cache displays may not reach middleware. Historic contamination volume and post-change durable storage were not measured; historical rows do not contain method/status for retrospective correction. Merge/deployment requires separate authorization.
