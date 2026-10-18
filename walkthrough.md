@@ -225,6 +225,15 @@ Node v22.22.2（指定PATH）。初回はnode_modules不在でcheck/buildが失�
 
 詳細ログ: /tmp/467-lint-final.log、/tmp/467-check-final.log、/tmp/467-build-final.log、/tmp/467-unit-postbuild.log、/tmp/467-score-details.log、/tmp/467-cipher-details.log、/tmp/467-links.log、/tmp/467-mermaid.log、/tmp/467-webmcp.log、/tmp/467-e2e.log、/tmp/467-e2e-list.log。
 
+### コーディネータ環境での再検証（commit 7af59eb、2026-10-18）
+
+上記の失敗はMakerのサンドボックス固有（フォント取得・子プロセス起動・localhost待受けの制限）だった。コーディネータ環境（Node 22）で次を確認した。こちらを正本とする。
+
+- `npm run lint` / `npm run check` / `npm run build`: 成功（OG画像生成・SW生成を含む）。dist/sitemap-0.xmlに `/cipher/caesar-hiragana/` を掲載
+- `npm run test:unit`: 1791/1791成功
+- E2E: cipher系（cipher.spec.ts・cipher-hiragana-landing.spec.ts）30/30成功（chromium + mobile-chrome、--retries=0）。全E2Eは1747成功・2失敗で、失敗はいずれも既知のflaky（sql-formatter.spec.ts:311、layout.spec.ts:44 mobile。後者は単独で3/3成功）
+- 375px・1440pxで横はみ出し0
+
 ## 変更禁止対象・計測
 
 WebMCP（*.mcp.ts含む）・catalog.ts・index.astro・astro.config.mjs・public/_redirects・functions・CI・package/lockfile・scripts・計測実装・E2E fixtureに差分なし。src/content/toolsには追加/変更なし。新ページはページ内メタデータのみ。既存変換関数・既存cipher E2Eも変更なし。

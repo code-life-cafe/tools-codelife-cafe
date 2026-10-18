@@ -207,4 +207,4 @@ approved-unicode-plan.mdのAPI/予算/変更範囲に従う。Codex実装・agy�
 
 変更禁止: WebMCP、catalog、Astro設定、redirect、functions、CI、依存、scripts、計測実装、E2E fixture。埋め込みも既存 useToolAnalytics('cipher') を維持。ネストしたページのオフラインprecacheは今回未対応。GSCでの4週間後再計測はデプロイ後の運用事項。
 
-実施結果: 1〜4の実装とspec作成完了。lint/check、対象unit、生成済みHTML/sitemap確認は成功。5のbuild全体・全unit・E2Eは環境起因の失敗が残るため検証完了とはしない。詳細はwalkthrough.mdのissue #467節を参照。
+実施結果: 1〜4の実装とspec作成完了。lint/check、対象unit、生成済みHTML/sitemap確認は成功。5のbuild全体・全unit・E2EはMakerのサンドボックスでは環境起因で失敗したが、コーディネータ環境で再検証して成功した（walkthrough.mdのissue #467節「コーディネータ環境での再検証」を参照）。
