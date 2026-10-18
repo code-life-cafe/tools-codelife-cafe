@@ -25,7 +25,10 @@ export function decodeBase64(base64: string): string {
 		}
 		const binString = atob(cleaned);
 		const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0) ?? 0);
-		return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+		// 先頭のU+FEFFも入力文字として保持し、往復変換で失わない。
+		return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+			bytes,
+		);
 	} catch (_error) {
 		throw new Error(
 			'デコードに失敗しました。Base64文字列の形式を確認してください。',
