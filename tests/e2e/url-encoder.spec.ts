@@ -14,7 +14,13 @@ test.describe('URL Encoder Tool', () => {
 					scrollWidth: document.documentElement.scrollWidth,
 					tabs: [...document.querySelectorAll('[role="tab"]')].map((tab) => {
 						const { left, right, top } = tab.getBoundingClientRect();
-						return { left, right, top };
+						return {
+							left,
+							right,
+							top,
+							scrollWidth: tab.scrollWidth,
+							clientWidth: tab.clientWidth,
+						};
 					}),
 				}));
 				await testInfo.attach(stage, {
@@ -25,6 +31,7 @@ test.describe('URL Encoder Tool', () => {
 				for (const tab of layout.tabs) {
 					expect(tab.left).toBeGreaterThanOrEqual(0);
 					expect(tab.right).toBeLessThanOrEqual(layout.viewport);
+					expect(tab.scrollWidth).toBeLessThanOrEqual(tab.clientWidth + 1);
 				}
 				expect(layout.tabs).toHaveLength(2);
 				expect(layout.tabs[0].top).toBe(layout.tabs[1].top);
