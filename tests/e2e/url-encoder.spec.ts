@@ -1,6 +1,65 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('URL Encoder Tool', () => {
+	for (const width of [375, 768, 1280]) {
+		test(`keeps modes within the viewport at ${width}px`, async ({
+			page,
+			createToolPage,
+		}, testInfo) => {
+			await page.setViewportSize({ width, height: 900 });
+			await createToolPage('url-encoder').goto();
+			const assertLayout = async (stage: string) => {
+				const layout = await page.evaluate(() => ({
+					viewport: document.documentElement.clientWidth,
+					scrollWidth: document.documentElement.scrollWidth,
+					tabs: [...document.querySelectorAll('[role="tab"]')].map((tab) => {
+						const { left, right } = tab.getBoundingClientRect();
+						return { left, right };
+					}),
+				}));
+				await testInfo.attach(stage, {
+					body: JSON.stringify(layout),
+					contentType: 'application/json',
+				});
+				expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewport);
+				for (const tab of layout.tabs) {
+					expect(tab.left).toBeGreaterThanOrEqual(0);
+					expect(tab.right).toBeLessThanOrEqual(layout.viewport);
+				}
+			};
+			await assertLayout('empty');
+			await page.reload();
+			await expect(
+				page.locator('astro-island[ssr][client="load"]'),
+			).toHaveCount(0);
+			await assertLayout('reloaded');
+			const input = page.getByRole('textbox').first();
+			const output = page.getByRole('textbox').nth(1);
+			await page.getByRole('switch').click();
+			await input.fill('https://example.com/東京?q=天気');
+			await expect(output).toHaveValue(
+				'https%3A%2F%2Fexample.com%2F%E6%9D%B1%E4%BA%AC%3Fq%3D%E5%A4%A9%E6%B0%97',
+			);
+			await page
+				.getByRole('tab', { name: 'フルURL (encodeURI)' })
+				.press('Enter');
+			await expect(output).toHaveValue(
+				'https://example.com/%E6%9D%B1%E4%BA%AC?q=%E5%A4%A9%E6%B0%97',
+			);
+			await assertLayout('full-url');
+			await page
+				.getByRole('tab', { name: 'コンポーネント (encodeURIComponent)' })
+				.press('Enter');
+			await expect(output).toHaveValue(
+				'https%3A%2F%2Fexample.com%2F%E6%9D%B1%E4%BA%AC%3Fq%3D%E5%A4%A9%E6%B0%97',
+			);
+			await assertLayout('component');
+			await testInfo.attach('layout', {
+				body: await page.screenshot(),
+				contentType: 'image/png',
+			});
+		});
+	}
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('url-encoder');
 		await toolPage.goto();

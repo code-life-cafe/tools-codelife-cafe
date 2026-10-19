@@ -66,7 +66,7 @@ export default function UrlEncoder() {
 					onValueChange={(val) => setMode(val as UrlEncodeMode)}
 				>
 					<div className="flex justify-center sm:justify-start">
-						<TabsList className="bg-muted/50 p-1 rounded-xl">
+						<TabsList className="bg-muted/50 p-1 rounded-xl flex-col sm:flex-row group-data-[orientation=horizontal]/tabs:h-auto sm:group-data-[orientation=horizontal]/tabs:h-9">
 							<TabsTrigger
 								value="component"
 								className="rounded-lg px-4 sm:px-6 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md transition-all font-medium whitespace-nowrap"
