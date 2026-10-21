@@ -46,7 +46,13 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 				'</svg>',
 			].join('\n'),
 		);
+	// モバイルでは初期表示がエディタなので、プレビュータブに切り替える。
+	const previewTab = page.getByRole('tab', { name: 'プレビュー' });
+	if (await previewTab.isVisible()) {
+		await previewTab.click();
+	}
 	const preview = page.getByTestId('markdown-preview');
+	await expect(preview).toBeVisible();
 	await expect(preview.locator('h1')).toHaveText('画像ポリシー確認');
 	for (const id of [
 		'external-img',
@@ -79,9 +85,9 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 		IMAGE_DATA,
 	);
 	await expect(preview.locator('#safe-shape')).toHaveCount(1);
-	await expect(
-		preview.getByRole('link', { name: '通常リンク' }),
-	).toHaveAttribute('href', 'https://example.com/');
+	const normalLink = preview.getByRole('link', { name: '通常リンク' });
+	await expect(normalLink).toBeVisible();
+	await expect(normalLink).toHaveAttribute('href', 'https://example.com/');
 
 	// The download must use the same sanitized output as the preview.
 	const downloadPromise = page.waitForEvent('download');
