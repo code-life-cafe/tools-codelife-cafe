@@ -67,7 +67,7 @@
 		"react": "^19.3.1",
 		"react-dom": "^19.3.1",
 		"smol-toml": "^1.9.0",
-		"sql-formatter": "^15.8.2",
+		"sql-formatter": "^15.9.0",
 		"tailwind-merge": "^3.7.0",
 		"tailwindcss": "^4.2.4",
 		"tiny-segmenter": "0.2.0",
