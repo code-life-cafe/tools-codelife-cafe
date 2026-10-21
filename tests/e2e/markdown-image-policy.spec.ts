@@ -21,29 +21,31 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 		route.fulfill({ status: 200, contentType: 'image/png', body: '' }),
 	);
 
-	await page.getByLabel('Markdown入力').fill(
-		[
-			'# 画像ポリシー確認',
-			'',
-			'[通常リンク](https://example.com/)',
-			'',
-			`<img id="external-img" src="${PROBE_ORIGIN}/markdown-image-probe/img.png" srcset="${PROBE_ORIGIN}/markdown-image-probe/srcset.png 2x">`,
-			`<img id="safe-img" src="${IMAGE_DATA}">`,
-			'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10">',
-			`<image id="external-href" href="${PROBE_ORIGIN}/markdown-image-probe/href.png" width="1" height="1"/>`,
-			`<image id="external-xlink" xlink:href="${PROBE_ORIGIN}/markdown-image-probe/xlink.png" width="1" height="1"/>`,
-			`<image id="mixed-hrefs" href="${IMAGE_DATA}" xlink:href="${PROBE_ORIGIN}/markdown-image-probe/mixed.png" width="1" height="1"/>`,
-			'<image id="relative-href" href="/markdown-image-probe/relative.png" width="1" height="1"/>',
-			'<image id="protocol-relative" href="//127.0.0.1:49383/markdown-image-probe/protocol.png" width="1" height="1"/>',
-			`<image id="safe-href" href="${IMAGE_DATA}" width="1" height="1"/>`,
-			`<image id="safe-xlink" xlink:href="${IMAGE_DATA}" width="1" height="1"/>`,
-			'<defs><filter id="external-filter">',
-			`<feImage id="external-feimage" href="${PROBE_ORIGIN}/markdown-image-probe/filter.png"/>`,
-			'</filter></defs>',
-			'<circle id="safe-shape" cx="5" cy="5" r="4" filter="url(#external-filter)"/>',
-			'</svg>',
-		].join('\n'),
-	);
+	await page
+		.getByLabel('Markdown入力')
+		.fill(
+			[
+				'# 画像ポリシー確認',
+				'',
+				'[通常リンク](https://example.com/)',
+				'',
+				`<img id="external-img" src="${PROBE_ORIGIN}/markdown-image-probe/img.png" srcset="${PROBE_ORIGIN}/markdown-image-probe/srcset.png 2x">`,
+				`<img id="safe-img" src="${IMAGE_DATA}">`,
+				'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10">',
+				`<image id="external-href" href="${PROBE_ORIGIN}/markdown-image-probe/href.png" width="1" height="1"/>`,
+				`<image id="external-xlink" xlink:href="${PROBE_ORIGIN}/markdown-image-probe/xlink.png" width="1" height="1"/>`,
+				`<image id="mixed-hrefs" href="${IMAGE_DATA}" xlink:href="${PROBE_ORIGIN}/markdown-image-probe/mixed.png" width="1" height="1"/>`,
+				'<image id="relative-href" href="/markdown-image-probe/relative.png" width="1" height="1"/>',
+				'<image id="protocol-relative" href="//127.0.0.1:49383/markdown-image-probe/protocol.png" width="1" height="1"/>',
+				`<image id="safe-href" href="${IMAGE_DATA}" width="1" height="1"/>`,
+				`<image id="safe-xlink" xlink:href="${IMAGE_DATA}" width="1" height="1"/>`,
+				'<defs><filter id="external-filter">',
+				`<feImage id="external-feimage" href="${PROBE_ORIGIN}/markdown-image-probe/filter.png"/>`,
+				'</filter></defs>',
+				'<circle id="safe-shape" cx="5" cy="5" r="4" filter="url(#external-filter)"/>',
+				'</svg>',
+			].join('\n'),
+		);
 	const preview = page.getByTestId('markdown-preview');
 	await expect(preview.locator('h1')).toHaveText('画像ポリシー確認');
 	for (const id of [
