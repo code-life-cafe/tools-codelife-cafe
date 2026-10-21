@@ -62,16 +62,26 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 			await expect(element).not.toHaveAttribute(attribute);
 		}
 	}
-	await expect(preview.locator('#mixed-hrefs')).toHaveAttribute('href', IMAGE_DATA);
-	await expect(preview.locator('#mixed-hrefs')).not.toHaveAttribute('xlink:href');
-	await expect(preview.locator('#safe-img')).toHaveAttribute('src', IMAGE_DATA);
-	await expect(preview.locator('#safe-href')).toHaveAttribute('href', IMAGE_DATA);
-	await expect(preview.locator('#safe-xlink')).toHaveAttribute('xlink:href', IMAGE_DATA);
-	await expect(preview.locator('#safe-shape')).toHaveCount(1);
-	await expect(preview.getByRole('link', { name: '通常リンク' })).toHaveAttribute(
+	await expect(preview.locator('#mixed-hrefs')).toHaveAttribute(
 		'href',
-		'https://example.com/',
+		IMAGE_DATA,
 	);
+	await expect(preview.locator('#mixed-hrefs')).not.toHaveAttribute(
+		'xlink:href',
+	);
+	await expect(preview.locator('#safe-img')).toHaveAttribute('src', IMAGE_DATA);
+	await expect(preview.locator('#safe-href')).toHaveAttribute(
+		'href',
+		IMAGE_DATA,
+	);
+	await expect(preview.locator('#safe-xlink')).toHaveAttribute(
+		'xlink:href',
+		IMAGE_DATA,
+	);
+	await expect(preview.locator('#safe-shape')).toHaveCount(1);
+	await expect(
+		preview.getByRole('link', { name: '通常リンク' }),
+	).toHaveAttribute('href', 'https://example.com/');
 
 	// The download must use the same sanitized output as the preview.
 	const downloadPromise = page.waitForEvent('download');
