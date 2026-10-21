@@ -1,6 +1,6 @@
-import { classifyTrafficType } from './lib/traffic-type.ts';
 import { isAnalyticsDisabledPath } from '../src/lib/analytics-policy.ts';
 import { legacyToolDestination } from '../src/lib/seo/legacy-tools.ts';
+import { classifyTrafficType } from './lib/traffic-type.ts';
 
 type Env = {
 	EVENTS?: {
@@ -26,8 +26,12 @@ const EXCLUDED_PATH_PREFIXES = ['/api/', '/models/'];
 // それだけを基準にすると非ブラウザ流入を取りこぼす。実際に配信されたレスポンスの
 // Content-Type で判定する。
 function shouldRecordPageView(request: Request, response: Response): boolean {
+	// 完全なHTMLドキュメントの通常配信だけを数える。HEADや部分応答は除外する。
+	if (request.method !== 'GET' || response.status !== 200) return false;
+
 	const contentType = response.headers.get('content-type') ?? '';
-	if (!contentType.includes('text/html')) return false;
+	const mediaType = contentType.split(';', 1)[0]?.trim().toLowerCase();
+	if (mediaType !== 'text/html') return false;
 
 	const path = new URL(request.url).pathname;
 	if (isAnalyticsDisabledPath(path)) return false;
@@ -40,8 +44,12 @@ function recordPageView(
 	context: PagesMiddlewareContext,
 	response: Response,
 ): void {
-	const writeDataPoint = context.env?.EVENTS?.writeDataPoint;
-	if (!writeDataPoint || !shouldRecordPageView(context.request, response))
+	const events = context.env?.EVENTS;
+	if (
+		!events?.writeDataPoint ||
+		context.request.headers.get('X-CLC-Synthetic') === '1' ||
+		!shouldRecordPageView(context.request, response)
+	)
 		return;
 
 	const write = () => {
@@ -51,7 +59,7 @@ function recordPageView(
 				context.request.headers.get('user-agent'),
 				undefined,
 			);
-			writeDataPoint({
+			events.writeDataPoint({
 				blobs: ['page_view', path, '', '', '', trafficType],
 				indexes: ['page_view'],
 			});
@@ -72,7 +80,10 @@ export const onRequest = async (
 ): Promise<Response> => {
 	const url = new URL(context.request.url);
 	const destination = legacyToolDestination(url.pathname);
-	if (destination && (context.request.method === 'GET' || context.request.method === 'HEAD')) {
+	if (
+		destination &&
+		(context.request.method === 'GET' || context.request.method === 'HEAD')
+	) {
 		url.pathname = destination;
 		const headers = new Headers({ Location: url.toString() });
 		if (url.searchParams.has('settings')) {

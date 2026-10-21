@@ -356,8 +356,50 @@ test.describe('WebMCP Tool Registration — homepage', () => {
 
 		expect(result.tools.length).toBeGreaterThan(0);
 		const hashEntry = result.tools.find((t) => t.id === 'hash');
-		expect(hashEntry?.url).toBe('https://tools.codelife.cafe/hash');
+		expect(hashEntry?.url).toBe('https://tools.codelife.cafe/hash/');
 	});
+
+	for (const api of ['document', 'navigator'] as const) {
+		test(`list_tools / search_tools return slash-form URLs for every tool via ${api}`, async ({
+			page,
+		}) => {
+			await page.addInitScript(
+				api === 'document' ? WEBMCP_DOCUMENT_INIT_SCRIPT : WEBMCP_INIT_SCRIPT,
+			);
+			await page.goto('/');
+
+			const results = await page.evaluate(async (api) => {
+				const registered =
+					api === 'document'
+						? (window as unknown as WebMcpDocMockWindow).__webmcpDocTools
+						: (window as unknown as WebMcpMockWindow).__webmcpCalls.at(-1)
+								?.tools;
+				const list = registered?.find((t) => t.name === 'list_tools');
+				const search = registered?.find((t) => t.name === 'search_tools');
+				if (!list || !search) throw new Error('Site tools are not registered');
+				type Entry = { id: string; title: string; url: string };
+				const listed = (await list.execute({})) as { tools: Entry[] };
+				const searched = await Promise.all(
+					listed.tools.map(async (entry) => {
+						const result = (await search.execute({ query: entry.title })) as {
+							tools: Entry[];
+						};
+						return result.tools.find((t) => t.id === entry.id);
+					}),
+				);
+				return { listed: listed.tools, searched };
+			}, api);
+
+			expect(results.listed.length).toBeGreaterThan(0);
+			expect(results.searched).toEqual(results.listed);
+			for (const entry of results.listed) {
+				const url = new URL(entry.url);
+				expect(entry.url).toMatch(/^https:\/\/tools\.codelife\.cafe\/.+\/$/);
+				expect(url.search).toBe('');
+				expect(url.hash).toBe('');
+			}
+		});
+	}
 
 	test('search_tools execute returns matching tools', async ({ page }) => {
 		await page.addInitScript(WEBMCP_INIT_SCRIPT);

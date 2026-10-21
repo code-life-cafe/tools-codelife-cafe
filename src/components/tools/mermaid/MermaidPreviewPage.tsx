@@ -465,6 +465,10 @@ export function MermaidPreviewPage() {
 	}, []);
 
 	const toggleExpand = () => {
+		// 初回復元ではアニメーションせず、ユーザー操作から有効にする。
+		document
+			.getElementById('tool-layout-container')
+			?.classList.add('transition-all', 'duration-300');
 		updateSettings({ isExpanded: !settings.isExpanded });
 	};
 
@@ -477,7 +481,12 @@ export function MermaidPreviewPage() {
 			const container = document.getElementById('tool-layout-container');
 			if (container) {
 				container.classList.remove('max-w-full');
-				container.classList.add('max-w-[800px]', 'xl:max-w-5xl');
+				container.classList.add(
+					'max-w-[800px]',
+					'xl:max-w-5xl',
+					'transition-all',
+					'duration-300',
+				);
 			}
 		};
 	}, []);
@@ -573,7 +582,7 @@ export function MermaidPreviewPage() {
 				</div>
 
 				{/* 共有・エクスポートボタン群 */}
-				<div className="flex items-center gap-1.5">
+				<div className="flex min-w-0 flex-wrap items-center gap-1.5">
 					<Button
 						variant="outline"
 						size="sm"

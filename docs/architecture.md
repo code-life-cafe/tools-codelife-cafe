@@ -11,7 +11,7 @@
 - すべてのデータ処理（テキスト変換、CSV/JSON整形、画像処理、PDF編集、AI背景削除など）は、利用者のWebブラウザ内で完結します。
 - 外部のサーバーに対して処理対象データ（入力されたテキスト、アップロードされた画像やPDF等）を送信するAPIコールや通信は一切行いません。
 - これにより、機密性の高い業務データや個人情報であっても、情報漏洩のリスクなしで安心して利用できる設計となっています。
-- なお、Cloudflare Pages Functions（`functions/`）によるサーバーサイド処理自体は存在します（完全匿名イベント計測 `functions/api/event.ts`、`X-Robots-Tag` 付与等の `functions/_middleware.ts`、文字起こしモデルの同一オリジンプロキシ `functions/models/transcribe/[[path]].ts`）。いずれもユーザーの処理対象データ（入力テキスト・画像・音声等）には一切触れず、静的ファイル配信の補助や匿名の集計イベント送信に限定されます。詳細は §6 を参照してください。
+- なお、Cloudflare Pages Functions（`functions/`）によるサーバーサイド処理自体は存在します（完全匿名イベント計測 `functions/api/event.ts`、`X-Robots-Tag` 付与等の `functions/_middleware.ts`、文字起こしモデルの同一オリジンプロキシ `functions/models/transcribe/[[path]].ts`、ONNX Runtime WASMの同一オリジン配信 `functions/vendor/onnx-wasm/[[path]].ts`、計測用ヘルパー `functions/lib/`）。いずれもユーザーの処理対象データ（入力テキスト・画像・音声等）には一切触れず、静的ファイル配信の補助や匿名の集計イベント送信に限定されます。詳細は §6 を参照してください。
 
 ### 1.2 オフラインファースト (PWA)
 Service Worker を用いることで、一度アクセスしてインストール（PWA）した後は、インターネット接続がない環境（オフライン）でもすべてのツールを利用可能です。
@@ -48,7 +48,7 @@ Service Worker を用いることで、一度アクセスしてインストー�
 ```
 src/
 ├── components/          # UIコンポーネント
-│   ├── ui/              # shadcn/ui コンポーネント（Biome自動生成、手動編集不可）
+│   ├── ui/              # shadcn/ui コンポーネント（shadcn/ui CLIで生成、手動編集不可）
 │   ├── layout/          # 共通レイアウト部品（Header, Footer, Navigation, SafetyBadge等）
 │   ├── tool/            # ツール共通レイアウト（ToolLayout, RelatedTools, ToolHero等）
 │   ├── tools/           # 汎用的な各ツール固有React UI（テキスト/データ/開発系など）
@@ -73,15 +73,21 @@ src/
 ├── styles/
 │   └── global.css       # Tailwind CSS v4 設定、カラーテーマ、アニメーション定義
 └── workers/
-    ├── bg-remove.worker.ts # 重量処理（AI背景削除）のためのWeb Worker
-    ├── qr-reader.worker.ts # QRコード読み取り処理のためのWeb Worker
-    ├── transcribe.worker.ts # 重量処理（音声文字起こし）のためのWeb Worker
-    ├── upscale.worker.ts   # 重量処理（画像アップスケール・ノイズ除去）のためのWeb Worker
-    └── wordcloud.worker.ts # 形態素解析処理のためのWeb Worker
+    ├── bg-remove.worker.ts        # 重量処理（AI背景削除）のためのWeb Worker
+    ├── mermaid-repair.worker.ts   # Mermaidコード修復処理のためのWeb Worker
+    ├── qr-reader.worker.ts        # QRコード読み取り処理のためのWeb Worker
+    ├── text-diff.worker.ts        # テキスト差分計算のためのWeb Worker
+    ├── transcribe.worker.ts       # 重量処理（音声文字起こし・Whisper推論）のためのWeb Worker
+    ├── upscale.worker.ts          # 重量処理（画像アップスケール・ノイズ除去）のためのWeb Worker
+    ├── video-compress.worker.ts   # 動画圧縮・変換処理のためのWeb Worker
+    ├── video-thumbnails.worker.ts # 動画サムネイル生成処理のためのWeb Worker
+    └── wordcloud.worker.ts        # 形態素解析処理のためのWeb Worker
 
 functions/                  # Cloudflare Pages Functions（ユーザーデータには触れないサーバーサイド処理。§6 参照）
 ├── api/event.ts            # 完全匿名イベント計測（Cloudflare Analytics Engine）
+├── lib/                    # 計測用ヘルパー（known-bots.ts, traffic-type.ts）
 ├── models/transcribe/[[path]].ts # 文字起こしモデルの同一オリジンプロキシ
+├── vendor/onnx-wasm/[[path]].ts  # ONNX Runtime WASMの同一オリジン配信（R2経由）
 └── _middleware.ts          # page_view計測、X-Robots-Tag付与等
 ```
 
@@ -98,14 +104,16 @@ Service Worker（`sw.js`）はビルド時に自動生成されます。
    - プレースホルダー（`__HASH__`, `/* __ALL_PAGES__ */`, `/* __ALL_ASSETS__ */`）を含んだ Service Worker テンプレートとして管理されます。
 2. **ビルドフェーズ (`npm run build`):**
    - `astro build` 実行後、ポストビルドスクリプト `scripts/generate-sw.mjs` が自動起動します。
-   - `dist/` ディレクトリを走査し、全ページ（`/` およびツール個別ページ）と、`dist/_astro/` 配下の全静的アセット（JS, CSS, 画像など）のURL一覧を収集します。
+   - `dist/` ディレクトリを走査し、全ページ（`/` およびツール個別ページ）と、`dist/_astro/` 配下の全静的アセット（JS, CSS, 画像など）、および文字起こしマニフェストに基づく ONNX Runtime の配信パス（`listAllowedRuntimePaths()`）のURL一覧を収集します。
    - 収集したコンテンツのハッシュ値を計算して `CACHE_NAME`（`cl-tools-[hash]`）を作成します。
    - プレースホルダーを置換し、最終的な `dist/sw.js` を生成します。
 
 ### 4.2 キャッシュ更新ポリシー
 - 配信されたアセットファイルにはビルド時に一意のハッシュが含まれており、新しいデプロイが行われると、`generate-sw.mjs` が計算する `CACHE_NAME` のハッシュも変化します。
 - Service Worker の `activate` イベント時に、古いハッシュのキャッシュはすべて自動削除され、古いキャッシュの滞留を防止します。
-- ナビゲーション時および静的アセット要求時は、基本的に **Cache First** で高速に応答し、最新のコンテンツはバックグラウンド、もしくは新しい Service Worker の有効化時にプリキャッシュされます。
+- Service Worker のインストール（install）時は最小限のアセット（`MIN_ASSETS`）のみをキャッシュし、全ページ・全静的アセット（`ALL_PAGES` / `ALL_ASSETS`）の完全なプリキャッシュはページ側から `PRECACHE_ALL` メッセージを受信した際に実行されます。
+- 静的アセット（`/_astro/`、`/vendor/onnx-wasm/`、画像・フォント・CSS・JS・JSON・webmanifest等の拡張子）は **Cache First** でキャッシュから即座に応答します。
+- ページ要求（ブラウザナビゲーションや拡張子のないパス）は **Network First** で処理され、成功したナビゲーションをキャッシュし、オフライン時はキャッシュ、さらに `/offline/` フォールバックページへと順に解決します（その他のリクエストも Network First でキャッシュへフォールバック）。
 
 ---
 

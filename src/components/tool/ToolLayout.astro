@@ -18,6 +18,10 @@ interface Props {
 	disableAnalytics?: boolean;
 	/** 関連ツールカードを一切表示しない（frontmatterのrelatedだけでなく同カテゴリ補完も抑止する） */
 	hideRelatedTools?: boolean;
+	/** 初回描画の幅をページ側で復元する場合に使用する */
+	initialExpanded?: boolean;
+	/** ワークフロー所属ツールでも明示的に併記したい関連ツール（カニバリ対策の相互リンク等） */
+	extraRelatedSlugs?: string[];
 }
 
 const {
@@ -25,6 +29,8 @@ const {
 	path: customPath,
 	disableAnalytics = false,
 	hideRelatedTools = false,
+	initialExpanded = false,
+	extraRelatedSlugs,
 } = Astro.props;
 const { title, displayTitle, description, canonical, category, summary, useCases, howto, faq, related, updated } =
 	entry.data;
@@ -61,7 +67,8 @@ const jsonLdData = generateJsonLd(
 		<slot name="head" />
 	</Fragment>
 
-	<div id="tool-layout-container" class="transition-all duration-300 mx-auto max-w-[800px] xl:max-w-5xl px-4 sm:px-6 py-8">
+	<div id="tool-layout-container" class:list={["mx-auto px-4 sm:px-6 py-8", initialExpanded ? "max-w-full" : "transition-[max-width] duration-300 max-w-[800px] xl:max-w-5xl"]}>
+		<slot name="layout-init" />
 		<!-- Breadcrumbs -->
 		<nav aria-label="パンくずリスト" class="mb-6">
 			<ol class="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
@@ -98,7 +105,7 @@ const jsonLdData = generateJsonLd(
 		<!-- 5. FAQ セクション -->
 		<Faq faq={faq} />
 		<!-- 7. Related Tools セクション -->
-		{!hideRelatedTools && <RelatedTools toolId={toolId} relatedSlugs={related} />}
+		{!hideRelatedTools && <RelatedTools toolId={toolId} relatedSlugs={related} extraRelatedSlugs={extraRelatedSlugs} />}
 	</div>
 
 	<script is:inline define:vars={{ toolId }}>

@@ -56,9 +56,22 @@ MIT ライセンスは影響を受けません。LGPL-3.0 の全文は上記リ�
 
 ## PDF.js と同梱フォント・コーデック
 
-- **用途**: PDF圧縮のプレビュー・画像化、PDF→JPG/PNGのページ描画。Worker・CMap・フォント・WASMは同一オリジンから配信します。
+- **用途**: PDF圧縮のプレビュー・画像化、PDF→JPG/PNGのページ描画、PDFテキスト抽出（/pdf-to-text）。Worker・CMap・フォント・WASMは同一オリジンから配信します。
 - **バージョン**: pdfjs-dist 6.4.299（固定）。
 - **本体**: Mozilla Foundation、Apache-2.0。
 - **同梱素材**: Foxit/PDFiumフォント、Liberationフォント、OpenJPEG、JBIG2、QCMS等は、それぞれの同梱ライセンス条件によります。本体のApache-2.0と同一とは扱いません。
 - **原文の配布**: `public/vendor/pdfjs-dist/6.4.299/NOTICE.txt` に、パッケージ本体・standard_fonts・wasmの全LICENSEファイルを変更せず連結して収録しています。
 - **参照**: [PDF.jsリポジトリ](https://github.com/mozilla/pdf.js)、[配布するライセンス原文](https://tools.codelife.cafe/vendor/pdfjs-dist/6.4.299/NOTICE.txt)。
+
+## Tesseract.js・tesseract.js-core・tessdata_fast（画像文字起こし）
+
+- **用途**: 画像文字起こし（`/image-ocr`）の文字認識。Worker・core（WASM）・言語データは同一オリジンから配信し、CDNは使いません。
+- **Tesseract.js（`worker.min.js`）**: 7.0.0（固定）。Apache-2.0。
+- **tesseract.js-core（LSTM専用の3経路）**: 7.0.0（固定）。Apache-2.0。
+- **言語データ**: [tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast) の `jpn.traineddata`・`eng.traineddata`（コミット `87416418657359cb625c412a48b6e1d6d41c29bd`）。Apache-2.0。
+- **取得と検証**: `node scripts/prepare-ocr-assets.mjs` が公式配布元（npmレジストリ・tessdata_fastの固定コミット）から取得し、`src/lib/ocr/assets.ts` のSHA-256で検証します。
+- **原文の配布**: 配信ディレクトリ（`/vendor/ocr/7.0.0/`、`/models/ocr/<revision>/`）の `LICENSE-*.txt` に、各配布元のライセンス原文を変更せず収録しています。Workerの付属 `worker.min.js.LICENSE.txt` と、同ディレクトリの `licenses/` に第三者のライセンス・クレジット原文21件を同梱しています。取得元・固定revision・サイズ・SHA-256は `src/lib/ocr/licenses.ts` を参照してください。
+- **参照**: [Tesseract.jsリポジトリ](https://github.com/naptha/tesseract.js)、[tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)。
+
+- **同梱依存の調査**: Workerのsource mapとtesseract.js 7.0.0のlockfileから、base64-js、bmp-js、buffer、idb-keyval、ieee754、is-url、regenerator-runtime、wasm-feature-detect、zlibjsを確認。coreの固定source commit `acffef2b66eb44a31df297e11d905f4b39001068` のビルド定義とサブモジュールから、giflib、Leptonica、libjpeg、libpng、libtiff、libwebp、openlibm、Tesseract、zlib、Emscripten 4.0.15の原文を収録しました。本体のApache-2.0と全依存のライセンスを同一視しません。配布するWorker/coreの実行コード自体は変更していません。
+- This software is based in part on the work of the Independent JPEG Group.

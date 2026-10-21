@@ -1,0 +1,2 @@
+圧縮率が高いJPEGでは文字の輪郭が崩れます。
+Heavy compression artifacts appear here.

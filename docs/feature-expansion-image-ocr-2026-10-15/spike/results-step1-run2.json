@@ -1,0 +1,737 @@
+{
+  "env": {
+    "node": "v22.23.2",
+    "chromium": "156.0.8078.4",
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13700F",
+    "logicalCores": 24,
+    "ramGiB": 63.8,
+    "platform": "win32 10.0.26200"
+  },
+  "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; connect-src 'self' blob: https://models.tools.codelife.cafe https://huggingface.co https://*.huggingface.co https://*.hf.co https://*.xethub.hf.co https://cdn.jsdelivr.net https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com",
+  "stages": {
+    "diag": {
+      "init": {
+        "initMs": 123
+      },
+      "recognizeMs": 277,
+      "text": "本日の会議は午後三時から第二会議室で行います。\n資料は事前に共有フォルダへ保存してください。\n議事録は担当者が翌営業日までにまとめます。\n不明な点があれば、遠慮なく質問してください。\n",
+      "requests": [
+        "/spike.html",
+        "/spike-lib/tesseract.esm.min.js",
+        "blob:/e571b4e0-5c59-4bd9-b38f-2a5efe145212",
+        "/vendor/ocr/7.0.0/worker.min.js",
+        "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+        "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+        "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+        "/fixtures/clear/01-meiryo-prose.png"
+      ],
+      "failures": [],
+      "consoleErrors": [],
+      "served": [
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/01-meiryo-prose.png",
+          "bytes": 43723
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/xxx.traineddata",
+          "bytes": 0,
+          "status": 404
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/01-meiryo-prose.png",
+          "bytes": 43723
+        },
+        {
+          "path": "/fixtures/clear/02-mincho-prose.png",
+          "bytes": 49032
+        },
+        {
+          "path": "/fixtures/clear/03-biz-howto.png",
+          "bytes": 41329
+        },
+        {
+          "path": "/fixtures/clear/04-meiryo-mixed-jpeg.jpg",
+          "bytes": 40099
+        },
+        {
+          "path": "/fixtures/clear/05-mincho-jpeg.jpg",
+          "bytes": 39717
+        },
+        {
+          "path": "/fixtures/clear/06-biz-numbers.png",
+          "bytes": 40015
+        },
+        {
+          "path": "/fixtures/clear/07-meiryo-english.png",
+          "bytes": 37603
+        },
+        {
+          "path": "/fixtures/clear/08-mincho-news.png",
+          "bytes": 47888
+        },
+        {
+          "path": "/fixtures/clear/09-biz-small-jpeg.jpg",
+          "bytes": 32763
+        },
+        {
+          "path": "/fixtures/clear/10-meiryo-large.png",
+          "bytes": 29092
+        },
+        {
+          "path": "/fixtures/clear/11-mincho-symbols.png",
+          "bytes": 49839
+        },
+        {
+          "path": "/fixtures/clear/12-biz-recipe.png",
+          "bytes": 44925
+        },
+        {
+          "path": "/fixtures/degraded/d1-lowres.png",
+          "bytes": 6178
+        },
+        {
+          "path": "/fixtures/degraded/d2-tilt.png",
+          "bytes": 30411
+        },
+        {
+          "path": "/fixtures/degraded/d3-jpeg-q20.jpg",
+          "bytes": 6648
+        },
+        {
+          "path": "/fixtures/degraded/d4-vertical.png",
+          "bytes": 18725
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/perf/p1-3mp.png",
+          "bytes": 458454
+        },
+        {
+          "path": "/fixtures/perf/p1-3mp.png",
+          "bytes": 458454
+        },
+        {
+          "path": "/fixtures/perf/p1-3mp.png",
+          "bytes": 458454
+        },
+        {
+          "path": "/fixtures/perf/p1-3mp.png",
+          "bytes": 458454
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/perf/p1-3mp.png",
+          "bytes": 458454
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/07-meiryo-english.png",
+          "bytes": 37603
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/01-meiryo-prose.png",
+          "bytes": 43723
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-simd-lstm.wasm.js",
+          "bytes": 3899472
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/01-meiryo-prose.png",
+          "bytes": 43723
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-lstm.wasm.js",
+          "bytes": 3896484
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "bytes": 2471260
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        },
+        {
+          "path": "/fixtures/clear/01-meiryo-prose.png",
+          "bytes": 43723
+        },
+        {
+          "path": "/spike.html",
+          "bytes": 3132
+        },
+        {
+          "path": "/spike-lib/tesseract.esm.min.js",
+          "bytes": 63220
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/worker.min.js",
+          "bytes": 111307
+        },
+        {
+          "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "bytes": 3905767
+        },
+        {
+          "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "bytes": 4113088
+        }
+      ]
+    },
+    "missingModel": {
+      "result": "rejected: Error: Error: Network error while fetching http://127.0.0.1:58405/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/xxx.traineddata. Response code: 404",
+      "ms": 161,
+      "recoveredInit": {
+        "initMs": 88
+      },
+      "consoleErrors": []
+    },
+    "accuracy_partial": 16,
+    "accuracy": {
+      "init": {
+        "initMs": 111
+      },
+      "clear": {
+        "images": 12,
+        "refChars": 1206,
+        "dist": 29,
+        "cer": 0.024,
+        "cerWhitespaceStrippedReference": 0.0199
+      },
+      "perImage": [
+        {
+          "id": "01-meiryo-prose",
+          "group": "clear",
+          "font": "meiryo",
+          "refChars": 88,
+          "dist": 0,
+          "cer": 0,
+          "refCharsNoSpace": 88,
+          "distNoSpace": 0,
+          "cerNoSpaceReference": 0,
+          "ms": 273,
+          "text": "本日の会議は午後三時から第二会議室で行います。\n資料は事前に共有フォルダへ保存してください。\n議事録は担当者が翌営業日までにまとめます。\n不明な点があれば、遠慮なく質問してください。\n"
+        },
+        {
+          "id": "02-mincho-prose",
+          "group": "clear",
+          "font": "mincho",
+          "refChars": 86,
+          "dist": 2,
+          "cer": 0.0233,
+          "refCharsNoSpace": 86,
+          "distNoSpace": 2,
+          "cerNoSpaceReference": 0.0233,
+          "ms": 261,
+          "text": "吾墓は第である。名前はまだ無い。\n\nどこで生れたかとんと見当がつかぬ。\n\n何でも薄暗いじめじめした所で泣いていた事だけは記憶している。\n春の夜の夢のごとく、物語はゆっくりと始まった。\n"
+        },
+        {
+          "id": "03-biz-howto",
+          "group": "clear",
+          "font": "biz",
+          "refChars": 91,
+          "dist": 1,
+          "cer": 0.011,
+          "refCharsNoSpace": 87,
+          "distNoSpace": 1,
+          "cerNoSpaceReference": 0.0115,
+          "ms": 134,
+          "text": "操作手順\n\n1. 画面左上のメニューを開さます。\n\n2. 「設定」を選び、言語を日本語に変更します。\n3. 変更を保存して、アプリを再起動します。\n\n4. 正しく表示されたことを確認してください。\n"
+        },
+        {
+          "id": "04-meiryo-mixed-jpeg",
+          "group": "clear",
+          "font": "meiryo",
+          "refChars": 109,
+          "dist": 2,
+          "cer": 0.0183,
+          "refCharsNoSpace": 104,
+          "distNoSpace": 2,
+          "cerNoSpaceReference": 0.0192,
+          "ms": 228,
+          "text": "Release Notes 2026年10月版\n\n新機能: 画像からデテキストを抽出できるようになりました。\n改善: 起動時間を約209%短縮し、メモリ使用量も減らしました。\n修正: 一部の環境で保存ボタンが反応しない問題を解消。\n"
+        },
+        {
+          "id": "05-mincho-jpeg",
+          "group": "clear",
+          "font": "mincho",
+          "refChars": 94,
+          "dist": 1,
+          "cer": 0.0106,
+          "refCharsNoSpace": 94,
+          "distNoSpace": 1,
+          "cerNoSpaceReference": 0.0106,
+          "ms": 231,
+          "text": "東京都千代田区の夏は蒸し嬉く、冬は乾燥した晴天が続く。\n秋には街路樹が色づき、多くの人が散歩を楽しむ。\n\n春は桜が咲き、公園は花見客でにぎわう。\n\n四季の変化がはっきりしているのがこの地域の魅力だ。\n"
+        },
+        {
+          "id": "06-biz-numbers",
+          "group": "clear",
+          "font": "biz",
+          "refChars": 113,
+          "dist": 5,
+          "cer": 0.0442,
+          "refCharsNoSpace": 102,
+          "distNoSpace": 3,
+          "cerNoSpaceReference": 0.0294,
+          "ms": 157,
+          "text": "商品名: ノート AD 5冊セット\n\n価格: 1, 280円 (税込)\n\n発売日: 2026/10/15 10:30\n\n在庫数: 342個 / 注文番号: ORD-20261015-0047\n問い合わせ: support@example.com\n"
+        },
+        {
+          "id": "07-meiryo-english",
+          "group": "clear",
+          "font": "meiryo",
+          "refChars": 182,
+          "dist": 0,
+          "cer": 0,
+          "refCharsNoSpace": 155,
+          "distNoSpace": 0,
+          "cerNoSpaceReference": 0,
+          "ms": 122,
+          "text": "The quick brown fox jumps over the lazy dog.\nStatic files are served from the same origin.\nPlease review the report before Friday afternoon.\nVersion 7.0.0 was released in December 2025.\n"
+        },
+        {
+          "id": "08-mincho-news",
+          "group": "clear",
+          "font": "mincho",
+          "refChars": 100,
+          "dist": 1,
+          "cer": 0.01,
+          "refCharsNoSpace": 100,
+          "distNoSpace": 1,
+          "cerNoSpaceReference": 0.01,
+          "ms": 200,
+          "text": "市は来年度から、図書館の開館時間を一時間延長すると発表した。\n利用者からの要望が多かったことを受けた対応で、\n\n平日は午後八時まで、休日は午後大時まで利用できる。\n\n運営には新たに職員三名を配置する予定である。\n"
+        },
+        {
+          "id": "09-biz-small-jpeg",
+          "group": "clear",
+          "font": "biz",
+          "refChars": 112,
+          "dist": 7,
+          "cer": 0.0625,
+          "refCharsNoSpace": 109,
+          "distNoSpace": 6,
+          "cerNoSpaceReference": 0.055,
+          "ms": 167,
+          "text": "利用規約 GRRE)\n\n第1条 本サービスは、利用者が自己の責任において利用するものとします。\n第2条 運営者は、事前の通知なくサービス内容を変更できるものとします。\n第3条 利用者は、法令および公序良俗反する行為をしてはなりません。\n"
+        },
+        {
+          "id": "10-meiryo-large",
+          "group": "clear",
+          "font": "meiryo",
+          "refChars": 35,
+          "dist": 0,
+          "cer": 0,
+          "refCharsNoSpace": 35,
+          "distNoSpace": 0,
+          "cerNoSpaceReference": 0,
+          "ms": 77,
+          "text": "定休日のお知らせ\n毎週水曜日はお休みです。\n営業時間は九時から十八時です。\n"
+        },
+        {
+          "id": "11-mincho-symbols",
+          "group": "clear",
+          "font": "mincho",
+          "refChars": 97,
+          "dist": 6,
+          "cer": 0.0619,
+          "refCharsNoSpace": 97,
+          "distNoSpace": 4,
+          "cerNoSpaceReference": 0.0412,
+          "ms": 224,
+          "text": "【重要】システム保守のため、10月20日 (A) の\n午前2:00て4:00は一時的にご利用いただけません。\nご迷惑をおかけしますが、ご理解のほどお願い申し上げます。\n※作業時間は前後する場合があります。\n"
+        },
+        {
+          "id": "12-biz-recipe",
+          "group": "clear",
+          "font": "biz",
+          "refChars": 99,
+          "dist": 4,
+          "cer": 0.0404,
+          "refCharsNoSpace": 97,
+          "distNoSpace": 3,
+          "cerNoSpaceReference": 0.0309,
+          "ms": 198,
+          "text": "カレーライス (4人分)\n\n材料: 玉ねぎ2個、にんじん1本、じゃがいも3個、豚肉300g\n作り方: 具材を一口大に切り、油で炒めてから水800mlで煮込む。\n火を止めてルウを溶かし、有弱火で10分ほど温める。\n"
+        },
+        {
+          "id": "d1-lowres",
+          "group": "degraded",
+          "font": "meiryo",
+          "refChars": 52,
+          "dist": 3,
+          "cer": 0.0577,
+          "refCharsNoSpace": 48,
+          "distNoSpace": 3,
+          "cerNoSpaceReference": 0.0625,
+          "ms": 52,
+          "text": "解倒が低い画像でも読めるかを主べます。\nLow resolution sample text 12345\n"
+        },
+        {
+          "id": "d2-tilt",
+          "group": "degraded",
+          "font": "meiryo",
+          "refChars": 53,
+          "dist": 3,
+          "cer": 0.0566,
+          "refCharsNoSpace": 48,
+          "distNoSpace": 3,
+          "cerNoSpaceReference": 0.0625,
+          "ms": 66,
+          "text": "ーの画像は四度ほど傾いています.\nTilted sample text 67899 for testing.\n"
+        },
+        {
+          "id": "d3-jpeg-q20",
+          "group": "degraded",
+          "font": "mincho",
+          "refChars": 63,
+          "dist": 2,
+          "cer": 0.0317,
+          "refCharsNoSpace": 59,
+          "distNoSpace": 2,
+          "cerNoSpaceReference": 0.0339,
+          "ms": 76,
+          "text": "圧縮率が高いJPBGでは文字の輪郭が月れます。\nHeavy compression artifacts appear here.\n"
+        },
+        {
+          "id": "d4-vertical",
+          "group": "degraded",
+          "font": "mincho",
+          "refChars": 27,
+          "dist": 32,
+          "cer": 1.1852,
+          "refCharsNoSpace": 27,
+          "distNoSpace": 24,
+          "cerNoSpaceReference": 0.8889,
+          "ms": 71,
+          "text": "ー it\n行 書\n目 き\nと の\nno\n行 章\n目 は\nに 対\n分 RR\nか 外\nれ で\nま す\nす 。\n"
+        }
+      ],
+      "delivery": {
+        "origins": [
+          "http://127.0.0.1:58405"
+        ],
+        "allSameOrigin": true,
+        "assetRequests": [],
+        "assetTransferBytes": 0,
+        "allRequests": [
+          "/spike.html",
+          "/spike-lib/tesseract.esm.min.js",
+          "blob:/cbb17884-0901-49ab-8f79-eaff81a78b76",
+          "/vendor/ocr/7.0.0/worker.min.js",
+          "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+          "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+          "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+          "/fixtures/clear/01-meiryo-prose.png",
+          "/fixtures/clear/02-mincho-prose.png",
+          "/fixtures/clear/03-biz-howto.png",
+          "/fixtures/clear/04-meiryo-mixed-jpeg.jpg",
+          "/fixtures/clear/05-mincho-jpeg.jpg",
+          "/fixtures/clear/06-biz-numbers.png",
+          "/fixtures/clear/07-meiryo-english.png",
+          "/fixtures/clear/08-mincho-news.png",
+          "/fixtures/clear/09-biz-small-jpeg.jpg",
+          "/fixtures/clear/10-meiryo-large.png",
+          "/fixtures/clear/11-mincho-symbols.png",
+          "/fixtures/clear/12-biz-recipe.png",
+          "/fixtures/degraded/d1-lowres.png",
+          "/fixtures/degraded/d2-tilt.png",
+          "/fixtures/degraded/d3-jpeg-q20.jpg",
+          "/fixtures/degraded/d4-vertical.png"
+        ],
+        "failures": [],
+        "consoleErrors": []
+      },
+      "storage": {
+        "indexedDB": [],
+        "cacheStorage": [],
+        "localStorage": [],
+        "sessionStorage": [],
+        "url": "http://127.0.0.1:58405/spike.html"
+      }
+    },
+    "perf": {
+      "image": {
+        "w": 2048,
+        "h": 1536,
+        "megapixels": 3.15,
+        "file": "perf/p1-3mp.png"
+      },
+      "runsMs": [
+        1600,
+        1447,
+        1454
+      ],
+      "cerPerRun": [
+        0.0924,
+        0.0924,
+        0.0924
+      ],
+      "medianMs": 1454,
+      "mainThreadMaxTimerLagMs": 1
+    },
+    "cancel": {
+      "terminateAwaitedMs": 0,
+      "pendingRecognizePromiseAfterTerminate": "still-pending-after-3s",
+      "mainThreadMaxTimerLagMs": 1,
+      "rerunAfterTerminateMs": 134,
+      "rerunLooksValid": true
+    },
+    "corePaths": {
+      "tesseract-core-relaxedsimd-lstm": {
+        "ok": true,
+        "ms": 286,
+        "cer": 0,
+        "coreRequests": [
+          "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js"
+        ]
+      },
+      "tesseract-core-simd-lstm": {
+        "ok": true,
+        "ms": 277,
+        "cer": 0,
+        "coreRequests": [
+          "/vendor/ocr/7.0.0/core/tesseract-core-simd-lstm.wasm.js"
+        ]
+      },
+      "tesseract-core-lstm": {
+        "ok": true,
+        "ms": 767,
+        "cer": 0,
+        "coreRequests": [
+          "/vendor/ocr/7.0.0/core/tesseract-core-lstm.wasm.js"
+        ]
+      },
+      "defaultDetectionLoaded": [
+        "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js"
+      ]
+    }
+  },
+  "servedOcrAssets": [
+    {
+      "path": "/vendor/ocr/7.0.0/worker.min.js",
+      "bytes": 111307,
+      "requests": 11
+    },
+    {
+      "path": "/vendor/ocr/7.0.0/core/tesseract-core-relaxedsimd-lstm.wasm.js",
+      "bytes": 3905767,
+      "requests": 9
+    },
+    {
+      "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/jpn.traineddata",
+      "bytes": 2471260,
+      "requests": 7
+    },
+    {
+      "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/eng.traineddata",
+      "bytes": 4113088,
+      "requests": 10
+    },
+    {
+      "path": "/models/ocr/87416418657359cb625c412a48b6e1d6d41c29bd/xxx.traineddata",
+      "bytes": 0,
+      "requests": 1
+    },
+    {
+      "path": "/vendor/ocr/7.0.0/core/tesseract-core-simd-lstm.wasm.js",
+      "bytes": 3899472,
+      "requests": 1
+    },
+    {
+      "path": "/vendor/ocr/7.0.0/core/tesseract-core-lstm.wasm.js",
+      "bytes": 3896484,
+      "requests": 1
+    }
+  ]
+}

@@ -15,6 +15,28 @@ import {
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { zenkakuHankakuTool } from '@/lib/webmcp/tools/zenkaku-hankaku.webmcp';
 
+const PURPOSE_PRESETS: {
+	label: string;
+	direction: Direction;
+	options: ConversionOptions;
+}[] = [
+	{
+		label: '英数字を半角に',
+		direction: 'toHankaku',
+		options: { katakana: false, alpha: true, numbers: true, symbols: false },
+	},
+	{
+		label: 'カナを全角に',
+		direction: 'toZenkaku',
+		options: { katakana: true, alpha: false, numbers: false, symbols: false },
+	},
+	{
+		label: '4項目を半角に',
+		direction: 'toHankaku',
+		options: { katakana: true, alpha: true, numbers: true, symbols: true },
+	},
+];
+
 export default function ZenkakuHankaku() {
 	const { trackRunDebounced } = useToolAnalytics('zenkaku-hankaku');
 	const [input, setInput] = useState('');
@@ -46,6 +68,28 @@ export default function ZenkakuHankaku() {
 
 	return (
 		<div className="space-y-6">
+			<fieldset className="min-w-0 rounded-xl border border-border p-4">
+				<legend className="px-1 text-sm font-medium">用途から設定</legend>
+				<p className="mb-3 text-sm text-muted-foreground">
+					変換方向と対象項目をまとめて選べます。
+				</p>
+				<div className="flex flex-wrap gap-2">
+					{PURPOSE_PRESETS.map((preset) => (
+						<Button
+							key={preset.label}
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								setDirection(preset.direction);
+								setOptions({ ...preset.options });
+							}}
+						>
+							{preset.label}
+						</Button>
+					))}
+				</div>
+			</fieldset>
 			{/* Controls */}
 			<div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
 				{/* Direction toggle */}
@@ -56,6 +100,7 @@ export default function ZenkakuHankaku() {
 						全角 → 半角
 					</Label>
 					<Switch
+						aria-label="半角から全角へ変換"
 						checked={direction === 'toZenkaku'}
 						onCheckedChange={(checked) =>
 							setDirection(checked ? 'toZenkaku' : 'toHankaku')
@@ -75,13 +120,16 @@ export default function ZenkakuHankaku() {
 							['katakana', 'カナ'],
 							['alpha', '英字'],
 							['numbers', '数字'],
-							['symbols', '記号'],
+							['symbols', '記号・スペース'],
 						] as [keyof ConversionOptions, string][]
 					).map(([key, label]) => (
 						<div key={key} className="flex items-center gap-1.5">
 							<Checkbox
 								id={`opt-${key}`}
 								checked={options[key]}
+								aria-describedby={
+									key === 'symbols' ? 'space-option-help' : undefined
+								}
 								onCheckedChange={() => toggleOption(key)}
 							/>
 							<Label htmlFor={`opt-${key}`} className="text-sm cursor-pointer">
@@ -91,6 +139,9 @@ export default function ZenkakuHankaku() {
 					))}
 				</div>
 			</div>
+			<p id="space-option-help" className="text-sm text-muted-foreground">
+				全角・半角スペースは「記号・スペース」と一緒に変換します。タブ・改行はそのままです。
+			</p>
 
 			{/* Input Textarea */}
 			<div>
@@ -112,7 +163,9 @@ export default function ZenkakuHankaku() {
 			{/* Output Textarea */}
 			<div>
 				<div className="flex items-center justify-between mb-2">
-					<Label className="text-sm font-medium">変換結果</Label>
+					<Label htmlFor="zenkaku-output" className="text-sm font-medium">
+						変換結果
+					</Label>
 					<div className="flex gap-2">
 						<CopyButton text={output} />
 						<Button
@@ -127,6 +180,7 @@ export default function ZenkakuHankaku() {
 					</div>
 				</div>
 				<Textarea
+					id="zenkaku-output"
 					value={output}
 					readOnly
 					placeholder="変換結果がここに表示されます..."

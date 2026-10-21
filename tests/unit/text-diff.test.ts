@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { buildSplitPairs, computeDiff } from '../../src/lib/tools/text-diff.ts';
 
@@ -181,4 +182,46 @@ test('computeDiff: 内部予算を超える差分を中止する', () => {
 			/比較の計算量または時間/,
 		);
 	}
+});
+
+test('text-diff 解説文: 未提供の「無視オプション」を提供済みとして説明しない', () => {
+	const md = readFileSync('src/content/tools/text-diff.md', 'utf8');
+	const summary = /^summary:\s*"(.*)"$/m.exec(md)?.[1] ?? '';
+	assert.ok(summary.length > 0, 'summaryが取得できること');
+	assert.doesNotMatch(summary, /無視オプション|無視/);
+
+	const faq = [...md.matchAll(/- q: "(.*)"\n\s+a: "(.*)"/g)].map((m) => ({
+		q: m[1],
+		a: m[2],
+	}));
+	const ignoreFaq = faq.filter(({ q }) => /無視/.test(q));
+	assert.strictEqual(ignoreFaq.length, 2, '無視に関するFAQが2件あること');
+	for (const { a } of ignoreFaq) {
+		assert.doesNotMatch(a, /^はい/);
+		assert.match(a, /提供していません/);
+		assert.match(a, /区別/);
+	}
+	// 行単位では末尾改行の有無だけの差を同一扱いにする例外を明記していること
+	assert.match(ignoreFaq[1].a, /行単位では、末尾の改行の有無だけの違いは同一/);
+	assert.doesNotMatch(md, /「(空白|大文字小文字)を無視」/);
+});
+
+test('computeDiff: 大文字小文字・空白だけの違いも差分として検出する（FAQの「区別して比較」と一致）', () => {
+	const caseDiff = computeDiff('Hello', 'hello', 'lines');
+	assert.ok(caseDiff.parts.some((p) => p.type === 'added'));
+	assert.ok(caseDiff.parts.some((p) => p.type === 'removed'));
+	const spaceDiff = computeDiff('a b', 'a  b', 'lines');
+	assert.ok(spaceDiff.parts.some((p) => p.type === 'added'));
+	assert.ok(spaceDiff.parts.some((p) => p.type === 'removed'));
+});
+
+test('computeDiff: 末尾改行の有無だけの差は行単位で同一、文字単位では差分（FAQの例外記述と一致）', () => {
+	const lines = computeDiff('a', 'a\n', 'lines');
+	assert.ok(lines.parts.every((p) => p.type === 'unchanged'));
+	assert.strictEqual(lines.addedLines, 0);
+	assert.strictEqual(lines.removedLines, 0);
+
+	const chars = computeDiff('a', 'a\n', 'chars');
+	assert.ok(chars.parts.some((p) => p.type === 'added' && p.value === '\n'));
+	assert.strictEqual(chars.addedChars, 1);
 });

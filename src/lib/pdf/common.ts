@@ -33,6 +33,7 @@ export type PdfToolErrorCode =
 	| 'signed'
 	| 'form'
 	| 'invalid-option'
+	| 'text-too-long'
 	| 'cancelled';
 
 /** 利用者へそのまま表示できる日本語メッセージを持つエラー */

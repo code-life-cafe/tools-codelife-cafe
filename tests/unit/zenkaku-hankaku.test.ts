@@ -2,6 +2,44 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { convert } from '../../src/lib/tools/zenkaku-hankaku.ts';
 
+test('convert: スペースは記号と連動し、タブ・改行・ひらがな・漢字は維持する', () => {
+	const options = {
+		katakana: false,
+		alpha: true,
+		numbers: true,
+		symbols: false,
+	};
+	assert.equal(
+		convert('Ａ１　！\t\nかな漢字', 'toHankaku', options),
+		'A1　！\t\nかな漢字',
+	);
+	assert.equal(
+		convert('Ａ１　！\t\nかな漢字', 'toHankaku', { ...options, symbols: true }),
+		'A1 !\t\nかな漢字',
+	);
+	assert.equal(
+		convert('A1 !\t\nかな漢字', 'toZenkaku', options),
+		'Ａ１ !\t\nかな漢字',
+	);
+	assert.equal(
+		convert('A1 !\t\nかな漢字', 'toZenkaku', { ...options, symbols: true }),
+		'Ａ１　！\t\nかな漢字',
+	);
+});
+
+test('convert: カナ項目の既存の長音・句読点変換を維持する', () => {
+	const options = {
+		katakana: true,
+		alpha: false,
+		numbers: false,
+		symbols: false,
+	};
+	assert.equal(
+		convert('｢ﾊﾟｰﾃｨｰ｣｡ ABC123', 'toZenkaku', options),
+		'「パーティー」。 ABC123',
+	);
+});
+
 test('convert: 記号全種（［］｛｝（）．＊＋ 等）の往復変換が正しく、例外を投げない', () => {
 	const zenkakuSymbols =
 		'！＂＃＄％＆＇（）＊＋，－．／：；＜＝＞？＠［＼］＾＿｀｛｜｝～　';

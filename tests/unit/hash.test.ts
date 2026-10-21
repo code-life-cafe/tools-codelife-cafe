@@ -11,6 +11,7 @@ import {
 	hashFile,
 	hashText,
 	normalizeHash,
+	parseExpectedHash,
 	validateHashFile,
 } from '../../src/lib/tools/hash.ts';
 
@@ -213,4 +214,178 @@ test('detectAlgorithmByLength: 長さによる判定', () => {
 	assert.equal(detectAlgorithmByLength('abc'), null);
 	assert.equal(detectAlgorithmByLength('z'.repeat(32)), null, '非hexはnull');
 	assert.equal(detectAlgorithmByLength(''), null);
+});
+
+const ABC_SHA256 =
+	'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad';
+
+test('parseExpectedHash: 裸のハッシュ値は従来どおり（大文字・区切り・前後空白・改行）', () => {
+	assert.deepEqual(parseExpectedHash(`  ${ABC_SHA256.toUpperCase()}\n`), {
+		ok: true,
+		hash: ABC_SHA256,
+		algorithm: 'sha256',
+		fileName: null,
+	});
+	const grouped = parseExpectedHash(' 90015098 3CD24FB0 D6963F7D 28E17F72 ');
+	assert.ok(grouped.ok && grouped.algorithm === 'md5' && !grouped.fileName);
+});
+
+test('parseExpectedHash: GNU形式（テキスト・バイナリ）の1行からハッシュとファイル名を抽出', () => {
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256}  sample.txt`), {
+		ok: true,
+		hash: ABC_SHA256,
+		algorithm: 'sha256',
+		fileName: 'sample.txt',
+	});
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256} *sample file.bin\r\n`), {
+		ok: true,
+		hash: ABC_SHA256,
+		algorithm: 'sha256',
+		fileName: 'sample file.bin',
+	});
+	const upper = parseExpectedHash(`${ABC_SHA256.toUpperCase()}  日本語.txt`);
+	assert.ok(
+		upper.ok && upper.hash === ABC_SHA256 && upper.fileName === '日本語.txt',
+	);
+	// ファイル名が16進文字だけでもGNU形式として扱う
+	const hexName = parseExpectedHash(`${ABC_SHA256}  deadbeef`);
+	assert.ok(hexName.ok && hexName.fileName === 'deadbeef');
+	// HTML風の文字列は抽出値としてそのまま返す（描画側でエスケープ）
+	const html = parseExpectedHash(`${ABC_SHA256}  <img src=x onerror=1>`);
+	assert.ok(html.ok && html.fileName === '<img src=x onerror=1>');
+});
+
+test('parseExpectedHash: GNUのエスケープ形式（行頭 \\ ・ファイル名内の \\\\ と \\n）', () => {
+	// sha256sum は ファイル名に \\ や改行を含むと行頭に \\ を付けて出力する
+	const backslash = parseExpectedHash(`\\${ABC_SHA256}  dir\\\\file.txt`);
+	assert.ok(backslash.ok && backslash.hash === ABC_SHA256);
+	assert.ok(backslash.ok && backslash.fileName === 'dir\\file.txt');
+	const newline = parseExpectedHash(`\\${ABC_SHA256}  a\\nb.txt`);
+	assert.ok(newline.ok && newline.fileName === 'a\nb.txt');
+	// エスケープ印なしの \\ はファイル名の一部としてそのまま扱う
+	const literal = parseExpectedHash(`${ABC_SHA256}  a\\nb.txt`);
+	assert.ok(literal.ok && literal.fileName === 'a\\nb.txt');
+	// 未定義のエスケープは拒否
+	assert.deepEqual(parseExpectedHash(`\\${ABC_SHA256}  a\\xb.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+});
+
+test('parseExpectedHash: 16進のみのファイル名でも別アルゴリズムに化けない（GNU優先）', () => {
+	const md5 = '900150983cd24fb0d6963f7d28e17f72';
+	// MD5(32桁) + 「  deadbeef」= 40桁になってもSHA-1ではなくMD5として扱う
+	const collide = parseExpectedHash(`${md5}  deadbeef`);
+	assert.ok(collide.ok && collide.algorithm === 'md5');
+	assert.ok(
+		collide.ok && collide.hash === md5 && collide.fileName === 'deadbeef',
+	);
+	// 標準入力の出力（ファイル名 -）はファイル名として残る
+	for (const hash of [md5, ABC_SHA256]) {
+		const stdin = parseExpectedHash(`${hash}  -`);
+		assert.ok(stdin.ok && stdin.hash === hash && stdin.fileName === '-');
+	}
+	// SHA-256(64桁) + 空白 + 64桁 = 128桁でもSHA-512にならない
+	const long = parseExpectedHash(`${ABC_SHA256}  ${ABC_SHA256}`);
+	assert.ok(
+		long.ok && long.algorithm === 'sha256' && long.fileName === ABC_SHA256,
+	);
+	// 区切りが空白1個の16進グループは従来どおり裸のハッシュ
+	const grouped = parseExpectedHash(`${md5.slice(0, 8)} ${md5.slice(8)}`);
+	assert.ok(
+		grouped.ok && grouped.algorithm === 'md5' && grouped.fileName === null,
+	);
+});
+
+test('parseExpectedHash: 先頭が空白のファイル名はそのまま保持する', () => {
+	// 実際の sha256sum ' leading.txt' の出力（digest + 空白2個 + 空白で始まるファイル名）
+	const leading = parseExpectedHash(`${ABC_SHA256}   leading.txt`);
+	assert.ok(leading.ok && leading.hash === ABC_SHA256);
+	assert.ok(leading.ok && leading.fileName === ' leading.txt');
+	const binary = parseExpectedHash(`${ABC_SHA256} * leading.txt`);
+	assert.ok(binary.ok && binary.fileName === ' leading.txt');
+});
+
+test('parseExpectedHash: 実際のsha256sum出力の \\r エスケープ・末尾空白・空白のみ・タブのファイル名', () => {
+	const cr = parseExpectedHash(`\\${ABC_SHA256}  a\\rb`);
+	assert.ok(cr.ok && cr.fileName === 'a\rb');
+	const trailing = parseExpectedHash(`${ABC_SHA256}  trail `);
+	assert.ok(trailing.ok && trailing.fileName === 'trail ');
+	const spaceOnly = parseExpectedHash(`${ABC_SHA256}   `);
+	assert.ok(spaceOnly.ok && spaceOnly.hash === ABC_SHA256);
+	assert.ok(spaceOnly.ok && spaceOnly.fileName === ' ');
+	const tab = parseExpectedHash(`${ABC_SHA256}  t\tab`);
+	assert.ok(tab.ok && tab.fileName === 't\tab');
+	// 裸のハッシュの前後空白（2個以下の末尾空白）は従来どおり裸として扱う
+	for (const raw of [` ${ABC_SHA256} `, `${ABC_SHA256}  `, `${ABC_SHA256}\t`]) {
+		const bare = parseExpectedHash(raw);
+		assert.ok(bare.ok && bare.hash === ABC_SHA256 && bare.fileName === null);
+	}
+});
+
+test('parseExpectedHash: 実際のsha256sum出力のU+2028/U+2029を含むファイル名', () => {
+	const ls = parseExpectedHash(`${ABC_SHA256}  a\u2028b`);
+	assert.ok(ls.ok && ls.hash === ABC_SHA256 && ls.fileName === 'a\u2028b');
+	const ps = parseExpectedHash(`${ABC_SHA256}  a\u2029b`);
+	assert.ok(ps.ok && ps.fileName === 'a\u2029b');
+	const escaped = parseExpectedHash(`\\${ABC_SHA256}  a\u2028\\nb`);
+	assert.ok(escaped.ok && escaped.fileName === 'a\u2028\nb');
+});
+
+test('parseExpectedHash: GNUがそのまま出力する制御文字（BEL・FF・ESC・DEL）を含むファイル名', () => {
+	// 実際の sha256sum 出力: x\x07y / x\x0cy / x\x1by / x\x7fy
+	for (const ch of ['\u0007', '\u000c', '\u001b', '\u007f']) {
+		const parsed = parseExpectedHash(`${ABC_SHA256}  x${ch}y`);
+		assert.ok(parsed.ok && parsed.hash === ABC_SHA256);
+		assert.ok(parsed.ok && parsed.fileName === `x${ch}y`);
+	}
+});
+
+test('parseExpectedHash: 複数行マニフェストは成功扱いにしない', () => {
+	assert.deepEqual(
+		parseExpectedHash(`${ABC_SHA256}  a.txt\n${ABC_SHA256}  b.txt`),
+		{ ok: false, reason: 'multi-line' },
+	);
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256}\r\n${ABC_SHA256}`), {
+		ok: false,
+		reason: 'multi-line',
+	});
+});
+
+test('parseExpectedHash: 空・不正形式・不正文字列は拒否する', () => {
+	assert.deepEqual(parseExpectedHash(' \n '), { ok: false, reason: 'empty' });
+	// 長さ不一致
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256.slice(1)}  a.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+	// 非16進文字
+	assert.deepEqual(parseExpectedHash(`${'g'.repeat(64)}  a.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+	// ファイル名なし／区切りが空白1個（*なし）の不完全行
+	assert.equal(
+		parseExpectedHash(`${ABC_SHA256} `).ok,
+		true,
+		'末尾空白のみは裸',
+	);
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256} a.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+	assert.deepEqual(parseExpectedHash(`${ABC_SHA256} *`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+	// 無関係な文章中のハッシュは拾わない
+	assert.deepEqual(parseExpectedHash(`sha256 is ${ABC_SHA256}  a.txt`), {
+		ok: false,
+		reason: 'invalid-line',
+	});
+	// 従来の判定不能（長さ不正の裸）
+	assert.deepEqual(parseExpectedHash('abcdef1234'), {
+		ok: false,
+		reason: 'unknown-length',
+	});
 });
