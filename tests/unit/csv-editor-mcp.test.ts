@@ -92,6 +92,76 @@ test('文字列全演算子・大小/空白・先頭ゼロを区別', async () =
 			result,
 		);
 });
+test('文字列検索4演算子は未指定・空文字の検索値を拒否する', async (t) => {
+	for (const filterOperator of [
+		'contains',
+		'notContains',
+		'startsWith',
+		'endsWith',
+	])
+		for (const value of [{}, { filterValue: '' }])
+			await t.test(
+				`${filterOperator}: ${'filterValue' in value ? '空文字' : '未指定'}`,
+				async () => {
+					await error(
+						{
+							text: 'id,value\n1,alpha\n2, beta \n3, ',
+							hasHeader: true,
+							filterColumn: 'B',
+							filterOperator,
+							...value,
+						},
+						CSV_QUERY_ERRORS.options,
+					);
+				},
+			);
+});
+test('文字列検索は通常値と空白1文字をtrimせず比較する', async () => {
+	for (const [filterOperator, value, expectedIds] of [
+		['contains', 'a', ['1', '2']],
+		['notContains', 'a', ['3']],
+		['startsWith', 'a', ['1']],
+		['endsWith', 'a', ['1']],
+		['contains', ' ', ['2', '3']],
+		['notContains', ' ', ['1']],
+		['startsWith', ' ', ['2', '3']],
+		['endsWith', ' ', ['2', '3']],
+	] as const) {
+		const output = await run({
+			text: 'id,value\n1,alpha\n2, beta \n3, ',
+			hasHeader: true,
+			filterColumn: 'B',
+			filterOperator,
+			filterValue: value,
+		});
+		assert.deepEqual(
+			output.result
+				.split('\r\n')
+				.slice(1)
+				.map((row) => row.split(',')[0]),
+			expectedIds,
+		);
+	}
+});
+test('text eq/neqは未指定・空文字の比較値を引き続き許可する', async () => {
+	for (const [filterOperator, expected] of [
+		['eq', 'id,value\r\nblank,'],
+		['neq', 'id,value\r\nfull,x'],
+	] as const)
+		for (const value of [{}, { filterValue: '' }])
+			assert.equal(
+				(
+					await run({
+						text: 'id,value\nblank,\nfull,x',
+						hasHeader: true,
+						filterColumn: 'B',
+						filterOperator,
+						...value,
+					})
+				).result,
+				expected,
+			);
+});
 test('数値全演算子・表記を保持・空セルneqも不一致', async () => {
 	for (const [filterOperator, expected] of [
 		['eq', '2'],

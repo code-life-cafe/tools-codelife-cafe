@@ -81,7 +81,8 @@ function validateOptions(input: CsvQueryInput) {
 		(filterColumn && filterOperator === 'none') ||
 		(!sortColumn && (sortDirection !== 'asc' || sortCompare !== 'text')) ||
 		(numericOps.includes(filterOperator) && filterCompare !== 'number') ||
-		(textOps.includes(filterOperator) && filterCompare !== 'text') ||
+		(textOps.includes(filterOperator) &&
+			(filterCompare !== 'text' || filterValue === '')) ||
 		(emptyOp && filterValue !== '') ||
 		(filterColumn !== '' &&
 			filterColumn === sortColumn &&
