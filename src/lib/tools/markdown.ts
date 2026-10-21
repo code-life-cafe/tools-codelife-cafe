@@ -53,6 +53,16 @@ export async function renderMarkdown(src: string): Promise<string> {
 			}
 			node.removeAttribute('srcset');
 		}
+		if (
+			node.namespaceURI === 'http://www.w3.org/2000/svg' &&
+			(node.localName === 'image' || node.localName === 'feImage')
+		) {
+			for (const attribute of ['href', 'xlink:href']) {
+				if (!/^data:image\//i.test(node.getAttribute(attribute) ?? '')) {
+					node.removeAttribute(attribute);
+				}
+			}
+		}
 	});
 
 	const sanitized = purifier.sanitize(rawHtml, {
