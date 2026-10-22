@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseExif } from '../../src/lib/tools/exif';
 import { expect, test } from './fixtures/base';
 
 // Synthetic TIFF IFD0 with inline Make=TEST; no personal or image data.
@@ -44,7 +45,76 @@ test.describe('EXIF cleaned export rejects unsanitized formats', () => {
 			).toHaveCount(0);
 			expect(downloads).toEqual([]);
 		});
+
+		test(`one JPEG success with ${file.name} failure announces the actual download`, async ({
+			page,
+		}) => {
+			const jpeg = await readFile(
+				path.join(process.cwd(), 'tests/e2e/fixtures/convert-exif.jpg'),
+			);
+			expect(parseExif(jpeg).hasExif).toBe(true);
+			await page
+				.getByTestId('exif-input')
+				.setInputFiles([
+					{ name: 'only.jpg', mimeType: 'image/jpeg', buffer: jpeg },
+					file,
+				]);
+			const downloadPromise = page.waitForEvent('download');
+			await page.getByTestId('strip-button').click();
+			const download = await downloadPromise;
+			expect(download.suggestedFilename()).toBe('only_cleaned.jpg');
+			await expect(page.getByText(ERROR, { exact: true })).toHaveCount(1);
+			const completion = page.getByTestId('strip-completion');
+			await expect(completion).toContainText('1件の画像');
+			await expect(completion).toContainText(
+				'ダウンロードが自動的に開始されます。',
+			);
+			await expect(completion).not.toContainText('ZIP');
+			const stream = await download.createReadStream();
+			if (!stream) throw new Error('Downloaded JPEG stream is unavailable');
+			const chunks: Buffer[] = [];
+			for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+			const cleaned = Buffer.concat(chunks);
+			expect([...cleaned.subarray(0, 2)]).toEqual([0xff, 0xd8]);
+			expect(parseExif(cleaned).hasExif).toBe(false);
+		});
 	}
+
+	test('single JPEG success keeps its direct download and completion message', async ({
+		page,
+	}) => {
+		await page
+			.getByTestId('exif-input')
+			.setInputFiles(
+				path.join(process.cwd(), 'tests/e2e/fixtures/convert-exif.jpg'),
+			);
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByTestId('strip-button').click();
+		const download = await downloadPromise;
+		expect(download.suggestedFilename()).toBe('convert-exif_cleaned.jpg');
+		await expect(page.getByTestId('strip-completion')).toContainText(
+			'ダウンロードが自動的に開始されます。',
+		);
+		await expect(page.getByTestId('strip-completion')).not.toContainText('ZIP');
+	});
+
+	test('all failed formats produce neither a download nor a completion message', async ({
+		page,
+	}) => {
+		const downloads: string[] = [];
+		page.on('download', (download) =>
+			downloads.push(download.suggestedFilename()),
+		);
+		await page.getByTestId('exif-input').setInputFiles(UNSUPPORTED);
+		await page.getByTestId('strip-button').click();
+		await expect(page.getByText(ERROR, { exact: true })).toHaveCount(2);
+		await expect(page.getByTestId('strip-button')).toBeEnabled();
+		await expect(page.getByTestId('strip-completion')).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード', exact: true }),
+		).toHaveCount(0);
+		expect(downloads).toEqual([]);
+	});
 
 	test('mixed batch ZIP only contains sanitized JPEG results', async ({
 		page,
@@ -66,6 +136,9 @@ test.describe('EXIF cleaned export rejects unsanitized formats', () => {
 		await expect(page.getByText(ERROR, { exact: true })).toHaveCount(2);
 		await expect(page.getByTestId('strip-completion')).toContainText(
 			'2件の画像',
+		);
+		await expect(page.getByTestId('strip-completion')).toContainText(
+			'ZIPファイルが自動的にダウンロードされます。',
 		);
 		const stream = await download.createReadStream();
 		if (!stream) throw new Error('Downloaded ZIP stream is unavailable');
