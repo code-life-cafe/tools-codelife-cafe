@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
 	type CipherAlgorithm,
@@ -137,6 +138,23 @@ export function CipherPage() {
 
 				{activeTab === 'caesar' && (
 					<div className="my-4 p-4 border rounded-md">
+						<div className="mb-4 space-y-2">
+							<Button
+								type="button"
+								variant="outline"
+								className="h-auto whitespace-normal"
+								onClick={() => {
+									setInput('こんにちは');
+									setCaesarShift(3);
+									setCaesarDirection('encode');
+								}}
+							>
+								ひらがなの例文を試す（こんにちは・シフト3）
+							</Button>
+							<p className="text-sm text-muted-foreground">
+								かな46文字を循環します。濁音・半濁音は基字をずらし、濁点・半濁点を残して可能なら再結合します。小書きかな・長音・漢字などはシフトしません。
+							</p>
+						</div>
 						<div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
 							<DirectionToggle
 								direction={caesarDirection}

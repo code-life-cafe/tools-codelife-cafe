@@ -6,7 +6,11 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { caesarBruteForce } from '@/lib/cipher';
+import { caesarBruteForce } from '@/lib/cipher/caesar';
+import {
+	type CaesarCandidateOrder,
+	scoredCaesarCandidates,
+} from '@/lib/tools/caesar-score';
 
 interface BruteForcePanelProps {
 	input: string;
@@ -20,11 +24,26 @@ export function BruteForcePanel({
 	onSelectShift,
 }: BruteForcePanelProps) {
 	const [isOpen, setIsOpen] = useState(false);
+	const [order, setOrder] = useState<CaesarCandidateOrder>('shift');
 
-	const patterns = useMemo(() => {
+	const displayedPatterns = useMemo(() => {
 		if (!input) return [];
-		return caesarBruteForce(input);
-	}, [input]);
+		return isOpen && order === 'score'
+			? scoredCaesarCandidates(input, 'score')
+			: caesarBruteForce(input);
+	}, [input, isOpen, order]);
+
+	const firstCandidate = displayedPatterns[0];
+	const secondCandidate = displayedPatterns[1];
+	const hasDominantCandidate =
+		order === 'score' &&
+		firstCandidate !== undefined &&
+		secondCandidate !== undefined &&
+		'score' in firstCandidate &&
+		'score' in secondCandidate &&
+		typeof firstCandidate.score === 'number' &&
+		typeof secondCandidate.score === 'number' &&
+		firstCandidate.score > secondCandidate.score;
 
 	return (
 		<Collapsible
@@ -55,15 +74,31 @@ export function BruteForcePanel({
 
 			<CollapsibleContent className="mt-4 animate-in slide-in-from-top-2 fade-in-0">
 				<p className="text-sm text-muted-foreground mb-3">
-					シーザー暗号の復号候補をシフト順に表示します。対応するかなを含む入力は45候補、それ以外は25候補です。読める候補を選ぶと、シフト数と方向が「デコード（復号）」になり、結果欄に反映されます。方式の自動判別や正解の判定は行いません。
+					シーザー暗号の復号候補を表示します。対応するかなを含む入力は45候補、それ以外は25候補です。読める候補を選ぶと、シフト数と方向が「デコード（復号）」になり、結果欄に反映されます。方式の自動判別や正解の判定は行いません。
 				</p>
+				<p className="text-sm text-muted-foreground mb-3">
+					スコアは文字の頻度や短い頻出語による推測で、正解を保証しません。英字の英語らしさも評価します。
+				</p>
+				<label className="flex flex-wrap items-center gap-2 text-sm mb-3">
+					候補の並べ替え
+					<select
+						value={order}
+						onChange={(event) =>
+							setOrder(event.target.value as CaesarCandidateOrder)
+						}
+						className="max-w-full rounded-md border bg-background px-2 py-1"
+					>
+						<option value="shift">シフト順</option>
+						<option value="score">日本語らしさ順（推測）</option>
+					</select>
+				</label>
 				{!input ? (
 					<p className="text-sm text-muted-foreground py-4 text-center">
 						テキストを入力すると全パターンが表示されます
 					</p>
 				) : (
 					<div className="max-h-[400px] overflow-y-auto space-y-1 pr-2 mt-2">
-						{patterns.map(({ shift, output }) => {
+						{displayedPatterns.map(({ shift, output }, index) => {
 							const _output =
 								output.length > 100 ? `${output.slice(0, 100)}...` : output;
 							const isSelected = shift === currentShift;
@@ -73,7 +108,7 @@ export function BruteForcePanel({
 									key={shift}
 									type="button"
 									onClick={() => onSelectShift(shift)}
-									className={`w-full text-left px-3 py-2 rounded-sm text-sm font-mono transition-colors border border-transparent flex gap-4 ${
+									className={`w-full text-left px-3 py-2 rounded-sm text-sm font-mono transition-colors border border-transparent flex flex-wrap gap-x-4 gap-y-1 ${
 										isSelected
 											? 'bg-primary/10 border-primary/20 text-primary font-medium'
 											: 'hover:bg-muted'
@@ -82,7 +117,12 @@ export function BruteForcePanel({
 									<span className="shrink-0 w-16 text-muted-foreground">
 										シフト {shift}:
 									</span>
-									<span className="truncate">{_output}</span>
+									<span className="min-w-0 flex-1 truncate">{_output}</span>
+									{hasDominantCandidate && index === 0 && (
+										<span className="rounded bg-primary/10 px-2 text-primary font-sans">
+											推測: 有力
+										</span>
+									)}
 								</button>
 							);
 						})}

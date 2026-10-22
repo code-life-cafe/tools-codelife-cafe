@@ -189,3 +189,60 @@ Lighthouse 12はローカルpreview・Playwright Chromiumで初期表示のみ�
 Mermaid 375pxの横はみ出し（scrollWidth 419〜443px）は本番mainでも発生する既存問題で、本issueの対象外。全体E2E・CI・独立レビュー（Claude Code Sonnet）はPR上で記録。
 
 Worker・モデル配信・PWA/SW・WebMCP・CI・依存設定は変更なし。
+
+---
+
+# 2026-10-18: issue #467 シーザー暗号の強化（R2）
+
+実装は作業ツリーのみ。commit・pushなし。issue本文を読み、再開指示で承認済みの範囲に限定した。独立レビュー・Merge・Deployは実施していない。
+
+## 変更ファイルとAC対応
+
+| ファイル | 対応 |
+| --- | --- |
+| src/lib/tools/caesar-score.ts | AC1: 既存caesarBruteForceを使った25/45候補、かなの頻出語・文字と英語の頻度による推測。決定的、同点はシフト昇順 |
+| tests/unit/caesar-score.test.ts | AC1: 空・空白・境界・濁点/半濁点・非対応文字・混在、ひらがな3例/英文3例/混在1例、同点・決定性 |
+| src/components/tools/cipher/BruteForcePanel.tsx | AC2: 全候補維持、シフト順/推測順切替、推測順の先頭に「推測: 有力」、正解保証なしの説明。選択時の既存コールバック維持 |
+| src/components/tools/cipher/CipherPage.tsx | AC3: 「こんにちは」・シフト3・暗号化を設定する例文ボタンと文字処理説明。初期入力は従来どおり空 |
+| src/pages/cipher/caesar-hiragana.astro | AC4: 固有title、99字description、H1、暗号化/復号/総当たりの例題、FAQ4件、CipherPage埋め込み、BaseLayout、既存generateJsonLd、既存cipher OG画像参照 |
+| src/pages/cipher.astro | AC4: ランディングへのリンク追加。逆方向リンクはランディングに配置 |
+| tests/e2e/cipher-hiragana-landing.spec.ts | AC5: SEO、JSON-LD3型とFAQ本文一致、相互リンク、プリセット/暗号化/復号、45/25候補、並べ替え・バッジ・キーボード選択、375px/1440px横はみ出しチェック |
+| implementation_plan.md / walkthrough.md | 既存記録を保持して今回の計画と検証を追記 |
+
+## 検証結果
+
+Node v22.22.2（指定PATH）。初回はnode_modules不在でcheck/buildが失敗したため、`npm ci --offline --ignore-scripts`で既存lockfileの646パッケージを復元。依存定義・lockfileは変更していない。
+
+- `npm run lint`: 成功（exit 0）。既存19 warning / 1 infoあり（tests/e2e/webmcp.spec.tsのnon-null assertion等）。差分には指摘なし。
+- `npm run check`: 成功（exit 0）。Astro: 0 errors / 0 warnings / 227 hints。Biomeは上記既存警告。
+- `node tests/unit/caesar-score.test.ts`: 11/11成功。`node tests/unit/cipher.test.ts`: 15/15成功。`node --test`で両ファイルも成功。スコアを一時的に0にするmutationで追加testの失敗を確認し、即座に元へ戻した。
+- `npm run build`: 失敗（exit 1）。Astroのページ生成と既存prepare-pages-runtimeまでは完了。その後の既存OG生成でGoogle Fonts取得失敗→ローカルTTC読込→`Unsupported OpenType signature ttcf`。scriptsは修正していない。build全体の成功としては扱わない。
+- 生成済みdistをHTMLParserで検証: canonicalが `https://tools.codelife.cafe/cipher/caesar-hiragana/`、description99字、JSON-LDパース可能（SoftwareApplication / FAQPage / BreadcrumbList、FAQ4件）、相互リンクあり。dist/sitemap-0.xmlに上記URL掲載を確認。
+- build停止後の`npm run test:unit`: 110ファイル中107成功、3失敗。links.test.tsはOG未生成のため`https://tools.codelife.cafe/og-image.png`不存在。mermaid-repair.test.ts / webmcp-top3.test.tsは子Nodeプロセス起動の`spawnSync ... EPERM`（各ファイル直接実行で特定）。初回のdist未生成時のonnx-runtime-build失敗は、Astro生成後の直接実行では成功。今回の変更外を修正していない。
+- `npm test -- tests/e2e/cipher.spec.ts tests/e2e/cipher-hiragana-landing.spec.ts`: webServer起動失敗（exit 1）、テスト本体は未実行。`npm run preview:ci`も`Preview server process exited before becoming ready.`で失敗。サンドボックス外のコーディネータで既存cipher全件と新規specの実行が必要。
+- Playwright `--list`: 成功。chromium / mobile-chrome合計30テスト（既存26 + 新規4）を検出。375/1440pxの実画面確認もE2E待ち。
+- `git diff --check`: 成功。
+
+詳細ログ: /tmp/467-lint-final.log、/tmp/467-check-final.log、/tmp/467-build-final.log、/tmp/467-unit-postbuild.log、/tmp/467-score-details.log、/tmp/467-cipher-details.log、/tmp/467-links.log、/tmp/467-mermaid.log、/tmp/467-webmcp.log、/tmp/467-e2e.log、/tmp/467-e2e-list.log。
+
+### コーディネータ環境での再検証（commit 7af59eb、2026-10-18）
+
+上記の失敗はMakerのサンドボックス固有（フォント取得・子プロセス起動・localhost待受けの制限）だった。コーディネータ環境（Node 22）で次を確認した。こちらを正本とする。
+
+- `npm run lint` / `npm run check` / `npm run build`: 成功（OG画像生成・SW生成を含む）。dist/sitemap-0.xmlに `/cipher/caesar-hiragana/` を掲載
+- `npm run test:unit`: 1791/1791成功
+- E2E: cipher系（cipher.spec.ts・cipher-hiragana-landing.spec.ts）30/30成功（chromium + mobile-chrome、--retries=0）。全E2Eは1747成功・2失敗で、失敗はいずれも既知のflaky（sql-formatter.spec.ts:311、layout.spec.ts:44 mobile。後者は単独で3/3成功）
+- 375px・1440pxで横はみ出し0
+
+## 変更禁止対象・計測
+
+WebMCP（*.mcp.ts含む）・catalog.ts・index.astro・astro.config.mjs・public/_redirects・functions・CI・package/lockfile・scripts・計測実装・E2E fixtureに差分なし。src/content/toolsには追加/変更なし。新ページはページ内メタデータのみ。既存変換関数・既存cipher E2Eも変更なし。
+
+入力本文はブラウザ内の既存変換と純粋スコア関数で処理する。保存・送信処理は追加していない。`useToolAnalytics('cipher')`と発火条件は維持し、ランディングでの埋め込みツール利用も既存のcipherイベントとして扱う。今回、新規イベントやallowlist項目は追加していない。
+
+## 未対応事項・引き継ぎ
+
+- ネストした `/cipher/caesar-hiragana/` は既存SW生成のオフラインprecache対象外。scripts変更禁止のため未対応。
+- OGフォントによるbuild失敗、隔離プロセスのEPERM、E2Eサーバー起動失敗はコーディネータ環境で再検証が必要。CI成功の代替にはしない。
+- GSC対象クエリの表示回数・CTR・順位の再計測はデプロイ4週間後の運用事項。
+- 変更禁止対象の修正を必要とする実装上の追加事項はない。上記ビルド環境問題やprecacheをこの差分に含めない。
