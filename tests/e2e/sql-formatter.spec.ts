@@ -308,6 +308,109 @@ test.describe('SQL Formatter Tool - レイアウト切替と出力欄リサイ�
 		).toHaveAttribute('aria-checked', 'true');
 	});
 
+	test('desktopから狭幅へ変更する遷移中の全フレームで横スクロールが発生しない', async ({
+		page,
+	}, testInfo) => {
+		await page.setViewportSize({ width: 1280, height: 720 });
+		await page
+			.locator('textarea')
+			.fill(
+				'select a_very_long_column_name_that_could_overflow, another_long_identifier_name from a_table_with_a_long_name',
+			);
+		await expect(page.locator('.shimmer code')).toBeVisible();
+		await page.waitForLoadState('load');
+		// 準備の待機はdesktop側で完了させ、観測開始後にresizeする。
+		await page.evaluate(async () => {
+			await document.fonts.ready;
+			const container = document.getElementById('tool-layout-container');
+			await Promise.allSettled(
+				container?.getAnimations().map((animation) => animation.finished) ?? [],
+			);
+			await new Promise<void>((resolve) => {
+				requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+			});
+		});
+
+		const observation = await page.evaluateHandle(() => {
+			const container = document.getElementById('tool-layout-container');
+			if (!container) throw new Error('Tool layout container missing');
+			const durationMs = Math.max(
+				...getComputedStyle(container)
+					.transitionDuration.split(',')
+					.map(
+						(duration) =>
+							Number.parseFloat(duration) *
+							(duration.trim().endsWith('ms') ? 1 : 1000),
+					),
+			);
+			const result = {
+				durationMs,
+				done: false,
+				samples: [] as {
+					elapsedMs: number;
+					overflow: number;
+					source: 'resize' | 'frame';
+				}[],
+			};
+			let firstResizeAt: number | null = null;
+			const record = (now: number, source: 'resize' | 'frame') => {
+				const root = document.documentElement;
+				if (root.clientWidth !== 390) return;
+				if (firstResizeAt === null) firstResizeAt = now;
+				result.samples.push({
+					elapsedMs: now - firstResizeAt,
+					overflow: root.scrollWidth - root.clientWidth,
+					source,
+				});
+			};
+			const onResize = () => record(performance.now(), 'resize');
+			window.addEventListener('resize', onResize);
+			const frame = () => {
+				const now = performance.now();
+				record(now, 'frame');
+				if (
+					firstResizeAt !== null &&
+					now - firstResizeAt >= durationMs &&
+					!container
+						.getAnimations()
+						.some((animation) => animation.playState === 'running')
+				) {
+					window.removeEventListener('resize', onResize);
+					result.done = true;
+					return;
+				}
+				requestAnimationFrame(frame);
+			};
+			requestAnimationFrame(frame);
+			return result;
+		});
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		// 完了待ちは測定後。resizeイベントと各描画フレームの値を保持する。
+		await expect
+			.poll(() => observation.evaluate((result) => result.done))
+			.toBe(true);
+		const result = await observation.jsonValue();
+		await observation.dispose();
+		await testInfo.attach('resize-overflow-frames', {
+			body: JSON.stringify(result),
+			contentType: 'application/json',
+		});
+		expect(result.samples.some((sample) => sample.source === 'resize')).toBe(
+			true,
+		);
+		expect(
+			result.samples.filter((sample) => sample.source === 'frame').length,
+		).toBeGreaterThan(1);
+		expect(result.samples.at(-1)?.elapsedMs).toBeGreaterThanOrEqual(
+			result.durationMs,
+		);
+		expect(
+			Math.max(...result.samples.map((sample) => sample.overflow)),
+			JSON.stringify(result),
+		).toBeLessThanOrEqual(5);
+	});
+
 	test('狭い画面ではレイアウト切替を表示せず、常に縦積みでページの横スクロールが発生しない', async ({
 		page,
 	}) => {
