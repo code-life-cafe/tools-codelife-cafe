@@ -120,3 +120,53 @@ test('例文で暗号化・復号し、全45候補を推測順で選択する', 
 		).toBe(true);
 	}
 });
+
+for (const route of ['/cipher/', path]) {
+	test(`全候補が同点なら有力バッジを表示せず優勢候補を保つ: ${route}`, async ({
+		page,
+	}) => {
+		await page.goto(route);
+		const input = page.getByPlaceholder(
+			/「こんにちは」や「Hello World」を入力/,
+		);
+		const candidates = page.getByRole('button', { name: /^シフト \d+:/ });
+		const badge = page.getByText('推測: 有力', { exact: true });
+		const order = page.getByLabel('候補の並べ替え');
+
+		await input.fill('すうのとへ');
+		await page
+			.getByRole('button', { name: '鍵がわからないとき：全候補を見る' })
+			.click();
+		await expect(candidates).toHaveCount(45);
+		await expect(candidates.first()).toContainText('シフト 1:');
+		await expect(badge).toHaveCount(0);
+		await order.selectOption('score');
+		await expect(candidates.first()).toContainText('シフト 3:');
+		await expect(candidates.first()).toContainText('こんにちは');
+		await expect(badge).toHaveCount(1);
+
+		await input.fill('123!?');
+		await expect(candidates).toHaveCount(25);
+		await expect(candidates).toContainText(
+			Array.from({ length: 25 }, (_, index) => `シフト ${index + 1}:`),
+		);
+		for (const candidate of await candidates.all()) {
+			await expect(candidate).toContainText('123!?');
+		}
+		await expect(badge).toHaveCount(0);
+
+		await input.fill('すうのとへ');
+		await expect(candidates).toHaveCount(45);
+		await expect(candidates.first()).toContainText('シフト 3:');
+		await expect(candidates.first()).toContainText('こんにちは');
+		await expect(badge).toHaveCount(1);
+		await input.fill('Khoor zruog');
+		await expect(candidates).toHaveCount(25);
+		await expect(candidates.first()).toContainText('シフト 3:');
+		await expect(candidates.first()).toContainText('Hello world');
+		await expect(badge).toHaveCount(1);
+		await order.selectOption('shift');
+		await expect(candidates.first()).toContainText('シフト 1:');
+		await expect(badge).toHaveCount(0);
+	});
+}

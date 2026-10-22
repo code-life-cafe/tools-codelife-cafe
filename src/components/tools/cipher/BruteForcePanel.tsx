@@ -33,6 +33,18 @@ export function BruteForcePanel({
 			: caesarBruteForce(input);
 	}, [input, isOpen, order]);
 
+	const firstCandidate = displayedPatterns[0];
+	const secondCandidate = displayedPatterns[1];
+	const hasDominantCandidate =
+		order === 'score' &&
+		firstCandidate !== undefined &&
+		secondCandidate !== undefined &&
+		'score' in firstCandidate &&
+		'score' in secondCandidate &&
+		typeof firstCandidate.score === 'number' &&
+		typeof secondCandidate.score === 'number' &&
+		firstCandidate.score > secondCandidate.score;
+
 	return (
 		<Collapsible
 			open={isOpen}
@@ -106,7 +118,7 @@ export function BruteForcePanel({
 										シフト {shift}:
 									</span>
 									<span className="min-w-0 flex-1 truncate">{_output}</span>
-									{order === 'score' && index === 0 && (
+									{hasDominantCandidate && index === 0 && (
 										<span className="rounded bg-primary/10 px-2 text-primary font-sans">
 											推測: 有力
 										</span>
