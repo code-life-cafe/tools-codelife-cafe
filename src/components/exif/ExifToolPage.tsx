@@ -360,7 +360,7 @@ export function ExifToolPage() {
 							<div>
 								<p className="font-medium text-foreground">
 									{doneCount}件の画像からメタデータを削除しました。
-									{items.length === 1
+									{doneCount === 1
 										? 'ダウンロードが自動的に開始されます。'
 										: 'ZIPファイルが自動的にダウンロードされます。'}
 								</p>

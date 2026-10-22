@@ -621,11 +621,26 @@ test('stripMetadata: ICC APP2 は保持する', () => {
 	assert.equal(foundApp2, true, 'ICC APP2 は保持されるべき');
 });
 
-test('stripMetadata: 非 JPEG 形式は warning を返す', () => {
-	const result = stripMetadata(new Uint8Array([0x00]), 'webp');
-	assert.equal(result.warnings.length, 1);
-	assert.ok(result.warnings[0].includes('再エンコード'));
-});
+for (const format of ['tiff', 'webp'] as const) {
+	test(`stripMetadata: ${format} metadata cannot be returned as cleaned bytes`, () => {
+		const tiff = buildTiff('II', [
+			ifdEntryInlineAscii('II', 0x010f, 4, 'TEST'),
+		]);
+		const bytes = new Uint8Array(
+			format === 'tiff'
+				? tiff
+				: [
+						...asciiBytes('RIFF'),
+						...u32le(12 + tiff.length),
+						...asciiBytes('WEBPEXIF'),
+						...u32le(tiff.length),
+						...tiff,
+					],
+		);
+		assert.equal(parseExif(buildJpegWithExif(tiff)).hasExif, true);
+		assert.throws(() => stripMetadata(bytes, format), /再エンコード/);
+	});
+}
 
 // ---------------------------------------------------------------------------
 // bakeOrientation / ORIENTATION_TRANSFORMS / assertEncodedBlob テスト
