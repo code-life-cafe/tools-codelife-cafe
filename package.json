@@ -78,13 +78,13 @@
 	"devDependencies": {
 		"@astrojs/check": "^0.9.10",
 		"@biomejs/biome": "2.5.15",
-		"@playwright/test": "^1.64.0",
+		"@playwright/test": "^1.64.1",
 		"@types/d3-cloud": "1.2.9",
 		"@types/d3-scale": "4.0.9",
 		"@types/d3-scale-chromatic": "3.1.0",
 		"@types/encoding-japanese": "^2.2.1",
 		"@types/papaparse": "^5.5.2",
-		"satori": "^0.47.1",
+		"satori": "^0.62.0",
 		"schema-dts": "^2.1.0",
 		"sharp": "^0.35.4"
 	},
