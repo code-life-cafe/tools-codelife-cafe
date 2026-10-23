@@ -41,6 +41,7 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 				`<image id="safe-xlink" xlink:href="${IMAGE_DATA}" width="1" height="1"/>`,
 				'<defs><filter id="external-filter">',
 				`<feImage id="external-feimage" href="${PROBE_ORIGIN}/markdown-image-probe/filter.png"/>`,
+				`<feImage id="external-feimage-xlink" xlink:href="${PROBE_ORIGIN}/markdown-image-probe/filter-xlink.png"/>`,
 				'</filter></defs>',
 				'<circle id="safe-shape" cx="5" cy="5" r="4" filter="url(#external-filter)"/>',
 				'</svg>',
@@ -61,6 +62,7 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 		'relative-href',
 		'protocol-relative',
 		'external-feimage',
+		'external-feimage-xlink',
 	]) {
 		const element = preview.locator(`#${id}`);
 		await expect(element).toHaveCount(1);
@@ -102,5 +104,68 @@ test('SVG画像の外部参照を除去し埋め込み画像と通常の内容�
 	expect(exported).not.toContain('/markdown-image-probe/');
 	expect(exported).toContain(IMAGE_DATA);
 	expect(exported).toContain('画像ポリシー確認');
+	// Parse the downloaded document without attaching it or executing its contents.
+	// Compare actual element/namespace/attribute state, so dropping SVG or retaining
+	// only the safe HTML img cannot satisfy the export policy assertions.
+	const ids = [
+		'external-img',
+		'safe-img',
+		'external-href',
+		'external-xlink',
+		'mixed-hrefs',
+		'relative-href',
+		'protocol-relative',
+		'safe-href',
+		'safe-xlink',
+		'external-feimage',
+		'external-feimage-xlink',
+		'safe-shape',
+	];
+	const previewElements = await preview.evaluate(
+		(root, ids) =>
+			ids.map((id) => {
+				const element = root.querySelector(`#${id}`);
+				return element
+					? {
+							id,
+							name: element.localName,
+							namespace: element.namespaceURI,
+							attributes: Array.from(element.attributes)
+								.map((attribute) => [
+									attribute.namespaceURI,
+									attribute.name,
+									attribute.value,
+								])
+								.sort(),
+						}
+					: null;
+			}),
+		ids,
+	);
+	const exportedElements = await page.evaluate(
+		({ html, ids }) => {
+			const document = new DOMParser().parseFromString(html, 'text/html');
+			return ids.map((id) => {
+				const element = document.querySelector(`#${id}`);
+				return element
+					? {
+							id,
+							name: element.localName,
+							namespace: element.namespaceURI,
+							attributes: Array.from(element.attributes)
+								.map((attribute) => [
+									attribute.namespaceURI,
+									attribute.name,
+									attribute.value,
+								])
+								.sort(),
+						}
+					: null;
+			});
+		},
+		{ html: exported, ids },
+	);
+	expect(previewElements.every((element) => element !== null)).toBe(true);
+	expect(exportedElements).toEqual(previewElements);
 	expect(requests).toEqual([]);
 });
