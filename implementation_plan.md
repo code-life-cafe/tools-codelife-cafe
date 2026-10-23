@@ -192,3 +192,23 @@ approved-csv-query-plan.mdをACとして、Codex実装・agy独立レビュー�
 - lint / check / build / tsc成功。unitは既存2ファイルの隔離テストがspawnSync EPERMで失敗。ローカルE2Eはlocalhost待受け拒否（EPERM）で実行不可。コーディネータの初回E2E・CLS実測でMermaidは成功、upscaleは375px CLS 0・1440pxで閾値超過。今回修正後の再計測はコーディネータへ引き継ぐ。詳細はwalkthrough.mdの#469節。
 
 - 修正ループ2/3: コーディネータの選択時CLS（1440px 0.056、375px 0.151）を受けて上記の常時表示・固定高構成へ変更。実行ボタンは文言変更で折り返しが変わらないよう固定幅にした。E2Eは3画面サイズの選択前後・完了前後・クリア後の寸法を確認。Mermaid 375pxは保存幅・URL優先を維持し、幅切替操作だけ省略（非表示・無効化という実装上の条件はない）。今回修正後のE2E・CLS計測はコーディネータへ引き継ぐ。
+
+---
+
+# issue #467 実装計画（R2）
+
+2026-10-17 marumo承認済み。2026-10-18の再開指示で指定されたAC・対象範囲に従う。commit / push / 依存追加は行わない。
+
+完了状態: かな・英字の全復号候補を保持して推測順に並べ替えでき、ひらがなの例文を試せる。専用ランディングに正しい例題・FAQ・SEO情報と既存ツールを表示する。
+
+1. 既存 caesarBruteForce を利用する純粋スコア関数とunit testを検証する（境界・濁音・非対応文字・混在・代表文）。
+2. BruteForcePanel に並べ替え・推測ハイライト・注意書きを追加。CipherPage に例文プリセットと短い文字処理説明を追加。/cipher/ の初期入力は空のまま維持する。
+3. src/pages/cipher/caesar-hiragana.astro にページ内メタデータ、BaseLayout、既存JSON-LD生成、例題、FAQ、CipherPageを置く。src/pages/cipher.astro から相互リンクする。コレクションの新規エントリは作らない。
+4. 新規E2E specでSEO・実操作・相互リンク・375/1440pxを検証。既存cipher specを維持する。
+5. Node 22で lint / check / build / unitを実行。build後のsitemapを確認。E2Eも試行し、環境制約はwalkthrough.mdに記録する。
+
+対象: 上記ページ・cipher UI・src/lib/tools/caesar-score.ts・tests/unit/caesar-score.test.ts・tests/e2e/cipher-hiragana-landing.spec.ts・本計画とwalkthrough.md。
+
+変更禁止: WebMCP、catalog、Astro設定、redirect、functions、CI、依存、scripts、計測実装、E2E fixture。埋め込みも既存 useToolAnalytics('cipher') を維持。ネストしたページのオフラインprecacheは今回未対応。GSCでの4週間後再計測はデプロイ後の運用事項。
+
+実施結果: 1〜4の実装とspec作成完了。lint/check、対象unit、生成済みHTML/sitemap確認は成功。5のbuild全体・全unit・E2EはMakerのサンドボックスでは環境起因で失敗したが、コーディネータ環境で再検証して成功した（walkthrough.mdのissue #467節「コーディネータ環境での再検証」を参照）。
