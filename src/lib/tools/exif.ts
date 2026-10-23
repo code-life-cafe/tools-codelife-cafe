@@ -674,12 +674,9 @@ export function stripMetadata(
 	format: 'jpeg' | 'tiff' | 'webp',
 ): StripResult {
 	if (format !== 'jpeg') {
-		return {
-			data: bytes,
-			warnings: [
-				'この形式ではメタデータのロスレス削除ができないため、再エンコードが必要です。',
-			],
-		};
+		throw new Error(
+			'この形式ではメタデータのロスレス削除ができないため、再エンコードが必要です。',
+		);
 	}
 
 	return stripJpegMetadata(bytes);

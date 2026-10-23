@@ -1,0 +1,9 @@
+{
+  "src/lib/tools/csv-editor-query.ts": "f6bf3275dadfdae0085001e4a486bae2a3efddaf1aa83205a948ed75d847d35b",
+  "src/lib/tools/csv-editor.mcp.ts": "d6f3bca82c8f8165b45ff3c70c49483453796c548fbb5413a0119f3d69c4d54a",
+  "src/components/tools/CsvEditor.tsx": "988bce3f247ccc728acc5ad93d45f6ee1997e48e8361891c20dda52d2c345584",
+  "src/lib/webmcp/registry.ts": "78c1c4a3e36462d37cba9b401ed130386c73f3d5d9ed507066ff12f6d9bde0bd",
+  "public/.well-known/webmcp/tools.generated.json": "a10758ddb797d3f6059970374db43f98e34eb2c080feb05bda9b38b75ada83c4",
+  "tests/unit/csv-editor-mcp.test.ts": "e6677142efe136af85c5d3824cb3de360cf60171bfbc0e42ceb0a193b72e9dbc",
+  "tests/e2e/csv-editor-webmcp.spec.ts": "b0b237b0932adfe180e4540c7ca850749a9b3dc116d57f9e6db00587dcace8e3"
+}

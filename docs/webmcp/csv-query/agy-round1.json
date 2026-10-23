@@ -1,0 +1,30 @@
+{
+  "findings": [
+    {
+      "body": "単体テストにおいて、文字列ソート（sortCompare: 'text'）の降順（sortDirection: 'desc'）が直接検証されていません。数値ソートの desc や文字列ソートの asc はテストされていますが、文字列降順時の Collator 照合順序および同値要素の元順序維持のアサートが欠落しています。",
+      "classification": "test inadequacy",
+      "file": "tests/unit/csv-editor-mcp.test.ts",
+      "line": 170,
+      "severity": "P2",
+      "verification": "単体テストに sortColumn: 'A', sortDirection: 'desc', sortCompare: 'text' を指定したテストケースを追加し、逆順ソートと同値安定ソートが正しく機能することを検証する。"
+    },
+    {
+      "body": "空本文および空白文字のみの本文に対する単体テストで、hasHeader: false の組み合わせが直接検証されていません（line 199-205 では hasHeader: true のみがループ検証されています）。",
+      "classification": "test inadequacy",
+      "file": "tests/unit/csv-editor-mcp.test.ts",
+      "line": 199,
+      "severity": "P2",
+      "verification": "単体テストに hasHeader: false を指定した空文字・空白文字の本文に対するアサートを追加し、inputRows: 0, outputRows: 0, columns: 0 が返ることを検証する。"
+    },
+    {
+      "body": "filterOperator が empty / notEmpty の場合、filterCompare に 'number' を指定しても validateOptions で拒否されず受理されます。その結果、列の非空セルの数値検証を行った上で空セル抽出が実行されます。計画書文面との整合性を明確化し、テストケースを追加して仕様を固定することが推奨されます。",
+      "classification": "specification ambiguity",
+      "file": "src/lib/tools/csv-editor-query.ts",
+      "line": 83,
+      "severity": "P2",
+      "verification": "filterOperator: 'empty', filterCompare: 'number' の組み合わせについて、列内の非空セルが数値である場合と不正値である場合の両方のテストを追加して仕様動作を検証する。"
+    }
+  ],
+  "summary": "CSV抽出・並べ替えWebMCP（query_csv）の実装およびテストに対する独立コードレビューを完了しました。計画書に定められたAC、安全予算、エラー優先順位、UI非変異性、クライアントサイド完結性（外部送信・保存・ログなし）を高い精度で満たしており、既存共有ファイルの改変もありません。P0/P1のブロッキング欠陥はありませんが、文字列降順ソートや空本文境界に関するP2のテスト不足（2件）および仕様明確化（1件）を指摘事項として記録しました。",
+  "verdict": "needs-attention"
+}
