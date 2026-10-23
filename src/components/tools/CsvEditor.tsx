@@ -49,6 +49,7 @@ import {
 	parseCsv,
 	sanitizeCsvEditorSettings,
 } from '@/lib/tools/csv-editor';
+import { csvEditorMcpTool } from '@/lib/tools/csv-editor.mcp';
 import {
 	type Column,
 	type FilterGroup,
@@ -62,10 +63,16 @@ import {
 	type SheetData,
 } from '@/lib/tools/xlsx-reader';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
+import { provideToolsFromFactory } from '@/lib/webmcp';
+import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
 
 const ROWS_PER_PAGE = CSV_EDITOR_ROWS_PER_PAGE;
 
 export default function CsvEditor() {
+	useEffect(
+		() => provideToolsFromFactory([generateWebMcpDescriptor(csvEditorMcpTool)]),
+		[],
+	);
 	const { trackRun, trackSharedUrlOpen } = useToolAnalytics('csv-editor');
 
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
