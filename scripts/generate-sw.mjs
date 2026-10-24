@@ -7,38 +7,39 @@ import { listAllowedRuntimePaths } from '../src/lib/transcribe/model-manifest.ts
 
 const DIST = './dist';
 
-// dist/ 直下のディレクトリ（各ルートページ）を収集
+// dist/ 配下の実在するページを階層下まで収集
 // `data` は静的データ配信用（/data/zipcode/*.json 等）、`og` は OGP 画像
 // （generate-og-images.mjs が生成）、`models` は AI モデル（/upscale の超解像 ~5MB と
 // /transcribe の Whisper ONNX。後者は実行時に取得）、`vendor` は /transcribe が使う
 // ONNX Runtime Web、ドットディレクトリ（/.well-known/ 等のメタデータ配信）は
 // ページではないため除外。runtimeは下のassetURLsで明示的にprecacheへ追加する。
 // モデルはブラウザ Cache に乗るが precache には含めない。
-const entries = await readdir(DIST, { withFileTypes: true });
-const pageDirectories = entries.filter(
-	(d) =>
-		d.isDirectory() &&
-		!d.name.startsWith('_') &&
-		!d.name.startsWith('.') &&
-		d.name !== 'data' &&
-		d.name !== 'og' &&
-		d.name !== 'models' &&
-		d.name !== 'vendor',
-);
-// /tools/ のような親ディレクトリをページとしてキャッシュしない。
-const existingPages = await Promise.all(
-	pageDirectories.map(async (directory) => {
+async function collectPages(directory = '') {
+	const pages = [];
+	const entries = await readdir(join(DIST, directory), { withFileTypes: true });
+	for (const entry of entries) {
+		if (
+			!entry.isDirectory() ||
+			entry.name.startsWith('_') ||
+			entry.name.startsWith('.') ||
+			['data', 'og', 'models', 'vendor'].includes(entry.name) ||
+			// ルート /tools/ 配下は旧URLの転送HTMLであり、保存対象にしない。
+			(directory === '' && entry.name === 'tools')
+		)
+			continue;
+		const relativePath = directory ? `${directory}/${entry.name}` : entry.name;
 		try {
-			return (await stat(join(DIST, directory.name, 'index.html'))).isFile()
-				? `/${directory.name}/`
-				: undefined;
+			if ((await stat(join(DIST, relativePath, 'index.html'))).isFile()) {
+				pages.push(`/${relativePath}/`);
+			}
 		} catch (error) {
-			if (error.code === 'ENOENT') return undefined;
-			throw error;
+			if (error.code !== 'ENOENT') throw error;
 		}
-	}),
-);
-const pageURLs = ['/', ...existingPages.filter((page) => page !== undefined)];
+		pages.push(...(await collectPages(relativePath)));
+	}
+	return pages;
+}
+const pageURLs = ['/', ...(await collectPages()).sort()];
 
 // dist/_astro/ 配下の全ファイルを収集
 // AVIF エンコーダ（@jsquash/avif）や libheif（HEICデコード）の WASM チャンクも含めて
