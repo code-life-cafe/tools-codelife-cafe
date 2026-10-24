@@ -1,3 +1,8 @@
+import {
+	isLocalSvgResourceValue,
+	SVG_RESOURCE_ATTRIBUTES,
+} from './svg-resource-policy.ts';
+
 /** 入力文字数の上限。超過時はレンダリングを行わずエラーメッセージを返す */
 export const MAX_INPUT_CHARS = 1_000_000;
 
@@ -37,6 +42,8 @@ export async function renderMarkdown(src: string): Promise<string> {
 
 	const DOMPurify = (await import('dompurify')).default;
 	const purifier = DOMPurify(window);
+	// A detached CSS declaration parses escapes/quotes without rendering a URL.
+	const presentation = window.document.createElement('span').style;
 
 	// 外部リンクは新規タブで開き、tabnabbing対策のrelを付与する
 	purifier.addHook('afterSanitizeAttributes', (node) => {
@@ -52,6 +59,27 @@ export async function renderMarkdown(src: string): Promise<string> {
 				node.removeAttribute('src');
 			}
 			node.removeAttribute('srcset');
+		}
+		if (node.namespaceURI === 'http://www.w3.org/2000/svg') {
+			const image = node.localName === 'image' || node.localName === 'feImage';
+			for (const attribute of ['href', 'xlink:href']) {
+				const value = node.getAttribute(attribute);
+				if (value === null || node.localName === 'a') continue;
+				if (!(image ? /^data:image\//i.test(value) : value.startsWith('#'))) {
+					node.removeAttribute(attribute);
+				}
+			}
+			for (const attribute of SVG_RESOURCE_ATTRIBUTES) {
+				const value = node.getAttribute(attribute);
+				if (value === null) continue;
+				presentation.cssText = '';
+				presentation.setProperty(attribute, value);
+				if (
+					!isLocalSvgResourceValue(presentation.getPropertyValue(attribute))
+				) {
+					node.removeAttribute(attribute);
+				}
+			}
 		}
 	});
 
