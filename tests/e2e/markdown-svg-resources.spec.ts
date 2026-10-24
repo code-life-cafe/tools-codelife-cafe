@@ -16,9 +16,46 @@ async function listen(server: http.Server) {
 }
 
 function close(server: http.Server) {
-	return new Promise<void>((resolve, reject) =>
-		server.close((error) => (error ? reject(error) : resolve())),
-	);
+	return new Promise<void>((resolve, reject) => {
+		server.close((error) => (error ? reject(error) : resolve()));
+		server.closeAllConnections();
+	});
+}
+
+// Preview may listen on either loopback family. Probe the actual HTTP endpoint
+// instead of assuming Node's localhost resolution matches the preview server.
+async function previewHost(upstream: URL) {
+	if (!['localhost', '127.0.0.1', '[::1]'].includes(upstream.hostname))
+		throw Error('previewはloopbackに限定します');
+	const failures: string[] = [];
+	for (const hostname of ['127.0.0.1', '::1']) {
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const request = http.get(
+					{
+						hostname,
+						port: upstream.port,
+						path: '/markdown/',
+						agent: false,
+						headers: { host: upstream.host, 'X-CLC-Synthetic': '1' },
+					},
+					(response) => {
+						response.resume();
+						if (response.statusCode === 200) resolve();
+						else reject(Error(`HTTP ${response.statusCode}`));
+					},
+				);
+				request.setTimeout(5000, () =>
+					request.destroy(Error('preview接続timeout')),
+				);
+				request.on('error', reject);
+			});
+			return hostname;
+		} catch (error) {
+			failures.push(`${hostname}: ${String(error)}`);
+		}
+	}
+	throw Error(`preview接続失敗: ${failures.join('; ')}`);
 }
 
 function attribute(value: string) {
@@ -46,6 +83,8 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 	};
 	const receiver = http.createServer(receive);
 	const upstream = new URL(baseURL);
+	const hostname = await previewHost(upstream);
+	const upstreamErrors: string[] = [];
 	const proxy = http.createServer((request, response) => {
 		if (request.url?.includes(PROBE_PATH)) return receive(request, response);
 		if (request.url === '/downloaded-export') {
@@ -54,7 +93,7 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 		}
 		const forwarded = http.request(
 			{
-				hostname: upstream.hostname,
+				hostname,
 				port: upstream.port,
 				path: request.url,
 				method: request.method,
@@ -65,7 +104,8 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 				result.pipe(response);
 			},
 		);
-		forwarded.on('error', () => {
+		forwarded.on('error', (error) => {
+			upstreamErrors.push(String(error));
 			response.writeHead(502);
 			response.end();
 		});
@@ -150,7 +190,8 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 			{ id: 'external-filter', name: 'href', tag: 'filter' },
 		];
 		const localEscaped = 'u\\72l("\\23 local-paint")';
-		await page.goto(`${origin}/markdown/`);
+		const response = await page.goto(`${origin}/markdown/`);
+		expect(response?.status(), upstreamErrors.join('; ')).toBe(200);
 		await page
 			.getByLabel('Markdown入力')
 			.fill(
@@ -170,7 +211,7 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 						({ id, name, value }, index) =>
 							`<rect id="${id}" x="${(index % 7) * 35}" y="${Math.floor(index / 7) * 35}" width="30" height="30" ${name}="${attribute(value)}"/>`,
 					),
-					`<rect id="local-control" width="100" height="80" fill="${attribute(localEscaped)}" filter="url(#local-filter)" mask="url('#local-mask')" clip-path="url(#local-clip)"/>`,
+					`<rect id="local-control" width="100" height="80" stroke="url(#local-paint)" fill="${attribute(localEscaped)}" filter="url(#local-filter)" mask="url('#local-mask')" clip-path="url(#local-clip)"/>`,
 					'<path id="local-markers" d="M10 10L50 30L90 70" stroke="green" marker-start="url(#local-marker)" marker-mid="url(#local-marker)" marker-end="url(#local-marker)"/>',
 					`<image id="safe-image" href="${IMAGE_DATA}" width="1" height="1"/>`,
 					'<a id="svg-link" href="https://example.invalid/"><text>SVGリンク</text></a>',
@@ -188,6 +229,14 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 			await expect(preview.locator(`#${id}`)).toHaveCount(1);
 			await expect(preview.locator(`#${id}`)).not.toHaveAttribute(name);
 		}
+		await expect(preview.locator('#local-control')).toHaveAttribute(
+			'stroke',
+			'url(#local-paint)',
+		);
+		await expect(preview.locator('#local-control')).toHaveAttribute(
+			'clip-path',
+			'url(#local-clip)',
+		);
 		await expect(preview.locator('#local-control')).toHaveAttribute(
 			'fill',
 			localEscaped,
@@ -230,6 +279,14 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 		exported = Buffer.concat(chunks).toString('utf8');
 		await page.goto(`${origin}/downloaded-export`);
 		await expect(page.locator('#local-control')).toHaveAttribute(
+			'stroke',
+			'url(#local-paint)',
+		);
+		await expect(page.locator('#local-control')).toHaveAttribute(
+			'clip-path',
+			'url(#local-clip)',
+		);
+		await expect(page.locator('#local-control')).toHaveAttribute(
 			'fill',
 			localEscaped,
 		);
@@ -255,8 +312,8 @@ test('SVGリソースはpreview/exportともローカル参照だけを保持し
 		expect(attempted).toEqual([]);
 		expect(received, 'exportからも実受け口へ要求しない').toEqual([]);
 	} finally {
-		await page.goto('about:blank');
-		await close(proxy);
-		await close(receiver);
+		// A timed-out test may already have closed the page. Do not navigate here
+		// and replace the original assertion/connection error with a cleanup error.
+		await Promise.allSettled([page.close(), close(proxy), close(receiver)]);
 	}
 });
