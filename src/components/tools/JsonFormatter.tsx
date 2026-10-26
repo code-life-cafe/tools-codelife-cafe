@@ -1,6 +1,7 @@
 import {
 	AlertCircle,
 	Download,
+	Info,
 	Minimize2,
 	MoveDiagonal2,
 	Share2,
@@ -55,6 +56,8 @@ export default function JsonFormatter() {
 	const [output, setOutput] = useState('');
 	const [error, setError] = useState<string | null>(null);
 	const [errorPosition, setErrorPosition] = useState<number | null>(null);
+	// 空欄で実行したときの案内（プレースホルダーを入力済みと誤解しやすいため）
+	const [emptyNotice, setEmptyNotice] = useState(false);
 	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
 	const shareCopied = shareState === 'copied';
 	const shareCopyFailed = shareState === 'failed';
@@ -99,6 +102,14 @@ export default function JsonFormatter() {
 
 	const handleFormat = useCallback(() => {
 		trackRun();
+		if (!input.trim()) {
+			setOutput('');
+			setError(null);
+			setErrorPosition(null);
+			setEmptyNotice(true);
+			return;
+		}
+		setEmptyNotice(false);
 		const result = formatJson(input, indent);
 		if (result.success) {
 			setOutput(result.output);
@@ -113,6 +124,14 @@ export default function JsonFormatter() {
 
 	const handleMinify = useCallback(() => {
 		trackRun();
+		if (!input.trim()) {
+			setOutput('');
+			setError(null);
+			setErrorPosition(null);
+			setEmptyNotice(true);
+			return;
+		}
+		setEmptyNotice(false);
 		const result = minifyJson(input);
 		if (result.success) {
 			setOutput(result.output);
@@ -133,6 +152,7 @@ export default function JsonFormatter() {
 	const handleInputChange = useCallback(
 		(value: string) => {
 			setInput(value);
+			setEmptyNotice(false);
 			setError(null);
 			setErrorPosition(null);
 			// Auto-format on input change
@@ -172,6 +192,20 @@ export default function JsonFormatter() {
 						{currentErrorLine && (
 							<span className="font-bold">（{currentErrorLine}行目付近）</span>
 						)}
+					</p>
+				</div>
+			)}
+
+			{/* 空欄実行時の案内 */}
+			{emptyNotice && (
+				<div
+					role="status"
+					aria-live="polite"
+					className="flex items-start gap-2 rounded-xl border border-border bg-muted/50 p-4 text-sm text-foreground"
+				>
+					<Info className="h-4 w-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
+					<p>
+						JSONを入力してください。入力欄に薄く表示されている例はプレースホルダーです。
 					</p>
 				</div>
 			)}
@@ -261,7 +295,7 @@ export default function JsonFormatter() {
 						value={input}
 						onChange={(e) => handleInputChange(e.target.value)}
 						onScroll={handleInputScroll}
-						placeholder={'{"name":"太郎","age":30,"city":"東京"}'}
+						placeholder={'例: {"name":"太郎","age":30,"city":"東京"}'}
 						resize="none"
 						className="h-full min-h-0 flex-1 overflow-auto bg-transparent text-foreground font-mono-tool text-sm leading-5 p-3 border-none ring-0 shadow-none focus-visible:ring-0 rounded-none whitespace-pre"
 						spellCheck={false}
