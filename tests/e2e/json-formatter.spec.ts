@@ -35,6 +35,42 @@ test.describe('JSON Formatter', () => {
 		await expect(errorBanner).toContainText('エラー');
 	});
 
+	test('空欄で整形・圧縮を実行すると入力を促す案内を表示し、入力すると消える', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-formatter');
+		await toolPage.goto();
+
+		const inputArea = page.locator('#json-input-textarea');
+		// プレースホルダーは例であることが分かる表記にする
+		await expect(inputArea).toHaveAttribute('placeholder', /^例: /);
+		await expect(inputArea).toHaveValue('');
+
+		const notice = page
+			.getByRole('status')
+			.filter({ hasText: 'JSONを入力してください' });
+		await expect(notice).toHaveCount(0);
+
+		await page.getByRole('button', { name: '整形' }).click();
+		await expect(notice).toBeVisible();
+		await expect(notice).toContainText('プレースホルダー');
+		// エラー扱いにはしない
+		await expect(page.locator('.bg-destructive\\/10')).toHaveCount(0);
+
+		// 空白だけの入力も空欄として扱う
+		await inputArea.fill('   ');
+		await expect(notice).toHaveCount(0);
+		await page.getByRole('button', { name: '圧縮' }).click();
+		await expect(notice).toBeVisible();
+
+		await inputArea.fill('{"a":1}');
+		await expect(notice).toHaveCount(0);
+		await page.getByRole('button', { name: '整形' }).click();
+		await expect(notice).toHaveCount(0);
+		await expect(page.locator('pre')).toContainText('"a": 1');
+	});
+
 	test('input frame (wrapper) allows vertical resize with min/max height on desktop', async ({
 		page,
 		createToolPage,
