@@ -2,7 +2,7 @@
 
 - 対応Issue（Closes / Refs #）:
 - Notion施策リンク（任意。分析・効果測定の参照元のみ）:
-- Risk Class: R0 / R1 / R2 / R3 / R4（理由・必要な人間承認）
+- 区分 / Risk Class: A（R0/R1）/ B（R2/R3）/ C（R4）（判定理由。B/Cは承認原文または参照リンクと、承認された範囲）
 - ACと検証の対応:
 
 ## 変更概要
@@ -30,6 +30,7 @@
 
 - 修正ループ: 0/3
 - Codex Code/Security Review（対象head）:
+- 独立した区分確認（A / 承認済みB / 承認済みC、同一headの実差分・AC・許可境界）:
 - finding / CI run → 分類 → 修正コミット → CI / 再レビュー結果:
 - 残っているblocking / 人間判断事項:
 
@@ -37,6 +38,6 @@
 
 - 外部サービスで必要な手動確認・設定（なければ「なし」）:
 
-<!-- CI成功・最新headのCodex Code/Security独立レビュー・必要な人間承認が揃うまではMergeしない。
-R4はRoutine自動変更禁止。個別依頼があっても対象・変更範囲のみで、Merge/Deploy承認を兼ねない。
+<!-- CI成功・最新headのCodex Code/Security独立レビューと区分（A / 承認済みB / 承認済みC）の確認が揃うまではMergeしない。
+Bは計画承認済みの範囲、Cは具体的な対象・差分・影響の承認を得た範囲のみ。承認がMerge/Deployを含むかは承認原文で確認する。
 運用規則: AGENTS.md / CLAUDE.md / docs/ai-development-flow.md -->

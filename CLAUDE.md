@@ -7,12 +7,12 @@
 Claude Code（Claude Pro）が主実装者（Maker）。機能改善・バグ修正・脆弱性対応・依存更新・テスト・開発指示書変更の調査・計画・実装・必要なテスト・PR・CI修正・レビュー指摘対応・許可範囲の本番確認まで進行責任を持ち、Productionコードとテストの両方を作成・修正する。Codexは最終head SHAのCode/Security自動独立レビュー担当で、通常レビューでは実装・直接修正・自己承認をしない。ChatGPTはNotionでアクセス解析・SEO/GEO・仮説・優先順位・効果測定を担う。現行ルールは[Notion現行運用ルール](https://app.notion.com/p/406dfd36033681abbafce47bac685278)、Risk Classとレビュー規則は[AGENTS.md](AGENTS.md)、全体フローと手動設定は[運用手順](docs/ai-development-flow.md)を参照する。
 
 1. GitHub Issueから対象・ACを取得する（なければ既存Issue/PRと重複確認してから作成）。Notion施策はIssueと相互リンクして背景の参照元にするだけで、旧Notion Task Boardを着手許可にしない。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
-2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。新規tool・大幅改修は既存の計画承認手順に従う。R4は個別の人間依頼がある範囲だけ着手し、依頼はMerge・Deploy承認を兼ねない。
+2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。区分は[AGENTS.mdの3段階](AGENTS.md#risk-class-と承認の3段階)で判定する。A（R0/R1）は個別確認なしで着手する。B（R2/R3、新規tool・大幅改修を含む）は計画（目的・AC・対象/対象外・影響・検証・復旧・公開範囲）の承認を一度得れば、その範囲のCI修正・レビュー対応・Merge・Deployで再承認を求めない。C（R4）は具体的な対象・差分・影響の人間承認がある範囲だけ着手する。承認原文または参照、AC、禁止範囲をIssue/PRに固定し、目的や受入結果を無断で変えない。依頼文に「計画のみ」「PRまで」「push禁止」「公開禁止」などの限定があればそれを優先し、なければA又は承認済みBの「実装/修正」依頼は公開確認までを含む。
 3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。CI失敗中の状態でPRを作らない。
 5. 個別に許可された範囲で、作業の区切りごとにcommit・pushする（個別のcommit/push禁止の指示は上書きしない）。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・Codexレビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
 6. Codex finding・CI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
-7. R0/R1は[AGENTS.mdの軽微PRマージ条件](AGENTS.md#軽微prのマージ判断と実行)をすべて満たす場合、個別の人間確認なしで既存Claude RoutineがMergeする（Claude CodeがMakerのPRは自己承認せず、Merge操作もRoutineの条件照合に従う。他主体へ転用しない）。独立レビューの代行や自己承認はせず、根拠をPRへ記録して確認済みheadに限定する。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。条件不足・不明・R2以上は人間へ戻す。
+7. A（R0/R1）と、承認済みのB・Cは、[AGENTS.mdのPRマージ条件](AGENTS.md#prのマージ判断と実行)をすべて満たす場合、既存Claude Routine、またはこのClaude Codeプロジェクト（`tools.codelife.cafe 保守`）とその担当スレッドがMergeできる。Codexが同一の最終headの実差分・AC・許可境界を独立に確認して分類（A / 承認済みB / 承認済みC）の根拠をPRに残していることが前提で、「重大な指摘なし」だけでは足りない。Code/Security botの両完了、必須CI、最新base、strict required checks、照合済みhead指定Mergeは維持し、独立レビューの代行や自己承認、botのローカルレビューによる代替はしない。CI/レビューのRunning・一時的な取得失敗・利用上限は技術待ちとして既存の購読等で続け、同じheadでの連投や未確認のMergeはしない。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけで、承認済みのB/Cを区分名だけで止めない。
 8. 利用上限に達した場合は別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
 
 禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ、権限拡大・追加課金・新スケジューラの追加、旧停止タスクの再開。仕様上必要なテスト更新はACとの対応と理由をPRに残す。
