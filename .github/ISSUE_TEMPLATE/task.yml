@@ -5,7 +5,7 @@ labels: ["task"]
 body:
   - type: markdown
     attributes:
-      value: "内部タスク管理用のテンプレートです。"
+      value: "内部タスク管理用のテンプレートです。開発の状態・AC・承認・検証・レビュー・公開SHAはこのIssueと対応PRで管理します（Notionには分析・施策・効果測定と、このIssueへのリンクのみ置きます）。現行ルール: https://app.notion.com/p/406dfd36033681abbafce47bac685278"
   - type: textarea
     id: task-description
     attributes:

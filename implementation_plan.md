@@ -1,6 +1,8 @@
 # AI開発フロー整理の実装計画
 
-正本: [Notion計画](https://app.notion.com/p/3dadfd3603368134963dfd657f36d562)（2026-09-17取得）。
+> **歴史記録（2026-10-27時点）**: 本ファイルは過去の計画と個別承認の履歴であり、現行の運用ルールの正本ではない。以下の本文は保持している。旧Notion Task Board前提・Codex主実装・旧例外などの記述は当時のもので、既存の承認を他の主体・範囲へ広げない。現行の運用ルールは[Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)と最新の[AGENTS.md](AGENTS.md)・[CLAUDE.md](CLAUDE.md)・[docs/ai-development-flow.md](docs/ai-development-flow.md)を参照する（開発状態はGitHub Issue/PRで管理）。
+
+旧正本（当時）: [Notion計画](https://app.notion.com/p/3dadfd3603368134963dfd657f36d562)（2026-09-17取得、現在はアーカイブ済み）。
 基点: `origin/main` / `674d787`。開始時の未コミット変更なし。
 
 ## 現状とGap Analysis
