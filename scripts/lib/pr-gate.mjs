@@ -37,9 +37,12 @@ const result = (state, /** @type {any} */ extra = {}) => ({
 });
 
 function parseJsonMarker(body, name) {
-	const m = new RegExp(`<!--\\s*${name}\\s+(\\{.*?\\})\\s*-->`, 's').exec(
-		body ?? '',
-	);
+	// Codex botの分類コメントは波括弧がHTML数値参照（&#123; &#125;）で返るため、先に戻す。
+	const text = (body ?? '')
+		.replaceAll('&#123;', '{')
+		.replaceAll('&#125;', '}')
+		.replaceAll('&quot;', '"');
+	const m = new RegExp(`<!--\\s*${name}\\s+(\\{.*?\\})\\s*-->`, 's').exec(text);
 	if (!m) return null;
 	try {
 		return JSON.parse(m[1]);

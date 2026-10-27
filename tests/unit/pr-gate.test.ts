@@ -273,6 +273,18 @@ test('構造化マーカーの分類を受け付け、head不一致は無視す�
 	assert.equal(findClassification([marker(OLD)], HEAD).length, 0);
 });
 
+test('実際のCodex bot応答（波括弧がHTML数値参照）の分類マーカーを読める', () => {
+	const body = `<!-- codex-classification:v1 &#123;"headSha":"${HEAD}","class":"B","risk":"R2"&#125; -->\nclass: unapproved-B`;
+	const hits = findClassification(
+		[{ id: 8, login: BOT, createdAt: '2026-10-28T00:04:00Z', body }],
+		HEAD,
+	);
+	assert.deepEqual(
+		hits.map((h: { class: string }) => h.class),
+		['B'],
+	);
+});
+
 test('分類が矛盾したら厳しい側。B/Cは承認確認が必要で自動判定しない', () => {
 	const v = evaluate(
 		snap({
