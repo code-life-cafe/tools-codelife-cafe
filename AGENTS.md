@@ -4,24 +4,36 @@
 
 ## AI開発の責任境界
 
-- 通常フローは **ChatGPT Product Scout → Notion Task Board → Codex Maker（UI・日本語文言はClaude Maker）→ GitHub Actions → 実装と異なるモデルのIndependent Review → Maker fix → CI → 必要時再レビュー → Merge → Deploy → Analytics → Scout**。
-- Codex CLI（ChatGPT Pro）がメインのMakerとしてPlan・Productionコード・unit/E2E/regression test・PR・レビュー修正・CI failure修正を担当する。UIや日本語文言（タイトル・説明文・言い回し）を含むPRはClaude Code（Claude Pro）がMakerを担当する。Claude Makerの手順は[CLAUDE.md](CLAUDE.md)。
-- 実装モデルとレビューモデルは必ず別にする（Codex実装 → Claude Codeがレビュー、Claude実装 → Codexがレビュー）。Claude CodeはCodex実装PRのレビューとUI・日本語文言を含むPRに温存する。レビュアーはProductionとテストの両方を独立レビューし、通常のレビューでは編集・コミット・修正・自己承認を行わず、findingをMakerへ返す。
-- プランの利用上限に達した場合は、作業を止めないよう実装者を Codex → Claude → Gemini の順に切り替える。切り替え後も実装モデルとレビューモデルは別にする。
+現行の運用ルール（正本）: [Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。実行時はこのrepoの最新AGENTS.md / CLAUDE.md / [docs/ai-development-flow.md](docs/ai-development-flow.md)と、個別の人間承認を確認する。旧Notion Task Board・Agent Readyは新規開発の着手許可に使わない。
+
+- 開発管理はGitHub IssueとPRに統一する。AC・状態・承認・検証結果・レビュー結果・公開SHAはIssue/PRに集約する。Notionには分析・施策・効果測定と、実装Issue/PRへのリンクだけを置き、開発状態を二重管理しない。実装IssueとNotion施策は相互にリンクする。
+- 通常フローは **ChatGPT（Notionで分析・施策）→ GitHub Issue → Claude Code（調査・計画・実装・テスト・PR）→ GitHub Actions → Codex（最終head SHAのCode/Security自動独立レビュー）→ Claude Code（CI失敗・指摘の修正）→ 必要承認・Merge → Deploy・許可範囲の本番確認 → ChatGPT（効果測定）**。
+- Claude Code（Claude Pro）が主実装者。機能改善・バグ修正・脆弱性対応・依存更新・テスト・開発指示書変更の調査・計画・実装・必要なテスト・PR・CI修正・レビュー指摘対応・許可範囲の本番確認まで進行責任を持つ。手順は[CLAUDE.md](CLAUDE.md)。
+- Codexは最終head SHAのCode ReviewとSecurity Reviewを担う自動独立レビュー担当。通常レビューでは実装・直接修正・コミット・自己承認を行わず、findingをIssue/PRへ返す。
+- ChatGPTはアクセス解析・SEO/GEO・仮説・優先順位・効果測定をNotionで管理する。repoの実装・PR・Mergeは行わない。
 - GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
 - 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
 - Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
+- 既存のNotionタスクは履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssue化する。重複Issue/PRの作成、同じhead・同じ種別のレビュー依頼の連投はしない。
 
-### モデル選択・agy・worktree
+### 進行責任と待ち状態の記録
+
+Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レビューの完了、失敗、指摘後の次の対応と、許可範囲の完了確認（Deploy・本番確認）まで持つ。Issue/PRに次を残し、状態が変わるたびに更新する。
+
+- 現在状態、次の一手、待ち先（CI / Codexレビュー / 人間承認 / 利用上限 等）、待ち始め、再開条件、対象head SHA。
+- 既存の定期確認と、実際に利用できるイベント応答だけを使う。未設定の自動再開は保証しない。新しいスケジューラ・Workflow・権限は追加しない。
+- 利用上限に達した場合は、別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
+
+### モデル選択・worktree
 
 - モデルは作業内容に応じて次の3段階から選ぶ。上位の段階を常用しない。
-  - **軽**: 調査、点検、データ整理、ドキュメントのずれ探し、定型作業。agyはGemini Flash、ClaudeはHaiku、Codexはreasoning effort `low`。
-  - **標準**: R0/R1の修正、文言やSEOの変更、レビュー。ClaudeはSonnet、Codexはreasoning effort `medium`。
-  - **重**: R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。ClaudeはOpus、Codexはreasoning effort `high`。
+  - **軽**: 調査、点検、データ整理、ドキュメントのずれ探し、定型作業。ClaudeはHaiku。
+  - **標準**: R0/R1の修正、文言やSEOの変更、CI・レビュー指摘への対応。ClaudeはSonnet。
+  - **重**: R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。ClaudeはOpus。
 - 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。
-- 節約: いずれかのプランの残りが2割を切ったら、その週はそのプランを軽・標準だけにして、他のプランに振り替える。
-- agy（Gemini CLI / Google AI Pro）は、上記のプラン上限時のGemini実装者切り替えを除き、編集を伴わない大量作業（docs drift sweep、一括チェック、QA結果の整理）に限って使う。agy内でClaudeモデルは使わない（Google側のquotaを消費し、すぐ上限に達するため）。`agy -p` は権限確認で停止するため、使い捨てworktreeで `--sandbox --dangerously-skip-permissions` を付けてのみ実行し、生成された変更は人間またはbotのレビューを経てからPRにする。
-- 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各botは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<bot>-<branch>`）を作成して作業し、完了したら削除する。PRのレビュー判定とMergeはmaintainer bot（本文書でMerge担当とされるbot）のみが行い、他のbotはレビュー判定・Mergeを行わない。
+- 節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
+- 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各エージェントは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<name>-<branch>`）を作成して作業し、完了したら削除する。PRのレビュー判定は実装者以外が行い、Mergeは下記の軽微PRマージ条件または人間承認に従う。
+- 本節はClaude Codeのモデル段階の指針であり、Codexのレビューモデル・外部サービスの設定を変更しない。
 
 ### Risk Class
 
@@ -35,29 +47,26 @@
 | R3 | Analytics、WebMCP、PWA、build/deploy基盤、security上重要な変更 | 追加リスクレビューと人間承認を残す |
 | R4 | secrets、権限、deployment permission、AGENTS等のConstitution、security boundary | Routineによる自動変更禁止。人間へエスカレーション |
 
-R4はAgent Readyやレビューコメントだけでは変更しない。人間が対象と変更範囲を明示した個別依頼のみ、その範囲のレビュー可能な差分を準備できる。Merge・権限変更等の承認を兼ねない。
+R4はレビューコメントだけでは変更しない。人間が対象と変更範囲を明示した個別依頼のみ、その範囲のレビュー可能な差分を準備できる。Merge・Deploy・権限変更等の承認を兼ねない（個別依頼があってもマージ承認にはならない）。
 
 ### 軽微PRのマージ判断と実行
 
-R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断は実装と異なるモデル（通常Codex実装ならClaude Code、Claude実装ならCodex）、客観的検証はGitHub Actions、条件の照合とMerge操作は既存Claude Routineが担当する（例外として、下記[Grok Bot運用ループ](#grok-bot運用ループオペレーター)もR0/R1に限り同じ条件で照合・Mergeを担当できる）。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
+R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断はCodexのCode/Security Review、客観的検証はGitHub Actionsが担当する。条件の照合とMerge操作は従来どおり既存Claude Routineが担当し、独立レビューによる判断とMerge操作を分ける。新しい権限の付与ではなく従来条件の保存であり、他の主体へ転用しない。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
 
 - PRの実際の全差分がR0/R1であり、ACと合意スコープ内。ラベル・自己申告だけで判定せず、R2以上の対象が混在する場合や判定が曖昧な場合は人間へ返す。Constitution・CI・依存・Analytics・WebMCP・PWA・権限変更を軽微扱いしない。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
-- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。Codex実装PRでは、Codex botの完了だけでは実装と異なるモデルのレビューを満たさないため、同じhead SHAに対するClaude Codeのレビュー（blocking findingなし、または再レビューで解消済み）の記録も必要とする。Grok Bot運用ループによるR0/R1自動Mergeに限り、ローカルCodex CLIレビューをGitHub Codex botのCode Review / Codex Security Reviewの代替として許容する。条件: モデル`gpt-6.1-sol`・`model_reasoning_effort=medium`・`--sandbox read-only`で実行し、編集は行わずfindingのみを出力し、同じhead SHAの差分に対して実行し、結果（blocking findingなし、またはblocking findingが再レビューで解消済み）とモデル名・対象head SHAをMerge前にPRへ記録する。それ以外は両レビュー完了の要件を維持する。Codex実装PRで必要なClaude Codeのレビューは、Grok Bot運用ループではローカルClaude Code CLIレビュー（Sonnet・編集ツールを許可しない読み取り専用、同じhead SHA、結果をPRへ記録）でよいが、上記Codexレビュー（bot信号またはローカルCodex CLIレビュー）の代替にはならない。
+- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。ローカルCLIレビューやMaker自身の確認でbot信号を代替しない。
 - 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
 - Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeせず人間へ返す。admin/bypass・force push・gate変更は使わない。
 
-実行前にPR履歴へRisk Class・判定理由・対象head・CI・独立レビュー根拠・修正周回数を記録する。Merge後は既存Deployの対象SHAと結果を確認してNotionへ記録し、失敗時は人間へ通知する。新しいWorkflowやマージ専用Agentは追加しない。R2/R3の人間承認とR4の個別承認は維持し、今回の方針をそれらの承認へ拡張しない。
+実行前にPR履歴へRisk Class・判定理由・対象head・CI・独立レビュー根拠・修正周回数を記録する。Merge後は既存Deployの対象SHAと結果を確認し、公開SHAと本番確認の結果をIssue/PRへ記録する。失敗時は人間へ通知する。新しいWorkflowやマージ専用Agentは追加しない。R2/R3の人間承認とR4の個別承認は維持し、今回の方針をそれらの承認へ拡張しない。
 
-### Grok Bot運用ループ（オペレーター）
+### 歴史記録: 旧運用と旧例外
 
-1. Grok Botが本番smoke・CI/deploy状態・Cloudflareを調査し、`bug` + `auto`ラベルとRisk ClassをつけてGitHub Issueを作成する。
-2. Codex CLI（UI・日本語文言を含む場合はClaude Code CLI）が自分のworktreeの新規branchで実装し、regression testを追加し、該当issueをlinkするPRを作成する。
-3. 実装と異なるモデルのCLIがレビューする（Codex実装 → Claude Code CLI、Claude実装 → Codex CLI。上記の条件を満たすローカルレビューを含む）。findingはMakerへ返却し、修正は既存の3周上限内で行う。
-4. Grok Botが最終確認を行い、必須CIの`lint`・`e2e`が最新mainを含むheadで成功している場合のみ、head SHAを固定してsquash-mergeする。
-5. Merge後にmainの`deploy.yml`成功を確認する。deployが失敗した場合はそれ以降のMergeを停止し、人間へエスカレーションする。
+2026-10-27より前の運用（Codex主実装・UI/日本語文言のみClaude Maker、Notion Task Boardからの実装取得、chief/engineer/maintainerの通常経路、プラン上限時の実装者自動切り替え、Grok Bot運用ループ、その際のローカルCodex/Claude CLIレビュー代替）は歴史記録であり、現行の通常フローではない。
 
-R2/R3はissue/PR作成のみとし、Merge・適用には人間承認を残す。R4は常に自動化しない（調査・報告のみ）。本ループは新しいWorkflowを追加せず、既存のgateを変更しない。
+- Grok Bot運用ループとローカルCLIレビュー代替は、当時のR0/R1自動Mergeに限った例外だった。現行の通常フローには流用せず、再開しない。当時の承認を他の主体・範囲へ広げない。
+- 旧ルールの全文はgit履歴（本変更より前のAGENTS.md）で参照できる。
 
 ---
 
@@ -117,11 +126,12 @@ R2/R3はissue/PR作成のみとし、Merge・適用には人間承認を残す�
 
 ## 5. 直近の運用メモ
 
-### Notionタスク起点の実装
+### Issue/PR起点の実装
 
-- Notionタスク名やIDが指定された場合は、まずNotionで対象タスクを検索・取得し、親タスク、現状、対象ツール、受け入れ条件を確認してから実装すること。
-- 実装後はNotionタスクに実装メモ、検証結果、未解決の環境課題を追記し、完了できる場合はステータスを更新すること。
-- このリポジトリの実体パスは `D:\tools-codelife-cafe` として扱う。Codexの一時worktreeパスが存在しない場合は、このパスを確認して作業すること。
+- 実装はGitHub Issueを起点にする。対象Issue（なければ重複確認のうえ新規作成）のAC・Risk Class・スコープ外を確認してから着手し、ACが取得できない・不明な場合は推測せず人間判断待ちにする。
+- Notionの施策・既存タスクが指定された場合は、背景・仮説・効果測定の参照元として読み、実装のAC・状態・検証結果・承認はIssue/PRに記録する。Notionには実装Issue/PRへのリンクと効果測定のみを残し、開発状態を二重管理しない。
+- 実装後はIssue/PRに検証結果・未解決の環境課題・待ち状態（待ち先・待ち始め・再開条件・対象head）を追記する。
+- このリポジトリの実体パスが環境により異なる場合（例: `D:\tools-codelife-cafe`）は、一時worktreeのパスが存在しなければ実体パスを確認して作業すること。
 
 ### ツール設定保持の共通パターン
 
@@ -144,7 +154,7 @@ R2/R3はissue/PR作成のみとし、Merge・適用には人間承認を残す�
 
 ## Code Review Rules
 
-Productionコードと追加・変更・削除されたテストを一体で確認する。PRに記載されたNotion Task・Acceptance Criteria（AC）と差分を照合し、ACを取得できない場合は推測で補わず未確認とする。
+Productionコードと追加・変更・削除されたテストを一体で確認する。Issue/PRに記載されたAcceptance Criteria（AC）と差分を照合し、ACを取得できない場合は推測で補わず未確認とする。
 
 1. **Correctness / regression risk:** 公開された入出力、境界値、失敗時の挙動、既存toolと共通部品への回帰を確認する。
 2. **Privacy / client-side-only / security:** 入力本文・ファイル・画像・音声・個人情報が通信、ログ、保存へ漏れないか。静的アセット取得と既存Allowlistの匿名計測は許容するが、例外を拡張しない。XSS、信頼境界、依存のリスクも確認する。
