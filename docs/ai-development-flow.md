@@ -24,6 +24,23 @@ ChatGPT（Notionで分析・施策）→ GitHub Issue（AC・Risk Class）→ Cl
 
 Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに次を残して更新する: 現在状態、次の一手、待ち先（CI / Codexレビュー / 人間承認 / 利用上限）、待ち始め、再開条件、対象head SHA。CI・レビューの完了・失敗・指摘後の対応はClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。利用上限時は別の実装者へ自動で切り替えず、待ち状態と再開条件を明記して止める。同じhead・同じ種別のレビュー依頼を連投しない。
 
+### 進行照合（読み取り専用）
+
+`node scripts/pr-gate-status.mjs <PR番号> [--issue N]` は、GitHubの公開REST（認証があればGraphQLの未解決thread）をGETだけで取り直し、PRがいまどの待ちにあるかを `state` で返す。Merge・コメント投稿・review依頼は行わず、Merge許可でもない。古いPR本文や集約表示を正本にせず、毎回対象head SHAで取得する。取得失敗・未知形式・旧SHA・Code対象SHA欠落は合格にせず、`wait-*` か `blocked`（`retriable`）に倒す。
+
+| state | 意味と次の一手 |
+| --- | --- |
+| `ready` | Draftで対象headの必須CIが成功。Ready化して自動レビューを受ける（手動依頼との二重起動をしない） |
+| `sync-base` | headが最新baseより遅れている。通常mergeで取り込み、新headのCI・レビューを再照合 |
+| `wait-ci` / `wait-review` / `wait-classification` | 対象head向けのCI / Codex Code・Security完了 / 同一headの独立分類が未成立。技術待ち（修正周回に数えない） |
+| `blocked` | CI失敗、競合、未解決指摘・thread、3周超過、B/C分類、rules・thread・履歴を確認できない等。`retriable` が真なら取得を再試行 |
+| `merge-ready` | 全条件成立。Merge直前に再取得し、既存の操作主体が `--match-head-commit` で通常Merge（照合とMergeは別操作） |
+| `wait-deploy` / `verify-production` / `close` | Merge後。既存Deploy待ち → 公開SHA・HTTP・必要動作の記録 → Issue close（効果測定はNotionへ引継ぎ） |
+
+独立分類の証拠は、対象headの完全SHAを含む `独立分類: A` 形式、または `<!-- codex-classification:v1 {"headSha":"…","class":"A","risk":"R1"} -->` を、許可された発信者（Claude Codeのフッター付き投稿は除外）から受け付ける。Codexチャットの投稿はユーザー権限で行われるため、ログインだけでは人間と区別できない。
+
+PR購読（`subscribe_pr_activity`）はCI・レビュー・merge等のイベントで再開する実在の手段。複数PRが依存する場合は、各PRを購読し、イベントごとに本スクリプトで再取得して次の一手だけを実行する。日次21時・週次月08:52の読み取り専用の棚卸しを実装トリガーにはしない。
+
 ## マージの担当
 
 最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。実行時にも有効であることを確認し、無効と確認できた場合は自動Mergeを保留して人間へ返す。一時的な取得失敗や確認不能は技術待ちとして再照合し、有効と確認できるまでMergeしない（取得不能が継続して自力で解決できない場合に限り、理由を報告して判断を求める）。merge queueは現在のWorkflowでは未対応のため使用しない。
