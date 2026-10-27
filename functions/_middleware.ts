@@ -22,6 +22,9 @@ type PagesMiddlewareContext = {
 // page_view計測の対象外とするパスプレフィックス（API・モデル配信）
 const EXCLUDED_PATH_PREFIXES = ['/api/', '/models/'];
 
+// Service Workerが install 時に precache するオフライン用フォールバック。閲覧ページではない。
+const EXCLUDED_PATHS = new Set(['/offline/', '/offline']);
+
 // リクエストのAcceptヘッダはAIエージェント・クローラーが `*/*` や省略で送ることがあり、
 // それだけを基準にすると非ブラウザ流入を取りこぼす。実際に配信されたレスポンスの
 // Content-Type で判定する。
@@ -29,12 +32,17 @@ function shouldRecordPageView(request: Request, response: Response): boolean {
 	// 完全なHTMLドキュメントの通常配信だけを数える。HEADや部分応答は除外する。
 	if (request.method !== 'GET' || response.status !== 200) return false;
 
+	// SWのprecache・prefetch等のfetch()は Sec-Fetch-Dest: empty で届き、ページ表示ではない。
+	// Fetch Metadataを送らないクローラー・AIエージェントはヘッダ無しのため従来どおり数える。
+	if (request.headers.get('sec-fetch-dest')?.toLowerCase() === 'empty')
+		return false;
+
 	const contentType = response.headers.get('content-type') ?? '';
 	const mediaType = contentType.split(';', 1)[0]?.trim().toLowerCase();
 	if (mediaType !== 'text/html') return false;
 
 	const path = new URL(request.url).pathname;
-	if (isAnalyticsDisabledPath(path)) return false;
+	if (isAnalyticsDisabledPath(path) || EXCLUDED_PATHS.has(path)) return false;
 	return !EXCLUDED_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 

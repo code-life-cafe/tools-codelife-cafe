@@ -93,6 +93,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
 ### 実装
 - **記録箇所**: `functions/_middleware.ts`。既存の `?settings` 付きURLへの `X-Robots-Tag: noindex, follow` 付与処理と共存し、既存処理は変更していない。
 - **対象リクエスト**: GETに対してHTTP 200かつ`Content-Type`が`text/html`のレスポンスを配信した時だけ記録する。HEAD・POST等、他の2xx（204/205の本文なし・206の部分応答等）、redirect・304・4xx・5xxは記録しない。`Accept`が`*/*`・省略でも対象であり、JS実行の有無は区別しない。非HTMLアセット、`/api/`・`/models/`配下を除外する。解析停止を約束する`transcribe`・`video-compress`は正規URL・旧`/tools/`URL・末尾slash有無・エンコードされたパスを含めて除外する。同じ停止slug一覧をToolLayoutにも適用し、旧ページでもクライアントのキルスイッチとRUM除外を維持する。
+- **ページ表示ではない取得の除外（2026-10-27）**: リクエストの`Sec-Fetch-Dest`が`empty`（大文字小文字を区別しない）の場合は記録しない。Service Worker の install 時 precache、「全ツールをオフラインで利用可能にする」による全ページ取得、prefetch など`fetch()`由来の取得がこれに当たる。Fetch Metadata を送らないクローラー・AIエージェント（ヘッダ無し）と、ブラウザのページ遷移（`document`）は従来どおり記録する。あわせて、SWのオフライン用フォールバック`/offline/`（`/offline`も含む）は閲覧ページではないため、遷移であっても除外する。本番データ（2026-10-19〜26）では、`/offline/`が page_view の約1〜2割を占めていた。過去のデータはスキーマ上区別できないため遡って補正しない。
 - **分類ロジック**: 新規ロジックは実装せず、既存の `classifyTrafficType()`（`functions/lib/traffic-type.ts`）をそのまま再利用する。middleware には `navigator.webdriver` ヒントが存在しないため、第2引数は常に `undefined` を渡す。
 - **書き込み内容**: `blobs: ['page_view', path, '', '', '', trafficType]` / `indexes: ['page_view']`。既存イベントの blob スロットの意味・順序（`blob1`=イベント名、`blob2`=パス、`blob6`=`traffic_type`）を変更していない。UA生文字列・IP・TLS指紋は保存しない。
 - **配信への非影響**: 計測処理は `try/catch` で必ず例外を握りつぶし、`context.waitUntil()` が利用可能な場合はそれに載せてレスポンスを待たせない。計測が失敗・例外を投げても、ページのレスポンスはそのまま配信される。
