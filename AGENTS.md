@@ -13,7 +13,7 @@
 - ChatGPTはアクセス解析・SEO/GEO・仮説・優先順位・効果測定をNotionで管理する。repoの実装・PR・Mergeは行わない。
 - GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
 - 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
-- Makerは自分のPRを最終承認・Mergeしない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
+- Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
 - 既存のNotionタスクは履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssue化する。重複Issue/PRの作成、同じhead・同じ種別のレビュー依頼の連投はしない。
 
 ### 進行責任と待ち状態の記録
@@ -32,7 +32,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
   - **重**: R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。ClaudeはOpus。
 - 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。
 - 節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
-- 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各エージェントは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<name>-<branch>`）を作成して作業し、完了したら削除する。PRのレビュー判定とMergeはMaker以外（人間または既存の担当）だけが行う。
+- 共有clone `/workspace/repos/tools-codelife-cafe` は常にmainのままにする。各エージェントは作業ごとに自分のworktree（`git worktree add /workspace/repos/wt-<name>-<branch>`）を作成して作業し、完了したら削除する。PRのレビュー判定は実装者以外が行い、Mergeは下記の軽微PRマージ条件または人間承認に従う。
 - 本節はClaude Codeのモデル段階の指針であり、Codexのレビューモデル・外部サービスの設定を変更しない。
 
 ### Risk Class
@@ -51,7 +51,7 @@ R4はレビューコメントだけでは変更しない。人間が対象と変
 
 ### 軽微PRのマージ判断と実行
 
-R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断はCodexのCode/Security Review、客観的検証はGitHub Actionsが担当する。条件の照合とMerge操作は、Maker（Claude Code）以外の既存の担当（人間または既存Routine）が行い、権限は拡大しない。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
+R0/R1の個別確認なしのMergeは、2026-09-17の人間の運用方針に基づく。内容の独立判断はCodexのCode/Security Review、客観的検証はGitHub Actionsが担当する。条件の照合とMerge操作は従来どおり既存Claude Routineが担当し、独立レビューによる判断とMerge操作を分ける。新しい権限の付与ではなく従来条件の保存であり、他の主体へ転用しない。Makerの自己承認は禁止したまま、以下をすべて満たした場合の操作だけを許可する。
 
 - PRの実際の全差分がR0/R1であり、ACと合意スコープ内。ラベル・自己申告だけで判定せず、R2以上の対象が混在する場合や判定が曖昧な場合は人間へ返す。Constitution・CI・依存・Analytics・WebMCP・PWA・権限変更を軽微扱いしない。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。

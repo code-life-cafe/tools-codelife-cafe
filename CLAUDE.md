@@ -10,9 +10,9 @@ Claude Code（Claude Pro）が主実装者（Maker）。機能改善・バグ修
 2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。新規tool・大幅改修は既存の計画承認手順に従う。R4は個別の人間依頼がある範囲だけ着手し、依頼はMerge・Deploy承認を兼ねない。
 3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。CI失敗中の状態でPRを作らない。
-5. 作業の区切りごとにcommit・pushする。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・Codexレビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
-6. Codex finding・CI failureへ以下の手順で対応する。自分のPRの最終承認とMergeは行わない。
-7. R0/R1は[AGENTS.mdの軽微PRマージ条件](AGENTS.md#軽微prのマージ判断と実行)をすべて満たす場合、個別の人間確認なしでMaker以外の既存の担当がMergeする。独立レビューの代行や自己承認はせず、根拠をPRへ記録して確認済みheadに限定する。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。条件不足・不明・R2以上は人間へ戻す。
+5. 個別に許可された範囲で、作業の区切りごとにcommit・pushする（個別のcommit/push禁止の指示は上書きしない）。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・Codexレビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
+6. Codex finding・CI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
+7. R0/R1は[AGENTS.mdの軽微PRマージ条件](AGENTS.md#軽微prのマージ判断と実行)をすべて満たす場合、個別の人間確認なしで既存Claude RoutineがMergeする（Claude CodeがMakerのPRは自己承認せず、Merge操作もRoutineの条件照合に従う。他主体へ転用しない）。独立レビューの代行や自己承認はせず、根拠をPRへ記録して確認済みheadに限定する。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。条件不足・不明・R2以上は人間へ戻す。
 8. 利用上限に達した場合は別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
 
 禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ、権限拡大・追加課金・新スケジューラの追加、旧停止タスクの再開。仕様上必要なテスト更新はACとの対応と理由をPRに残す。

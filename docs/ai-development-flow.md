@@ -28,7 +28,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 
 最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。実行時にも有効であることを確認し、確認不可・無効なら自動Mergeを保留する。merge queueは現在のWorkflowでは未対応のため使用しない。
 
-通常のR0/R1では、CodexのCode/Security Reviewが内容を独立レビューし、GitHub Actionsが検証し、Maker（Claude Code）以外の既存の担当が[軽微PRマージ条件](../AGENTS.md#軽微prのマージ判断と実行)を照合してMergeする。条件を満たせばPRごとの人間確認は不要。Makerによる自己承認とMergeは許可しない。R2/R3とR4、リスク不明・未解決指摘・仕様の曖昧さは人間へ返す。R4は個別依頼があってもマージ承認を兼ねない。
+通常のR0/R1では、CodexのCode/Security Reviewが内容を独立レビューし、GitHub Actionsが検証し、独立レビューによる判断と分けて、既存Claude Routineが[軽微PRマージ条件](../AGENTS.md#軽微prのマージ判断と実行)の全条件を照合してMergeする。条件を満たせばPRごとの人間確認は不要。これは新権限の付与ではなく従来条件の保存で、他の主体へ転用しない。Makerによる自己承認は許可しない。R2/R3とR4、リスク不明・未解決指摘・仕様の曖昧さは人間へ返す。R4は個別依頼があってもマージ承認を兼ねない。
 
 この文書だけで外部Routineの指示やGitHubの権限は変更されない。外部の指示にR0/R1の条件付きMergeと矛盾する記述が残っている場合は、人間が外部設定側を整合させる。
 
@@ -65,7 +65,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 3. 不足する境界値・異常系・回帰・privacy/a11y等の検証と、その根拠を提案として返す。原則読み取り専用、直接commit・修正はしない。
 4. Makerが提案を通常の分類に従って取り込み、CIと必要な再レビューへ戻す。QA起動で3周上限をリセットしない。
 
-R3の追加リスクレビューは必要な領域を対象とし、必要時に[モデル選択](../AGENTS.md#モデル選択worktree)の重の段階（Claude Opus）でMaker側の追加確認を行い、理由を報告に残す。独立レビューはCodexのCode/Security Reviewのまま変えない。通常PRには追加しない。
+R3の追加リスクレビューは必要な領域を対象とし、必要な領域について、実装者と異なるCodexセッションによる追加リスクレビュー（High-Risk Review）を維持し、理由を報告に残す。Maker側の確認（[モデル選択](../AGENTS.md#モデル選択worktree)の重の段階など）はその代替にならない。通常PRには追加しない。
 
 ## Manual Setup Checklist
 
