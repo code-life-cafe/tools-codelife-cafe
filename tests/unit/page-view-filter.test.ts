@@ -11,12 +11,14 @@ async function observe({
 	contentType = 'text/html; charset=utf-8',
 	synthetic = false,
 	deferred = false,
+	secFetchDest = '',
 } = {}) {
 	const writes: Point[] = [];
 	const pending: Promise<unknown>[] = [];
 	let nextCalls = 0;
 	const headers = new Headers({ 'User-Agent': 'Mozilla/5.0', Accept: '*/*' });
 	if (synthetic) headers.set('X-CLC-Synthetic', '1');
+	if (secFetchDest) headers.set('Sec-Fetch-Dest', secFetchDest);
 	const original = new Response(null, {
 		status,
 		headers: { 'Content-Type': contentType },
@@ -168,6 +170,40 @@ test('synthetic GET 200 still delivers HTML without persisting page_view', async
 	});
 	assert.equal(response, original);
 	assert.deepEqual(writes, []);
+});
+
+for (const secFetchDest of ['empty', 'EMPTY']) {
+	test(`programmatic fetch (Sec-Fetch-Dest: ${secFetchDest}) such as SW precache is delivered without page_view`, async () => {
+		const { response, original, writes } = await observe({
+			secFetchDest,
+			deferred: true,
+		});
+		assert.equal(response, original);
+		assert.deepEqual(writes, []);
+	});
+}
+
+test('browser document navigation (Sec-Fetch-Dest: document) still records page_view', async () => {
+	const { writes } = await observe({ secFetchDest: 'document' });
+	assert.equal(writes.length, 1);
+	assert.equal(writes[0].blobs?.[1], '/color/');
+});
+
+for (const path of ['/offline/', '/offline']) {
+	test(`offline fallback shell ${path} is not counted even as a document navigation`, async () => {
+		const { response, original, writes, nextCalls } = await observe({
+			path,
+			secFetchDest: 'document',
+		});
+		assert.equal(nextCalls, 1);
+		assert.equal(response, original);
+		assert.deepEqual(writes, []);
+	});
+}
+
+test('offline-like tool paths are still counted', async () => {
+	const { writes } = await observe({ path: '/offline-tools/' });
+	assert.equal(writes.length, 1);
 });
 
 test('GET 200 HTML SPA fallback cannot be distinguished from a real page by this filter', async () => {
