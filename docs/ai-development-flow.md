@@ -26,7 +26,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 
 ## マージの担当
 
-最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。実行時にも有効であることを確認し、確認不可・無効なら自動Mergeを保留する。merge queueは現在のWorkflowでは未対応のため使用しない。
+最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。実行時にも有効であることを確認し、無効と確認できた場合は自動Mergeを保留して人間へ返す。一時的な取得失敗や確認不能は技術待ちとして再照合し、有効と確認できるまでMergeしない（取得不能が継続して自力で解決できない場合に限り、理由を報告して判断を求める）。merge queueは現在のWorkflowでは未対応のため使用しない。
 
 承認の3段階（A=R0/R1、B=R2/R3、C=R4）の定義は[AGENTS.md](../AGENTS.md#risk-class-と承認の3段階)に従う。A（R0/R1）は個別の人間確認なし、Bは計画の一度の承認、Cは具体的な対象・差分・影響の人間承認。Mergeまでの流れは次のとおり。
 
@@ -37,7 +37,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 - CI / レビューのRunning、一時的な取得失敗、利用上限は技術待ち。既存のPR購読等の実在する再開手段で続け、同じheadの連投・無限の再試行・未確認のMergeはしない。待ち状態の照合は修正3周に数えない。通常はCI成功後にReadyにして自動のbotレビューを受ける（Draftで手動依頼してからReadyにする二重起動を避ける）。
 - 完全な無人化は実測で確認できた範囲だけを報告する。
 
-これは2026-10-28のmarumoの承認に基づく運用で、新権限・新スケジューラ・Workflow・サービス・課金の追加ではない。日次21時・週次月08:52の読み取り専用の棚卸しは、実装やMergeを担当するものへ拡張しない。
+これは2026-10-28のmarumoの承認に基づく運用で、今回承認された操作範囲（指定Claudeプロジェクトによる条件付きMerge操作を含む）を反映したもので、GitHubトークン・ruleset等の技術的権限、新スケジューラ・Workflow・サービス・課金は追加・変更しない。日次21時・週次月08:52の読み取り専用の棚卸しは、実装やMergeを担当するものへ拡張しない。
 
 この文書だけで外部Routineの指示やGitHubの権限は変更されない。外部の指示に上記と矛盾する記述が残っている場合は、外部設定側を整合させる。
 
@@ -48,7 +48,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 - サマリーの `codex-security-review:v1` メタデータで `repository`・`pullRequestNumber` が対象PR、`headSha` が最新headの完全SHA、`status` が `completed` であることを確認する。
 - 同じサマリーのCode ReviewとSecurity Reviewの両行が `Completed` で、両行の対象コミットがそのheadと一致することを確認する。片方がRunning、旧コミット、失敗、形式不明なら停止する。
 - 完了は指摘なしを意味しない。PRのレビュー本文・inline comments・未解決threadを合わせて確認し、blocking findingには同じ最新headでの解消確認が必要。👍は補助信号に留める。`mergeGateEnabled: false` でもこの運用条件を省略しない。
-- ローカルCLIレビュー・Maker自身の確認・コメント不在はこの信号の代替にならない。bot信号を確認できない場合はA・承認済みB/Cも自動Mergeせず、人間へ返す。旧Grok Bot運用ループのローカルCLIレビュー代替は歴史記録であり、現行フローでは使わない（[AGENTS.md](../AGENTS.md#歴史記録-旧運用と旧例外)）。
+- ローカルCLIレビュー・Maker自身の確認・コメント不在はこの信号の代替にならない。bot信号が未取得・Running・一時的な取得失敗の間は未確認としてMergeせず、既存のPR購読等で待機・再照合する（技術待ち。修正3周に数えない）。形式変更や取得不能が継続して自力で解決できない場合に限り、理由を報告して必要な判断だけを人間に求める。旧Grok Bot運用ループのローカルCLIレビュー代替は歴史記録であり、現行フローでは使わない（[AGENTS.md](../AGENTS.md#歴史記録-旧運用と旧例外)）。
 
 これはPR #384/#385で観測した既存Codex連携の信号であり、新規checkやWorkflowではない。CI内の `npm audit` は必要な依存検査だが、Codex Security Reviewの代用にはしない。botや出力形式が変わった場合は推測で通さず、人間へ確認して手順を更新する。
 

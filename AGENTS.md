@@ -76,12 +76,16 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
 - 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。ローカルCLIレビューやMaker自身の確認でbot信号を代替しない。
 - 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
-- Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeせず人間へ返す。admin/bypass・force push・gate変更は使わない。
+- Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeしない。無効と確認できた場合は人間へ返し、一時的な取得失敗は技術待ちとして再照合する。admin/bypass・force push・gate変更は使わない。
+
+**承認の持続**
+
+承認済みのB/Cは、時間の経過、CI・レビュー待ち、利用上限、意味を変えないbase取り込みだけでは失効しない。目的・AC・禁止範囲・データ・権限が変わる部分だけを再判断し、その部分が未承認なら人間へ返す。
 
 **待ちと人間への返却**
 
 - CI・レビューのRunning、一時的な取得失敗、利用上限は技術的な待ちであり、人間への返却理由にしない。既存のPR購読など実在する再開手段で続け、同じheadでの連投・無限の再試行・未確認のMergeはしない。待ち状態の照合は修正3周に数えない。
-- 人間へ戻すのは次の場合だけ: 未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でもblockingが解消しない、本人の認証が必要な操作。承認済みのB/Cを区分名だけで再び止めない。
+- 人間へ戻すのは次の場合だけ: 未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でもblockingが解消しない、本人の認証が必要な操作。承認済みのB/Cを区分名だけで再び止めない。bot信号や必須checksの未取得・Running・一時失敗も上記の技術待ちで、形式変更や取得不能が継続して自力で解決できない場合にだけ、理由を報告して必要な判断を求める。
 - 通常はCI成功後にReadyにして、自動のbotレビューを受ける。Draftで手動依頼してからReadyにする二重起動はしない。
 
 実行前にPR履歴へRisk Class（A/B/C）・判定理由・承認の根拠・対象head・CI・独立レビューと分類確認の根拠・修正周回数を記録する。Merge後は既存Deployの対象SHAと結果を確認し、公開SHAと許可範囲の本番確認の結果をIssue/PRへ記録する。失敗時は人間へ通知する。完全な無人化は実測で確認できた範囲だけを報告する。
