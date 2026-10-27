@@ -117,7 +117,7 @@ export default function OfflineBadge() {
 			}
 		}, 1000);
 
-		// SW登録失敗などで応答がない場合に「接続確認中」のまま固まらないようフォールバック
+		// SW登録失敗などで応答がない場合に確認中（非表示）のまま固まらないようフォールバック
 		const fallbackTimer = setTimeout(() => {
 			setState((s) => (s === 'checking' ? 'available' : s));
 		}, 5000);
@@ -163,14 +163,13 @@ export default function OfflineBadge() {
 	}
 
 	if (state === 'checking') {
+		// 状態確定前（SSR直後を含む）は文言を出さない。接続に問題があるように見えるため
 		return (
 			<span
-				className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium"
-				title="接続確認中..."
-			>
-				<RefreshCw className="h-3 w-3 animate-spin" />
-				<span className="hidden lg:inline">接続確認中...</span>
-			</span>
+				aria-hidden="true"
+				className="inline-block h-3.5 w-3.5"
+				data-offline-badge="checking"
+			/>
 		);
 	}
 
