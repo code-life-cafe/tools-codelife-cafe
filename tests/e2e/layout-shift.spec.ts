@@ -177,3 +177,69 @@ for (const width of [375, 1440]) {
 			.toBe(true);
 	});
 }
+
+for (const { width, height } of [
+	{ width: 375, height: 900 },
+	{ width: 1440, height: 900 },
+]) {
+	test(`wordcloudの再解析で結果カードの高さが変わらずCLSが増えない (${width}px)`, async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width, height });
+		await observeLayoutShifts(page);
+		await page.goto('/wordcloud/');
+		const setText = (text: string) =>
+			page.evaluate((value) => {
+				const textarea = document.querySelector('textarea');
+				if (!textarea) throw new Error('textarea not found');
+				const setter = Object.getOwnPropertyDescriptor(
+					HTMLTextAreaElement.prototype,
+					'value',
+				)?.set;
+				setter?.call(textarea, value);
+				textarea.dispatchEvent(new Event('input', { bubbles: true }));
+			}, text);
+		const card = page.getByTestId('wordcloud-canvas');
+		const heightOf = async () => (await card.boundingBox())?.height ?? 0;
+
+		await page.evaluate(() => document.fonts.ready);
+		const emptyHeight = await heightOf();
+		await setText(
+			'吾輩は猫である。名前はまだ無い。名前は猫である。猫と犬と鳥。',
+		);
+		await expect(page.getByRole('table')).toContainText('猫');
+		await expect(card.locator('svg')).toBeVisible();
+		// 空・生成中・結果の全状態で同じ高さを確保する
+		expect(await heightOf()).toBe(emptyHeight);
+
+		// 結果カードを画面内に置き、再解析（生成中表示→再描画）の高さ推移とCLSを観測する
+		await card.scrollIntoViewIfNeeded();
+		await page.evaluate(() => {
+			const heights: number[] = [];
+			Object.assign(window, { cardHeights: heights });
+			const tick = () => {
+				const el = document.querySelector('[data-testid="wordcloud-canvas"]');
+				if (el) heights.push(Math.round(el.getBoundingClientRect().height));
+				requestAnimationFrame(tick);
+			};
+			requestAnimationFrame(tick);
+			window.layoutShiftValues.length = 0;
+		});
+		await setText(
+			'猫と犬と鳥と魚。猫と犬と鳥と魚。名前は猫である。名前はまだ無い。',
+		);
+		await expect(card.getByText('生成中')).toBeVisible();
+		await expect(card.locator('svg')).toBeVisible();
+		await page.waitForTimeout(500);
+		const heights = await page.evaluate(
+			() => (window as unknown as { cardHeights: number[] }).cardHeights,
+		);
+		expect(new Set(heights)).toEqual(new Set([emptyHeight]));
+		await expectStableLayout(page);
+		expect(
+			await page.evaluate(() =>
+				window.layoutShiftValues.reduce((sum, value) => sum + value, 0),
+			),
+		).toBeLessThanOrEqual(0.005);
+	});
+}
