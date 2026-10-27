@@ -155,6 +155,24 @@ test.describe('Layout & Navigation', () => {
 		).toHaveAttribute('aria-pressed', 'true');
 	});
 
+	test('ヘッダーのオフライン表示は状態確定前に「接続確認中」を出さない', async ({
+		page,
+		request,
+	}) => {
+		// SSR直後（ハイドレーション前）のHTMLにも文言が含まれないこと
+		const html = await (await request.get('/')).text();
+		expect(html).not.toContain('接続確認中');
+
+		// E2EはService Workerをblockしており、状態確定はフォールバックまで遅れる
+		await page.setViewportSize({ width: 1280, height: 800 });
+		await page.goto('/');
+		const header = page.locator('header');
+		await expect(header.getByText('接続確認中')).toHaveCount(0);
+		await expect(
+			header.getByRole('button', { name: 'オフラインモードの設定を開く' }),
+		).toBeVisible({ timeout: 10_000 });
+	});
+
 	test('Footer links are present', async ({ page }) => {
 		const footer = page.locator('footer');
 		await expect(footer).toBeVisible();
