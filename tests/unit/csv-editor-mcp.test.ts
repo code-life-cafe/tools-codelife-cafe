@@ -539,3 +539,8 @@ test('文字列降順の照合順と同値安定性・数値型の空セル抽�
 		);
 	}
 });
+
+test('descriptorはnumber比較で拒否する16進・指数表記の対応を約束しない', () => {
+	assert.ok(!tool.description.includes('指数/16進'));
+	assert.match(tool.description, /指数表記.*エラー/);
+});

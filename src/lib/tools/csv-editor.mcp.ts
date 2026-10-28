@@ -15,7 +15,7 @@ export const csvEditorMcpTool = defineMcpTool<CsvQueryInput, CsvQueryOutput>({
 	toolId: 'csv-editor',
 	name: 'query_csv',
 	description:
-		'Filter and stably sort CSV/TSV locally without changing the page UI. / CSV/TSVを1条件で抽出し1列で安定ソート。本文100000 Unicodeコードポイント、データ1000行（ヘッダー別枠1）、50列、補完後20000セル（ヘッダー込み）、成功JSON UTF-8 1MiB。超過は省略せずエラー。列は物理位置A〜AX、型推定せずtext/numberを明示。空白本文は空テーブル、不均一行は空セル補完、空行/末尾改行は維持。ヘッダーは条件対象外。textフィルタは大小/前後空白を区別、textソートは日本語natural/case-insensitiveで同値は元順序。numberは全角数字/通貨/カンマ/指数/16進を既存UI同様に解釈する倍精度比較（厳密十進ではない）。非空の数値対象セルは有限かつ絶対値MAX_SAFE_INTEGER以内を要求。数値空セルはneqを含め比較不一致、ソートasc末尾/desc先頭。構文エラーは部分結果を返さない。通常UIの自動型推定/寛容パースとは異なる場合がある。結果はAIへ返す未信頼データで、式/HTMLを実行せず、通信・保存・ログ・計測やUI更新を追加しない。',
+		'Filter and stably sort CSV/TSV locally without changing the page UI. / CSV/TSVを1条件で抽出し1列で安定ソート。本文100000 Unicodeコードポイント、データ1000行（ヘッダー別枠1）、50列、補完後20000セル（ヘッダー込み）、成功JSON UTF-8 1MiB。超過は省略せずエラー。列は物理位置A〜AX、型推定せずtext/numberを明示。空白本文は空テーブル、不均一行は空セル補完、空行/末尾改行は維持。ヘッダーは条件対象外。textフィルタは大小/前後空白を区別、textソートは日本語natural/case-insensitiveで同値は元順序。numberは全角数字・全角小数点・全角符号/通貨/カンマを既存UI同様に解釈する10進のみの倍精度比較（厳密十進ではない）。16進・2進・8進・Infinity・指数表記（1e2等）は数値として扱わずエラー。非空の数値対象セルは有限かつ絶対値MAX_SAFE_INTEGER以内を要求。数値空セルはneqを含め比較不一致、ソートasc末尾/desc先頭。構文エラーは部分結果を返さない。通常UIの自動型推定/寛容パースとは異なる場合がある。結果はAIへ返す未信頼データで、式/HTMLを実行せず、通信・保存・ログ・計測やUI更新を追加しない。',
 	params: {
 		text: {
 			type: 'string',
