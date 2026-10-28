@@ -7,6 +7,7 @@ import {
 	type FilterGroup,
 	inferColumnType,
 	parseDate,
+	parseNumber,
 	queryRows,
 	type SortKey,
 	validateFilterCondition,
@@ -209,4 +210,92 @@ test('applyFilter - 存在しない日付は日付比較に含めない', () => 
 		conditions: [{ columnId: 'c0', operator: 'neq', value: '2026-02-28' }],
 	};
 	assert.deepEqual(applyFilter(rows, g, columns), [2]);
+});
+
+test('parseDate - 許可形式以外の文字列はnullにする', () => {
+	for (const v of [
+		'A-3',
+		'Room 1',
+		'No.12',
+		'Test 1',
+		'12',
+		'3',
+		'B-2',
+		'2026',
+		'1/2',
+		'Jan 5',
+	]) {
+		assert.equal(parseDate(v), null, v);
+	}
+});
+
+test('parseDate - 許可形式（YYYY-MM-DD・YYYY/M/D・ISO 8601日時）は解釈する', () => {
+	assert.equal(parseDate('2026-06-28')?.getDate(), 28);
+	assert.equal(parseDate('2026/6/8')?.getDate(), 8);
+	for (const v of [
+		'2026-06-28T10:30:00Z',
+		'2026-06-28T10:30:00.123+09:00',
+		'2026-06-28 10:30:00',
+		'2026-06-28T10:30',
+	]) {
+		assert.notEqual(parseDate(v), null, v);
+	}
+});
+
+test('parseNumber - 16進・2進・8進・Infinity・指数表記はnullにする', () => {
+	for (const v of [
+		'0x1F',
+		'0b101',
+		'0o17',
+		'Infinity',
+		'-Infinity',
+		'1E5',
+		'1e-3',
+		'$',
+		'¥',
+		'1_000',
+		'--5',
+		'1.2.3',
+	]) {
+		assert.equal(parseNumber(v), null, v);
+	}
+});
+
+test('parseNumber - 全角小数点・全角符号を数値として解釈する', () => {
+	assert.equal(parseNumber('１２３．５'), 123.5);
+	assert.equal(parseNumber('－５'), -5);
+	assert.equal(parseNumber('−５'), -5);
+	assert.equal(parseNumber('＋７'), 7);
+	assert.equal(parseNumber('￥1,234'), 1234);
+	assert.equal(parseNumber('-50'), -50);
+	assert.equal(parseNumber('.5'), 0.5);
+	assert.equal(parseNumber('0'), 0);
+	assert.equal(parseNumber(3), 3);
+});
+
+test('inferColumnType - 区画コード・部屋名・16進・指数風の列は数値/日付と推定しない', () => {
+	assert.equal(inferColumnType(['A-1', 'A-2', 'A-3', 'B-1', 'B-2']), 'text');
+	assert.equal(inferColumnType(['Room 1', 'Room 2', 'Room 3']), 'text');
+	assert.equal(inferColumnType(['No.12', 'No.13', 'Test 1']), 'text');
+	assert.equal(inferColumnType(['0x1F', '0xAB', '0x10']), 'text');
+	assert.equal(inferColumnType(['1E5', '2E3', '3E7']), 'text');
+	assert.equal(inferColumnType(['１２３．５', '－５', '７']), 'number');
+});
+
+test('queryRows - 区画コード列の昇順ソートは文字列順になる', () => {
+	const columns: Column[] = [
+		{
+			id: 'c0',
+			name: '区画',
+			type: inferColumnType(['B-2', 'A-3', 'A-1', 'B-1', 'A-2']),
+		},
+	];
+	const rows = [['B-2'], ['A-3'], ['A-1'], ['B-1'], ['A-2']];
+	const res = queryRows(rows, columns, {
+		sortKeys: [{ columnId: 'c0', direction: 'asc' }],
+	});
+	assert.deepEqual(
+		res.map((i) => rows[i][0]),
+		['A-1', 'A-2', 'A-3', 'B-1', 'B-2'],
+	);
 });

@@ -47,23 +47,27 @@ const jaCollator = new Intl.Collator('ja', {
 });
 
 /**
- * 全角数字を半角数字に変換し、カンマ・通貨記号を شاه 除去して数値化する
+ * 全角数字・全角小数点・全角符号を半角化し、カンマ・通貨記号を除去して数値化する。
+ * 10進の整数・小数のみ受け付け、0x1F・0b101・Infinity・指数表記（1E5）は数値としない。
  */
 export function parseNumber(val: string | number | undefined): number | null {
 	if (val === undefined || val === null) return null;
-	if (typeof val === 'number') return Number.isNaN(val) ? null : val;
+	if (typeof val === 'number') return Number.isFinite(val) ? val : null;
 	let str = String(val).trim();
 	if (!str) return null;
 
-	// 全角数字 -> 半角数字
-	str = str.replace(/[０-９]/g, (ch) =>
-		String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
-	);
+	// 全角数字・小数点・符号 -> 半角
+	str = str
+		.replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+		.replace(/[．]/g, '.')
+		.replace(/[－−‐]/g, '-')
+		.replace(/[＋]/g, '+');
 	// 通貨記号・カンマ除去
 	str = str.replace(/[¥￥$,]/g, '').trim();
 
+	if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(str)) return null;
 	const num = Number(str);
-	return Number.isNaN(num) ? null : num;
+	return Number.isFinite(num) ? num : null;
 }
 
 /**
@@ -102,7 +106,14 @@ export function parseDate(val: string | number | undefined): Date | null {
 	if (isoMatch && !isValidCalendarDate(isoMatch[1], isoMatch[2], isoMatch[3])) {
 		return null;
 	}
-	const timestamp = Date.parse(str);
+	// ISO 8601日時のみ許可（Date.parseの寛容な解釈で「Room 1」等を日付にしない）
+	if (
+		!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(
+			str,
+		)
+	)
+		return null;
+	const timestamp = Date.parse(str.replace(' ', 'T'));
 	return Number.isNaN(timestamp) ? null : new Date(timestamp);
 }
 

@@ -190,13 +190,19 @@ test('数値全演算子・表記を保持・空セルneqも不一致', async ()
 	assert.equal(
 		(
 			await run({
-				text: '"¥1,000"\n２\n-3.5\n1e2\n0x10',
+				text: '"¥1,000"\n２\n-3.5\n１２．５\n－７',
 				sortColumn: 'A',
 				sortCompare: 'number',
 			})
 		).result,
-		'-3.5\r\n２\r\n0x10\r\n1e2\r\n"¥1,000"',
+		'－７\r\n-3.5\r\n２\r\n１２．５\r\n"¥1,000"',
 	);
+	// 16進・指数表記は数値として扱わない（Issue: CSVエディタ列型推定の誤判定修正）
+	for (const text of ['1\n0x10', '1\n1e2'])
+		await error(
+			{ text, sortColumn: 'A', sortCompare: 'number' },
+			'数値として比較できない値が含まれています。',
+		);
 });
 test('空セル・数値空位置・同値安定ソート', async () => {
 	const text = 'ID,値\na,2\nb,\nc,02\nd,1\ne,';
