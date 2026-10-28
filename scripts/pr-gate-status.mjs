@@ -4,35 +4,57 @@
 // 認証は任意（GITHUB_TOKEN / GH_TOKEN）。未設定でも公開情報は取得できるが、未解決threadは不明（null）になりblockedに倒れる。
 // 注意: 環境のproxyを使う場合は NODE_USE_ENV_PROXY=1 が必要（Node 22）。
 import { evaluate } from './lib/pr-gate.mjs';
+import { withTimeout } from './lib/with-timeout.mjs';
 
 const API = 'https://api.github.com';
 const DEFAULT_REPO = 'code-life-cafe/tools-codelife-cafe';
 const PAGE_LIMIT = 100; // 100件/ページ。到達しても終わらなければ不完全として扱う。
 
-/** @param {{ token?: string, fetchImpl?: any }} [opts] */
-export function createClient({ token, fetchImpl = fetch } = {}) {
+/** @param {{ token?: string, fetchImpl?: any, timeoutMs?: number, totalMs?: number }} [opts] */
+export function createClient({
+	token,
+	fetchImpl = fetch,
+	timeoutMs = 20_000,
+	totalMs = 180_000,
+} = {}) {
 	const headers = {
 		accept: 'application/vnd.github+json',
 		'user-agent': 'pr-gate-status',
 	};
 	if (token) headers.authorization = `Bearer ${token}`;
+	// 1回の通信（本文読取を含む）と全体に上限を設け、通信不能が永続待ちにならないようにする。
+	const startedAt = Date.now();
+	const call = (label, run) => {
+		if (Date.now() - startedAt >= totalMs)
+			throw new Error(`${label}: 全体期限(${totalMs}ms)超過`);
+		return withTimeout(run, timeoutMs, label);
+	};
 	return {
-		async get(path) {
-			const res = await fetchImpl(`${API}${path}`, { method: 'GET', headers });
-			if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
-			return res.json();
+		get(path) {
+			return call(`GET ${path}`, async (signal) => {
+				const res = await fetchImpl(`${API}${path}`, {
+					method: 'GET',
+					headers,
+					signal,
+				});
+				if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+				return res.json();
+			});
 		},
 		// GraphQLはread専用のqueryだけを送る。mutationは拒否する。
 		async graphql(query, variables) {
 			if (!token) throw new Error('GraphQLは認証が必要');
 			if (!/^\s*query\b/.test(query)) throw new Error('queryのみ許可');
-			const res = await fetchImpl(`${API}/graphql`, {
-				method: 'POST',
-				headers: { ...headers, 'content-type': 'application/json' },
-				body: JSON.stringify({ query, variables }),
+			const body = await call('graphql', async (signal) => {
+				const res = await fetchImpl(`${API}/graphql`, {
+					method: 'POST',
+					headers: { ...headers, 'content-type': 'application/json' },
+					body: JSON.stringify({ query, variables }),
+					signal,
+				});
+				if (!res.ok) throw new Error(`graphql -> ${res.status}`);
+				return res.json();
 			});
-			if (!res.ok) throw new Error(`graphql -> ${res.status}`);
-			const body = await res.json();
 			if (body.errors)
 				throw new Error(
 					`graphql errors: ${JSON.stringify(body.errors).slice(0, 200)}`,
@@ -208,6 +230,7 @@ export async function collect(
 						name: x.name,
 						status: x.status,
 						conclusion: x.conclusion,
+						runAttempt: x.run_attempt ?? null,
 					}));
 				});
 				runs.push({ ...base, jobs });

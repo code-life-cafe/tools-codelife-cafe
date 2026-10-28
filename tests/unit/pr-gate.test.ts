@@ -583,7 +583,12 @@ test('Merge後: wait-deploy → verify-production → close → done', () => {
 	assert.equal(evaluate(post({ deploy: { runs: [] } })).state, 'wait-deploy');
 	assert.equal(
 		evaluate(
-			post({ deploy: deployRun({ status: 'in_progress', conclusion: null }) }),
+			post({
+				deploy: deployRun({ status: 'in_progress', conclusion: null }, [
+					job('deploy'),
+					job('production-smoke', null as never, 'in_progress'),
+				]),
+			}),
 		).state,
 		'wait-deploy',
 	);
@@ -684,6 +689,309 @@ test('指摘3: Issue未指定・取得失敗・AC未完了は close/done にし�
 		evaluate(post({ deploy: deployRun({ jobs: null }) })).state,
 		'blocked',
 	);
+});
+
+// ---- 2周目の指摘 ----
+test('2周目1: 同一headで後から届いた approved-B が、bot明示の supersedes で旧 unapproved-B を置き換える', () => {
+	const unapproved = {
+		...classification({ class: 'B', risk: 'R2', approvalStatus: 'unapproved' }),
+		id: 2,
+		createdAt: '2026-10-28T00:01:00Z',
+	};
+	const approved = {
+		...classification({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+			supersedes: [2],
+		}),
+		id: 5,
+		createdAt: '2026-10-28T00:10:00Z',
+	};
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), unapproved, approved] }))
+			.classification,
+		'approved-B',
+	);
+	// 順序が逆でも・重複しても同じ
+	assert.equal(
+		evaluate(
+			snap({ comments: [approved, unapproved, approved, botSummary(HEAD)] }),
+		).state,
+		'merge-ready',
+	);
+	// supersedes が無ければ、未解決の反対判定として厳しい側が残る
+	const plain = {
+		...approved,
+		body: marker({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+		}),
+	};
+	const v = evaluate(snap({ comments: [botSummary(HEAD), unapproved, plain] }));
+	assert.equal(v.state, 'blocked');
+	assert.equal(v.classification, 'unapproved-B');
+	// 無関係なidを指していても、古い方は消えない
+	const wrong = {
+		...approved,
+		body: marker({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+			supersedes: [999],
+		}),
+	};
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), unapproved, wrong] }))
+			.classification,
+		'unapproved-B',
+	);
+	// 古いマーカーが新しいマーカーを置き換える向きは無効
+	const backwards = { ...approved, createdAt: '2026-10-28T00:00:30Z' };
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), unapproved, backwards] }))
+			.classification,
+		'unapproved-B',
+	);
+});
+
+test('2周目1: 承認の更新があったときだけ、分類の再照合依頼を一度だけ提案する', () => {
+	const unapproved = {
+		...classification({ class: 'B', risk: 'R2', approvalStatus: 'unapproved' }),
+		createdAt: '2026-10-28T00:05:00Z',
+	};
+	const ask = (at: string) => ({
+		id: 70,
+		login: 'maru0014',
+		authorType: 'User',
+		createdAt: at,
+		body: `@codex classify\n${HEAD}`,
+	});
+	const approval = (at: string) => ({
+		id: 71,
+		login: 'maru0014',
+		authorType: 'User',
+		createdAt: at,
+		body: '計画を承認します（2026-10-28）',
+	});
+	const run = (extra: unknown[]) =>
+		evaluate(snap({ comments: [botSummary(HEAD), unapproved, ...extra] }));
+	// 依頼後、分類より後に承認 → 再照合の提案
+	assert.match(
+		run([ask('2026-10-28T00:02:00Z'), approval('2026-10-28T00:20:00Z')])
+			.suggest,
+		/reconcile/,
+	);
+	// 承認が分類より前（無関係/古い承認）→ 提案しない
+	assert.doesNotMatch(
+		run([ask('2026-10-28T00:02:00Z'), approval('2026-10-28T00:03:00Z')])
+			.suggest,
+		/reconcile/,
+	);
+	// すでに承認後に再依頼済み → 重ねない
+	assert.doesNotMatch(
+		run([
+			ask('2026-10-28T00:02:00Z'),
+			approval('2026-10-28T00:20:00Z'),
+			{ ...ask('2026-10-28T00:21:00Z'), id: 72 },
+		]).suggest,
+		/reconcile/,
+	);
+	// 承認の言及がない → 提案しない
+	assert.doesNotMatch(run([ask('2026-10-28T00:02:00Z')]).suggest, /reconcile/);
+});
+
+test('2周目2: run集約が未完了でも、同じrun・attemptの必須jobが成功なら判定する。1jobでも未完了/失敗/欠落/別attemptなら進めない', () => {
+	const running = { status: 'in_progress', conclusion: null };
+	assert.equal(evaluate(post({ deploy: deployRun(running) })).state, 'close');
+	const smokeRunning = [
+		job('deploy'),
+		job('production-smoke', null as never, 'in_progress'),
+	];
+	assert.equal(
+		evaluate(post({ deploy: deployRun(running, smokeRunning) })).state,
+		'wait-deploy',
+	);
+	assert.equal(
+		evaluate(post({ deploy: deployRun(running, [job('deploy')]) })).state,
+		'wait-deploy',
+	);
+	assert.equal(
+		evaluate(
+			post({
+				deploy: deployRun(running, [
+					job('deploy', 'failure'),
+					job('production-smoke', null as never, 'queued'),
+				]),
+			}),
+		).state,
+		'blocked',
+	);
+	assert.equal(
+		evaluate(
+			post({
+				deploy: deployRun(running, [
+					job('deploy'),
+					job('production-smoke', 'failure'),
+				]),
+			}),
+		).state,
+		'blocked',
+	);
+	// 完了済みrunでsmoke job欠落は verify-production（導入前のrun）
+	assert.equal(
+		evaluate(post({ deploy: deployRun({}, [job('deploy')]) })).state,
+		'verify-production',
+	);
+	// 別attemptのjobは、このattemptの証拠にならない
+	const other = [
+		{ ...job('deploy'), runAttempt: 1 },
+		{ ...job('production-smoke'), runAttempt: 1 },
+	];
+	const v = evaluate(
+		post({ deploy: deployRun({ attempt: 2, ...running }, other) }),
+	);
+	assert.equal(v.state, 'wait-deploy');
+});
+
+test('2周目4: 必須項目の欠落・型不明は補完せず不合格', () => {
+	const ctx = { repo: REPO, number: 7, headSha: HEAD };
+	const noScope = JSON.parse(
+		JSON.stringify({
+			repository: REPO,
+			pullRequestNumber: 7,
+			headSha: HEAD,
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+		}),
+	);
+	const mk = (m: object) => ({
+		id: 3,
+		login: BOT,
+		authorType: 'Bot',
+		createdAt: '2026-10-28T00:01:00Z',
+		body: `<!-- codex-classification:v1 ${JSON.stringify(m)} -->`,
+	});
+	assert.equal(readClassifications([mk(noScope)], ctx).valid.length, 0);
+	assert.equal(
+		readClassifications([mk({ ...noScope, unapprovedScope: [] })], ctx).valid
+			.length,
+		1,
+	);
+	const { approvalRef: _omit, ...noRef } = { ...noScope, unapprovedScope: [] };
+	assert.equal(readClassifications([mk(noRef)], ctx).valid.length, 0);
+	for (const bad of [
+		{ approvalRef: 5 },
+		{ unapprovedScope: 'none' },
+		{ additionalRiskReview: 'yes' },
+		{ supersedes: ['abc'] },
+		{ supersedes: 'x' },
+	]) {
+		assert.equal(
+			readClassifications(
+				[mk({ ...noScope, unapprovedScope: [], ...bad })],
+				ctx,
+			).valid.length,
+			0,
+			JSON.stringify(bad),
+		);
+	}
+	// Aでも項目欠落は不合格
+	assert.equal(
+		readClassifications(
+			[
+				mk({
+					repository: REPO,
+					pullRequestNumber: 7,
+					headSha: HEAD,
+					class: 'A',
+					risk: 'R1',
+					approvalStatus: 'not-required',
+				}),
+			],
+			ctx,
+		).valid.length,
+		0,
+	);
+});
+
+test('2周目4: Codexメタデータがnull・文字列・配列でも例外にせず待ち状態を返す', () => {
+	const mkState = (state: unknown, meta: unknown) => ({
+		...botSummary(HEAD),
+		body: `<!-- codex-review-state:v1 ${JSON.stringify(state)} -->\n<!-- codex-security-review:v1 ${JSON.stringify(meta)} -->`,
+	});
+	const meta = {
+		headSha: HEAD,
+		status: 'completed',
+		pullRequestNumber: 7,
+		repository: REPO,
+	};
+	for (const state of [
+		{ code_review: null, security_review: null },
+		{ code_review: 'x', security_review: [] },
+		[],
+		'str',
+		{},
+	]) {
+		const v = evaluate(
+			snap({ comments: [mkState(state, meta), classification()] }),
+		);
+		assert.equal(v.state, 'wait-review', JSON.stringify(state));
+	}
+	assert.equal(
+		evaluate(
+			snap({
+				comments: [
+					mkState({ code_review: {}, security_review: {} }, null),
+					classification(),
+				],
+			}),
+		).state,
+		'wait-review',
+	);
+	// 想定外のsnapshotでも例外にしない
+	const odd = evaluate(snap({ comments: [null] }));
+	assert.equal(odd.state, 'blocked');
+	assert.equal(odd.retriable, true);
+});
+
+test('2周目3: 進行照合の通信がハングしても、上限内に失敗して blocked(retriable) になる', async () => {
+	const hang = (async () => new Promise(() => {})) as never;
+	const t0 = Date.now();
+	const s = await collect(createClient({ fetchImpl: hang, timeoutMs: 30 }), {
+		repo: REPO,
+		number: 7,
+	});
+	assert.ok(Date.now() - t0 < 2000);
+	assert.match(s.errors[0], /タイムアウト/);
+	assert.equal(evaluate(s).state, 'blocked');
+	// 本文の読取だけが止まる場合も同様
+	const slowBody = (async () => ({
+		ok: true,
+		status: 200,
+		json: () => new Promise(() => {}),
+	})) as never;
+	const s2 = await collect(
+		createClient({ fetchImpl: slowBody, timeoutMs: 30 }),
+		{ repo: REPO, number: 7 },
+	);
+	assert.match(s2.errors[0], /タイムアウト/);
+	// 全体期限を超えたら以降の通信を始めない
+	const gh = fakeGithub();
+	const expired = gh.client('t');
+	const c = createClient({
+		token: 't',
+		totalMs: -1,
+		fetchImpl: (async () => json({})) as never,
+	});
+	await assert.rejects(async () => c.get('/x'), /全体期限/);
+	assert.ok(expired);
 });
 
 // ---- 取得層 ----

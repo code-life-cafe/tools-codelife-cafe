@@ -80,7 +80,8 @@ export function readCodexSummary(comments, { repo, number, headSha }) {
 		};
 	const state = parseJsonMarker(latest.body, 'codex-review-state:v1');
 	const sec = parseJsonMarker(latest.body, 'codex-security-review:v1');
-	if (!state || !sec)
+	const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+	if (!isObj(state) || !isObj(sec))
 		return {
 			ok: false,
 			code: 'summary-unparsable',
@@ -94,8 +95,8 @@ export function readCodexSummary(comments, { repo, number, headSha }) {
 		};
 	}
 	// 完全SHAのみ比較する。欠落（Code対象SHAなし等）は合格にしない。
-	const check = (label, r = {}) => {
-		if (!FULL_SHA.test(r.commit_sha ?? '')) {
+	const check = (label, r) => {
+		if (!isObj(r) || !FULL_SHA.test(r.commit_sha ?? '')) {
 			return {
 				code: `${label}-sha-missing`,
 				detail: `${label}の対象commit_shaが欠落/不正`,
@@ -147,16 +148,39 @@ export function validateClassification(m, { repo, number, headSha }) {
 	if (!RISK_BY_CLASS[m.class]) return { ok: false, why: 'classが不正' };
 	if (!RISK_BY_CLASS[m.class].includes(m.risk))
 		return { ok: false, why: 'classとriskが矛盾' };
+	// 文書が必須とする項目は欠落・型不明なら不合格（補完しない）。
+	if (
+		!('approvalRef' in m) ||
+		!(m.approvalRef === null || typeof m.approvalRef === 'string')
+	)
+		return { ok: false, why: 'approvalRefが欠落/型不明' };
+	if (!Array.isArray(m.unapprovedScope))
+		return { ok: false, why: 'unapprovedScopeが欠落/型不明' };
+	if (
+		m.additionalRiskReview !== undefined &&
+		typeof m.additionalRiskReview !== 'boolean'
+	)
+		return { ok: false, why: 'additionalRiskReviewの型が不明' };
+	if (
+		m.supersedes !== undefined &&
+		!(
+			Array.isArray(m.supersedes) &&
+			m.supersedes.every((x) => /^\d+$/.test(String(x).replace(/^.*[#/]/, '')))
+		)
+	)
+		return { ok: false, why: 'supersedesの形式が不明' };
+	const supersedes = (m.supersedes ?? []).map((x) =>
+		String(x).replace(/^.*[#/]/, ''),
+	);
 	if (m.class === 'A') {
 		return m.approvalStatus === 'not-required'
-			? { ok: true, label: 'A', class: 'A', risk: m.risk }
+			? { ok: true, label: 'A', class: 'A', risk: m.risk, supersedes }
 			: { ok: false, why: 'Aのapprovalが不正' };
 	}
 	if (m.approvalStatus === 'approved') {
 		const ref = typeof m.approvalRef === 'string' ? m.approvalRef.trim() : '';
-		const scope = m.unapprovedScope ?? [];
 		if (!ref) return { ok: false, why: 'approvalRefが空' };
-		if (!Array.isArray(scope) || scope.length)
+		if (m.unapprovedScope.length)
 			return { ok: false, why: '未承認範囲が残っている' };
 		return {
 			ok: true,
@@ -165,6 +189,7 @@ export function validateClassification(m, { repo, number, headSha }) {
 			risk: m.risk,
 			approvalRef: ref,
 			additionalRiskReview: m.additionalRiskReview === true,
+			supersedes,
 		};
 	}
 	if (m.approvalStatus === 'unapproved') {
@@ -173,6 +198,7 @@ export function validateClassification(m, { repo, number, headSha }) {
 			label: `unapproved-${m.class}`,
 			class: m.class,
 			risk: m.risk,
+			supersedes,
 		};
 	}
 	return { ok: false, why: 'approvalStatusが不正' };
@@ -200,10 +226,24 @@ export function readClassifications(comments, ctx) {
 		}
 		if (body.includes(ctx.headSha) && /独立分類/.test(body)) manual += 1;
 	}
-	valid.sort(
+	// botが後続の分類で明示的に置き換えた旧判定だけを無効化する。未解決の反対判定は残り、厳しい側が優先される。
+	const live = valid.filter(
+		(v) =>
+			!valid.some(
+				(n) =>
+					n !== v &&
+					n.supersedes.includes(String(v.id)) &&
+					Date.parse(n.at) > Date.parse(v.at),
+			),
+	);
+	live.sort(
 		(a, b) => STRICTNESS.indexOf(b.label) - STRICTNESS.indexOf(a.label),
 	);
-	return { valid, invalid, manual };
+	const latestMarkerAt = valid.reduce(
+		(t, v) => Math.max(t, Date.parse(v.at)),
+		0,
+	);
+	return { valid: live, invalid, manual, latestMarkerAt };
 }
 
 // 既存の依頼履歴（headとtypeで判定）。同じhead・同じ種別の依頼を重ねない根拠。
@@ -217,6 +257,26 @@ export function priorRequests(comments, headSha) {
 		else if (/@codex\s+review/i.test(b)) types.add('review');
 	}
 	return types;
+}
+
+// 分類の再照合依頼（承認参照の更新・形式訂正）を、更新ごとに一度だけ許可する。
+// 最後の分類依頼より後に、bot以外の「承認」を含むコメントがあるときだけ true（現在の判定が未承認B/Cまたは無効マーカーの場合に使う）。
+export function canRequestReconcile(comments, headSha, cls) {
+	const lastRequest = comments
+		.filter(
+			(c) =>
+				!isCodexBot(c) &&
+				(c.body ?? '').includes(headSha) &&
+				/@codex\s+classify/i.test(c.body ?? ''),
+		)
+		.reduce((t, c) => Math.max(t, Date.parse(c.createdAt)), 0);
+	const updates = comments.filter(
+		(c) =>
+			!isCodexBot(c) &&
+			/承認|approval/i.test(c.body ?? '') &&
+			Date.parse(c.createdAt) > Math.max(lastRequest, cls.latestMarkerAt),
+	);
+	return lastRequest > 0 && updates.length > 0;
 }
 
 // 修正周回。履歴（コメント/本文）の最大値を採用し、再起動や重複で0に戻さない。取れなければnull。
@@ -298,6 +358,18 @@ function reviewRequestHint(review, comments, head, snapshot) {
 // snapshot: scripts/pr-gate-status.mjs が正規化して渡す。unknown/null は「不明」として扱う。
 /** @param {any} snapshot @returns {any} */
 export function evaluate(snapshot) {
+	try {
+		return evaluateInner(snapshot);
+	} catch (e) {
+		// 想定外の形式でも例外で終わらせず、不明な待ち状態（再取得）に倒す。
+		return result('blocked', {
+			retriable: true,
+			reasons: [`評価中に想定外の形式: ${e?.message ?? e}`],
+		});
+	}
+}
+
+function evaluateInner(snapshot) {
 	const { pr, repo, errors = [] } = snapshot;
 	if (!pr || !FULL_SHA.test(pr.headSha ?? '')) {
 		return result('blocked', {
@@ -443,7 +515,11 @@ export function evaluate(snapshot) {
 					: []),
 				...(requested ? ['同headにCodex分類依頼済み。応答を待つ'] : []),
 			],
-			suggest: requested ? null : `request-once: codex-classify (head ${head})`,
+			suggest: !requested
+				? `request-once: codex-classify (head ${head})`
+				: cls.invalid.length && canRequestReconcile(comments, head, cls)
+					? `request-once: codex-classify-reconcile (head ${head})`
+					: null,
 		});
 	}
 	const top = cls.valid[0]; // 矛盾時は最も厳しい分類
@@ -452,7 +528,9 @@ export function evaluate(snapshot) {
 			...base,
 			classification: top.label,
 			reasons: [`分類${top.label}: 本人承認の参照が未照合。承認範囲外は人間へ`],
-			suggest: 'request-approval-reference-or-return-to-human',
+			suggest: canRequestReconcile(comments, head, cls)
+				? `request-once: codex-classify-reconcile (head ${head})`
+				: 'request-approval-reference-or-return-to-human',
 		});
 	}
 	if (top.risk === 'R3' && !top.additionalRiskReview) {
@@ -558,15 +636,30 @@ function evaluatePostMerge(snapshot, base) {
 			reasons: ['merge commitのmain push Deploy runが未確認'],
 		});
 	}
-	const jobs = run.jobs ?? null;
-	const job = (name) => jobs?.find((j) => j.name === name);
+	// run全体の集約表示（status/conclusion）は遅れることがある。必須jobの完了を、この run・attempt に結び付けて判定する。
+	const jobs = (run.jobs ?? null)?.filter(
+		(j) => j.runAttempt == null || j.runAttempt === (run.attempt ?? 1),
+	);
+	if (jobs == null) {
+		return result('blocked', {
+			...m,
+			runId: run.id,
+			retriable: true,
+			reasons: ['Deploy jobの取得に失敗'],
+		});
+	}
+	const job = (name) => jobs.find((j) => j.name === name);
+	const deployed = job(DEPLOY_JOB);
 	const smoke = job(SMOKE_JOB);
-	if (smoke?.status === 'completed' && smoke.conclusion !== 'success') {
+	const failedJob = [deployed, smoke].find(
+		(j) => j?.status === 'completed' && j.conclusion !== 'success',
+	);
+	if (failedJob) {
 		return result('blocked', {
 			...m,
 			runId: run.id,
 			reasons: [
-				`公開検証(${SMOKE_JOB}) ${smoke.conclusion}。Deploy成功と混同せず人間へ通知`,
+				`${failedJob.name} が ${failedJob.conclusion}。${failedJob.name === SMOKE_JOB ? '公開確認失敗(Deploy成功と混同しない)' : 'Deploy失敗'}として人間へ通知`,
 			],
 		});
 	}
@@ -577,32 +670,32 @@ function evaluatePostMerge(snapshot, base) {
 			reasons: [`Deploy ${run.conclusion}。公開確認失敗として人間へ通知`],
 		});
 	}
-	if (run.status !== 'completed') {
+	const pending = [deployed, smoke].filter(
+		(j) => j && j.status !== 'completed',
+	);
+	if (pending.length || !deployed) {
 		return result('wait-deploy', {
 			...m,
 			runId: run.id,
 			waitingOn: 'Deploy/公開検証',
 			retriable: true,
-			reasons: [`deploy run status=${run.status}`],
+			reasons: [
+				...pending.map((j) => `${j.name} status=${j.status}`),
+				...(!deployed ? [`${DEPLOY_JOB} job未確認`] : []),
+			],
 		});
 	}
-	if (jobs == null) {
-		return result('blocked', {
-			...m,
-			runId: run.id,
-			retriable: true,
-			reasons: ['Deploy jobの取得に失敗'],
-		});
-	}
-	const deployed = job(DEPLOY_JOB);
-	if (deployed?.conclusion !== 'success') {
-		return result('blocked', {
-			...m,
-			runId: run.id,
-			reasons: [`${DEPLOY_JOB} jobが成功していない`],
-		});
-	}
-	if (smoke?.conclusion !== 'success') {
+	if (!smoke) {
+		// runが完了済みで smoke job が無い（導入前のrun）。進行中のrunでは、後続jobの出現を待つ。
+		if (run.status !== 'completed') {
+			return result('wait-deploy', {
+				...m,
+				runId: run.id,
+				waitingOn: 'Deploy/公開検証',
+				retriable: true,
+				reasons: [`run status=${run.status}。${SMOKE_JOB} job未確認`],
+			});
+		}
 		return result('verify-production', {
 			...m,
 			runId: run.id,

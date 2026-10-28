@@ -37,6 +37,7 @@ const SECOND =
 async function operate() {
 	const { chromium } = await import('@playwright/test');
 	const browser = await chromium.launch({
+		timeout: 30_000,
 		executablePath: env.SMOKE_CHROMIUM_PATH || undefined,
 	});
 	const blocked = [];
@@ -57,6 +58,8 @@ async function operate() {
 			});
 		}
 		const page = await context.newPage();
+		page.setDefaultTimeout(30_000);
+		page.setDefaultNavigationTimeout(30_000);
 		const resp = await page.goto(`${baseUrl}/wordcloud/`, {
 			waitUntil: 'load',
 		});
@@ -97,6 +100,15 @@ async function operate() {
 	}
 }
 
+// 全体の期限。通信やブラウザ操作が止まっても、期限切れの失敗証拠を保存して必ず終了する。
+const deadlineMs = Number(env.SMOKE_DEADLINE_MS ?? 600_000);
+const watchdog = setTimeout(() => {
+	result.ok = false;
+	result.error = `全体期限(${deadlineMs}ms)超過`;
+	writeEvidence();
+	process.exit(1);
+}, deadlineMs);
+
 try {
 	result.http = await checkHttp({ url: `${baseUrl}/` });
 	result.buildInfo = await waitForBuildInfo({
@@ -118,16 +130,20 @@ try {
 } catch (e) {
 	result.error = String(e?.message ?? e);
 }
-result.finishedAt = new Date().toISOString();
+function writeEvidence() {
+	result.finishedAt = new Date().toISOString();
+	mkdirSync(outDir, { recursive: true });
+	writeFileSync(
+		join(outDir, 'smoke-result.json'),
+		`${JSON.stringify(result, null, 2)}\n`,
+	);
+	const summary = summarize(result);
+	writeFileSync(join(outDir, 'smoke-summary.md'), summary);
+	if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
+	console.log(summary);
+	console.log(JSON.stringify(result));
+}
 
-mkdirSync(outDir, { recursive: true });
-writeFileSync(
-	join(outDir, 'smoke-result.json'),
-	`${JSON.stringify(result, null, 2)}\n`,
-);
-const summary = summarize(result);
-writeFileSync(join(outDir, 'smoke-summary.md'), summary);
-if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, summary);
-console.log(summary);
-console.log(JSON.stringify(result));
+writeEvidence();
+clearTimeout(watchdog);
 process.exit(result.ok ? 0 : 1);

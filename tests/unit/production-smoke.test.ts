@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -166,4 +167,98 @@ test('summarize は run ID・SHA・操作結果を含み、失敗を成功と書
 	});
 	assert.match(ng, /失敗/);
 	assert.doesNotMatch(ng, /公開後smoke: 成功/);
+});
+
+test('通信がハング（応答なし/本文読取が止まる）しても、各試行は上限内に失敗し全体も終わる', async () => {
+	const never = (async () => new Promise(() => {})) as never;
+	const t0 = Date.now();
+	const r = await waitForBuildInfo({
+		fetchImpl: never,
+		baseUrl: BASE,
+		expectedSha: SHA,
+		runId: '1',
+		runAttempt: '1',
+		attempts: 3,
+		intervalMs: 0,
+		requestTimeoutMs: 20,
+		sleep: async () => {},
+	});
+	assert.equal(r.ok, false);
+	assert.equal(r.history.length, 3);
+	assert.match(String(r.history[0].error), /タイムアウト/);
+	assert.ok(Date.now() - t0 < 2000);
+	const slowBody = (async () => ({
+		status: 200,
+		json: () => new Promise(() => {}),
+	})) as never;
+	const b = await waitForBuildInfo({
+		fetchImpl: slowBody,
+		baseUrl: BASE,
+		expectedSha: SHA,
+		runId: '1',
+		runAttempt: '1',
+		attempts: 2,
+		intervalMs: 0,
+		requestTimeoutMs: 20,
+		sleep: async () => {},
+	});
+	assert.equal(b.ok, false);
+	assert.match(String(b.history[0].error), /タイムアウト/);
+	const h = await checkHttp({
+		url: BASE,
+		fetchImpl: never,
+		requestTimeoutMs: 20,
+	});
+	assert.equal(h.ok, false);
+	assert.match(String(h.error), /タイムアウト/);
+});
+
+test('全体期限を超えたら試行を打ち切り、期限切れとして失敗する', async () => {
+	let clock = 0;
+	const r = await waitForBuildInfo({
+		fetchImpl: (async () => res(404)) as never,
+		baseUrl: BASE,
+		expectedSha: SHA,
+		runId: '1',
+		runAttempt: '1',
+		attempts: 30,
+		intervalMs: 0,
+		deadlineMs: 2500,
+		now: () => (clock += 1000),
+		sleep: async () => {},
+	});
+	assert.equal(r.ok, false);
+	assert.equal(r.deadlineExceeded, true);
+	assert.ok(r.history.length < 30);
+});
+
+test('smoke CLI: 通信が止まっても全体期限で失敗証拠を保存して終了コード1で終わる', async () => {
+	const server = createServer(() => {});
+	await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+	const port = (server.address() as { port: number }).port;
+	const dir = mkdtempSync(join(tmpdir(), 'smoke-'));
+	const code = await new Promise<number | null>((resolve) => {
+		const child = spawn(process.execPath, ['scripts/production-smoke.mjs'], {
+			env: {
+				...process.env,
+				SMOKE_LOCAL_TEST: '1',
+				SMOKE_BASE_URL: `http://127.0.0.1:${port}`,
+				EXPECTED_SHA: SHA,
+				SMOKE_RUN_ID: '1',
+				SMOKE_RUN_ATTEMPT: '1',
+				SMOKE_OUT_DIR: dir,
+				SMOKE_DEADLINE_MS: '400',
+			},
+			stdio: 'ignore',
+		});
+		child.on('exit', resolve);
+	});
+	server.closeAllConnections();
+	server.close();
+	assert.equal(code, 1);
+	const result = JSON.parse(
+		readFileSync(join(dir, 'smoke-result.json'), 'utf-8'),
+	);
+	assert.equal(result.ok, false);
+	assert.match(result.error, /全体期限/);
 });
