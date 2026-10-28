@@ -414,6 +414,10 @@ function evaluateInner(snapshot) {
 		});
 	}
 
+	const loops = readFixLoops([pr.body, ...comments.map((c) => c.body)]);
+	// 例外承認の自由文を自動権限として解釈しない。限定承認は人間が別途照合する。
+	const repairSuggestion = (suggest) =>
+		loops != null && loops < MAX_FIX_LOOPS ? suggest : 'return-to-human';
 	const required = snapshot.rules?.requiredChecks?.length
 		? snapshot.rules.requiredChecks
 		: REQUIRED_CHECKS.map((context) => ({ context }));
@@ -422,7 +426,7 @@ function evaluateInner(snapshot) {
 		return result('blocked', {
 			...base,
 			reasons: [`必須CI失敗: ${ci.failed.join(', ')}`],
-			suggest: 'fix-ci(修正周回に計上)',
+			suggest: repairSuggestion('fix-ci(修正周回に計上)'),
 		});
 	}
 	if (pr.mergeableState === 'dirty') {
@@ -475,7 +479,6 @@ function evaluateInner(snapshot) {
 		});
 	}
 
-	const loops = readFixLoops([pr.body, ...comments.map((c) => c.body)]);
 	if (loops != null && loops > MAX_FIX_LOOPS) {
 		return result('blocked', {
 			...base,
@@ -494,7 +497,7 @@ function evaluateInner(snapshot) {
 			return result('blocked', {
 				...base,
 				reasons: [review.detail],
-				suggest: 'classify-and-fix-findings',
+				suggest: repairSuggestion('classify-and-fix-findings'),
 			});
 		}
 		const hint = reviewRequestHint(review, comments, head, snapshot);

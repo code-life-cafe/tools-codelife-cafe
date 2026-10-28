@@ -490,6 +490,90 @@ test('修正ループは履歴の最大値を採用し、3周超過は blocked�
 	assert.equal(none.retriable, true);
 });
 
+test('修正予算: CI失敗とCode/Security指摘は2周なら修正候補、3/4周と履歴不明なら人間へ返す', () => {
+	for (const body of [
+		'修正ループ: 2/3',
+		'修正ループ: 3/3',
+		'修正ループ: 4/3',
+		'',
+	]) {
+		for (const kind of ['ci', 'code', 'security']) {
+			const v = evaluate(
+				snap({
+					pr: withPr({ body }),
+					...(kind === 'ci'
+						? {
+								checks: [
+									check('lint'),
+									check('e2e', { conclusion: 'failure' }),
+								],
+							}
+						: {
+								comments: [
+									botSummary(HEAD, {
+										[kind]: { has_unresolved_findings: true },
+									}),
+									classification(),
+								],
+							}),
+				}),
+			);
+			assert.equal(v.state, 'blocked');
+			assert.equal(
+				v.suggest,
+				body.includes('2/3')
+					? kind === 'ci'
+						? 'fix-ci(修正周回に計上)'
+						: 'classify-and-fix-findings'
+					: 'return-to-human',
+				`${body}/${kind}`,
+			);
+		}
+	}
+});
+
+test('修正予算: 成功した3周目は進行し、待機や旧headの証拠は追加修正を始めない', () => {
+	const pr = withPr({ body: '修正ループ: 3/3' });
+	assert.equal(evaluate(snap({ pr })).state, 'merge-ready');
+	assert.equal(
+		evaluate(
+			snap({
+				pr,
+				checks: [check('lint', { status: 'in_progress', conclusion: null })],
+			}),
+		).state,
+		'wait-ci',
+	);
+	const stale = evaluate(
+		snap({
+			pr,
+			comments: [
+				botSummary(OLD, { code: { has_unresolved_findings: true } }),
+				classification(),
+			],
+		}),
+	);
+	assert.equal(stale.state, 'wait-review');
+	assert.doesNotMatch(stale.suggest ?? '', /fix/);
+});
+
+test('修正予算: 例外承認の自由文で恒久上限を拡張しない。4周目の成功も人間が限定承認を照合する', () => {
+	const pr = withPr({
+		body: '修正ループ: 4/3\n本人承認: 今回だけ追加1周。以後停止。',
+	});
+	for (const comments of [
+		[botSummary(HEAD), classification()],
+		[
+			botSummary(HEAD, { code: { has_unresolved_findings: true } }),
+			classification(),
+		],
+	]) {
+		const v = evaluate(snap({ pr, comments }));
+		assert.equal(v.state, 'blocked');
+		assert.equal(v.suggest, 'return-to-human');
+	}
+});
+
 test('未解決thread・thread取得不能・strict未確認は merge-ready にしない', () => {
 	assert.equal(evaluate(snap({ unresolvedThreads: 1 })).state, 'blocked');
 	assert.equal(evaluate(snap({ unresolvedThreads: null })).state, 'blocked');
