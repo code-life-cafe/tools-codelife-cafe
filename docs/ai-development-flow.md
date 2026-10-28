@@ -24,6 +24,27 @@ ChatGPT（Notionで分析・施策）→ GitHub Issue（AC・Risk Class）→ Cl
 
 Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに次を残して更新する: 現在状態、次の一手、待ち先（CI / Codexレビュー / 人間承認 / 利用上限）、待ち始め、再開条件、対象head SHA。CI・レビューの完了・失敗・指摘後の対応はClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。利用上限時は別の実装者へ自動で切り替えず、待ち状態と再開条件を明記して止める。同じhead・同じ種別のレビュー依頼を連投しない。
 
+### 進行照合（読み取り専用）
+
+`node scripts/pr-gate-status.mjs <PR番号> [--issue N]` は、GitHubの公開REST（認証があればGraphQLの未解決thread）をGETだけで取り直し、PRがいまどの待ちにあるかを `state` で返す。Merge・コメント投稿・review依頼は行わず、Merge許可でもない。古いPR本文や集約表示を正本にせず、毎回対象head SHAで取得する。コメント・check-run・review・threadは全ページ取得し、ページ上限や途中失敗は「不完全」として扱う。取得の最後にPRを読み直し、途中でhead/baseが変わっていれば再取得を要求する。取得失敗・未知形式・旧SHA・Code対象SHA欠落・矛盾は合格にせず、`wait-*` か `blocked`（`retriable`）に倒す。環境のproxyを使う場合は `NODE_USE_ENV_PROXY=1` を付ける。
+
+| state | 意味と次の一手 |
+| --- | --- |
+| `ready` | Draftで対象headの必須CIが成功。Ready化して自動レビューを受ける（手動依頼との二重起動をしない） |
+| `sync-base` | headが最新baseより遅れている。通常mergeで取り込み、新headのCI・レビューを再照合 |
+| `wait-ci` / `wait-review` / `wait-classification` | 対象head向けのCI（rulesetの必須checkと連携app一致）/ Codex Code・Security完了 / 同一headの独立分類が未成立。技術待ち（修正周回に数えない） |
+| `blocked` | CI失敗、競合、未解決指摘・thread、人間の変更要求、3周超過、未承認B/C、rules・bypass・thread・履歴を確認できない等。`retriable` が真なら取得を再試行 |
+| `merge-ready` | 全条件成立。Merge直前に再取得し、既存の操作主体が `--match-head-commit` で通常Merge（照合とMergeは別操作） |
+| `wait-deploy` / `verify-production` / `close` / `done` | Merge後。既存Deploy待ち → 公開検証 → Issueのclose（効果測定はNotionへ引継ぎ） |
+
+**独立分類の自動証拠**は、Codex連携bot（`chatgpt-codex-connector[bot]`、type=Bot）が同じheadについて出す `codex-classification:v1` マーカーだけ。`repository` / `pullRequestNumber` / `headSha`（完全SHA）/ `class`（A/B/C）/ `risk`（A=R0・R1、B=R2・R3、C=R4）/ `approvalStatus`（`not-required` / `approved` / `unapproved`）/ `approvalRef`（文字列またはnull）/ `unapprovedScope`（配列）を必須とし、欠落・型不明・矛盾は補完せず無効。同一headに未承認の旧判定がある状態で本人の承認が後から届いた場合は、botが後続の分類で `supersedes`（置き換える旧コメントのid配列）を明示したときだけ旧判定を無効化する（時刻の新旧だけでは捨てない。未解決の反対判定は厳しい側）。承認の更新（最後の依頼より後の「承認」コメント）があった場合に限り、再照合の依頼を一度だけ提案する。B/Cは、承認の参照と範囲をCodexが照合して `approved` と明示し、未承認範囲が空の場合だけ継続できる（R3は追加独立リスクレビューの記録も必要）。AIの自己申告や任意のフラグで承認を作らない。ユーザー名義の自由文（Codexチャット経由を含む）は、ログインから人間・Codex・Claudeを区別できないため自動の証拠にせず、人間が確認する手動の補助情報として扱う。botはマーカーの波括弧をHTML数値参照（`&#123;` `&#125;`）で返すことがあり、読み取り側で復元する。分類は投稿時点のheadにだけ有効で、push後は新headで再取得する。
+
+**Codexへの依頼は、実際に依頼する1コメントだけにメンションを使う。** 進捗・引用・説明のコメントやPR本文に、依頼用のメンション文字列を書かない（Codex分類依頼のように言い換える）。メンション付きの引用だけでもCodexの別タスクが起動し、利用枠を消費する。依頼前に、同じhead・同じ種別（通常review / security review / 分類）の依頼履歴を照合し、あれば重ねない（履歴にはheadの完全SHAを入れて依頼する）。分類の依頼は読み取り専用（編集・commit・push禁止）と明記し、上記マーカーの出力を指定する。
+
+**公開後の検証**は、既存の `deploy.yml` にある `production-smoke` ジョブの結果だけを自動の証拠にする。`deploy` ジョブで `dist/build-info.json`（コミットSHA・run ID。公開リポジトリで既知の値のみ）をbuild後・公開前に生成して公開し、`production-smoke` が固定の公開URL（tools.codelife.cafe）に対して、HTTP 200、`build-info.json` のSHAが今回のmerge SHAと一致すること（CDN反映待ちで最大約5分再試行）、既知の短いダミー入力でのワードクラウド生成・再生成を確認する。計測は `X-CLC-Synthetic` と計測リクエストの遮断で汚さない。結果（run ID・attempt・merge SHA・URL・HTTP・操作結果）は job summary と artifact `production-smoke-<run>-<attempt>` に残る。通信（本文読取を含む）には1回15秒、全体に約5分（スクリプト全体は10分、jobは20分）の上限があり、期限切れでも失敗の証拠を保存する。Merge後の判定は、Deploy runの集約表示（in_progressのまま残ることがある）を待たず、同じrun・attemptの `deploy` と `production-smoke` の両jobの完了・成功で判断し、1つでも未完了・失敗・欠落・別attemptなら進めない。進行照合のREST/GraphQLにも1回20秒・全体3分の上限がある。失敗はジョブ失敗＝公開確認失敗で、Deploy成功とは区別する。本番の実ブラウザでの目視やダウンロード内容までは含まない。誰かのコメント文字列は公開確認の証拠にしない。`production-smoke` が無いDeploy（導入前のrun）は `verify-production` として手動確認する。復旧はこの差分のrevert。
+
+PR購読（`subscribe_pr_activity`）はCI・レビュー・merge等のイベントで再開する実在の手段。複数PRが依存する場合は、各PRを購読し、イベントごとに本スクリプトで再取得して次の一手だけを実行する。日次21時・週次月08:52の読み取り専用の棚卸しを実装トリガーにはしない。
+
 ## マージの担当
 
 最新baseをPR headが含むことを確認し、base更新時は通常のmergeで取り込んでCI・独立レビューをやり直す。直前の確認とMerge操作の間にもbaseは進み得るため、サーバー側のstrict required checks（`lint` / `e2e`）による最新base検証を自動Mergeの前提にする。`--match-head-commit` はheadだけの保護であり、これを代用にしない。2026-09-17に人間の個別承認を得て既存mainルールのstrictだけを有効化し、読み戻し確認済み。実行時にも有効であることを確認し、無効と確認できた場合は自動Mergeを保留して人間へ返す。一時的な取得失敗や確認不能は技術待ちとして再照合し、有効と確認できるまでMergeしない（取得不能が継続して自力で解決できない場合に限り、理由を報告して判断を求める）。merge queueは現在のWorkflowでは未対応のため使用しない。

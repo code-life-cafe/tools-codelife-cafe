@@ -31,6 +31,7 @@
 - 修正ループ: 0/3
 - Codex Code/Security Review（対象head）:
 - 独立した区分確認（A / 承認済みB / 承認済みC、同一headの実差分・AC・許可境界）:
+  - Codex bot の分類マーカー（`codex-classification:v1`、対象head・class・risk・approvalStatus・approvalRef）のコメントリンク。依頼は1コメントだけにメンションを使い、進捗・引用では書かない（Codex分類依頼と言い換える）:
 - finding / CI run → 分類 → 修正コミット → CI / 再レビュー結果:
 - 残っているblocking / 人間判断事項:
 
