@@ -759,6 +759,90 @@ test('2周目1: 同一headで後から届いた approved-B が、bot明示の su
 	);
 });
 
+// ---- 3周目(4周目承認): 同head矛盾マーカー ----
+test('4周目: 有効Aと矛盾する無効マーカー(承認済みなのに未承認範囲あり)が並ぶ間はmerge-readyにしない', () => {
+	const validA = {
+		...classification(),
+		id: 2,
+		createdAt: '2026-10-28T00:01:00Z',
+	};
+	const contradictory = {
+		...classification({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+			unapprovedScope: ['deploy.yml'],
+		}),
+		id: 3,
+		createdAt: '2026-10-28T00:02:00Z',
+	};
+	for (const comments of [
+		[botSummary(HEAD), validA, contradictory],
+		[botSummary(HEAD), contradictory, validA], // 順序逆転
+		[botSummary(HEAD), validA, contradictory, validA], // 重複
+	]) {
+		const v = evaluate(snap({ comments }));
+		assert.equal(v.state, 'blocked');
+		assert.notEqual(v.state, 'merge-ready');
+	}
+	// 有効Aだけなら進める
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), validA] })).state,
+		'merge-ready',
+	);
+	// 後続の有効な分類がsupersedesで当該コメントを明示置換したときだけ解消
+	const replacement = {
+		...classification({ supersedes: [3] }),
+		id: 4,
+		createdAt: '2026-10-28T00:10:00Z',
+	};
+	assert.equal(
+		evaluate(
+			snap({
+				comments: [botSummary(HEAD), validA, contradictory, replacement],
+			}),
+		).state,
+		'merge-ready',
+	);
+	// 無関係ID・先行投稿・信頼外投稿・旧headでは解消/発生しない
+	const unrelated = { ...replacement, body: marker({ supersedes: [999] }) };
+	assert.equal(
+		evaluate(
+			snap({ comments: [botSummary(HEAD), validA, contradictory, unrelated] }),
+		).state,
+		'blocked',
+	);
+	const earlier = { ...replacement, createdAt: '2026-10-28T00:01:30Z' };
+	assert.equal(
+		evaluate(
+			snap({ comments: [botSummary(HEAD), validA, contradictory, earlier] }),
+		).state,
+		'blocked',
+	);
+	const human = { ...contradictory, login: 'someone', authorType: 'User' };
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), validA, human] })).state,
+		'merge-ready',
+	);
+	const oldHead = classification(
+		{
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'ref',
+			unapprovedScope: ['x'],
+		},
+		'0'.repeat(40),
+	);
+	assert.equal(
+		evaluate(
+			snap({ comments: [botSummary(HEAD), validA, { ...oldHead, id: 9 }] }),
+		).state,
+		'merge-ready',
+	);
+});
+
 test('2周目1: 承認の更新があったときだけ、分類の再照合依頼を一度だけ提案する', () => {
 	const unapproved = {
 		...classification({ class: 'B', risk: 'R2', approvalStatus: 'unapproved' }),

@@ -223,7 +223,7 @@ export function readClassifications(comments, ctx) {
 			// 他headを対象にした正しい形式のマーカーは今回のheadには無関係。
 			if (v.ok) valid.push({ ...v, id: c.id, at: c.createdAt });
 			else if (v.why !== '対象headが不一致')
-				invalid.push({ id: c.id, why: v.why });
+				invalid.push({ id: c.id, why: v.why, at: c.createdAt });
 			continue;
 		}
 		if (body.includes(ctx.headSha) && /独立分類/.test(body)) manual += 1;
@@ -241,11 +241,20 @@ export function readClassifications(comments, ctx) {
 	live.sort(
 		(a, b) => STRICTNESS.indexOf(b.label) - STRICTNESS.indexOf(a.label),
 	);
+	// 無効マーカーも、botが後続の有効な分類で明示的に置き換えた場合だけ解消する（無関係ID・先行投稿では解消しない）。
+	const liveInvalid = invalid.filter(
+		(i) =>
+			!valid.some(
+				(n) =>
+					n.supersedes.includes(String(i.id)) &&
+					Date.parse(n.at) > Date.parse(i.at),
+			),
+	);
 	const latestMarkerAt = valid.reduce(
 		(t, v) => Math.max(t, Date.parse(v.at)),
 		0,
 	);
-	return { valid: live, invalid, manual, latestMarkerAt };
+	return { valid: live, invalid: liveInvalid, manual, latestMarkerAt };
 }
 
 // 既存の依頼履歴（headとtypeで判定）。同じhead・同じ種別の依頼を重ねない根拠。
@@ -522,6 +531,20 @@ function evaluateInner(snapshot) {
 				: cls.invalid.length && canRequestReconcile(comments, head, cls)
 					? `request-once: codex-classify-reconcile (head ${head})`
 					: null,
+		});
+	}
+	// 同headに解消されていない無効マーカーが残る間は、有効な分類があっても進めない（矛盾を捨ててmerge-readyにしない）。
+	if (cls.invalid.length) {
+		return result('blocked', {
+			...base,
+			retriable: true,
+			reasons: [
+				'同headに矛盾/無効な分類マーカーが残っている。botのsupersedesで明示的に置き換えられるまで進めない',
+				...cls.invalid.map((i) => `無効なマーカー(${i.id}): ${i.why}`),
+			],
+			suggest: canRequestReconcile(comments, head, cls)
+				? `request-once: codex-classify-reconcile (head ${head})`
+				: null,
 		});
 	}
 	const top = cls.valid[0]; // 矛盾時は最も厳しい分類
