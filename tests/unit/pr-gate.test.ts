@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	changesRequestedBy,
 	evaluate,
-	findClassification,
+	priorRequests,
+	readClassifications,
 	readFixLoops,
 } from '../../scripts/lib/pr-gate.mjs';
 import { collect, createClient } from '../../scripts/pr-gate-status.mjs';
@@ -13,8 +15,14 @@ const OLD = 'b'.repeat(40);
 const BASE = 'c'.repeat(40);
 const MERGE = 'd'.repeat(40);
 const BOT = 'chatgpt-codex-connector[bot]';
+const ACTIONS_APP = 15368;
+const NOW = Date.parse('2026-10-28T03:00:00Z');
 
 type Overrides = Record<string, unknown>;
+type Snap = { pr: Record<string, unknown>; comments: unknown[] } & Record<
+	string,
+	unknown
+>;
 
 const botSummary = (sha: string, over: Overrides = {}) => {
 	const review = {
@@ -39,21 +47,39 @@ const botSummary = (sha: string, over: Overrides = {}) => {
 	return {
 		id: 1,
 		login: BOT,
+		authorType: 'Bot',
 		createdAt: '2026-10-28T00:00:00Z',
 		updatedAt: '2026-10-28T00:00:00Z',
-		body: `<!-- codex-pull-request-review-summary -->\n<!-- codex-review-state:v1 ${JSON.stringify(state)} -->\n<!-- codex-security-review:v1 ${JSON.stringify(meta)} -->\n## Codex Review Summary`,
+		body: `<!-- codex-review-state:v1 ${JSON.stringify(state)} -->\n<!-- codex-security-review:v1 ${JSON.stringify(meta)} -->`,
 	};
 };
+
+// 実際のbot応答に合わせ、波括弧はHTML数値参照で返す。
+const marker = (over: Overrides = {}, sha = HEAD) => {
+	const m = {
+		repository: REPO,
+		pullRequestNumber: 7,
+		headSha: sha,
+		class: 'A',
+		risk: 'R1',
+		approvalStatus: 'not-required',
+		approvalRef: null,
+		unapprovedScope: [],
+		...over,
+	};
+	return `<!-- codex-classification:v1 ${JSON.stringify(m).replaceAll('{', '&#123;').replaceAll('}', '&#125;')} -->`;
+};
 const classification = (
-	sha: string,
-	klass = 'A',
-	login = 'maru0014',
-	extra = '',
+	over: Overrides = {},
+	sha = HEAD,
+	login = BOT,
+	authorType = 'Bot',
 ) => ({
 	id: 2,
 	login,
+	authorType,
 	createdAt: '2026-10-28T00:01:00Z',
-	body: `Codexによる独立分類 対象head ${sha}\n**独立分類: ${klass} / R1.** ${extra}`,
+	body: marker(over, sha),
 });
 const check = (name: string, over: Overrides = {}) => ({
 	name,
@@ -61,16 +87,14 @@ const check = (name: string, over: Overrides = {}) => ({
 	conclusion: 'success',
 	headSha: HEAD,
 	startedAt: '2026-10-28T00:00:00Z',
+	appId: ACTIONS_APP,
 	...over,
 });
 
-type Snap = { pr: Record<string, unknown>; comments: unknown[] } & Record<
-	string,
-	unknown
->;
 const snap = (over: Overrides = {}): Snap => ({
 	repo: REPO,
 	errors: [],
+	now: NOW,
 	pr: {
 		number: 7,
 		state: 'open',
@@ -82,106 +106,186 @@ const snap = (over: Overrides = {}): Snap => ({
 		mergeableState: 'clean',
 		mergeCommitSha: null,
 		body: '修正ループ: 0/3',
+		headCommittedAt: '2026-10-28T02:55:00Z',
 	},
-	comments: [botSummary(HEAD), classification(HEAD)],
+	comments: [botSummary(HEAD), classification()],
 	checks: [check('lint'), check('e2e')],
+	reviews: [],
 	behindBy: 0,
-	rules: { strict: true, requiredChecks: ['e2e', 'lint'] },
+	rules: {
+		strict: true,
+		enforcement: 'active',
+		bypassActors: 0,
+		requiredChecks: [
+			{ context: 'e2e', integrationId: ACTIONS_APP },
+			{ context: 'lint', integrationId: ACTIONS_APP },
+		],
+	},
 	unresolvedThreads: 0,
 	...over,
 });
+const withPr = (over: Overrides) => ({ ...snap().pr, ...over });
 
 test('全条件成立で merge-ready（head指定のMerge案を返し、Merge自体は行わない）', () => {
 	const v = evaluate(snap());
 	assert.equal(v.state, 'merge-ready');
 	assert.equal(v.suggest, `merge --match-head-commit ${HEAD}`);
+	assert.equal(v.classification, 'A');
 });
 
 test('Draftで必須CI成功なら ready、CI未成功なら wait-ci', () => {
-	const draft = {
-		number: 7,
-		state: 'open',
-		draft: true,
-		merged: false,
-		headSha: HEAD,
-		baseSha: BASE,
-		mergeableState: 'clean',
-		body: '',
-	};
-	assert.equal(evaluate(snap({ pr: draft })).state, 'ready');
-	assert.equal(
-		evaluate(
-			snap({
-				pr: draft,
-				checks: [
-					check('lint'),
-					check('e2e', { status: 'in_progress', conclusion: null }),
-				],
-			}),
-		).state,
-		'wait-ci',
-	);
+	const pr = withPr({ draft: true });
+	assert.equal(evaluate(snap({ pr })).state, 'ready');
+	const running = [
+		check('lint'),
+		check('e2e', { status: 'in_progress', conclusion: null }),
+	];
+	assert.equal(evaluate(snap({ pr, checks: running })).state, 'wait-ci');
 });
 
 test('baseが進んだheadは sync-base（CI待ちより優先）', () => {
-	const v = evaluate(
-		snap({
-			behindBy: 2,
-			checks: [check('lint', { status: 'in_progress', conclusion: null })],
-		}),
-	);
-	assert.equal(v.state, 'sync-base');
+	const checks = [check('lint', { status: 'in_progress', conclusion: null })];
+	assert.equal(evaluate(snap({ behindBy: 2, checks })).state, 'sync-base');
 });
 
 test('旧headのCI成功は無視し、対象headの未起動は wait-ci', () => {
-	const v = evaluate(
-		snap({
-			checks: [check('lint', { headSha: OLD }), check('e2e', { headSha: OLD })],
-		}),
-	);
+	const checks = [
+		check('lint', { headSha: OLD }),
+		check('e2e', { headSha: OLD }),
+	];
+	const v = evaluate(snap({ checks }));
 	assert.equal(v.state, 'wait-ci');
 	assert.equal(v.retriable, true);
 });
 
 test('必須CI失敗は blocked（成功扱いにしない）', () => {
-	const v = evaluate(
-		snap({ checks: [check('lint'), check('e2e', { conclusion: 'failure' })] }),
-	);
+	const checks = [check('lint'), check('e2e', { conclusion: 'failure' })];
+	const v = evaluate(snap({ checks }));
 	assert.equal(v.state, 'blocked');
 	assert.match(v.reasons[0], /e2e:failure/);
 });
 
-test('Codex未取得・Running・旧SHAは wait-review、Code対象SHA欠落は再依頼候補つき', () => {
+test('指摘5: 同名checkでも required の integration_id と異なるappの成功は無視する', () => {
+	const forged = [check('lint'), check('e2e', { appId: 999 })];
+	assert.equal(evaluate(snap({ checks: forged })).state, 'wait-ci');
+});
+
+test('指摘5: rulesetの必須checkが増えたら、それも成功するまで待つ', () => {
+	const rules = {
+		...(snap().rules as object),
+		requiredChecks: [
+			{ context: 'e2e', integrationId: ACTIONS_APP },
+			{ context: 'lint', integrationId: ACTIONS_APP },
+			{ context: 'extra', integrationId: ACTIONS_APP },
+		],
+	};
+	const v = evaluate(snap({ rules }));
+	assert.equal(v.state, 'wait-ci');
+	assert.match(v.reasons.join(), /extra/);
+});
+
+test('指摘5: 人間のCHANGES_REQUESTEDが残る間は blocked、DISMISSEDやbotは対象外', () => {
+	const cr = {
+		login: 'rev',
+		authorType: 'User',
+		state: 'CHANGES_REQUESTED',
+		submittedAt: '2026-10-28T01:00:00Z',
+	};
+	assert.equal(evaluate(snap({ reviews: [cr] })).state, 'blocked');
+	assert.deepEqual(changesRequestedBy([cr]), ['rev']);
+	const dismissed = {
+		...cr,
+		state: 'DISMISSED',
+		submittedAt: '2026-10-28T02:00:00Z',
+	};
+	assert.deepEqual(changesRequestedBy([cr, dismissed]), []);
+	assert.deepEqual(changesRequestedBy([{ ...cr, authorType: 'Bot' }]), []);
 	assert.equal(
-		evaluate(snap({ comments: [classification(HEAD)] })).state,
+		evaluate(snap({ reviews: [cr, dismissed] })).state,
+		'merge-ready',
+	);
+});
+
+test('指摘5: bypass actorがある/確認できない/activeでないrulesetは merge-ready にしない', () => {
+	const rules = snap().rules as Record<string, unknown>;
+	assert.equal(
+		evaluate(snap({ rules: { ...rules, bypassActors: 1 } })).state,
+		'blocked',
+	);
+	const unknown = evaluate(snap({ rules: { ...rules, bypassActors: null } }));
+	assert.equal(unknown.state, 'blocked');
+	assert.equal(unknown.retriable, true);
+	assert.equal(
+		evaluate(snap({ rules: { ...rules, enforcement: 'other' } })).state,
+		'blocked',
+	);
+});
+
+test('Codex未取得・Running・旧SHAは wait-review。Code対象SHA欠落は再依頼候補つき', () => {
+	assert.equal(
+		evaluate(snap({ comments: [classification()] })).state,
+		'wait-review',
+	);
+	const running = botSummary(HEAD, { code: { status: 'running' } });
+	assert.equal(
+		evaluate(snap({ comments: [running, classification()] })).state,
 		'wait-review',
 	);
 	assert.equal(
-		evaluate(
-			snap({
-				comments: [
-					botSummary(HEAD, { code: { status: 'running' } }),
-					classification(HEAD),
-				],
-			}),
-		).state,
-		'wait-review',
-	);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(OLD), classification(HEAD)] })).state,
+		evaluate(snap({ comments: [botSummary(OLD), classification()] })).state,
 		'wait-review',
 	);
 	const missing = evaluate(
 		snap({
 			comments: [
 				botSummary(HEAD, { code: { commit_sha: undefined } }),
-				classification(HEAD),
+				classification(),
 			],
 		}),
 	);
 	assert.equal(missing.state, 'wait-review');
 	assert.match(missing.reasons[0], /commit_sha/);
-	assert.match(missing.suggest, /request-review-once/);
+	assert.match(missing.suggest, /request-once: codex-review/);
+});
+
+test('再依頼の重複防止: 同head・同種別の依頼履歴があれば候補を出さない（種別が違えば出す）', () => {
+	const noSha = botSummary(HEAD, { code: { commit_sha: undefined } });
+	const asked = {
+		id: 50,
+		login: 'maru0014',
+		authorType: 'User',
+		createdAt: '2026-10-28T02:56:00Z',
+		body: `@codex review\nhead ${HEAD}`,
+	};
+	const dup = evaluate(snap({ comments: [noSha, classification(), asked] }));
+	assert.equal(dup.suggest, null);
+	assert.match(dup.reasons.join(), /依頼済み/);
+	// 旧headへの依頼は今回のheadの依頼にならない
+	const oldAsk = { ...asked, body: `@codex review\nhead ${OLD}` };
+	assert.match(
+		evaluate(snap({ comments: [noSha, classification(), oldAsk] })).suggest,
+		/codex-review/,
+	);
+	assert.deepEqual([...priorRequests([asked], HEAD)], ['review']);
+	// securityのみ欠落した場合、Code用の依頼履歴では抑止しない
+	const secMissing = botSummary(HEAD, { security: { commit_sha: undefined } });
+	assert.match(
+		evaluate(snap({ comments: [secMissing, classification(), asked] })).suggest,
+		/codex-security-review/,
+	);
+});
+
+test('Codex未取得・旧SHAの再依頼は、headのコミットから20分経つまで出さない', () => {
+	const stale = botSummary(OLD);
+	assert.equal(
+		evaluate(snap({ comments: [stale, classification()] })).suggest,
+		null,
+	);
+	const aged = withPr({ headCommittedAt: '2026-10-28T02:00:00Z' });
+	assert.match(
+		evaluate(snap({ pr: aged, comments: [stale, classification()] })).suggest,
+		/codex-review/,
+	);
 });
 
 test('未知形式・他PRのCodexサマリーは合格にしない', () => {
@@ -190,122 +294,198 @@ test('未知形式・他PRのCodexサマリーは合格にしない', () => {
 		body: '<!-- codex-review-state:v1 {not json} -->',
 	};
 	assert.equal(
-		evaluate(snap({ comments: [broken, classification(HEAD)] })).state,
+		evaluate(snap({ comments: [broken, classification()] })).state,
 		'wait-review',
 	);
 	const other = botSummary(HEAD, { meta: { pullRequestNumber: 8 } });
 	assert.equal(
-		evaluate(snap({ comments: [other, classification(HEAD)] })).state,
+		evaluate(snap({ comments: [other, classification()] })).state,
 		'wait-review',
 	);
 });
 
-test('botを装う利用者コメントはCodex完了信号にならない', () => {
-	const fake = { ...botSummary(HEAD), login: 'maru0014' };
+test('botを装う利用者コメント（loginやtypeが違う）はCodex完了信号にならない', () => {
+	const asUser = { ...botSummary(HEAD), login: 'maru0014', authorType: 'User' };
 	assert.equal(
-		evaluate(snap({ comments: [fake, classification(HEAD)] })).state,
+		evaluate(snap({ comments: [asUser, classification()] })).state,
+		'wait-review',
+	);
+	const botLoginUserType = { ...botSummary(HEAD), authorType: 'User' };
+	assert.equal(
+		evaluate(snap({ comments: [botLoginUserType, classification()] })).state,
 		'wait-review',
 	);
 });
 
 test('Codexの指摘が未解決なら blocked', () => {
-	const v = evaluate(
-		snap({
-			comments: [
-				botSummary(HEAD, { code: { has_unresolved_findings: true } }),
-				classification(HEAD),
-			],
-		}),
+	const c = botSummary(HEAD, { code: { has_unresolved_findings: true } });
+	assert.equal(
+		evaluate(snap({ comments: [c, classification()] })).state,
+		'blocked',
 	);
-	assert.equal(v.state, 'blocked');
 });
 
-test('同一headの独立分類がなければ wait-classification。「重大指摘なし」や旧head分類では代替しない', () => {
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD)] })).state,
-		'wait-classification',
-	);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), classification(OLD)] })).state,
-		'wait-classification',
-	);
-	const noIssue = {
+test('指摘2: ユーザー名義の自由文は自動の分類証拠にしない（Claude footerの有無に依らない）', () => {
+	const free = {
 		id: 3,
 		login: 'maru0014',
+		authorType: 'User',
 		createdAt: '2026-10-28T00:02:00Z',
-		body: `${HEAD} 重大な指摘なし`,
+		body: `対象head ${HEAD}\n独立分類: A / R1`,
 	};
+	const v = evaluate(snap({ comments: [botSummary(HEAD), free] }));
+	assert.equal(v.state, 'wait-classification');
+	assert.match(v.reasons.join(), /手動の分類コメント1件/);
 	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), noIssue] })).state,
+		readClassifications([free], { repo: REPO, number: 7, headSha: HEAD }).valid
+			.length,
+		0,
+	);
+});
+
+test('指摘2: botを装うユーザーのマーカーや旧head・他PRのマーカーは無効', () => {
+	const ctx = { repo: REPO, number: 7, headSha: HEAD };
+	assert.equal(
+		readClassifications([classification({}, HEAD, 'maru0014', 'User')], ctx)
+			.valid.length,
+		0,
+	);
+	assert.equal(
+		readClassifications([classification({}, OLD)], ctx).valid.length,
+		0,
+	);
+	assert.equal(
+		readClassifications([classification({ pullRequestNumber: 8 })], ctx).valid
+			.length,
+		0,
+	);
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), classification({}, OLD)] }))
+			.state,
 		'wait-classification',
 	);
 });
 
-test('Claude自身の分類・部外者の分類は証拠にならない（自己承認禁止）', () => {
-	const self = classification(
-		HEAD,
-		'A',
-		'maru0014',
-		'\n---\n_Generated by [Claude Code](https://claude.ai/code)_',
-	);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), self] })).state,
-		'wait-classification',
-	);
-	assert.equal(
-		evaluate(
-			snap({
-				comments: [botSummary(HEAD), classification(HEAD, 'A', 'someone-else')],
-			}),
-		).state,
-		'wait-classification',
-	);
-});
-
-test('構造化マーカーの分類を受け付け、head不一致は無視する', () => {
-	const marker = (sha: string) => ({
-		id: 4,
-		login: BOT,
-		createdAt: '2026-10-28T00:03:00Z',
-		body: `<!-- codex-classification:v1 {"headSha":"${sha}","class":"A","risk":"R1"} -->`,
-	});
-	assert.equal(findClassification([marker(HEAD)], HEAD).length, 1);
-	assert.equal(findClassification([marker(OLD)], HEAD).length, 0);
-});
-
-test('実際のCodex bot応答（波括弧がHTML数値参照）の分類マーカーを読める', () => {
-	const body = `<!-- codex-classification:v1 &#123;"headSha":"${HEAD}","class":"B","risk":"R2"&#125; -->\nclass: unapproved-B`;
-	const hits = findClassification(
-		[{ id: 8, login: BOT, createdAt: '2026-10-28T00:04:00Z', body }],
-		HEAD,
-	);
-	assert.deepEqual(
-		hits.map((h: { class: string }) => h.class),
-		['B'],
-	);
-});
-
-test('分類が矛盾したら厳しい側。B/Cは承認確認が必要で自動判定しない', () => {
+test('指摘2: 必須項目の欠落・矛盾・不明形式のマーカーは不合格で理由が残る', () => {
+	const ctx = { repo: REPO, number: 7, headSha: HEAD };
+	const bad = [
+		{ class: 'A', risk: 'R3' }, // classとrisk矛盾
+		{ class: 'Z' },
+		{ approvalStatus: 'maybe' },
+		{ class: 'B', risk: 'R2', approvalStatus: 'approved', approvalRef: '' },
+		{
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'x',
+			unapprovedScope: ['deploy.yml'],
+		},
+		{ class: 'A', approvalStatus: 'approved', approvalRef: 'x' },
+	];
+	for (const o of bad) {
+		const r = readClassifications([classification(o)], ctx);
+		assert.equal(r.valid.length, 0, JSON.stringify(o));
+		assert.equal(r.invalid.length, 1, JSON.stringify(o));
+	}
 	const v = evaluate(
 		snap({
-			comments: [
-				botSummary(HEAD),
-				classification(HEAD, 'A'),
-				{ ...classification(HEAD, 'B'), id: 9 },
-			],
+			comments: [botSummary(HEAD), classification({ class: 'A', risk: 'R3' })],
 		}),
 	);
+	assert.equal(v.state, 'wait-classification');
+	assert.match(v.reasons.join(), /矛盾/);
+});
+
+test('同一headの重複したbot分類コメントでも判定は変わらない（冪等）', () => {
+	const c = classification();
+	const a = evaluate(snap({ comments: [botSummary(HEAD), c] }));
+	const b = evaluate(
+		snap({ comments: [botSummary(HEAD), c, { ...c, id: 99 }] }),
+	);
+	assert.deepEqual(a, b);
+});
+
+test('分類依頼の履歴がある間は再依頼候補を出さず応答を待つ', () => {
+	const asked = {
+		id: 60,
+		login: 'maru0014',
+		authorType: 'User',
+		createdAt: 'x',
+		body: `@codex classify\n${HEAD}`,
+	};
+	const v = evaluate(snap({ comments: [botSummary(HEAD), asked] }));
+	assert.equal(v.state, 'wait-classification');
+	assert.equal(v.suggest, null);
+	assert.match(
+		evaluate(snap({ comments: [botSummary(HEAD)] })).suggest,
+		/request-once: codex-classify/,
+	);
+});
+
+test('指摘4: 未承認B/Cは blocked。承認参照つきのCodex bot approved-B/Cだけ継続できる', () => {
+	const unapproved = classification({
+		class: 'B',
+		risk: 'R2',
+		approvalStatus: 'unapproved',
+	});
+	const u = evaluate(snap({ comments: [botSummary(HEAD), unapproved] }));
+	assert.equal(u.state, 'blocked');
+	assert.equal(u.classification, 'unapproved-B');
+	const approved = classification({
+		class: 'B',
+		risk: 'R2',
+		approvalStatus: 'approved',
+		approvalRef:
+			'https://github.com/code-life-cafe/tools-codelife-cafe/issues/526#issuecomment-1',
+	});
+	const a = evaluate(snap({ comments: [botSummary(HEAD), approved] }));
+	assert.equal(a.state, 'merge-ready');
+	assert.equal(a.classification, 'approved-B');
+});
+
+test('指摘4: R3は追加独立リスクレビューの記録がなければ止める。承認参照が空のapprovedは無効', () => {
+	const r3 = {
+		class: 'B',
+		risk: 'R3',
+		approvalStatus: 'approved',
+		approvalRef: 'ref',
+	};
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), classification(r3)] })).state,
+		'blocked',
+	);
+	const ok = classification({ ...r3, additionalRiskReview: true });
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), ok] })).state,
+		'merge-ready',
+	);
+	const empty = classification({ ...r3, approvalRef: '  ' });
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), empty] })).state,
+		'wait-classification',
+	);
+});
+
+test('分類が矛盾したら最も厳しい側（A と unapproved-C が並べば blocked）', () => {
+	const c = classification({
+		class: 'C',
+		risk: 'R4',
+		approvalStatus: 'unapproved',
+	});
+	const v = evaluate(
+		snap({ comments: [botSummary(HEAD), classification(), { ...c, id: 9 }] }),
+	);
 	assert.equal(v.state, 'blocked');
-	assert.equal(v.classification, 'B');
+	assert.equal(v.classification, 'unapproved-C');
 });
 
 test('修正ループは履歴の最大値を採用し、3周超過は blocked、履歴なしはmerge-readyにしない', () => {
 	assert.equal(readFixLoops(['修正ループ: 1/3', '修正ループ: 2/3', null]), 2);
 	assert.equal(
-		evaluate(snap({ pr: { ...snap().pr, body: '修正ループ: 4/3' } })).state,
+		evaluate(snap({ pr: withPr({ body: '修正ループ: 4/3' }) })).state,
 		'blocked',
 	);
-	const none = evaluate(snap({ pr: { ...snap().pr, body: '' } }));
+	const none = evaluate(snap({ pr: withPr({ body: '' }) }));
 	assert.equal(none.state, 'blocked');
 	assert.equal(none.retriable, true);
 });
@@ -313,27 +493,32 @@ test('修正ループは履歴の最大値を採用し、3周超過は blocked�
 test('未解決thread・thread取得不能・strict未確認は merge-ready にしない', () => {
 	assert.equal(evaluate(snap({ unresolvedThreads: 1 })).state, 'blocked');
 	assert.equal(evaluate(snap({ unresolvedThreads: null })).state, 'blocked');
+	const rules = snap().rules as Record<string, unknown>;
 	assert.equal(
-		evaluate(
-			snap({ rules: { strict: false, requiredChecks: ['lint', 'e2e'] } }),
-		).state,
+		evaluate(snap({ rules: { ...rules, strict: false } })).state,
 		'blocked',
 	);
-	assert.equal(evaluate(snap({ rules: undefined })).state, 'blocked');
+	assert.equal(evaluate(snap({ rules: null })).state, 'blocked');
 });
 
-test('取得失敗（PR/コメント/check/behind）は合格にせず blocked(retriable)', () => {
+test('取得失敗（PR/コメント/check/review/behind）は合格にせず blocked(retriable)', () => {
 	assert.equal(evaluate({ repo: REPO, errors: ['pull: 500'] }).retriable, true);
-	for (const key of ['comments', 'checks', 'behindBy']) {
+	for (const key of ['comments', 'checks', 'reviews', 'behindBy']) {
 		const v = evaluate(snap({ [key]: null }));
 		assert.equal(v.state, 'blocked', key);
 		assert.equal(v.retriable, true, key);
 	}
 });
 
+test('指摘1: 取得中にhead/baseが変わったsnapshotは再取得（merge-readyにしない）', () => {
+	const v = evaluate(snap({ inconsistent: 'headSha' }));
+	assert.equal(v.state, 'blocked');
+	assert.equal(v.retriable, true);
+});
+
 test('競合は blocked', () => {
 	assert.equal(
-		evaluate(snap({ pr: { ...snap().pr, mergeableState: 'dirty' } })).state,
+		evaluate(snap({ pr: withPr({ mergeableState: 'dirty' }) })).state,
 		'blocked',
 	);
 });
@@ -341,114 +526,199 @@ test('競合は blocked', () => {
 test('重複イベント・再起動: 同じ入力は同じ判定で、コメント順や重複に依存しない', () => {
 	const s = snap();
 	const a = evaluate(s);
-	const reordered = snap({
-		comments: [...s.comments, ...s.comments].reverse(),
-	});
-	assert.deepEqual(evaluate(reordered), a);
+	assert.deepEqual(
+		evaluate(snap({ comments: [...s.comments, ...s.comments].reverse() })),
+		a,
+	);
 	assert.deepEqual(evaluate(structuredClone(s)), a);
 });
 
 test('headが進んだら旧head向けの完了・分類は引き継がれない', () => {
 	const NEW = 'e'.repeat(40);
 	const s = snap({
-		pr: { ...snap().pr, headSha: NEW },
+		pr: withPr({ headSha: NEW }),
 		checks: [check('lint', { headSha: NEW }), check('e2e', { headSha: NEW })],
 	});
 	assert.equal(evaluate(s).state, 'wait-review');
 });
 
-test('Merge後: wait-deploy → verify-production → close → done、Deploy失敗は blocked', () => {
-	const merged = {
-		...snap().pr,
-		state: 'closed',
-		merged: true,
-		mergeCommitSha: MERGE,
-	};
-	const run = (over: Overrides) => ({
-		runs: [
-			{ headSha: MERGE, status: 'completed', conclusion: 'success', ...over },
-		],
+// ---- Merge後 ----
+const merged = () =>
+	withPr({ state: 'closed', merged: true, mergeCommitSha: MERGE });
+const job = (name: string, conclusion = 'success', status = 'completed') => ({
+	name,
+	status,
+	conclusion,
+});
+const deployRun = (over: Overrides = {}, jobs?: unknown[]) => ({
+	runs: [
+		{
+			id: 111,
+			attempt: 1,
+			headSha: MERGE,
+			event: 'push',
+			branch: 'main',
+			status: 'completed',
+			conclusion: 'success',
+			jobs: jobs ?? [job('deploy'), job('production-smoke')],
+			...over,
+		},
+	],
+});
+const issue = (over: Overrides = {}) => ({
+	state: 'open',
+	body: '- [x] AC1\n- [x] AC2',
+	...over,
+});
+const post = (over: Overrides = {}) =>
+	snap({
+		pr: merged(),
+		deploy: deployRun(),
+		issueNumber: 526,
+		issue: issue(),
+		...over,
 	});
-	const verified = {
-		id: 5,
-		login: 'maru0014',
-		createdAt: '2026-10-28T00:10:00Z',
-		body: `公開SHA ${MERGE} / HTTP 200 を確認`,
-	};
-	assert.equal(
-		evaluate(snap({ pr: merged, deploy: { runs: [] } })).state,
-		'wait-deploy',
-	);
+
+test('Merge後: wait-deploy → verify-production → close → done', () => {
+	assert.equal(evaluate(post({ deploy: { runs: [] } })).state, 'wait-deploy');
 	assert.equal(
 		evaluate(
-			snap({
-				pr: merged,
-				deploy: run({ status: 'in_progress', conclusion: null }),
-			}),
+			post({ deploy: deployRun({ status: 'in_progress', conclusion: null }) }),
 		).state,
 		'wait-deploy',
 	);
 	assert.equal(
-		evaluate(snap({ pr: merged, deploy: run({ conclusion: 'failure' }) }))
-			.state,
-		'blocked',
-	);
-	assert.equal(
-		evaluate(snap({ pr: merged, deploy: run({}), comments: [] })).state,
+		evaluate(post({ deploy: deployRun({}, [job('deploy')]) })).state,
 		'verify-production',
 	);
+	const close = evaluate(post());
+	assert.equal(close.state, 'close');
+	assert.equal(close.runId, 111);
 	assert.equal(
-		evaluate(
-			snap({
-				pr: merged,
-				deploy: run({}),
-				comments: [verified],
-				issue: { state: 'open' },
-			}),
-		).state,
-		'close',
-	);
-	assert.equal(
-		evaluate(
-			snap({
-				pr: merged,
-				deploy: run({}),
-				comments: [verified],
-				issue: { state: 'closed' },
-			}),
-		).state,
+		evaluate(post({ issue: issue({ state: 'closed' }) })).state,
 		'done',
-	);
-	assert.equal(
-		evaluate(
-			snap({
-				pr: merged,
-				deploy: run({}),
-				comments: [{ ...verified, body: `公開確認 ${OLD} HTTP 200` }],
-			}),
-		).state,
-		'verify-production',
 	);
 });
 
-test('collect はGETとGraphQL(read)だけを使い、書き込み系を呼ばない', async () => {
+test('指摘3: 公開検証(production-smoke)の失敗はDeploy成功と混同せず blocked', () => {
+	const failed = deployRun({ conclusion: 'failure' }, [
+		job('deploy'),
+		job('production-smoke', 'failure'),
+	]);
+	const v = evaluate(post({ deploy: failed }));
+	assert.equal(v.state, 'blocked');
+	assert.match(v.reasons[0], /production-smoke/);
+	const skipped = deployRun({}, [
+		job('deploy'),
+		job('production-smoke', 'skipped'),
+	]);
+	assert.equal(evaluate(post({ deploy: skipped })).state, 'blocked');
+	assert.equal(
+		evaluate(
+			post({
+				deploy: deployRun({ conclusion: 'failure' }, [
+					job('deploy', 'failure'),
+				]),
+			}),
+		).state,
+		'blocked',
+	);
+});
+
+test('指摘3: 誰かのコメント文字列（計画・否定文を含む）は公開確認の証拠にならない', () => {
+	const plan = {
+		id: 1,
+		login: 'anyone',
+		authorType: 'User',
+		createdAt: 'x',
+		body: `これから公開SHA ${MERGE} を確認し HTTP 200 を確認する予定`,
+	};
+	const v = evaluate(
+		post({ deploy: deployRun({}, [job('deploy')]), comments: [plan] }),
+	);
+	assert.equal(v.state, 'verify-production');
+});
+
+test('指摘3: 別SHA・pull_request・別branch・旧attemptのDeployは証拠にしない', () => {
+	for (const o of [
+		{ headSha: OLD },
+		{ event: 'pull_request' },
+		{ branch: 'feature' },
+	]) {
+		assert.equal(
+			evaluate(post({ deploy: deployRun(o) })).state,
+			'wait-deploy',
+			JSON.stringify(o),
+		);
+	}
+	const two = {
+		runs: [
+			{ ...deployRun().runs[0], attempt: 1 },
+			{
+				...deployRun().runs[0],
+				attempt: 2,
+				conclusion: 'failure',
+				jobs: [job('deploy'), job('production-smoke', 'failure')],
+			},
+		],
+	};
+	assert.equal(evaluate(post({ deploy: two })).state, 'blocked');
+});
+
+test('指摘3: Issue未指定・取得失敗・AC未完了は close/done にしない。comments=null でも例外にしない', () => {
+	assert.equal(
+		evaluate(post({ issueNumber: null, issue: undefined })).state,
+		'blocked',
+	);
+	const fetchFail = evaluate(post({ issue: null }));
+	assert.equal(fetchFail.state, 'blocked');
+	assert.equal(fetchFail.retriable, true);
+	const open = evaluate(
+		post({ issue: issue({ body: '- [x] AC1\n- [ ] AC2' }) }),
+	);
+	assert.equal(open.state, 'blocked');
+	assert.match(open.reasons[0], /未チェックAC/);
+	assert.doesNotThrow(() => evaluate(post({ comments: null })));
+	assert.equal(evaluate(post({ deploy: null })).state, 'blocked');
+	assert.equal(
+		evaluate(post({ deploy: deployRun({ jobs: null }) })).state,
+		'blocked',
+	);
+});
+
+// ---- 取得層 ----
+const json = (body: unknown, status = 200) =>
+	new Response(JSON.stringify(body), { status });
+
+function fakeGithub(
+	over: Record<
+		string,
+		(url: string, init: { body?: string }) => Response | undefined
+	> = {},
+) {
 	const calls: { method: string; url: string }[] = [];
-	const json = (body: unknown) =>
-		new Response(JSON.stringify(body), { status: 200 });
-	const fetchImpl = async (url: string, init: { method: string }) => {
+	const impl = async (url: string, init: { method: string; body?: string }) => {
 		calls.push({ method: init.method, url });
+		for (const [k, fn] of Object.entries(over)) {
+			if (url.includes(k)) {
+				const r = fn(url, init);
+				if (r) return r;
+			}
+		}
 		if (url.endsWith('/graphql'))
 			return json({
 				data: {
 					repository: {
 						pullRequest: {
 							reviewThreads: {
+								pageInfo: { hasNextPage: false, endCursor: null },
 								nodes: [{ isResolved: true }, { isResolved: false }],
 							},
 						},
 					},
 				},
 			});
+		if (url.includes('/pulls/7/reviews')) return json([]);
 		if (url.includes('/pulls/7'))
 			return json({
 				number: 7,
@@ -461,45 +731,250 @@ test('collect はGETとGraphQL(read)だけを使い、書き込み系を呼ば�
 				body: '',
 			});
 		if (url.includes('/comments')) return json([]);
-		if (url.includes('/check-runs')) return json({ check_runs: [] });
+		if (url.includes('/check-runs'))
+			return json({ total_count: 0, check_runs: [] });
 		if (url.includes('/compare/')) return json({ behind_by: 0 });
+		if (url.includes('/rulesets/'))
+			return json({ enforcement: 'active', bypass_actors: [] });
 		if (url.includes('/rules/branches'))
 			return json([
 				{
 					type: 'required_status_checks',
+					ruleset_id: 1,
 					parameters: {
 						strict_required_status_checks_policy: true,
-						required_status_checks: [{ context: 'lint' }, { context: 'e2e' }],
+						required_status_checks: [
+							{ context: 'lint', integration_id: 15368 },
+							{ context: 'e2e', integration_id: 15368 },
+						],
 					},
 				},
 			]);
-		return new Response('{}', { status: 404 });
+		if (url.includes('/commits/'))
+			return json({ commit: { committer: { date: '2026-10-28T00:00:00Z' } } });
+		return json({}, 404);
 	};
-	const s = await collect(
-		createClient({ token: 't', fetchImpl: fetchImpl as never }),
-		{ repo: REPO, number: 7 },
-	);
+	return {
+		calls,
+		client: (token?: string) =>
+			createClient({ token, fetchImpl: impl as never }),
+	};
+}
+
+test('collect はGETとread用GraphQLだけを使い、書き込み系を呼ばない', async () => {
+	const gh = fakeGithub();
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
 	assert.equal(s.unresolvedThreads, 1);
 	assert.equal(s.rules.strict, true);
-	assert.ok(
-		calls.every((c) => c.method === 'GET' || c.url.endsWith('/graphql')),
+	assert.equal(s.rules.bypassActors, 0);
+	assert.deepEqual(
+		s.rules.requiredChecks.map(
+			(r: { integrationId: number }) => r.integrationId,
+		),
+		[15368, 15368],
 	);
 	assert.ok(
-		calls
+		gh.calls
 			.filter((c) => c.method !== 'GET')
 			.every((c) => c.url.endsWith('/graphql')),
 	);
+	await assert.rejects(
+		gh.client('t').graphql('mutation { x }', {}),
+		/queryのみ/,
+	);
 });
 
-test('collect: 認証なしでは未解決thread不明(null)になり、取得失敗はerrorsに残る', async () => {
-	const fetchImpl = async (url: string) =>
-		url.includes('/pulls/7')
-			? new Response('{}', { status: 500 })
-			: new Response('{}', { status: 404 });
-	const s = await collect(createClient({ fetchImpl: fetchImpl as never }), {
-		repo: REPO,
-		number: 7,
+test('指摘1: 未解決threadは次ページ以降も数える（101件目以降を無視しない）', async () => {
+	const page = (n: number, next: boolean) =>
+		json({
+			data: {
+				repository: {
+					pullRequest: {
+						reviewThreads: {
+							pageInfo: { hasNextPage: next, endCursor: 'c' },
+							nodes: Array.from({ length: n }, () => ({ isResolved: false })),
+						},
+					},
+				},
+			},
+		});
+	const gh = fakeGithub({
+		'/graphql': (_u, init) =>
+			JSON.parse(init.body ?? '{}').variables.after
+				? page(50, false)
+				: page(100, true),
 	});
-	assert.match(s.errors[0], /pull: GET .* -> 500/);
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.equal(s.unresolvedThreads, 150);
+});
+
+test('指摘1: threadの途中ページ失敗・未知形式は null（不明）にしてfail-closed', async () => {
+	const gh = fakeGithub({
+		'/graphql': (_u, init) =>
+			JSON.parse(init.body ?? '{}').variables.after
+				? json({}, 502)
+				: json({
+						data: {
+							repository: {
+								pullRequest: {
+									reviewThreads: {
+										pageInfo: { hasNextPage: true, endCursor: 'c' },
+										nodes: [],
+									},
+								},
+							},
+						},
+					}),
+	});
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.equal(s.unresolvedThreads, null);
+	assert.match(s.errors.join(), /threads/);
+});
+
+test('指摘1: コメントは1000件を超えても全ページ取得し、ページ上限で終わらなければ不完全として null', async () => {
+	const many = (page: number) =>
+		Array.from({ length: 100 }, (_, i) => ({
+			id: page * 1000 + i,
+			user: { login: 'x', type: 'User' },
+			body: '',
+			created_at: '2026-01-01T00:00:00Z',
+		}));
+	const gh = fakeGithub({
+		'/issues/7/comments': (u) => {
+			const p = Number(/[?&]page=(\d+)/.exec(u)?.[1]);
+			return json(p <= 12 ? (p === 12 ? many(p).slice(0, 5) : many(p)) : []);
+		},
+	});
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.equal(s.comments.length, 1105);
+	const endless = fakeGithub({
+		'/issues/7/comments': (u) =>
+			json(many(Number(/[?&]page=(\d+)/.exec(u)?.[1]))),
+	});
+	const e = await collect(endless.client('t'), { repo: REPO, number: 7 });
+	assert.equal(e.comments, null);
+	assert.match(e.errors.join(), /不完全/);
+});
+
+test('指摘1: check-runsは100件を超えても全ページ取得し、不足なら null', async () => {
+	const run = (i: number) => ({
+		name: `c${i}`,
+		status: 'completed',
+		conclusion: 'success',
+		head_sha: HEAD,
+		started_at: '2026-01-01T00:00:00Z',
+		app: { id: 15368 },
+	});
+	const gh = fakeGithub({
+		'/check-runs': (u) => {
+			const p = Number(/[?&]page=(\d+)/.exec(u)?.[1]);
+			return json({
+				total_count: 130,
+				check_runs: Array.from(
+					{ length: p === 1 ? 100 : p === 2 ? 30 : 0 },
+					(_, i) => run(p * 1000 + i),
+				),
+			});
+		},
+	});
+	assert.equal(
+		(await collect(gh.client('t'), { repo: REPO, number: 7 })).checks.length,
+		130,
+	);
+	const short = fakeGithub({
+		'/check-runs': () => json({ total_count: 130, check_runs: [] }),
+	});
+	assert.equal(
+		(await collect(short.client('t'), { repo: REPO, number: 7 })).checks,
+		null,
+	);
+});
+
+test('指摘1: 取得の途中でheadが進んだら不整合として検出する', async () => {
+	let n = 0;
+	const gh = fakeGithub({
+		'/pulls/7': (u) => {
+			if (u.includes('/reviews')) return undefined;
+			n += 1;
+			return json({
+				number: 7,
+				state: 'open',
+				draft: false,
+				merged: false,
+				head: { sha: n === 1 ? HEAD : OLD },
+				base: { ref: 'main', sha: BASE },
+				mergeable_state: 'clean',
+				body: '',
+			});
+		},
+	});
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.equal(s.inconsistent, 'headSha');
 	assert.equal(evaluate(s).state, 'blocked');
+});
+
+test('未知形式のrules応答でも例外にせず rules=null（blocked）', async () => {
+	const gh = fakeGithub({
+		'/rules/branches': () => json({ message: 'weird' }),
+	});
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.equal(s.rules, null);
+	assert.match(s.errors.join(), /rules/);
+});
+
+test('collect: 認証なしでは未解決thread不明(null)、PR取得失敗はerrorsに残って blocked', async () => {
+	const s = await collect(fakeGithub().client(), { repo: REPO, number: 7 });
+	assert.equal(s.unresolvedThreads, null);
+	const failing = fakeGithub({ '/pulls/7': () => json({}, 500) });
+	const f = await collect(failing.client(), { repo: REPO, number: 7 });
+	assert.match(f.errors[0], /pull: GET .* -> 500/);
+	assert.equal(evaluate(f).state, 'blocked');
+});
+
+test('collect(merge後): Deploy runのjobsを取得し、Issueの本文を読む', async () => {
+	const gh = fakeGithub({
+		'/pulls/7': (u) =>
+			u.includes('/reviews')
+				? undefined
+				: json({
+						number: 7,
+						state: 'closed',
+						draft: false,
+						merged: true,
+						merge_commit_sha: MERGE,
+						head: { sha: HEAD },
+						base: { ref: 'main', sha: BASE },
+						body: '',
+					}),
+		'/workflows/deploy.yml/runs': () =>
+			json({
+				workflow_runs: [
+					{
+						id: 111,
+						run_attempt: 1,
+						head_sha: MERGE,
+						event: 'push',
+						head_branch: 'main',
+						status: 'completed',
+						conclusion: 'success',
+					},
+				],
+			}),
+		'/actions/runs/111/jobs': () =>
+			json({
+				jobs: [
+					{ name: 'deploy', status: 'completed', conclusion: 'success' },
+					{
+						name: 'production-smoke',
+						status: 'completed',
+						conclusion: 'success',
+					},
+				],
+			}),
+		'/issues/526': () => json({ state: 'open', body: '- [x] AC' }),
+	});
+	const s = await collect(gh.client(), { repo: REPO, number: 7, issue: 526 });
+	const v = evaluate(s);
+	assert.equal(v.state, 'close');
+	assert.equal(v.runId, 111);
 });
