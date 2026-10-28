@@ -173,6 +173,8 @@ export function validateClassification(m, { repo, number, headSha }) {
 		String(x).replace(/^.*[#/]/, ''),
 	);
 	if (m.class === 'A') {
+		if (m.unapprovedScope.length)
+			return { ok: false, why: 'Aなのに未承認範囲が残っている(矛盾)' };
 		return m.approvalStatus === 'not-required'
 			? { ok: true, label: 'A', class: 'A', risk: m.risk, supersedes }
 			: { ok: false, why: 'Aのapprovalが不正' };
@@ -533,7 +535,8 @@ function evaluateInner(snapshot) {
 				: 'request-approval-reference-or-return-to-human',
 		});
 	}
-	if (top.risk === 'R3' && !top.additionalRiskReview) {
+	// 同じラベル(例: approved-B)でもR3の追加リスクレビュー未記録の判定が1つでも残れば進めない。
+	if (cls.valid.some((v) => v.risk === 'R3' && !v.additionalRiskReview)) {
 		return result('blocked', {
 			...base,
 			classification: top.label,
@@ -723,18 +726,21 @@ function evaluatePostMerge(snapshot, base) {
 		});
 	}
 	const open = (issue.body ?? '').match(/^\s*[-*]\s+\[ \]/gm)?.length ?? 0;
+	// ACの完了は close/done のどちらでも先に確認する（マージで自動closeされたIssueも対象）。
+	if (open > 0) {
+		return result('blocked', {
+			...m,
+			runId: run.id,
+			reasons: [
+				`Issueの未チェックACが${open}件${issue.state === 'closed' ? '(すでにclose済み。再openまたはACの整理が必要)' : ''}。完了まで done/close にしない`,
+			],
+		});
+	}
 	if (issue.state === 'closed') {
 		return result('done', {
 			...m,
 			runId: run.id,
 			reasons: ['公開検証成功・Issue close済み'],
-		});
-	}
-	if (open > 0) {
-		return result('blocked', {
-			...m,
-			runId: run.id,
-			reasons: [`Issueの未チェックACが${open}件。完了まで close しない`],
 		});
 	}
 	return result('close', {

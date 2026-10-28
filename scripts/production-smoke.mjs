@@ -34,6 +34,28 @@ const FIRST = '吾輩は猫である。名前はまだ無い。名前は猫で�
 const SECOND =
 	'確認用の文章です。確認用の文章を再び解析して、確認結果を表示します。';
 
+async function waitForSvgWord(page, word, absentWord = null) {
+	await page.waitForFunction(
+		({ w, absent }) => {
+			const svg = document.querySelector(
+				'[data-testid="wordcloud-canvas"] svg',
+			);
+			if (!svg) return false;
+			const r = svg.getBoundingClientRect();
+			if (r.width <= 0 || r.height <= 0) return false;
+			const texts = [...svg.querySelectorAll('text')].map(
+				(t) => t.textContent ?? '',
+			);
+			return (
+				texts.some((t) => t.includes(w)) &&
+				!(absent && texts.some((t) => t.includes(absent)))
+			);
+		},
+		{ w: word, absent: absentWord },
+		{ timeout: 30_000 },
+	);
+}
+
 async function operate() {
 	const { chromium } = await import('@playwright/test');
 	const browser = await chromium.launch({
@@ -78,9 +100,13 @@ async function operate() {
 		const card = page.getByTestId('wordcloud-canvas');
 		await input.fill(FIRST);
 		await table.getByText('猫').first().waitFor({ timeout: 30_000 });
+		// 頻度表はレイアウト計算より先に出るため、SVGが表示され期待語を含むまで待ってから記録する。
+		await waitForSvgWord(page, '猫');
 		heights.push(Math.round((await card.boundingBox())?.height ?? 0));
 		await input.fill(SECOND);
 		await table.getByText('確認').first().waitFor({ timeout: 30_000 });
+		// 再生成後のSVGが2つ目の入力の語を含み、1つ目の語が残っていない（旧結果ではない）ことを確認する。
+		await waitForSvgWord(page, '確認', '猫');
 		heights.push(Math.round((await card.boundingBox())?.height ?? 0));
 		const svgCount = await page
 			.locator('[data-testid="wordcloud-canvas"] svg')
@@ -110,7 +136,7 @@ const watchdog = setTimeout(() => {
 }, deadlineMs);
 
 try {
-	result.http = await checkHttp({ url: `${baseUrl}/` });
+	result.http = await checkHttp({ url: `${baseUrl}/`, attempts: 5 });
 	result.buildInfo = await waitForBuildInfo({
 		baseUrl,
 		expectedSha: result.expectedSha,

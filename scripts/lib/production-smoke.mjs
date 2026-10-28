@@ -42,29 +42,42 @@ export function assertAllowedBaseUrl(raw, { allowLocal = false } = {}) {
 
 const HEADERS = { 'X-CLC-Synthetic': '1' };
 
+// 一時的な失敗（CDN反映中・接続断）に備えて数回再試行する。最後の結果と履歴を返し、200以外が続けば失敗。
 export async function checkHttp({
 	fetchImpl = fetch,
 	url,
 	requestTimeoutMs = 15_000,
+	attempts = 1,
+	intervalMs = 5_000,
+	sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
 }) {
-	try {
-		const status = await withTimeout(
-			async (signal) =>
-				(
-					await fetchImpl(url, {
-						headers: HEADERS,
-						cache: 'no-store',
-						redirect: 'manual',
-						signal,
-					})
-				).status,
-			requestTimeoutMs,
-			'HTTP確認',
-		);
-		return { url, status, ok: status === 200 };
-	} catch (e) {
-		return { url, status: null, ok: false, error: String(e?.message ?? e) };
+	/** @type {any} */
+	let last = null;
+	const history = [];
+	for (let i = 1; i <= attempts; i++) {
+		try {
+			const status = await withTimeout(
+				async (signal) =>
+					(
+						await fetchImpl(url, {
+							headers: HEADERS,
+							cache: 'no-store',
+							redirect: 'manual',
+							signal,
+						})
+					).status,
+				requestTimeoutMs,
+				'HTTP確認',
+			);
+			last = { url, status, ok: status === 200 };
+		} catch (e) {
+			last = { url, status: null, ok: false, error: String(e?.message ?? e) };
+		}
+		history.push(last.status ?? last.error);
+		if (last.ok) break;
+		if (i < attempts) await sleep(intervalMs);
 	}
+	return { ...last, attempts: history.length, history };
 }
 
 // 公開側が目的のSHAを返すまで（CDN反映待ち）再試行する。1回ごとの通信（本文読取を含む）と全体に上限があり、

@@ -262,3 +262,30 @@ test('smoke CLI: 通信が止まっても全体期限で失敗証拠を保存し
 	assert.equal(result.ok, false);
 	assert.match(result.error, /全体期限/);
 });
+
+test('HTTP確認は一時的な失敗を再試行し、200が戻れば成功・続けて失敗なら失敗', async () => {
+	let n = 0;
+	const flaky = (async () => {
+		n += 1;
+		if (n === 1) throw new Error('ECONNREFUSED');
+		return n === 2 ? res(503) : res(200);
+	}) as never;
+	const ok = await checkHttp({
+		url: BASE,
+		fetchImpl: flaky,
+		attempts: 5,
+		intervalMs: 0,
+		sleep: async () => {},
+	});
+	assert.equal(ok.ok, true);
+	assert.equal(ok.attempts, 3);
+	const ng = await checkHttp({
+		url: BASE,
+		fetchImpl: (async () => res(503)) as never,
+		attempts: 3,
+		intervalMs: 0,
+		sleep: async () => {},
+	});
+	assert.equal(ng.ok, false);
+	assert.equal(ng.attempts, 3);
+});

@@ -994,6 +994,94 @@ test('2周目3: 進行照合の通信がハングしても、上限内に失敗�
 	assert.ok(expired);
 });
 
+// ---- 3周目（正式Codex Code review の4件）----
+test('3周目1: マージで自動closeされたIssueでも、未チェックACが残るなら done にしない', () => {
+	const v = evaluate(
+		post({ issue: issue({ state: 'closed', body: '- [x] AC1\n- [ ] AC2' }) }),
+	);
+	assert.equal(v.state, 'blocked');
+	assert.match(v.reasons[0], /未チェックACが1件/);
+	assert.equal(
+		evaluate(post({ issue: issue({ state: 'closed' }) })).state,
+		'done',
+	);
+});
+
+test('3周目2: 同じラベルでもR3の追加リスクレビュー未記録の判定が1つでも残れば進めない', () => {
+	const ref = 'https://example.test/approval';
+	const r2 = {
+		...classification({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: ref,
+		}),
+		id: 10,
+		createdAt: '2026-10-28T00:01:00Z',
+	};
+	const r3 = {
+		...classification({
+			class: 'B',
+			risk: 'R3',
+			approvalStatus: 'approved',
+			approvalRef: ref,
+		}),
+		id: 11,
+		createdAt: '2026-10-28T00:02:00Z',
+	};
+	const both = evaluate(snap({ comments: [botSummary(HEAD), r2, r3] }));
+	assert.equal(both.state, 'blocked');
+	assert.match(both.reasons[0], /R3/);
+	// 順序を逆にしても同じ（起動順・再起動に依存しない）
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), r3, r2] })).state,
+		'blocked',
+	);
+	// R3側がレビュー記録済みなら進める
+	const reviewed = {
+		...r3,
+		body: marker({
+			class: 'B',
+			risk: 'R3',
+			approvalStatus: 'approved',
+			approvalRef: ref,
+			additionalRiskReview: true,
+		}),
+	};
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), r2, reviewed] })).state,
+		'merge-ready',
+	);
+	// botが明示的に置き換えたときは、置換後の判定だけを見る
+	const replaced = {
+		...r3,
+		body: marker({
+			class: 'B',
+			risk: 'R3',
+			approvalStatus: 'approved',
+			approvalRef: ref,
+			additionalRiskReview: true,
+			supersedes: [10],
+		}),
+	};
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), r2, replaced] })).state,
+		'merge-ready',
+	);
+});
+
+test('3周目3: Aなのに未承認範囲が残る矛盾したマーカーは無効', () => {
+	const ctx = { repo: REPO, number: 7, headSha: HEAD };
+	const contradictory = classification({ unapprovedScope: ['deploy.yml'] });
+	const r = readClassifications([contradictory], ctx);
+	assert.equal(r.valid.length, 0);
+	assert.match(r.invalid[0]?.why ?? '', /未承認範囲/);
+	assert.equal(
+		evaluate(snap({ comments: [botSummary(HEAD), contradictory] })).state,
+		'wait-classification',
+	);
+});
+
 // ---- 取得層 ----
 const json = (body: unknown, status = 200) =>
 	new Response(JSON.stringify(body), { status });
