@@ -1,12 +1,7 @@
 import Papa from 'papaparse';
 import { exceedsMaxCharacters } from '../string-length.ts';
 import { exportCsv, getColumnLabel } from './csv-editor.ts';
-import {
-	type Column,
-	type FilterOperator,
-	parseNumber,
-	queryRows,
-} from './table-query.ts';
+import { type Column, type FilterOperator, queryRows } from './table-query.ts';
 
 export const MAX_CSV_QUERY_TEXT = 100_000;
 export const MAX_CSV_QUERY_VALUE = 1_000;
@@ -90,8 +85,21 @@ function validateOptions(input: CsvQueryInput) {
 	)
 		throw Error(CSV_QUERY_ERRORS.options);
 }
+// 型を明示するquery_csvは、自動型推定用の厳密パーサとは別に従来の入力契約を保持する。
+function parseQueryNumber(value: string | number | undefined): number | null {
+	if (value === undefined || value === null) return null;
+	if (typeof value === 'number') return Number.isNaN(value) ? null : value;
+	let str = String(value).trim();
+	if (!str) return null;
+	str = str.replace(/[０-９]/g, (ch) =>
+		String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
+	);
+	str = str.replace(/[¥￥$,]/g, '').trim();
+	const number = Number(str);
+	return Number.isNaN(number) ? null : number;
+}
 function checkedNumber(value: string) {
-	const number = parseNumber(value);
+	const number = parseQueryNumber(value);
 	if (
 		number === null ||
 		!Number.isFinite(number) ||
@@ -158,6 +166,7 @@ export function queryCsv(input: CsvQueryInput): CsvQueryOutput {
 	)
 		checkedNumber(input.filterValue);
 	const indices = queryRows(data, columns, {
+		parseNumeric: parseQueryNumber,
 		filter:
 			filterIndex < 0
 				? undefined
