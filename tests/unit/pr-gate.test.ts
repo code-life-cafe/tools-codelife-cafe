@@ -1739,3 +1739,79 @@ test('第1段階: 日本語分類依頼の再照合も承認更新ごとに一�
 	);
 	assert.equal(canRequestReconcile([request, approval], OLD, cls), false);
 });
+
+test('第1段階: JSON前の空白が無い壊れた実markerは有効Aが別にあってもfail-closed', () => {
+	const unapproved = {
+		class: 'B',
+		risk: 'R2',
+		approvalStatus: 'unapproved',
+		unapprovedScope: ['scope'],
+	};
+	const encoded = marker(unapproved).replace(
+		'codex-classification:v1 ',
+		'codex-classification:v1',
+	);
+	const raw = encoded.replaceAll('&#123;', '{').replaceAll('&#125;', '}');
+	for (const body of [
+		raw,
+		encoded,
+		'<!-- codex-classification:v1[] -->',
+		'<!-- codex-classification:v1"bad" -->',
+	]) {
+		const broken = { ...classification(), id: 3, body };
+		const cls = readClassifications([classification(), broken], {
+			repo: REPO,
+			number: 7,
+			headSha: HEAD,
+		});
+		assert.equal(cls.invalid.length, 1);
+		assert.equal(cls.invalid[0].id, 3);
+		const v = evaluate(
+			snap({ comments: [botSummary(HEAD), classification(), broken] }),
+		);
+		assert.equal(v.state, 'blocked');
+		assert.notEqual(v.suggest, `merge --match-head-commit ${HEAD}`);
+	}
+});
+
+test('第1段階: 通常reviewの説明・否定・別途予定は分類依頼ではない', () => {
+	for (const description of [
+		'変更内容: 独立分類マーカーのパーサ修正。通常のCode/Securityレビューをお願いします。分類依頼は別途行います。',
+		'独立分類は不要です。分類を依頼しないでください。',
+		'分類確認の説明を修正しました。分類依頼は別途行います。',
+	]) {
+		const request = {
+			id: 3,
+			login: 'maker',
+			authorType: 'User',
+			createdAt: '2026-10-28T01:00:00Z',
+			body: `@codex review\n${HEAD}\n${description}`,
+		};
+		assert.deepEqual([...priorRequests([request], HEAD)], ['review']);
+		const v = evaluate(snap({ comments: [botSummary(HEAD), request] }));
+		assert.match(v.suggest, /request-once: codex-classify /);
+		assert.equal(
+			canRequestReconcile(
+				[
+					request,
+					{
+						...request,
+						id: 4,
+						body: '承認の参照を更新',
+						createdAt: '2026-10-28T02:00:00Z',
+					},
+				],
+				HEAD,
+				{ latestMarkerAt: 0 },
+			),
+			false,
+		);
+	}
+	const actual = {
+		id: 3,
+		login: 'maker',
+		authorType: 'User',
+		body: `@codex 分類依頼（読み取り専用。編集・commit・push は禁止）。\n対象head: ${HEAD}`,
+	};
+	assert.deepEqual([...priorRequests([actual], HEAD)], ['classify']);
+});

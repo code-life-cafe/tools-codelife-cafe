@@ -46,7 +46,7 @@ const result = (state, /** @type {any} */ extra = {}) => ({
 });
 
 function hasJsonMarker(body, name) {
-	return new RegExp(`<!--\\s*${name}(?=\\s|-->|$)`).test(body ?? '');
+	return new RegExp(`<!--\\s*${name}(?![\\w:-])`).test(body ?? '');
 }
 
 function parseJsonMarker(body, name) {
@@ -56,8 +56,8 @@ function parseJsonMarker(body, name) {
 		.replaceAll('&#125;', '}')
 		.replaceAll('&quot;', '"');
 	if (
-		[...text.matchAll(new RegExp(`<!--\\s*${name}(?=\\s|-->|$)`, 'g'))]
-			.length !== 1
+		[...text.matchAll(new RegExp(`<!--\\s*${name}(?![\\w:-])`, 'g'))].length !==
+		1
 	)
 		return null;
 	const matches = [
@@ -307,10 +307,13 @@ export function readClassifications(comments, ctx) {
 }
 
 // 既存の依頼履歴（headとtypeで判定）。同じhead・同じ種別の依頼を重ねない根拠。
+// 依頼本文の単語出現から意図を推測しない。先頭行の明示コマンドだけを履歴にする。
+// 日本語は既存の「分類依頼（…）」と、対象headへの肯定的な依頼文を受け付ける。
 const isClassificationRequest = (body) =>
-	/@codex\s+classify\b/i.test(body) ||
-	(/@codex\b/i.test(body) &&
-		/(?:独立分類|分類(?:確認|依頼|を|してください))/.test(body));
+	/^\s*@codex[^\S\r\n]+classify\b/im.test(body) ||
+	/^\s*@codex[^\S\r\n]+(?:分類依頼(?=[（(。\s]|$)|(?:review[^\S\r\n]+)?(?:このheadの|対象headの|同一headの|このPRの)?(?:独立分類|分類確認|分類)(?:を)?(?:お願いします|してください|依頼します)(?=[。.\s（(]|$))/im.test(
+		body,
+	);
 
 export function priorRequests(comments, headSha) {
 	const types = new Set();
