@@ -51,4 +51,4 @@ description: tools.codelife.cafe に新しいWebツールを追加する（4フ�
 - `npm run check`・`npm run test:unit`・対象E2E の実行結果
 - ローカル確認用コマンド（`npm run dev` → アクセスURL）
 
-以降のコミット・Draft PR・レビュー対応は [CLAUDE.md](../../../CLAUDE.md) と [AGENTS.md](../../../AGENTS.md) に従う。未定義の出荷スキルを前提にしない。
+以降のコミット・Draft PR・レビュー対応は [AGENTS.md](../../../AGENTS.md) に従う。未定義の出荷スキルを前提にしない。
