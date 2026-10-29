@@ -71,6 +71,25 @@ export function parseNumber(val: string | number | undefined): number | null {
 }
 
 /**
+ * 型を明示して値を数値化する用途（チャートの値列など）向けの従来パーサ。
+ * 自動型推定用の厳密なparseNumberと異なり、指数表記・16進なども Number() で解釈する。
+ */
+export function parseLegacyNumber(
+	val: string | number | undefined,
+): number | null {
+	if (val === undefined || val === null) return null;
+	if (typeof val === 'number') return Number.isNaN(val) ? null : val;
+	let str = String(val).trim();
+	if (!str) return null;
+	str = str.replace(/[０-９]/g, (ch) =>
+		String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
+	);
+	str = str.replace(/[¥￥$,]/g, '').trim();
+	const num = Number(str);
+	return Number.isNaN(num) ? null : num;
+}
+
+/**
  * ISO / YYYY/MM/DD などの日付文字列を Date オブジェクトに変換する
  */
 export function parseDate(val: string | number | undefined): Date | null {
