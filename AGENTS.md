@@ -26,12 +26,8 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 ### モデル選択・worktree
 
-- モデルは作業内容に応じて次の3段階から選ぶ。上位の段階を常用しない。
-  - **軽**: 調査、点検、データ整理、ドキュメントのずれ探し、定型作業。ClaudeはHaiku。
-  - **標準**: R0/R1の修正、文言やSEOの変更、CI・レビュー指摘への対応。ClaudeはSonnet。
-  - **重**: R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。ClaudeはOpus。
-- 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。
-- 節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
+- モデルは作業内容に応じて3段階から選び、上位を常用しない。**軽**（調査、点検、データ整理、定型作業。Haiku）、**標準**（R0/R1の修正、文言やSEOの変更、CI・レビュー指摘への対応。Sonnet）、**重**（R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。Opus）。
+- 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
 - 共有cloneは常にmainのままにする。共有cloneで作業する場合、各エージェントは作業ごとに自分のworktree（`git worktree add <repo外のパス> -b <branch>`）を作成して作業し、完了したら削除する。クラウドセッションなど作業用cloneが分離済みの環境では不要。PRのレビュー判定は実装者以外が行い、Mergeは下記のPRマージ条件に従う。
 - 本節はClaude Codeのモデル段階の指針であり、Codexのレビューモデル・外部サービスの設定を変更しない。
 
@@ -45,90 +41,36 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 | B | R2 / R3 | 新機能・新規tool、大きなUI変更、複雑な仕様変更、minor/major依存更新、既存の許可境界内のPWA / WebMCP / 計測 / build・deploy変更 | 計画を一度承認する。以後の同範囲のCI修正・レビュー対応・Merge・Deployで再承認しない。R3は追加独立リスクレビューを維持 |
 | C | R4 | 秘密情報、認証アクセス、外部送信・保存の拡大、破壊的操作、課金、security boundary、CI・レビュー・承認条件の弱体化、自動権限拡大 | 具体的な対象・差分・影響についての人間承認。区分名だけの包括承認は認めない |
 
-**A（R0/R1）の補足**
+**詳細**: A（R0/R1）の依存patchの全条件、B/Cの承認方法、依頼文の読み方は [docs/approval-and-merge-rules.md](docs/approval-and-merge-rules.md) に分離した。判断の前に必ず読む。要点:
 
-- 既存依存のX.Y固定patch更新は、次の**すべて**を満たす場合だけAとする。満たさない、または判断が曖昧な場合はB/Cとして扱う。
-  - lock差分が対象パッケージとその推移依存だけ、新しいinstall/postinstall・取得元・権限の変更がない、Node互換を維持、`npm audit`（[依存脆弱性の運用](docs/dependency-security.md)）が悪化しない、必要な回帰検証が揃う。
-  - 対象リリースの公開から7日以上経過している。公開日が確認できない場合はAにしない。これは確認のための猶予であり、安全性の保証ではない。緊急の修正でもAIが7日を免除せず、B/Cとして判断する。
-  - 配布元・公開者・対象リリースと、実際に取得するpackageの対応を確認する。利用できるprovenance・署名は確認する。取得元や公開者の変更、対応が不明な場合はAにしない。provenanceの未提供だけで安全とはみなさず、提供の有無にかかわらず、次の内容確認ができなければBとする。
-  - 対象と、更新される推移依存の実際の配布物の内容差分（実行コード、同梱生成物、install / build / runtimeの経路）を、独立したCodexが確認し、説明できない差分・新しい外部通信/保存/権限・取得物との差異がない根拠をPRに記録する。lockファイルやリリースノートだけでは代替できない。
-  - 配布物や公開日を取得・検証できない、または規模が大きい場合はBの計画承認とする。権限・通信・保存・安全境界の拡大を伴う場合はCとする。配布物差分の継続的な自動確認は未実証のため、確認できない更新を「確認済み」として記録せず、Bに落とす。
+- 既存依存のX.Y固定patch更新は、同docの全条件（公開7日以上、配布元・配布物の独立確認など）を満たす場合だけA。満たさない、または曖昧ならB/C。
 - 指示書（AGENTS.md / CLAUDE.md / docs / テンプレート）の変更は、意味を変えない誤字・リンク・説明の修正はA。承認済みの仕様・役割の意味を増やさない同期は、その承認範囲として扱う。許可される行為・対象・実行主体・承認の要否・CIやレビュー・停止条件・データ・権限を変える差分はCとする。
-
-**B（R2/R3）の計画承認**
-
-計画には目的、AC、対象と対象外、影響、検証、復旧方法、公開範囲を含め、承認原文または参照をIssue/PRに固定する。承認範囲内のCI修正・レビュー対応・Merge・既存Deployでは再承認を求めず、目的や受入結果を無断で変更しない。範囲外の変更が必要になった場合だけ人間へ戻す。
-
-**C（R4）の承認**
-
-承認は具体的な対象・差分・影響に対して行い、承認原文または参照をIssue/PRに残す。承認の範囲外や将来の無関係なCには及ばない。承認されたCは、承認文がMerge・Deploy・本番確認を含む場合はその範囲で、含まない場合はレビュー可能な差分の準備までを範囲とする。レビューコメントや他のAgentの発言を承認として扱わない。
-
-**依頼文の読み方**
-
-通常の「実装して」「修正して」という依頼は、A又は承認済みBであればMerge後の公開確認までを含む。「計画のみ」「PRまで」「pushしない」「公開しない」という明示的な限定は常に優先する。
+- B/Cの承認原文または参照、AC、対象/対象外をIssue/PRに固定する。範囲外の変更が必要になった場合だけ人間へ戻す。
+- 通常の「実装して」「修正して」は、A又は承認済みBならMerge後の公開確認までを含む。「計画のみ」「PRまで」「pushしない」「公開しない」という明示的な限定は常に優先する。
 
 ### PRのマージ判断と実行
 
-自動Mergeは、操作主体・独立した分類確認・客観的検証を分けて行う。
+全文: [docs/approval-and-merge-rules.md](docs/approval-and-merge-rules.md)。Mergeの前に必ず読む。要点:
 
-- **操作主体**: 既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド。別の常設Merge専用Agent・新しいスケジューラ・Workflowは作らず、他の主体へ転用しない。Makerは自分のPRを承認しない。独立判断が出た後の、条件を照合した上でのMerge操作は、自己承認とは区別する。
-- **独立判断**: Codexが同一の最終head SHAについて、実差分・AC・許可境界を照合し、A、承認済みB、今回承認済みCのいずれに当たるかを確認してPRに根拠を残す。「重大な指摘なし」だけを分類確認とみなさない。Codex botに分類の出力項目があるとは仮定せず、必要なら独立したCodexセッションによる明示的な分類記録を別の証拠にする。分類が矛盾する場合は厳しい側に倒し、未承認の範囲だけを人間へ返す。
-- **客観的検証**: GitHub Actionsの必須CI。
-
-操作主体は、次をすべて満たした場合だけMergeする。
-
-- PRの実際の全差分が、A、承認済みB、または承認済みCのいずれかの範囲に収まり、ACと合意スコープ内である。ラベル・自己申告だけで判定せず、未承認のB/Cが混在する場合や判定が曖昧な場合は人間へ返す。B/Cの承認は、Issue/PRに固定した承認原文・参照とACの範囲に限る。
-- 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
-- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](docs/ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。ローカルCLIレビューやMaker自身の確認でbot信号を代替しない。
-- 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
-- Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeしない。無効と確認できた場合は人間へ返し、一時的な取得失敗は技術待ちとして再照合する。admin/bypass・force push・gate変更は使わない。
-
-**承認の持続**
-
-承認済みのB/Cは、時間の経過、CI・レビュー待ち、利用上限、意味を変えないbase取り込みだけでは失効しない。目的・AC・禁止範囲・データ・権限が変わる部分だけを再判断し、その部分が未承認なら人間へ返す。
-
-**待ちと人間への返却**
-
-- CI・レビューのRunning、一時的な取得失敗、利用上限は技術的な待ちであり、人間への返却理由にしない。既存のPR購読など実在する再開手段で続け、同じheadでの連投・無限の再試行・未確認のMergeはしない。待ち状態の照合は修正3周に数えない。
-- 人間へ戻すのは次の場合だけ: 未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でもblockingが解消しない、本人の認証が必要な操作。承認済みのB/Cを区分名だけで再び止めない。bot信号や必須checksの未取得・Running・一時失敗も上記の技術待ちで、形式変更や取得不能が継続して自力で解決できない場合にだけ、理由を報告して必要な判断を求める。
-- 通常はCI成功後にReadyにして、自動のbotレビューを受ける。Draftで手動依頼してからReadyにする二重起動はしない。
-
-実行前にPR履歴へRisk Class（A/B/C）・判定理由・承認の根拠・対象head・CI・独立レビューと分類確認の根拠・修正周回数を記録する。Merge後は既存Deployの対象SHAと結果を確認し、公開SHAと許可範囲の本番確認の結果をIssue/PRへ記録する。失敗時は人間へ通知する。完全な無人化は実測で確認できた範囲だけを報告する。
-
-この3段階の方針は2026-10-28のmarumoの承認に基づく。日次21時・週次月08:52の読み取り専用の棚卸しを、実装やMergeを担当するものへ拡張しない。新しいスケジューラ・権限・Workflow・サービス・課金は追加しない。権限・secrets・認証の変更や、CI・レビュー・承認条件の弱体化、自動権限拡大は引き続きCであり、具体的な対象・差分・影響についての人間承認を必要とする。
-
-### 歴史記録: 旧運用と旧例外
-
-2026-10-27より前の運用（Codex主実装・UI/日本語文言のみClaude Maker、Notion Task Boardからの実装取得、chief/engineer/maintainerの通常経路、プラン上限時の実装者自動切り替え、Grok Bot運用ループ、その際のローカルCodex/Claude CLIレビュー代替）は歴史記録であり、現行の通常フローではない。
-
-- Grok Bot運用ループとローカルCLIレビュー代替は、当時のR0/R1自動Mergeに限った例外だった。現行の通常フローには流用せず、再開しない。当時の承認を他の主体・範囲へ広げない。
-- 旧ルールの全文はgit履歴（本変更より前のAGENTS.md）で参照できる。
-
----
+- 操作主体は、既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッドだけ。Makerは自分のPRを承認しない。
+- 同一の最終head SHAで、Codexの独立した分類確認（A / 承認済みB / 承認済みC）、Code/Security両レビューの完了、必須CI `lint` / `e2e` の成功、最新base、未解決blockingなし、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。「重大な指摘なし」だけを分類確認とみなさない。
+- CI・レビューのRunning、一時的な取得失敗、利用上限は技術待ち。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない、本人の認証が必要な場合だけ。
+- 実行前にPR履歴へ区分・判定理由・承認の根拠・対象head・CI・レビューと分類確認の根拠・修正周回数を記録し、Merge後は既存Deployと公開SHA・本番確認をIssue/PRへ記録する。新しいスケジューラ・Workflow・権限・課金は追加しない。
+- 2026-10-27より前の旧運用（Codex主実装、Notion Task Board、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。
 
 ## 1. プロジェクト概要
 
-`tools.codelife.cafe` は、完全クライアントサイド処理で動作するWebツール集です。
-すべてのデータ処理はユーザーのブラウザ内で完結し、外部サーバーへのデータ送信は一切行いません。
-
----
+`tools.codelife.cafe` は、完全クライアントサイド処理で動作するWebツール集です。すべてのデータ処理はユーザーのブラウザ内で完結し、外部サーバーへのデータ送信は一切行いません。
 
 ## 2. 設計書ドキュメント一覧 (詳細参照)
 
-プロジェクトの全体設計やルールについては、以下の詳細設計書を必ず参照してください。
+詳細は次を必ず参照すること。
 
-- **[architecture.md](docs/architecture.md) (システムアーキテクチャ設計書)**
-  - 全体技術スタック、ディレクトリ構造、およびビルドプロセスと連携した PWA (Service Worker) の構成。
-- **[development-guide.md](docs/development-guide.md) (開発ガイドライン / ツール作成手順)**
-  - 命名規約、UI・ロジックの分離（4ファイル構成）、デザインシステム（Tailwind v4）、Biomeの設定、E2Eテスト。
-- **[data-management.md](docs/data-management.md) (データ管理とモデル配信設計書)**
-  - 郵便番号データのチャンク化および更新方法、AIモデルの Cloudflare R2 配信と Web Worker 推論。
-- **[analytics.md](docs/analytics.md) (計測基盤設計)**
-  - Cloudflare Analytics Engine による完全匿名イベント計測方針とAllowlistプロパティ。
-- **[seo.md](docs/seo.md) (SEO & 構造化データガイドライン)**
-  - Schema.org 準拠の JSON-LD 構造化データ付与規約と検証手順。
-
----
+- [architecture.md](docs/architecture.md): 技術スタック、ディレクトリ構造、PWA (Service Worker)。
+- [development-guide.md](docs/development-guide.md): 命名規約、UI・ロジック分離、デザインシステム、Biome、E2E、ツール設定の保持。
+- [data-management.md](docs/data-management.md): 郵便番号チャンク、AIモデルのR2配信とWeb Worker推論。
+- [analytics.md](docs/analytics.md): 匿名イベント計測方針とAllowlist。
+- [seo.md](docs/seo.md): JSON-LD構造化データ規約と検証手順。
 
 ## 3. 絶対に守るべきルール
 
@@ -138,12 +80,8 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
    - UI文言、プレースホルダー、プレビュー用ダミーデータ、エラーメッセージ等はすべて日本語で作成してください。
 3. **UIとロジックの分離**
    - 計算・変換などのビジネスロジックは React から切り離し、`src/lib/tools/` 内に TypeScript の純粋関数として実装してください。
-4. **新ツールの構成ルール**
-   - 新規ツールは、原則として「ロジック（`src/lib/tools/`）」＋「コンポーネント（`src/components/tools/`）」＋「LPコンテンツ（`src/content/tools/`）」＋「ページ（`src/pages/`）」の **4ファイル（＋AI推論等が必要な場合はWeb Worker）構成** で完結させます。詳細は [development-guide.md](docs/development-guide.md) を参照してください。
-5. **単体テストのルール**
+4. **単体テストのルール**
    - ユニットテストは Node.js 組み込みの `node:test` および `node:assert/strict` を使用し、`vitest` 等の未宣言フレームワークは使用しないでください。ローカルインポートには `.ts` 拡張子を明記します。
-
----
 
 ## 4. エージェントのタスク完了条件 (DoD)
 
@@ -158,7 +96,6 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - **動作検証とウォークスルー**
   - 単体テスト（`npm run test:unit`）および E2Eテスト（`npm test`）を実行し、コマンド・結果・未実行理由をIssue/PRに記録して報告すること。
   - 未実行・失敗の記録は検証成功の代わりにはならない。PRはDraftのまま共有できるが、Mergeには最新コミットの必須CI成功が必要。
----
 
 ## 5. 直近の運用メモ
 
@@ -168,18 +105,10 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - Notionの施策・既存タスクが指定された場合は、背景・仮説・効果測定の参照元として読み、実装のAC・状態・検証結果・承認はIssue/PRに記録する。Notionには実装Issue/PRへのリンクと効果測定のみを残し、開発状態を二重管理しない。
 - 実装後はIssue/PRに検証結果・未解決の環境課題・待ち状態（待ち先・待ち始め・再開条件・対象head）を追記する。
 
-### ツール設定保持の共通パターン
+### ツール設定保持・PR作成
 
-- ツールの「前回設定」や「設定共有URL」は `src/lib/hooks/useToolSettings.ts` を使って実装すること。
-- localStorage / URLに保存してよいのは、インデント、形式、税率、リサイズ値、トグル状態などの設定値だけ。入力本文、ファイル内容、画像データ、個人情報を保存してはいけない。
-- 共有URL対応を追加したツールでは、`settings` クエリパラメータを検出して `useToolAnalytics(...).trackSharedUrlOpen()` を呼ぶ既存パターンに合わせること。
-- 共有ボタンの文言は既存ツールに合わせて `設定を共有` / `コピー完了！` を使う。
-
-### 混在worktreeでのPR作成
-
-- `git status --short --branch` と対象差分を必ず確認し、既存の未コミット変更が混在している場合は今回スコープのファイルだけを明示的に `git add` すること。
-- PR作成時は `gh auth status`、既存PR有無、`main` との差分概要を確認すること。
-- ユーザーが明示しない限りdraft PRで作成し、PR本文には「今回の最新コミット」「検証結果」「意図的に含めなかった未ステージ変更」を書くこと。
+- ツールの「前回設定」「設定共有URL」は `useToolSettings` を使う。保存してよいのは設定値だけ（入力本文・ファイル・個人情報は不可）。詳細は [development-guide.md §10](docs/development-guide.md)。
+- 混在worktreeでのPR作成: `git status --short --branch` と対象差分を確認し、今回スコープのファイルだけを明示的に `git add` する。既存PR有無と `main` との差分も確認する。ユーザーが明示しない限りdraft PRで作成し、PR本文に「今回の最新コミット」「検証結果」「意図的に含めなかった未ステージ変更」を書く。
 
 ### 既知の検証メモ
 
@@ -191,7 +120,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 ## 6. Makerの手順（Claude Code）
 
-Claude Code（Claude Pro）が主実装者（Maker）。機能改善・バグ修正・脆弱性対応・依存更新・テスト・開発指示書変更の調査・計画・実装・必要なテスト・PR・CI修正・レビュー指摘対応・許可範囲の本番確認まで進行責任を持ち、Productionコードとテストの両方を作成・修正する。Codexは最終head SHAのCode/Security自動独立レビュー担当で、通常レビューでは実装・直接修正・自己承認をしない。ChatGPTはNotionでアクセス解析・SEO/GEO・仮説・優先順位・効果測定を担う。現行ルールは[Notion現行運用ルール](https://app.notion.com/p/406dfd36033681abbafce47bac685278)、Risk Classとレビュー規則は[AGENTS.md](AGENTS.md)、全体フローと手動設定は[運用手順](docs/ai-development-flow.md)を参照する。
+主実装者・Codex・ChatGPTの役割は冒頭の責任境界、全体フローは [運用手順](docs/ai-development-flow.md) を参照する。Productionコードとテストの両方を作成・修正する。
 
 1. GitHub Issueから対象・ACを取得する（なければ既存Issue/PRと重複確認してから作成）。Notion施策はIssueと相互リンクして背景の参照元にするだけで、旧Notion Task Boardを着手許可にしない。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
 2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。区分は[AGENTS.mdの3段階](AGENTS.md#risk-class-と承認の3段階)で判定する。A（R0/R1）は個別確認なしで着手する。B（R2/R3、新規tool・大幅改修を含む）は計画（目的・AC・対象/対象外・影響・検証・復旧・公開範囲）の承認を一度得れば、その範囲のCI修正・レビュー対応・Merge・Deployで再承認を求めない。C（R4）は具体的な対象・差分・影響の人間承認がある範囲だけ着手する。承認原文または参照、AC、禁止範囲をIssue/PRに固定し、目的や受入結果を無断で変えない。依頼文に「計画のみ」「PRまで」「push禁止」「公開禁止」などの限定があればそれを優先し、なければA又は承認済みBの「実装/修正」依頼は公開確認までを含む。
@@ -241,33 +170,16 @@ npm test             # E2Eテスト全件実行（Playwright）
 
 ### 8.1 テストの個別実行
 ```bash
-npx playwright test tests/e2e/bg-remove.spec.ts          # テストファイルを指定して実行
-npx playwright test --grep "モード切替"                   # テスト名で絞り込んで実行
-npx playwright test --headed                              # ブラウザを表示して実行
+npx playwright test tests/e2e/bg-remove.spec.ts   # ファイル指定
+npx playwright test --grep "モード切替"            # テスト名で絞り込み
 ```
 
 ## 9. ツール開発アーキテクチャ (要約)
-
 ### 9.1 4ファイル（+1）構成
-新しいツールを追加する際は、以下の構成でファイルを配置します。
-- **純粋ロジック:** `src/lib/tools/[name].ts`
-- **React UI Island:** `src/components/tools/[Name].tsx` （UIとローカル状態管理）
-- **LPコンテンツ:** `src/content/tools/[name].md` （title/description/useCases/howto/faq等のフロントマター）
-- **Astro ページシェル:** `src/pages/[name].astro` （content collection を取得し `ToolLayout` に渡す）
-- **Web Worker (オプション):** `src/workers/[name].worker.ts` （AI推論などの重量処理）
+ロジック `src/lib/tools/[name].ts`、UI `src/components/tools/[Name].tsx`、LP `src/content/tools/[name].md`、ページシェル `src/pages/[name].astro`、任意でWorker `src/workers/[name].worker.ts`。手順は [development-guide.md](docs/development-guide.md) §3.4。
 
 ### 9.2 E2Eテストの注意点
-テストは必ず `tests/e2e/fixtures/base.ts` で定義されているカスタムフィクスチャを経由してください。広告やトラッキングスクリプトが自動的にブロックされます。
-
-```typescript
-import { expect, test } from './fixtures/base';  // ← 必須
-
-test('test name', async ({ page, createToolPage }) => {
-  const toolPage = createToolPage('tool-name');  // pathを渡す
-  await toolPage.goto();                          // 読み込み完了を待機
-  await toolPage.expectSafetyBadge();             // SafetyBadgeの検証
-});
-```
+テストは必ず `tests/e2e/fixtures/base.ts` のカスタムフィクスチャ経由で書く（`import { expect, test } from './fixtures/base'`。`@playwright/test` の直importは不可。広告・トラッキングが自動でブロックされる）。書き方は `tests/e2e/base64.spec.ts` を参照。
 
 ## Code Review Rules
 
