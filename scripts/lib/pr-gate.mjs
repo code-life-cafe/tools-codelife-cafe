@@ -77,25 +77,40 @@ const isCodexBot = (c) => c.login === CODEX_BOT_LOGIN && c.authorType === 'Bot';
 
 // Codex Review Summary（bot本人のコメント）を読み、対象headの完了状況を返す。
 export function readCodexSummary(comments, { repo, number, headSha }) {
-	const latest = comments
+	const candidates = comments
 		.filter(isCodexBot)
-		.filter((c) => hasJsonMarker(c.body, 'codex-review-state:v1'))
-		.sort(
-			(a, b) =>
-				Date.parse(b.updatedAt ?? b.createdAt) -
-				Date.parse(a.updatedAt ?? a.createdAt),
-		)[0];
-	if (!latest)
+		.filter((c) => hasJsonMarker(c.body, 'codex-review-state:v1'));
+	if (!candidates.length)
 		return {
 			ok: false,
 			code: 'summary-missing',
 			detail: 'Codex Review Summaryが未取得',
 		};
-	if (!Number.isFinite(Date.parse(latest.updatedAt ?? latest.createdAt)))
+	// NaNをsortへ渡すとAPIの配列順に依存して不正時刻の証拠を無視し得る。
+	// 順序を確定できない候補は、正常な候補が別にあってもunknownを維持する。
+	const isTime = (value) =>
+		typeof value === 'string' && Number.isFinite(Date.parse(value));
+	if (
+		candidates.some(
+			(c) =>
+				!isTime(c.createdAt) || (c.updatedAt != null && !isTime(c.updatedAt)),
+		)
+	)
 		return {
 			ok: false,
 			code: 'summary-time-invalid',
-			detail: 'サマリー時刻が不正',
+			reviewState: 'unknown',
+			detail: 'サマリー候補の投稿/更新時刻が不正。最新結果を確定できない',
+		};
+	const at = (c) => Date.parse(c.updatedAt ?? c.createdAt);
+	candidates.sort((a, b) => at(b) - at(a));
+	const latest = candidates[0];
+	if (candidates.some((c) => at(c) === at(latest) && c.body !== latest.body))
+		return {
+			ok: false,
+			code: 'summary-time-ambiguous',
+			reviewState: 'unknown',
+			detail: '同時刻の最新サマリーの内容が異なる。順序を確定できない',
 		};
 	const state = parseJsonMarker(latest.body, 'codex-review-state:v1');
 	const sec = parseJsonMarker(latest.body, 'codex-security-review:v1');

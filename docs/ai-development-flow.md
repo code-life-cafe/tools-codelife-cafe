@@ -129,3 +129,5 @@ R3の追加リスクレビューは必要な領域を対象とし、必要な領
 異常時の復旧は自動操作の停止と、Issue/PRへの対象head・待ち先・待ち始め・取得できない証拠・再開条件の記録。既存の購読等で再照合し、未知結果を実指摘と混同する旧コードへ戻して処理を継続しない。取得不能が継続する場合は必要な判断だけを人間へ求める。owner排他・通知・自動再開・Dependabot拡張・外部Routineの設定変更は第1段階に含めない。Merge/本番適用は別途承認待ち。
 
 観測証拠（2026-10-30取得）: [PR531のreceipt](https://github.com/code-life-cafe/tools-codelife-cafe/pull/531#issuecomment-6497625946)、[PR533のreceipt](https://github.com/code-life-cafe/tools-codelife-cafe/pull/533#issuecomment-6499340453) は信頼bot投稿だが、レビュー対象は10桁SHA、結果は自由文、receipt markerには構造化JSONがない。これだけでは現行の完全SHA/構造化結果の契約を満たさない。
+
+サマリー候補の投稿/更新時刻は並び替え前に検証する。不正時刻と正常候補が混在する場合、APIの配列順で不正側を無視せずunknownとする。最新時刻が同じでも内容が異なる候補間は順序を推測せずunknown。時刻も内容も同一の重複は結果に影響しない。これはbaseにも存在したNaN sortによる時刻検証問題の修正であり、新しいレビュー信頼元を追加するものではない。

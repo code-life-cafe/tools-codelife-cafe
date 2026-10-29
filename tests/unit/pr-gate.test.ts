@@ -1815,3 +1815,64 @@ test('第1段階: 通常reviewの説明・否定・別途予定は分類依頼�
 	};
 	assert.deepEqual([...priorRequests([actual], HEAD)], ['classify']);
 });
+
+test('第1段階: 正常/不正時刻summaryの混在と曖昧な最新順はunknownに倒す（base既存問題）', () => {
+	const clean = botSummary(HEAD);
+	for (const times of [
+		{ createdAt: 'bad', updatedAt: 'bad' },
+		{ createdAt: 'bad', updatedAt: clean.updatedAt },
+		{ createdAt: clean.createdAt, updatedAt: 'bad' },
+		{ createdAt: undefined, updatedAt: clean.updatedAt },
+		{ createdAt: 0, updatedAt: clean.updatedAt },
+		{ createdAt: clean.createdAt, updatedAt: 0 },
+	]) {
+		const invalid = { ...botSummary(HEAD), id: 3, ...times };
+		for (const summaries of [
+			[clean, invalid],
+			[invalid, clean],
+		]) {
+			const v = evaluate(snap({ comments: [...summaries, classification()] }));
+			assert.equal(v.state, 'wait-review');
+			assert.equal(v.reviewState, 'unknown');
+			assert.equal(v.suggest, null);
+			assert.equal(v.retriable, true);
+		}
+	}
+	const findings = {
+		...botSummary(HEAD, { security: { has_unresolved_findings: true } }),
+		id: 3,
+	};
+	for (const summaries of [
+		[clean, findings],
+		[findings, clean],
+	]) {
+		const v = evaluate(snap({ comments: [...summaries, classification()] }));
+		assert.equal(v.state, 'wait-review');
+		assert.equal(v.reviewState, 'unknown');
+		assert.equal(v.suggest, null);
+	}
+	// 同時刻でも同じ内容の重複は順序が結果に影響しない。偽botは時刻判定の証拠にも使わない。
+	assert.equal(
+		evaluate(snap({ comments: [clean, { ...clean, id: 3 }, classification()] }))
+			.state,
+		'merge-ready',
+	);
+	assert.equal(
+		evaluate(
+			snap({
+				comments: [
+					clean,
+					{
+						...clean,
+						id: 3,
+						login: 'fake',
+						createdAt: 'bad',
+						updatedAt: 'bad',
+					},
+					classification(),
+				],
+			}),
+		).state,
+		'merge-ready',
+	);
+});
