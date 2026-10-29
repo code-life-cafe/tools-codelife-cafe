@@ -16,12 +16,21 @@
 			"Bash(git checkout*)",
 			"Bash(git switch*)"
 		],
+		"ask": [
+			"Bash(git push*)",
+			"Bash(git reset --hard*)"
+		],
 		"deny": [
 			"Write(*.env)",
 			"Write(.env.*)",
 			"Edit(*.env)",
 			"Edit(.env.*)",
-			"Edit(.git/*)"
+			"Edit(.git/*)",
+			"Read(./.env)",
+			"Read(./.env.local)",
+			"Read(./.env.development)",
+			"Read(./.env.production)",
+			"Read(./.env.staging)"
 		]
 	},
 	"hooks": {

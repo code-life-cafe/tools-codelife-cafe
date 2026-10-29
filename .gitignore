@@ -16,6 +16,9 @@ pnpm-debug.log*
 # environment variables
 .env
 .env.production
+.env.local
+.env.development
+.env.staging
 
 # macOS-specific files
 .DS_Store
@@ -51,3 +54,7 @@ scripts/.cache/
 # 取得: node scripts/fetch-transcribe-models.mjs / node scripts/copy-onnx-wasm.mjs
 public/models/transcribe/
 public/vendor/onnx-wasm/
+
+# Claude Code の個人用ファイル
+CLAUDE.local.md
+.claude/settings.local.json
