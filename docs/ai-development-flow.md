@@ -112,3 +112,20 @@ R3の追加リスクレビューは必要な領域を対象とし、必要な領
 - [ ] ChatGPTのNotionでの分析・施策・効果測定が、実装Issue/PRへのリンクを保って継続していることを確認する。新しいschedule、Notion DBの新設、Cloudflare設定、secrets、deployment permissionsは不要。
 
 [OpenAI公式GitHub連携文書](https://learn.chatgpt.com/docs/third-party/github)ではAGENTS.mdのCode Review Rulesと `@codex review` が案内されている。自動レビューの設定や再起動条件はrepo文書だけでは有効化できない。GitHubでの標準出力はP0/P1中心であるため、P2の投稿を保証しない。指摘なしをレビュー未実行やテスト網羅の証明と混同しない。
+
+
+### 第1段階: 結果不明と実指摘の分離（Issue #534）
+
+進行照合は `reviewState` で `clean`（両レビューの明示的false）、`findings`（completedの明示的true）、`unknown`（null・欠落・未知形式）、`running`、`error`（failed/cancelledを含む）を区別する。不明値をfalseにもtrueにも補完しない。unknown/running/errorはfail-closedの `wait-review` であり、修正提案・修正周回消費・3/3を理由とする人間返却を行わない。別レビューに確認済みの実指摘がある場合はその指摘の対応を優先する。CI失敗や既に3周超過した履歴等、別の停止条件は維持する。
+
+レビュー証拠の現行採用契約は、APIで確認した信頼bot loginとtype、同一サマリー内の単一の各構造化マーカー、repository/PR番号、CodeとSecurity双方の完全SHA、completed、明示的な未解決指摘boolean、解釈可能な投稿/更新時刻。自由文の「No security issues」、短SHA、レポートURL、説明中のmarker名、Makerの署名、別bot/ユーザーによる同文投稿は採用しない。サマリーのnullを別の自由文receiptで上書きしない。時刻の存在だけでは対象headや完了の証明にならない。現在のreceiptに識別情報が不足する場合、PR #528/#531/#533を成功と決め打ちせずunknownを維持する。nullの発生原因の解決は本変更の証明範囲外。
+
+将来receiptを採用するには、提供元の正式schemaと発信者を確認し、同repo/PR・完全SHA・レビュー種別・完了時刻・構造化結果・サマリーや実指摘との矛盾検出・古い結果の失効を一体で検証する独立した変更が必要。今回はreceiptの新しい合格経路を追加しない。
+
+分類はHTMLコメントの構造化マーカーだけを解析する。説明文に名前が出るだけでは無効結果を作らない。実際のマーカーが壊れている、重複している、enumが `not_required`、完全SHAや必須型が不正なら報告し停止する。正本enumは `not-required`。旧headの分類を現headへ転用せず、未解決判定は後続botの明示的supersedesだけで解消する。
+
+分類依頼は完全SHA、読み取り専用、編集/commit/push禁止、正本schema出力を明記する。既存の連携で独立分類を依頼する場合の日本語「独立分類」「分類確認」「分類依頼」「分類を…」も同headの分類依頼として記録する。分類を求める通常review形式のコメントも分類履歴を優先し、応答が通常レビューだけなら分類未取得のまま待つ。履歴検出は外部botのルーティング成功を保証しない。通常reviewの成功で分類を代替しない。同じhead・同じ種別の連投はしない。
+
+異常時の復旧は自動操作の停止と、Issue/PRへの対象head・待ち先・待ち始め・取得できない証拠・再開条件の記録。既存の購読等で再照合し、未知結果を実指摘と混同する旧コードへ戻して処理を継続しない。取得不能が継続する場合は必要な判断だけを人間へ求める。owner排他・通知・自動再開・Dependabot拡張・外部Routineの設定変更は第1段階に含めない。Merge/本番適用は別途承認待ち。
+
+観測証拠（2026-10-30取得）: [PR531のreceipt](https://github.com/code-life-cafe/tools-codelife-cafe/pull/531#issuecomment-6497625946)、[PR533のreceipt](https://github.com/code-life-cafe/tools-codelife-cafe/pull/533#issuecomment-6499340453) は信頼bot投稿だが、レビュー対象は10桁SHA、結果は自由文、receipt markerには構造化JSONがない。これだけでは現行の完全SHA/構造化結果の契約を満たさない。

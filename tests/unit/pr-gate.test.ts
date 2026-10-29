@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	canRequestReconcile,
 	changesRequestedBy,
 	evaluate,
 	priorRequests,
 	readClassifications,
+	readCodexSummary,
 	readFixLoops,
 } from '../../scripts/lib/pr-gate.mjs';
 import { collect, createClient } from '../../scripts/pr-gate-status.mjs';
@@ -1541,4 +1543,199 @@ test('collect(merge後): Deploy runのjobsを取得し、Issueの本文を読む
 	const v = evaluate(s);
 	assert.equal(v.state, 'close');
 	assert.equal(v.runId, 111);
+});
+
+test('第1段階: 不明/実指摘/Running/Error/cleanを区別し技術待ちは修正予算を消費しない', () => {
+	for (const kind of ['code', 'security']) {
+		for (const loops of [0, 3]) {
+			for (const unknown of [null, undefined, 'false', 0]) {
+				const comments = [
+					botSummary(HEAD, { [kind]: { has_unresolved_findings: unknown } }),
+					classification(),
+				];
+				const v = evaluate(
+					snap({ comments, pr: withPr({ body: `修正ループ: ${loops}/3` }) }),
+				);
+				assert.equal(v.state, 'wait-review');
+				assert.equal(v.reviewState, 'unknown');
+				assert.equal(v.retriable, true);
+				assert.equal(v.suggest, null);
+			}
+			for (const [status, expected] of [
+				['running', 'running'],
+				['queued', 'running'],
+				['error', 'error'],
+				['failed', 'error'],
+				['cancelled', 'error'],
+				['new-status', 'unknown'],
+			]) {
+				const v = evaluate(
+					snap({
+						comments: [
+							botSummary(HEAD, { [kind]: { status } }),
+							classification(),
+						],
+						pr: withPr({ body: `修正ループ: ${loops}/3` }),
+					}),
+				);
+				assert.equal(v.state, 'wait-review');
+				assert.equal(v.reviewState, expected);
+				assert.equal(v.suggest, null);
+			}
+		}
+	}
+	assert.equal(
+		readCodexSummary([botSummary(HEAD)], {
+			repo: REPO,
+			number: 7,
+			headSha: HEAD,
+		}).reviewState,
+		'clean',
+	);
+	const mixed = evaluate(
+		snap({
+			comments: [
+				botSummary(HEAD, {
+					code: { has_unresolved_findings: null },
+					security: { has_unresolved_findings: true },
+				}),
+			],
+		}),
+	);
+	assert.equal(mixed.state, 'blocked');
+	assert.equal(mixed.reviewState, 'findings');
+	assert.equal(mixed.suggest, 'classify-and-fix-findings');
+});
+
+test('第1段階: 説明中のmarker名は無視し構造化された不正markerは報告する', () => {
+	const explanation = {
+		...classification(),
+		id: 3,
+		body: 'codex-classification:v1 の not-required を説明します',
+	};
+	assert.equal(
+		evaluate(
+			snap({ comments: [botSummary(HEAD), classification(), explanation] }),
+		).state,
+		'merge-ready',
+	);
+	for (const body of [
+		'<!-- codex-classification:v1 {bad} -->',
+		'<!-- codex-classification:v1 -->',
+		marker({ approvalStatus: 'not_required' }),
+		marker({ headSha: 'abcdef0' }),
+		marker({ unapprovedScope: [1] }),
+		`${marker()}\n${marker()}`,
+	]) {
+		const invalid = { ...explanation, body };
+		assert.equal(
+			evaluate(
+				snap({ comments: [botSummary(HEAD), classification(), invalid] }),
+			).state,
+			'blocked',
+		);
+	}
+});
+
+test('第1段階: 日本語分類依頼は通常reviewに誤分類せず同headの再依頼を抑制する', () => {
+	for (const request of [
+		'@codex このheadの独立分類をお願いします',
+		'@codex review このheadの分類確認をお願いします',
+		'@codex classify',
+	]) {
+		const c = {
+			id: 3,
+			login: 'maker',
+			authorType: 'User',
+			createdAt: '2026-10-28T01:00:00Z',
+			body: `${request}\n${HEAD}`,
+		};
+		assert.deepEqual([...priorRequests([c], HEAD)], ['classify']);
+		const v = evaluate(snap({ comments: [botSummary(HEAD), c] }));
+		assert.equal(v.state, 'wait-classification');
+		assert.equal(v.suggest, null);
+		assert.equal(priorRequests([c], OLD).size, 0);
+	}
+});
+
+test('第1段階: receipt自由文/偽bot/短SHA/時刻不明はunknownをcleanにしない', () => {
+	const summary = botSummary(HEAD, {
+		security: { has_unresolved_findings: null },
+	});
+	const receipt = {
+		...classification(),
+		id: 3,
+		body: 'No security issues found. Reviewed commit abcdef0. SecurityReport',
+	};
+	for (const extra of [
+		receipt,
+		{ ...botSummary(HEAD), login: 'fake' },
+		{ ...botSummary(HEAD), authorType: 'User' },
+		botSummary('abcdef0'),
+	]) {
+		const v = evaluate(snap({ comments: [summary, extra, classification()] }));
+		assert.equal(v.state, 'wait-review');
+		assert.notEqual(v.suggest, 'classify-and-fix-findings');
+	}
+	const badTime = { ...botSummary(HEAD), createdAt: 'bad', updatedAt: 'bad' };
+	assert.equal(
+		evaluate(snap({ comments: [badTime, classification()] })).state,
+		'wait-review',
+	);
+	assert.equal(
+		readClassifications([{ ...classification(), createdAt: 'bad' }], {
+			repo: REPO,
+			number: 7,
+			headSha: HEAD,
+		}).invalid.length,
+		1,
+	);
+});
+
+test('第1段階: PR531/533で観測した正式receiptの形でも構造化結果が無ければunknown', () => {
+	// 2026-10-30取得: comment 6497625946 / 6499340453。完全SHAではなく10桁、自由文のみ。
+	for (const shortSha of ['ae0fa97060', '71cffecc92']) {
+		const receipt = {
+			...classification(),
+			id: 3,
+			body: `<!-- codex-review-receipt:v1 -->\n### Codex Security Review\nSecurity review completed. No security issues were found in this pull request.\nReviewed commit: ${shortSha}`,
+		};
+		const v = evaluate(
+			snap({
+				comments: [
+					botSummary(HEAD, { security: { has_unresolved_findings: null } }),
+					receipt,
+					classification(),
+				],
+			}),
+		);
+		assert.equal(v.state, 'wait-review');
+		assert.equal(v.reviewState, 'unknown');
+		assert.equal(v.suggest, null);
+	}
+});
+
+test('第1段階: 日本語分類依頼の再照合も承認更新ごとに一度だけ', () => {
+	const request = {
+		id: 3,
+		login: 'maker',
+		authorType: 'User',
+		body: `@codex このheadの独立分類をお願いします ${HEAD}`,
+		createdAt: '2026-10-28T01:00:00Z',
+	};
+	const approval = {
+		...request,
+		id: 4,
+		body: '本人承認の参照を更新',
+		createdAt: '2026-10-28T02:00:00Z',
+	};
+	const cls = { latestMarkerAt: 0 };
+	assert.equal(canRequestReconcile([request], HEAD, cls), false);
+	assert.equal(canRequestReconcile([request, approval], HEAD, cls), true);
+	const reconcile = { ...request, id: 5, createdAt: '2026-10-28T02:10:00Z' };
+	assert.equal(
+		canRequestReconcile([request, approval, reconcile], HEAD, cls),
+		false,
+	);
+	assert.equal(canRequestReconcile([request, approval], OLD, cls), false);
 });
