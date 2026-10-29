@@ -348,3 +348,9 @@ npm run webmcp:generate
 
 `tax` / `unix-time` / `site`（サイト共通）は、9.1 の `defineMcpTool()` 方式が導入される前に `src/lib/webmcp/tool-factory.ts` の `createWebMcpTool()` と `src/lib/webmcp/validation.ts` の `isObject`/`requireString` 等の手書き検証関数で実装されており、`registry.ts`（9.3 のビルド時生成対象）を経由せず各コンポーネント（例: `src/components/tools/tax/TaxCalcPage.tsx`、`src/components/tools/UnixTime.tsx`）から直接登録しています。これはレガシー実装であり、新規ツールでは使わず 9.1〜9.3 の `defineMcpTool()` 方式のみを使用してください。既存3ツールも順次 `defineMcpTool()` へ移行予定です。
 
+## 10. ツール設定の保持（前回設定・設定共有URL）
+
+- ツールの「前回設定」や「設定共有URL」は `src/lib/hooks/useToolSettings.ts` を使って実装すること。
+- localStorage / URLに保存してよいのは、インデント、形式、税率、リサイズ値、トグル状態などの設定値だけ。入力本文、ファイル内容、画像データ、個人情報を保存してはいけない。
+- 共有URL対応を追加したツールでは、`settings` クエリパラメータを検出して `useToolAnalytics(...).trackSharedUrlOpen()` を呼ぶ既存パターンに合わせること。
+- 共有ボタンの文言は既存ツールに合わせて `設定を共有` / `コピー完了！` を使う。
