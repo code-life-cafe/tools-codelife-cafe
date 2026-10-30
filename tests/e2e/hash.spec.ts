@@ -37,6 +37,57 @@ test.describe('Hash Generator Tool', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
+	test('用途・FAQとJSON-LDがパスワード保存と照合の限界を説明すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('hash').goto();
+		const useCases = page.getByRole('region', {
+			name: 'こんなお困りごと・シーンでお使いいただけます',
+		});
+		await expect(useCases).not.toContainText('パスワード');
+		await expect(useCases).not.toContainText('完全に同一');
+
+		const faq = page.getByRole('region', { name: 'よくある質問 (FAQ)' });
+		await expect(faq).toContainText(
+			'パスワード保存専用の処理には対応していません',
+		);
+		await expect(faq).toContainText('パスワード保存には適しません');
+		await expect(faq).toContainText('Argon2id');
+		await expect(faq).toContainText('ソルトや計算コスト');
+		await expect(faq).toContainText('安全性や配布元の真正性は保証できません');
+		await expect(faq).toContainText('信頼できる配布元');
+		await expect(faq).toContainText('ファイルと期待値の両方が置き換えられると');
+		await expect(faq).not.toContainText('セキュリティ目的のハッシュ化');
+
+		const howto = page.getByRole('region', { name: '使い方・手順' });
+		await expect(howto).toContainText('配布元と同じアルゴリズム');
+		await expect(howto).toContainText('「期待値との照合」欄');
+
+		const visibleAnswers = (await faq.locator('dd').allTextContents()).map(
+			(answer) => answer.trim(),
+		);
+		const structuredAnswers = await page
+			.locator('script[type="application/ld+json"]')
+			.evaluateAll((scripts) => {
+				type SchemaNode = {
+					'@type': string;
+					mainEntity?: { acceptedAnswer: { text: string } }[];
+				};
+				return scripts.flatMap((script) => {
+					const data = JSON.parse(script.textContent ?? '{}') as {
+						'@graph'?: SchemaNode[];
+					};
+					return (data['@graph'] ?? [])
+						.filter((node) => node['@type'] === 'FAQPage')
+						.flatMap((node) =>
+							(node.mainEntity ?? []).map((item) => item.acceptedAnswer.text),
+						);
+				});
+			});
+		expect(structuredAnswers).toEqual(visibleAnswers);
+	});
+
 	test('テキスト "abc" のSHA-256が既知ベクトルと一致すること', async ({
 		page,
 		createToolPage,
