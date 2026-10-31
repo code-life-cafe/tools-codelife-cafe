@@ -31,7 +31,7 @@ Merge・承認区分の判断では、必ずこの文書の全文に従う。条
 
 自動Mergeは、操作主体・独立した分類確認・客観的検証を分けて行う。
 
-- **操作主体**: 既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド。別の常設Merge専用Agent・新しいスケジューラ・Workflowは作らず、他の主体へ転用しない。Makerは自分のPRを承認しない。独立判断が出た後の、条件を照合した上でのMerge操作は、自己承認とは区別する。
+- **操作主体**: 既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド。別の常設Merge専用Agent・新しいスケジューラ・Workflowは作らず、他の主体へ転用しない。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRの操作だけ当該エージェントが行える。常設担当は増やさない。Makerは自分のPRを承認しない。独立判断が出た後の、条件を照合した上でのMerge操作は、自己承認とは区別する。
 - **独立判断**: Codexが同一の最終head SHAについて、実差分・AC・許可境界を照合し、A、承認済みB、今回承認済みCのいずれに当たるかを確認してPRに根拠を残す。「重大な指摘なし」だけを分類確認とみなさない。Codex botに分類の出力項目があるとは仮定せず、必要なら独立したCodexセッションによる明示的な分類記録を別の証拠にする。分類が矛盾する場合は厳しい側に倒し、未承認の範囲だけを人間へ返す。
 - **客観的検証**: GitHub Actionsの必須CI。
 
@@ -39,9 +39,27 @@ Merge・承認区分の判断では、必ずこの文書の全文に従う。条
 
 - PRの実際の全差分が、A、承認済みB、または承認済みCのいずれかの範囲に収まり、ACと合意スコープ内である。ラベル・自己申告だけで判定せず、未承認のB/Cが混在する場合や判定が曖昧な場合は人間へ返す。B/Cの承認は、Issue/PRに固定した承認原文・参照とACの範囲に限る。
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
-- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。ローカルCLIレビューやMaker自身の確認でbot信号を代替しない。
+- 同じhead SHAについて、信頼できるCodex連携botのCode Reviewが完了し、修正を要するfindingがないか再レビューで解消確認済み。対象repoで有効なCodex Security Reviewも完了し、未解決指摘がない。[運用手順のレビュー完了信号](ai-development-flow.md#レビュー完了信号)で発信者・対象SHA・両レビューの完了を確認する。コメント不在や古い👍だけを承認の根拠にしない。ローカルCLIレビューやMaker自身の確認でbot信号を代替しない。構造化結果が欠ける既知不具合は次項だけを例外とする。
 - 未解決のblocking finding・仕様の曖昧さ・人間の保留/変更要求・進行中の修正がない。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
 - Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeしない。無効と確認できた場合は人間へ返し、一時的な取得失敗は技術待ちとして再照合する。admin/bypass・force push・gate変更は使わない。
+
+### Codex Security の構造化結果が欠ける既知の不具合
+
+2026-10-31、marumoは「Codex Security は現在正常動作していない」と確認し、差分を読んでセキュリティ上の問題がなければ、その欠落を理由に止めずマージするよう指示した。あわせて、この不具合に合わせたマージ条件の見直しを指示した。承認はこの不具合への対処に限り、将来の無関係なゲート緩和には及ばない。
+
+観測された壊れ方は、信頼botのサマリーで Security が `completed`、対象が完全SHAで一致し、かつ `has_any_findings` と `has_unresolved_findings` がどちらも null のままになること。短いSHAの自由文receiptは結果を補完しない。これは PR #528 と #535 で繰り返した。
+
+`scripts/lib/pr-gate.mjs` の自動照合は、この状態を引き続き `unknown` の `wait-review` とする。null を false にも true にもしない。自由文receiptを合格経路にしない。この項は自動ゲートを緩めず、人間が名指しした Merge 判断にだけ使う。
+
+次をすべて満たす head に限り、Security の構造化 boolean が null でも Security 条件を満たしたと扱う。
+
+- 人間が、対象PRを指定し、この不具合のため Security 信号を無視してよいと明示している。CI、独立分類、Code Review、最新base、非Draft、未解決の明示的指摘、修正3周の免除には使わない。
+- 信頼botのサマリーで Security の status が `completed`、head の完全SHAが一致し、二つの指摘フィールドがどちらも null である。どちらかが true、status が `completed` 以外、サマリー自体がない場合は使わない。
+- Maker 以外が、その head の実差分を読み、外部送信・保存・権限・信頼境界と、ゲート変更なら抜けがないことを確認する。問題がない旨、確認者、head SHA を Merge 前に PR へ書く。この記録は人間判断の根拠であり、botの構造化結果そのものにはしない。
+- Code Review は同じ最終headで完了し、修正を要する finding がない。最新baseを取り込む merge commit だけで、main との製品差分がレビュー済み head と同一のときは、その Code Review を引き継いでよい。製品差分が増えたら、新しい head の Code Review を取り直す。
+- 独立分類、必須CI `lint` / `e2e`、最新base、非Draft、未解決blockingなし、修正3周以内は維持する。実行前の記録と、確認した head を指定する通常Mergeも維持する。
+
+常設の操作主体は変えない。人間がその会話で対象PRの Merge を特定のエージェントに指示した場合、そのエージェントが当該PRだけを操作できる。旧Grok Bot運用ループは再開しない。Codex Security が同じ head で明示的な boolean を返すようになったら、この例外は使わず通常信号に戻る。
 
 **承認の持続**
 

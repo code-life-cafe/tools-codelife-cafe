@@ -52,8 +52,8 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 全文: [docs/approval-and-merge-rules.md](docs/approval-and-merge-rules.md)。Mergeの前に必ず読む。要点:
 
-- 操作主体は、既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッドだけ。Makerは自分のPRを承認しない。
-- 同一の最終head SHAで、Codexの独立した分類確認（A / 承認済みB / 承認済みC）、Code/Security両レビューの完了、必須CI `lint` / `e2e` の成功、最新base、未解決blockingなし、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。「重大な指摘なし」だけを分類確認とみなさない。
+- 操作主体は、既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッドだけ。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRだけ当該エージェントが操作できる。常設担当は増やさない。Makerは自分のPRを承認しない。
+- 同一の最終head SHAで、Codexの独立した分類確認（A / 承認済みB / 承認済みC）、Code Reviewの完了、必須CI `lint` / `e2e` の成功、最新base、未解決blockingなし、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。Securityは同じ完了信号を原則とし、構造化結果が欠ける既知不具合の限定例外だけを承認・Merge詳細に書く。自動ゲートはnullを合格にしない。「重大な指摘なし」だけを分類確認とみなさない。
 - CI・レビューのRunning、一時的な取得失敗、利用上限は技術待ち。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない、本人の認証が必要な場合だけ。
 - 実行前にPR履歴へ区分・判定理由・承認の根拠・対象head・CI・レビューと分類確認の根拠・修正周回数を記録し、Merge後は既存Deployと公開SHA・本番確認をIssue/PRへ記録する。新しいスケジューラ・Workflow・権限・課金は追加しない。
 - 2026-10-27より前の旧運用（Codex主実装、Notion Task Board、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。
@@ -128,7 +128,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。CI失敗中の状態でPRを作らない。
 5. 個別に許可された範囲で、作業の区切りごとにcommit・pushする（個別のcommit/push禁止の指示は上書きしない）。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・Codexレビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
 6. Codex finding・CI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
-7. A（R0/R1）と、承認済みのB・Cは、[AGENTS.mdのPRマージ条件](AGENTS.md#prのマージ判断と実行)をすべて満たす場合、既存Claude Routine、またはこのClaude Codeプロジェクト（`tools.codelife.cafe 保守`）とその担当スレッドがMergeできる。Codexが同一の最終headの実差分・AC・許可境界を独立に確認して分類（A / 承認済みB / 承認済みC）の根拠をPRに残していることが前提で、「重大な指摘なし」だけでは足りない。Code/Security botの両完了、必須CI、最新base、strict required checks、照合済みhead指定Mergeは維持し、独立レビューの代行や自己承認、botのローカルレビューによる代替はしない。CI/レビューのRunning・一時的な取得失敗・利用上限は技術待ちとして既存の購読等で続け、同じheadでの連投や未確認のMergeはしない。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけで、承認済みのB/Cを区分名だけで止めない。
+7. A（R0/R1）と、承認済みのB・Cは、[AGENTS.mdのPRマージ条件](AGENTS.md#prのマージ判断と実行)をすべて満たす場合、既存Claude Routine、またはこのClaude Codeプロジェクト（`tools.codelife.cafe 保守`）とその担当スレッドがMergeできる。Codexが同一の最終headの実差分・AC・許可境界を独立に確認して分類（A / 承認済みB / 承認済みC）の根拠をPRに残していることが前提で、「重大な指摘なし」だけでは足りない。Code Reviewの完了、必須CI、最新base、strict required checks、照合済みhead指定Mergeは維持する。Securityの構造化booleanが欠ける既知不具合は承認・Merge詳細の限定例外に従い、自動ゲートはnullを合格にしない。それ以外で独立レビューの代行や自己承認、botのローカルレビューによる代替はしない。CI/レビューのRunning・一時的な取得失敗・利用上限は技術待ちとして既存の購読等で続け、同じheadでの連投や未確認のMergeはしない。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけで、承認済みのB/Cを区分名だけで止めない。
 8. 利用上限に達した場合は別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
 
 禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ、権限拡大・追加課金・新スケジューラの追加、旧停止タスクの再開。仕様上必要なテスト更新はACとの対応と理由をPRに残す。
