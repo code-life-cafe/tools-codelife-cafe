@@ -45,13 +45,26 @@ const result = (state, /** @type {any} */ extra = {}) => ({
 	...extra,
 });
 
+function hasJsonMarker(body, name) {
+	return new RegExp(`<!--\\s*${name}(?![\\w:-])`).test(body ?? '');
+}
+
 function parseJsonMarker(body, name) {
 	// Codex botの分類コメントは波括弧がHTML数値参照（&#123; &#125;）で返るため、先に戻す。
 	const text = (body ?? '')
 		.replaceAll('&#123;', '{')
 		.replaceAll('&#125;', '}')
 		.replaceAll('&quot;', '"');
-	const m = new RegExp(`<!--\\s*${name}\\s+(\\{.*?\\})\\s*-->`, 's').exec(text);
+	if (
+		[...text.matchAll(new RegExp(`<!--\\s*${name}(?![\\w:-])`, 'g'))].length !==
+		1
+	)
+		return null;
+	const matches = [
+		...text.matchAll(new RegExp(`<!--\\s*${name}\\s+([\\s\\S]*?)-->`, 'g')),
+	];
+	if (matches.length !== 1) return null;
+	const m = matches[0];
 	if (!m) return null;
 	try {
 		return JSON.parse(m[1]);
@@ -64,19 +77,40 @@ const isCodexBot = (c) => c.login === CODEX_BOT_LOGIN && c.authorType === 'Bot';
 
 // Codex Review Summary（bot本人のコメント）を読み、対象headの完了状況を返す。
 export function readCodexSummary(comments, { repo, number, headSha }) {
-	const latest = comments
+	const candidates = comments
 		.filter(isCodexBot)
-		.filter((c) => /codex-review-state:v1/.test(c.body ?? ''))
-		.sort(
-			(a, b) =>
-				Date.parse(b.updatedAt ?? b.createdAt) -
-				Date.parse(a.updatedAt ?? a.createdAt),
-		)[0];
-	if (!latest)
+		.filter((c) => hasJsonMarker(c.body, 'codex-review-state:v1'));
+	if (!candidates.length)
 		return {
 			ok: false,
 			code: 'summary-missing',
 			detail: 'Codex Review Summaryが未取得',
+		};
+	// NaNをsortへ渡すとAPIの配列順に依存して不正時刻の証拠を無視し得る。
+	// 順序を確定できない候補は、正常な候補が別にあってもunknownを維持する。
+	const isTime = (value) =>
+		typeof value === 'string' && Number.isFinite(Date.parse(value));
+	if (
+		candidates.some(
+			(c) =>
+				!isTime(c.createdAt) || (c.updatedAt != null && !isTime(c.updatedAt)),
+		)
+	)
+		return {
+			ok: false,
+			code: 'summary-time-invalid',
+			reviewState: 'unknown',
+			detail: 'サマリー候補の投稿/更新時刻が不正。最新結果を確定できない',
+		};
+	const at = (c) => Date.parse(c.updatedAt ?? c.createdAt);
+	candidates.sort((a, b) => at(b) - at(a));
+	const latest = candidates[0];
+	if (candidates.some((c) => at(c) === at(latest) && c.body !== latest.body))
+		return {
+			ok: false,
+			code: 'summary-time-ambiguous',
+			reviewState: 'unknown',
+			detail: '同時刻の最新サマリーの内容が異なる。順序を確定できない',
 		};
 	const state = parseJsonMarker(latest.body, 'codex-review-state:v1');
 	const sec = parseJsonMarker(latest.body, 'codex-security-review:v1');
@@ -108,42 +142,67 @@ export function readCodexSummary(comments, { repo, number, headSha }) {
 				detail: `${label}は旧head ${r.commit_sha.slice(0, 7)}`,
 			};
 		}
+		if (['error', 'failed', 'cancelled', 'canceled'].includes(r.status)) {
+			return { code: `${label}-error`, detail: `${label}のstatus=${r.status}` };
+		}
 		if (r.status !== 'completed') {
 			return {
-				code: `${label}-running`,
+				code: `${label}-${['running', 'queued', 'pending', 'in_progress'].includes(r.status) ? 'running' : 'unknown'}`,
 				detail: `${label}のstatus=${r.status}`,
 			};
 		}
-		if (r.has_unresolved_findings !== false) {
+		if (r.has_unresolved_findings === true) {
 			return {
 				code: `${label}-findings`,
-				detail: `${label}に未解決指摘あり/不明`,
+				detail: `${label}に未解決指摘あり`,
 			};
 		}
+		if (r.has_unresolved_findings !== false)
+			return {
+				code: `${label}-unknown`,
+				detail: `${label}の指摘有無が不明（技術待ち）`,
+			};
 		return null;
 	};
 	const problems = [
 		check('code', state.code_review),
 		check('security', state.security_review),
 	].filter(Boolean);
-	if (problems.length) return { ok: false, ...problems[0], all: problems };
+	if (problems.length) {
+		// 別レビューの結果不明で、確認済みの実指摘を隠さない。
+		const primary =
+			problems.find((p) => p.code.endsWith('-findings')) ?? problems[0];
+		return {
+			ok: false,
+			...primary,
+			reviewState: /-(findings|running|error)$/.test(primary.code)
+				? primary.code.split('-').at(-1)
+				: 'unknown',
+			all: problems,
+		};
+	}
 	if (sec.headSha !== headSha || sec.status !== 'completed') {
 		const stale = sec.headSha !== headSha;
 		return {
 			ok: false,
-			code: stale ? 'security-meta-stale' : 'security-meta-running',
+			code: stale
+				? 'security-meta-stale'
+				: `security-meta-${['running', 'queued', 'pending', 'in_progress'].includes(sec.status) ? 'running' : ['error', 'failed', 'cancelled', 'canceled'].includes(sec.status) ? 'error' : 'unknown'}`,
 			detail: `security-review meta headSha=${String(sec.headSha).slice(0, 7)} status=${sec.status}`,
 		};
 	}
 
-	return { ok: true };
+	return { ok: true, reviewState: 'clean' };
 }
 
 // 分類マーカー（codex-classification:v1）の検証。形式・SHA・分類とriskの整合・承認参照を満たすものだけ有効。
 export function validateClassification(m, { repo, number, headSha }) {
-	if (!m || typeof m !== 'object') return { ok: false, why: '形式不明' };
+	if (!m || typeof m !== 'object' || Array.isArray(m))
+		return { ok: false, why: '形式不明' };
 	if (m.repository !== repo || m.pullRequestNumber !== number)
 		return { ok: false, why: 'repository/PR番号が不一致' };
+	if (!FULL_SHA.test(m.headSha ?? ''))
+		return { ok: false, why: '対象headの完全SHAが不正' };
 	if (m.headSha !== headSha) return { ok: false, why: '対象headが不一致' };
 	if (!RISK_BY_CLASS[m.class]) return { ok: false, why: 'classが不正' };
 	if (!RISK_BY_CLASS[m.class].includes(m.risk))
@@ -154,7 +213,10 @@ export function validateClassification(m, { repo, number, headSha }) {
 		!(m.approvalRef === null || typeof m.approvalRef === 'string')
 	)
 		return { ok: false, why: 'approvalRefが欠落/型不明' };
-	if (!Array.isArray(m.unapprovedScope))
+	if (
+		!Array.isArray(m.unapprovedScope) ||
+		!m.unapprovedScope.every((x) => typeof x === 'string')
+	)
 		return { ok: false, why: 'unapprovedScopeが欠落/型不明' };
 	if (
 		m.additionalRiskReview !== undefined &&
@@ -215,11 +277,13 @@ export function readClassifications(comments, ctx) {
 	let manual = 0;
 	for (const c of comments) {
 		const body = c.body ?? '';
-		if (isCodexBot(c) && /codex-classification:v1/.test(body)) {
-			const v = validateClassification(
-				parseJsonMarker(body, 'codex-classification:v1'),
-				ctx,
-			);
+		if (isCodexBot(c) && hasJsonMarker(body, 'codex-classification:v1')) {
+			const v = Number.isFinite(Date.parse(c.createdAt))
+				? validateClassification(
+						parseJsonMarker(body, 'codex-classification:v1'),
+						ctx,
+					)
+				: { ok: false, why: '分類の投稿時刻が不正' };
 			// 他headを対象にした正しい形式のマーカーは今回のheadには無関係。
 			if (v.ok) valid.push({ ...v, id: c.id, at: c.createdAt });
 			else if (v.why !== '対象headが不一致')
@@ -258,12 +322,20 @@ export function readClassifications(comments, ctx) {
 }
 
 // 既存の依頼履歴（headとtypeで判定）。同じhead・同じ種別の依頼を重ねない根拠。
+// 依頼本文の単語出現から意図を推測しない。先頭行の明示コマンドだけを履歴にする。
+// 日本語は既存の「分類依頼（…）」と、対象headへの肯定的な依頼文を受け付ける。
+const isClassificationRequest = (body) =>
+	/^\s*@codex[^\S\r\n]+classify\b/im.test(body) ||
+	/^\s*@codex[^\S\r\n]+(?:分類依頼(?=[（(。\s]|$)|(?:review[^\S\r\n]+)?(?:このheadの|対象headの|同一headの|このPRの)?(?:独立分類|分類確認|分類)(?:を)?(?:お願いします|してください|依頼します)(?=[。.\s（(]|$))/im.test(
+		body,
+	);
+
 export function priorRequests(comments, headSha) {
 	const types = new Set();
 	for (const c of comments) {
 		if (isCodexBot(c) || !(c.body ?? '').includes(headSha)) continue;
 		const b = c.body;
-		if (/@codex\s+classify/i.test(b)) types.add('classify');
+		if (isClassificationRequest(b)) types.add('classify');
 		else if (/@codex\s+security\s+review/i.test(b)) types.add('security');
 		else if (/@codex\s+review/i.test(b)) types.add('review');
 	}
@@ -278,7 +350,7 @@ export function canRequestReconcile(comments, headSha, cls) {
 			(c) =>
 				!isCodexBot(c) &&
 				(c.body ?? '').includes(headSha) &&
-				/@codex\s+classify/i.test(c.body ?? ''),
+				isClassificationRequest(c.body ?? ''),
 		)
 		.reduce((t, c) => Math.max(t, Date.parse(c.createdAt)), 0);
 	const updates = comments.filter(
@@ -497,6 +569,7 @@ function evaluateInner(snapshot) {
 			return result('blocked', {
 				...base,
 				reasons: [review.detail],
+				reviewState: review.reviewState,
 				suggest: repairSuggestion('classify-and-fix-findings'),
 			});
 		}
@@ -504,6 +577,13 @@ function evaluateInner(snapshot) {
 		return result('wait-review', {
 			...base,
 			waitingOn: 'Codexレビュー',
+			reviewState:
+				review.reviewState ??
+				(/error$/.test(review.code)
+					? 'error'
+					: /running$/.test(review.code)
+						? 'running'
+						: 'unknown'),
 			retriable: true,
 			reasons: [review.detail, ...(hint.note ? [hint.note] : [])],
 			suggest: hint.suggest,
