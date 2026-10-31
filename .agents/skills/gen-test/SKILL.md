@@ -22,5 +22,5 @@ description: tools.codelife.cafe の既存ツールに対して tests/e2e/fixtur
 ## 注意
 
 - 実装は操作経路と影響範囲の確認に読む。アサーションの期待値はAC・仕様から独立に導き、実装結果に合わせて変更しない。理由なく既存テストを弱めたり削除したりしない
-- テスト作成・修正はClaude Code（Maker）の責任。CodexがProductionとテストの妥当性を最終headで独立レビューする（Codexは直接修正しない）。別Test Agentは通常起動しない
+- テスト作成・修正はClaude Code（Maker）の責任。実装者と別のClaudeサブエージェントがProductionとテストの妥当性を最終headで独立レビューする（レビュー担当は直接修正しない）。別Test Agentは通常起動しない
 - 既存テストの構造を流用しつつ、コピペで残った無関係なコメント・不要なテストケースは残さない
