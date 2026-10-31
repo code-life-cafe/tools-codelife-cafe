@@ -47,21 +47,44 @@ const jaCollator = new Intl.Collator('ja', {
 });
 
 /**
- * 全角数字を半角数字に変換し、カンマ・通貨記号を شاه 除去して数値化する
+ * 全角数字・全角小数点・全角符号を半角化し、カンマ・通貨記号を除去して数値化する。
+ * 10進の整数・小数のみ受け付け、0x1F・0b101・Infinity・指数表記（1E5）は数値としない。
  */
 export function parseNumber(val: string | number | undefined): number | null {
+	if (val === undefined || val === null) return null;
+	if (typeof val === 'number') return Number.isFinite(val) ? val : null;
+	let str = String(val).trim();
+	if (!str) return null;
+
+	// 全角数字・小数点・符号 -> 半角
+	str = str
+		.replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0))
+		.replace(/[．]/g, '.')
+		.replace(/[－−‐]/g, '-')
+		.replace(/[＋]/g, '+');
+	// 通貨記号・カンマ除去
+	str = str.replace(/[¥￥$,]/g, '').trim();
+
+	if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(str)) return null;
+	const num = Number(str);
+	return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * 型を明示して値を数値化する用途（チャートの値列など）向けの従来パーサ。
+ * 自動型推定用の厳密なparseNumberと異なり、指数表記・16進なども Number() で解釈する。
+ */
+export function parseLegacyNumber(
+	val: string | number | undefined,
+): number | null {
 	if (val === undefined || val === null) return null;
 	if (typeof val === 'number') return Number.isNaN(val) ? null : val;
 	let str = String(val).trim();
 	if (!str) return null;
-
-	// 全角数字 -> 半角数字
 	str = str.replace(/[０-９]/g, (ch) =>
 		String.fromCharCode(ch.charCodeAt(0) - 0xfee0),
 	);
-	// 通貨記号・カンマ除去
 	str = str.replace(/[¥￥$,]/g, '').trim();
-
 	const num = Number(str);
 	return Number.isNaN(num) ? null : num;
 }
@@ -102,7 +125,14 @@ export function parseDate(val: string | number | undefined): Date | null {
 	if (isoMatch && !isValidCalendarDate(isoMatch[1], isoMatch[2], isoMatch[3])) {
 		return null;
 	}
-	const timestamp = Date.parse(str);
+	// ISO 8601日時のみ許可（Date.parseの寛容な解釈で「Room 1」等を日付にしない）
+	if (
+		!/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/.test(
+			str,
+		)
+	)
+		return null;
+	const timestamp = Date.parse(str.replace(' ', 'T'));
 	return Number.isNaN(timestamp) ? null : new Date(timestamp);
 }
 
@@ -189,6 +219,7 @@ function matchesCondition(
 	cellValue: string,
 	condition: FilterCondition,
 	colType: ColumnType = 'text',
+	parseNumeric = parseNumber,
 ): boolean {
 	const { operator, value, value2 } = condition;
 
@@ -197,8 +228,8 @@ function matchesCondition(
 		return cellValue !== '' && cellValue !== undefined;
 
 	if (colType === 'number') {
-		const cellNum = parseNumber(cellValue);
-		const targetNum = parseNumber(value);
+		const cellNum = parseNumeric(cellValue);
+		const targetNum = parseNumeric(value);
 		if (cellNum === null || targetNum === null) return false;
 
 		switch (operator) {
@@ -215,7 +246,7 @@ function matchesCondition(
 			case 'lte':
 				return cellNum <= targetNum;
 			case 'between': {
-				const targetNum2 = parseNumber(value2);
+				const targetNum2 = parseNumeric(value2);
 				if (targetNum2 === null) return false;
 				const min = Math.min(targetNum, targetNum2);
 				const max = Math.max(targetNum, targetNum2);
@@ -303,6 +334,7 @@ export function applyFilter(
 	group: FilterGroup,
 	columns: Column[],
 	inputIndices?: number[],
+	parseNumeric = parseNumber,
 ): number[] {
 	const indices = inputIndices ?? rows.map((_, i) => i);
 	if (!group.conditions || group.conditions.length === 0) {
@@ -323,7 +355,7 @@ export function applyFilter(
 				const target = colMap.get(cond.columnId);
 				if (!target) return false;
 				const cellValue = row[target.colIdx] ?? '';
-				return matchesCondition(cellValue, cond, target.type);
+				return matchesCondition(cellValue, cond, target.type, parseNumeric);
 			});
 		}
 
@@ -332,7 +364,7 @@ export function applyFilter(
 			const target = colMap.get(cond.columnId);
 			if (!target) return false;
 			const cellValue = row[target.colIdx] ?? '';
-			return matchesCondition(cellValue, cond, target.type);
+			return matchesCondition(cellValue, cond, target.type, parseNumeric);
 		});
 	});
 }
@@ -345,6 +377,7 @@ export function applySort(
 	keys: SortKey[],
 	columns: Column[],
 	inputIndices?: number[],
+	parseNumeric = parseNumber,
 ): number[] {
 	const indices = [...(inputIndices ?? rows.map((_, i) => i))];
 	if (!keys || keys.length === 0) {
@@ -370,8 +403,8 @@ export function applySort(
 
 			let cmp = 0;
 			if (target.type === 'number') {
-				const numA = parseNumber(valA);
-				const numB = parseNumber(valB);
+				const numA = parseNumeric(valA);
+				const numB = parseNumeric(valB);
 				if (numA !== null && numB !== null) {
 					cmp = numA - numB;
 				} else if (numA !== null) {
@@ -415,14 +448,31 @@ export function applySort(
 export function queryRows(
 	rows: string[][],
 	columns: Column[],
-	options: { filter?: FilterGroup; sortKeys?: SortKey[] },
+	options: {
+		filter?: FilterGroup;
+		sortKeys?: SortKey[];
+		/** 明示型のadapterが既存の数値契約を保持する場合に指定する。通常UIは厳密なparseNumber。 */
+		parseNumeric?: typeof parseNumber;
+	},
 ): number[] {
 	let indices = rows.map((_, i) => i);
 	if (options.filter) {
-		indices = applyFilter(rows, options.filter, columns, indices);
+		indices = applyFilter(
+			rows,
+			options.filter,
+			columns,
+			indices,
+			options.parseNumeric,
+		);
 	}
 	if (options.sortKeys) {
-		indices = applySort(rows, options.sortKeys, columns, indices);
+		indices = applySort(
+			rows,
+			options.sortKeys,
+			columns,
+			indices,
+			options.parseNumeric,
+		);
 	}
 	return indices;
 }

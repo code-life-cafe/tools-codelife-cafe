@@ -1,4 +1,4 @@
-import { parseNumber } from './table-query.ts';
+import { parseLegacyNumber } from './table-query.ts';
 
 export type ChartType = 'bar' | 'hbar' | 'line' | 'pie' | 'scatter';
 export type Aggregation = 'none' | 'sum' | 'avg' | 'count' | 'min' | 'max';
@@ -109,8 +109,8 @@ export function buildChartSvg(
 
 		const points: { x: number; y: number }[] = [];
 		for (const r of rows) {
-			const xVal = parseNumber(r[xInfo.idx]);
-			const yVal = parseNumber(r[yInfo.idx]);
+			const xVal = parseLegacyNumber(r[xInfo.idx]);
+			const yVal = parseLegacyNumber(r[yInfo.idx]);
 			if (xVal !== null && yVal !== null) {
 				points.push({ x: xVal, y: yVal });
 			}
@@ -176,7 +176,7 @@ export function buildChartSvg(
 	if (spec.aggregation === 'none') {
 		items = rows.map((r) => ({
 			category: r[catInfo.idx] ?? '',
-			values: valInfos.map((v) => parseNumber(r[v.idx]) ?? 0),
+			values: valInfos.map((v) => parseLegacyNumber(r[v.idx]) ?? 0),
 		}));
 	} else {
 		const groups = new Map<
@@ -196,7 +196,7 @@ export function buildChartSvg(
 			valInfos.forEach((v, i) => {
 				const cellVal = r[v.idx] ?? '';
 				if (cellVal.trim() !== '') g.rawCells[i].push(cellVal);
-				const num = parseNumber(cellVal);
+				const num = parseLegacyNumber(cellVal);
 				if (num !== null) g.numbers[i].push(num);
 			});
 		}

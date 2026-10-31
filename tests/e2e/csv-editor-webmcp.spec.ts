@@ -264,6 +264,30 @@ test('TSV・型明示・厳密構文・複数エラー優先順位・境界を�
 			filterValue: '001',
 		}),
 	).toMatchObject({ result: '001', outputRows: 1 });
+	// 自動型推定の修正で、明示numberの既存WebMCP契約を変更しない。
+	expect(
+		await execute(page, {
+			text: '1e2\n0x10\n0b101\n0o17\n1e-3',
+			hasHeader: false,
+			filterColumn: 'A',
+			filterOperator: 'gte',
+			filterCompare: 'number',
+			filterValue: '0b101',
+			sortColumn: 'A',
+			sortCompare: 'number',
+		}),
+	).toMatchObject({ result: '0b101\r\n0o17\r\n0x10\r\n1e2', outputRows: 4 });
+	for (const value of ['１２３．５', '－５'])
+		expect(
+			(
+				await execute(page, {
+					text: value,
+					hasHeader: false,
+					sortColumn: 'A',
+					sortCompare: 'number',
+				})
+			).isError,
+		).toBe(true);
 	expect(
 		(await execute(page, { text: '😀'.repeat(100000), hasHeader: false }))
 			.result,
