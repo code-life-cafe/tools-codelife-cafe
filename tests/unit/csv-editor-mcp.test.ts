@@ -9,6 +9,130 @@ import { generateWebMcpDescriptor } from '../../src/lib/webmcp/descriptor-genera
 import { mcpToolDefinitions } from '../../src/lib/webmcp/registry.ts';
 
 const tool = generateWebMcpDescriptor(csvEditorMcpTool);
+
+test('明示number比較は従来の数値表記を検証・抽出・ソートで保持する', async () => {
+	assert.equal(
+		(
+			await run({
+				text: '1e2\n0x10\n0b101\n0o17\n1e-3\n１２３\n$',
+				sortColumn: 'A',
+				sortCompare: 'number',
+			})
+		).result,
+		'$\r\n1e-3\r\n0b101\r\n0o17\r\n0x10\r\n1e2\r\n１２３',
+	);
+	for (const [filterValue, expected] of [
+		['0x10', '0x10\r\n1e2'],
+		['0b101', '0b101\r\n0o17\r\n0x10\r\n1e2'],
+		['0o17', '0o17\r\n0x10\r\n1e2'],
+		['1e2', '1e2'],
+		['$', '$\r\n1e-3\r\n0b101\r\n0o17\r\n0x10\r\n1e2'],
+	]) {
+		assert.equal(
+			(
+				await run({
+					text: '$\n1e-3\n0b101\n0o17\n0x10\n1e2',
+					filterColumn: 'A',
+					filterOperator: 'gte',
+					filterCompare: 'number',
+					filterValue,
+					sortColumn: 'A',
+					sortCompare: 'number',
+				})
+			).result,
+			expected,
+			filterValue,
+		);
+	}
+	for (const symbol of ['$', '¥', '￥']) {
+		assert.equal(
+			(
+				await run({
+					text: `1\n${symbol}`,
+					sortColumn: 'A',
+					sortCompare: 'number',
+				})
+			).result,
+			`${symbol}\r\n1`,
+		);
+	}
+});
+
+test('numberの従来拒否形式はセル・条件値とも拒否し、隠れる行も検証する', async () => {
+	for (const value of [
+		'１２３．５',
+		'－５',
+		'−５',
+		'‐５',
+		'＋７',
+		'Infinity',
+		'-Infinity',
+		'  ',
+		'2026-06-28',
+		'2026/6/8',
+		'2026-06-28T10:30:00Z',
+		'A-3',
+		'Room 1',
+	]) {
+		await error(
+			{ text: `1\n${value}`, sortColumn: 'A', sortCompare: 'number' },
+			CSV_QUERY_ERRORS.numeric,
+		);
+		await error(
+			{
+				text: '1\n16',
+				filterColumn: 'A',
+				filterOperator: 'gte',
+				filterCompare: 'number',
+				filterValue: value,
+			},
+			CSV_QUERY_ERRORS.numeric,
+		);
+	}
+	await error(
+		{
+			text: 'keep,1\nhide,１２３．５',
+			filterColumn: 'A',
+			filterOperator: 'eq',
+			filterValue: 'keep',
+			sortColumn: 'B',
+			sortCompare: 'number',
+		},
+		CSV_QUERY_ERRORS.numeric,
+	);
+});
+
+test('text比較は日付・数値風文字列を解釈せず、元のセルを保持する', async () => {
+	const values = [
+		'2026-06-28',
+		'2026/6/8',
+		'2026-06-28T10:30:00Z',
+		'Room 1',
+		'A-3',
+		'0x10',
+		'1e2',
+		'１２３．５',
+		'－５',
+	];
+	for (const value of values) {
+		assert.equal(
+			(
+				await run({
+					text: `other\n${value}`,
+					filterColumn: 'A',
+					filterOperator: 'eq',
+					filterValue: value,
+				})
+			).result,
+			value,
+		);
+	}
+	assert.equal(
+		(await run({ text: '1e2\n0x10\nRoom 1\nA-3', sortColumn: 'A' })).result,
+		'0x10\r\n1e2\r\nA-3\r\nRoom 1',
+	);
+	assert.match(tool.description, /カンマ\/指数\/16進/);
+});
 const properties = tool.inputSchema.properties as Record<
 	string,
 	{ maxLength?: number; enum?: string[] }
