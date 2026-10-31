@@ -575,6 +575,51 @@ test('collect はGETとread用GraphQLだけを使い、書き込み系を呼ば�
 	);
 });
 
+test('collect は issue comment の author_association を authorAssociation として渡し、NONE の記録は採用されない', async () => {
+	const body = review().body;
+	const comment = (
+		id: number,
+		association: string,
+		login: string,
+		extra: Record<string, unknown> = {},
+	) => ({
+		id,
+		user: { login, type: 'User' },
+		author_association: association,
+		body,
+		created_at: '2026-10-28T00:00:00Z',
+		updated_at: '2026-10-28T00:00:00Z',
+		...extra,
+	});
+	const collectWith = async (comments: unknown[]) => {
+		const gh = fakeGithub({
+			'/issues/7/comments': () => json(comments),
+		});
+		return collect(gh.client('t'), { repo: REPO, number: 7 });
+	};
+	const owner = await collectWith([comment(1, 'OWNER', 'maru0014')]);
+	assert.equal(owner.comments[0].authorAssociation, 'OWNER');
+	assert.equal(owner.comments[0].authorType, 'User');
+	const none = await collectWith([comment(2, 'NONE', 'rando')]);
+	assert.equal(none.comments[0].authorAssociation, 'NONE');
+	assert.equal(
+		readClaudeReview(none.comments, {
+			repo: REPO,
+			number: 7,
+			headSha: HEAD,
+		}).code,
+		'review-missing',
+	);
+	assert.equal(
+		readClaudeReview(owner.comments, {
+			repo: REPO,
+			number: 7,
+			headSha: HEAD,
+		}).ok,
+		true,
+	);
+});
+
 test('指摘1: 未解決threadは次ページ以降も数える（101件目以降を無視しない）', async () => {
 	const page = (n: number, next: boolean) =>
 		json({
