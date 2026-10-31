@@ -7,10 +7,11 @@
 現行の運用ルール（正本）: [Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。実行時はこのrepoの最新AGENTS.md / CLAUDE.md / [docs/ai-development-flow.md](docs/ai-development-flow.md)と、個別の人間承認を確認する。旧Notion Task Board・Agent Readyは新規開発の着手許可に使わない。
 
 - 開発管理はGitHub IssueとPRに統一する。AC・状態・承認・検証結果・レビュー結果・公開SHAはIssue/PRに集約する。Notionには分析・施策・効果測定と、実装Issue/PRへのリンクだけを置き、開発状態を二重管理しない。実装IssueとNotion施策は相互にリンクする。
-- 通常フローは **ChatGPT（Notionで分析・施策）→ GitHub Issue → Claude Code（調査・計画・実装・テスト・PR）→ GitHub Actions → Codex（最終head SHAのCode/Security自動独立レビュー）→ Claude Code（CI失敗・指摘の修正）→ 必要承認・Merge → Deploy・許可範囲の本番確認 → ChatGPT（効果測定）**。
+- 通常フローは **ChatGPT（Notionで分析・施策）→ GitHub Issue → Claude Code（調査・計画・実装・テスト・PR）→ GitHub Actions → 独立Claudeレビュー（実装に参加していないClaudeサブエージェントが最終head SHAを読み取り専用でレビュー）→ Claude Code（CI失敗・指摘の修正、新headの再レビュー）→ 必要承認・Merge → Deploy・許可範囲の本番確認 → ChatGPT（効果測定）**。
 - Claude Code（Claude Pro）が主実装者。機能改善・バグ修正・脆弱性対応・依存更新・テスト・開発指示書変更の調査・計画・実装・必要なテスト・PR・CI修正・レビュー指摘対応・許可範囲の本番確認まで進行責任を持つ。手順は本ファイルの「6. Makerの手順（Claude Code）」。
-- Codexは最終head SHAのCode ReviewとSecurity Reviewを担う自動独立レビュー担当。通常レビューでは実装・直接修正・コミット・自己承認を行わず、findingをIssue/PRへ返す。
-- ChatGPTはアクセス解析・SEO/GEO・仮説・優先順位・効果測定をNotionで管理する。repoの実装・PR・Mergeは行わない。
+- 独立レビューは、実装に参加していない別コンテキストの読み取り専用Claudeサブエージェント（[.claude/agents/independent-reviewer.md](.claude/agents/independent-reviewer.md)）が最終head SHAのコード・テスト・セキュリティ・区分を確認する。レビュー担当は実装・直接修正・コミット・push・自己承認を行わず、findingを返す。Claude Code本体は指摘を確認して修正し、新headを再レビューに出す。実装者本人の自己点検は独立レビューではない。記録形式は [docs/ai-development-flow.md](docs/ai-development-flow.md#独立レビュー記録claude-reviewv1) に従う。
+- 2026-10-31、marumoの指示によりtoolsはClaude単独運用へ切り替えた（Codexの自動Code/Security Reviewは停止済み。Issue #538）。Codexへのレビュー依頼・再起動・待機はしない。
+- ChatGPTはアクセス解析・SEO/GEO・仮説・優先順位・効果測定をNotionで管理する。repoの実装・PR・Mergeは行わない。toolsのリサーチ・調査はClaude Codeも行う。ChatGPT定期分析のClaude移管は外部設定側の整合が済むまで未完了として扱い、完了を前提にしない。
 - GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
 - 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
 - Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
@@ -20,7 +21,7 @@
 
 Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レビューの完了、失敗、指摘後の次の対応と、許可範囲の完了確認（Deploy・本番確認）まで持つ。Issue/PRに次を残し、状態が変わるたびに更新する。
 
-- 現在状態、次の一手、待ち先（CI / Codexレビュー / 人間承認 / 利用上限 等）、待ち始め、再開条件、対象head SHA。
+- 現在状態、次の一手、待ち先（CI / 独立Claudeレビュー / 人間承認 / 利用上限 等）、待ち始め、再開条件、対象head SHA。
 - 既存の定期確認と、実際に利用できるイベント応答だけを使う。未設定の自動再開は保証しない。新しいスケジューラ・Workflow・権限は追加しない。
 - 利用上限に達した場合は、別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
 
@@ -29,7 +30,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - モデルは作業内容に応じて3段階から選び、上位を常用しない。**軽**（調査、点検、データ整理、定型作業。Haiku）、**標準**（R0/R1の修正、文言やSEOの変更、CI・レビュー指摘への対応。Sonnet）、**重**（R2新機能の設計、複数ファイルにまたがる大きな変更、原因不明の不具合調査、R3の追加リスクレビュー。Opus）。
 - 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
 - 共有cloneは常にmainのままにする。共有cloneで作業する場合、各エージェントは作業ごとに自分のworktree（`git worktree add <repo外のパス> -b <branch>`）を作成して作業し、完了したら削除する。クラウドセッションなど作業用cloneが分離済みの環境では不要。PRのレビュー判定は実装者以外が行い、Mergeは下記のPRマージ条件に従う。
-- 本節はClaude Codeのモデル段階の指針であり、Codexのレビューモデル・外部サービスの設定を変更しない。
+- 本節はClaude Codeのモデル段階の指針であり、外部サービスの設定を変更しない。独立レビューのサブエージェントは、実装と同じ段階以上のモデルを使い、実行参照を記録に残す。
 
 ### Risk Class と承認の3段階
 
@@ -53,7 +54,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 全文: [docs/approval-and-merge-rules.md](docs/approval-and-merge-rules.md)。Mergeの前に必ず読む。要点:
 
 - 操作主体は、既存Claude Routine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッドだけ。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRだけ当該エージェントが操作できる。常設担当は増やさない。Makerは自分のPRを承認しない。
-- 同一の最終head SHAで、Codexの独立した分類確認（A / 承認済みB / 承認済みC）、Code Reviewの完了、必須CI `lint` / `e2e` の成功、最新base、未解決blockingなし、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。Securityは同じ完了信号を原則とし、構造化結果が欠ける既知不具合の限定例外だけを承認・Merge詳細に書く。自動ゲートはnullを合格にしない。「重大な指摘なし」だけを分類確認とみなさない。
+- 同一の最終head SHAで、実装者と別のClaudeサブエージェントによる独立レビュー記録（コード・テスト・セキュリティ・区分A / 承認済みB / 承認済みCの確認が完了し、未確認項目とblocking未解決がない）、必須CI `lint` / `e2e` の成功、最新base、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。記録の欠落・取得不能・旧SHA・実装者との同一参照・矛盾は合格にしない。「重大な指摘なし」だけを分類確認とみなさない。
 - CI・レビューのRunning、一時的な取得失敗、利用上限は技術待ち。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない、本人の認証が必要な場合だけ。
 - 実行前にPR履歴へ区分・判定理由・承認の根拠・対象head・CI・レビューと分類確認の根拠・修正周回数を記録し、Merge後は既存Deployと公開SHA・本番確認をIssue/PRへ記録する。新しいスケジューラ・Workflow・権限・課金は追加しない。
 - 2026-10-27より前の旧運用（Codex主実装、Notion Task Board、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。
@@ -120,22 +121,22 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 ## 6. Makerの手順（Claude Code）
 
-主実装者・Codex・ChatGPTの役割は冒頭の責任境界、全体フローは [運用手順](docs/ai-development-flow.md) を参照する。Productionコードとテストの両方を作成・修正する。
+主実装者・独立Claudeレビュー・ChatGPTの役割は冒頭の責任境界、全体フローは [運用手順](docs/ai-development-flow.md) を参照する。Productionコードとテストの両方を作成・修正する。
 
 1. GitHub Issueから対象・ACを取得する（なければ既存Issue/PRと重複確認してから作成）。Notion施策はIssueと相互リンクして背景の参照元にするだけで、旧Notion Task Boardを着手許可にしない。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
 2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。区分は[AGENTS.mdの3段階](AGENTS.md#risk-class-と承認の3段階)で判定する。A（R0/R1）は個別確認なしで着手する。B（R2/R3、新規tool・大幅改修を含む）は計画（目的・AC・対象/対象外・影響・検証・復旧・公開範囲）の承認を一度得れば、その範囲のCI修正・レビュー対応・Merge・Deployで再承認を求めない。C（R4）は具体的な対象・差分・影響の人間承認がある範囲だけ着手する。承認原文または参照、AC、禁止範囲をIssue/PRに固定し、目的や受入結果を無断で変えない。依頼文に「計画のみ」「PRまで」「push禁止」「公開禁止」などの限定があればそれを優先し、なければA又は承認済みBの「実装/修正」依頼は公開確認までを含む。
 3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。CI失敗中の状態でPRを作らない。
-5. 個別に許可された範囲で、作業の区切りごとにcommit・pushする（個別のcommit/push禁止の指示は上書きしない）。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・Codexレビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
-6. Codex finding・CI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
-7. A（R0/R1）と、承認済みのB・Cは、[AGENTS.mdのPRマージ条件](AGENTS.md#prのマージ判断と実行)をすべて満たす場合、既存Claude Routine、またはこのClaude Codeプロジェクト（`tools.codelife.cafe 保守`）とその担当スレッドがMergeできる。Codexが同一の最終headの実差分・AC・許可境界を独立に確認して分類（A / 承認済みB / 承認済みC）の根拠をPRに残していることが前提で、「重大な指摘なし」だけでは足りない。Code Reviewの完了、必須CI、最新base、strict required checks、照合済みhead指定Mergeは維持する。Securityの構造化booleanが欠ける既知不具合は承認・Merge詳細の限定例外に従い、自動ゲートはnullを合格にしない。それ以外で独立レビューの代行や自己承認、botのローカルレビューによる代替はしない。CI/レビューのRunning・一時的な取得失敗・利用上限は技術待ちとして既存の購読等で続け、同じheadでの連投や未確認のMergeはしない。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけで、承認済みのB/Cを区分名だけで止めない。
+5. 個別に許可された範囲で、作業の区切りごとにcommit・pushする（個別のcommit/push禁止の指示は上書きしない）。PR作成・レビュー依頼で担当を終えず、Issue/PRに現在状態・次の一手・待ち先・待ち始め・再開条件・対象head SHAを残して更新する。CI・独立レビューの完了・失敗・指摘後の次の対応もClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。
+6. 独立レビューのfinding・CI failureへ以下の手順で対応する。自分のPRの最終承認は行わない。
+7. A（R0/R1）と、承認済みのB・Cは、[AGENTS.mdのPRマージ条件](AGENTS.md#prのマージ判断と実行)をすべて満たす場合、既存Claude Routine、またはこのClaude Codeプロジェクト（`tools.codelife.cafe 保守`）とその担当スレッドがMergeできる。実装者と別のClaudeサブエージェントが同一の最終headの実差分・AC・許可境界を読み取り専用で確認して分類（A / 承認済みB / 承認済みC）の根拠をPRに残していることが前提で、「重大な指摘なし」だけでは足りない。独立レビューの記録、必須CI、最新base、strict required checks、照合済みhead指定Mergeは維持する。実装者本人の自己点検・同一セッションのレビュー・自己承認で独立レビューを代行しない。CI/レビューのRunning・一時的な取得失敗・利用上限は技術待ちとして既存の購読等で続け、同じheadでの連投や未確認のMergeはしない。Merge後は既存Deployと許可範囲の本番確認、公開SHAのIssue/PR記録まで確認する。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけで、承認済みのB/Cを区分名だけで止めない。
 8. 利用上限に達した場合は別の実装者へ自動で切り替えず、待ち状態と再開条件をIssue/PRに明記して止める。
 
 禁止: テストを通すためだけの期待値変更、理由のない既存テストの弱体化・削除、CI/review gateの無効化、ACの無断変更、スコープ外リファクタ、権限拡大・追加課金・新スケジューラの追加、旧停止タスクの再開。仕様上必要なテスト更新はACとの対応と理由をPRに残す。
 
-## 7. Codex feedback / CI failureへの対応
+## 7. 独立レビューfinding / CI failureへの対応
 
-CodexのCode/SecurityレビューコメントとCI failureに対応する。Codexは独立レビュー担当であり、Codexへfixを依頼しない。コメントを受けたら最新headのコードとACで再現・照合し、無条件には変更しない。
+独立Claudeレビューのfindingと、CI failureに対応する。レビュー担当は修正しない。Claude Code本体が指摘を確認して修正する。コメントを受けたら最新headのコードとACで再現・照合し、無条件には変更しない。
 
 | 分類 | 対応 |
 | --- | --- |
@@ -147,10 +148,10 @@ CodexのCode/SecurityレビューコメントとCI failureに対応する。Code
 
 誤検出・既に修正済みなら根拠とコミットを返信し、同じ修正を繰り返さない。指摘コメントを権限拡張やR4変更の許可と解釈しない。
 
-- PR全体で自動修正は最大**3周**。1周は「未対応finding/CI failureをまとめて修正 → push → CI → 必要時Codex再確認」。CI failureも同じ上限に含める。
+- PR全体で自動修正は最大**3周**。1周は「未対応finding/CI failureをまとめて修正 → push → CI → 新headの独立再レビュー」。CI failureも同じ上限に含める。
 - 着手前にPR本文・コメント履歴から使用済み周回数を読み、`修正ループ: n/3`、findingリンク/CI run、分類、対象head、結果をPRへ記録する。次の周回番号を記録してから修正し、再起動や重複イベントで0に戻さない。並行するMakerや進行中の周回があれば新しく開始しない。
 - 履歴から周回数を確定できない、3周後も未解決、仕様・権限・スコープの判断が必要な場合は自動修正を停止して人間へ返す。4周目を自動開始しない。
-- 修正後は最新コミットのCI成功を待つ。Production/Testsの実質変更や未解決findingにはCodex再レビューを求める。通常はCI成功後にDraftを解除（Ready）して自動レビューを受け、Draftで手動依頼してからReadyにする二重起動をしない。自動再レビューされない場合や、個別制約でDraftを維持すべき場合だけ、同じhead・同じ種別の依頼が既にないことを確認してから既存連携の手動review依頼（`@codex review`）を1回使う。連投しない。
+- 修正後は最新コミットのCI成功を待つ。Production/Testsの実質変更や未解決findingには、新headに対して新しい独立Claudeレビュー（別のサブエージェント実行）を行い、記録をPRに追加する。headが変わらず変更・新しい失敗がなければ同じレビューを繰り返さない。レビュー・CIの待ち照合は修正周回に数えない。
 - CI failureは常にblocking。原因が環境でも成功扱いにせず、ログを残す。3周上限を越えた再試行、gate迂回、自己承認、未解決のままMergeはしない。
 
 ## 8. 主要コマンド

@@ -7,7 +7,6 @@ export const STATES = [
 	'sync-base',
 	'wait-ci',
 	'wait-review',
-	'wait-classification',
 	'blocked',
 	'merge-ready',
 	'wait-deploy',
@@ -16,24 +15,16 @@ export const STATES = [
 	'done',
 ];
 
-export const CODEX_BOT_LOGIN = 'chatgpt-codex-connector[bot]';
 export const REQUIRED_CHECKS = ['lint', 'e2e'];
 export const MAX_FIX_LOOPS = 3;
 // 公開後の読み取りsmokeを行う既存deploy.yml内のjob名。
 export const DEPLOY_JOB = 'deploy';
 export const SMOKE_JOB = 'production-smoke';
-// head遅れで時間経過のみを根拠に再依頼候補を出すまでの分数。
-export const REREQUEST_AFTER_MINUTES = 20;
+// 独立レビュー記録のマーカー名。Codexの旧マーカーは信頼元にしない。
+export const REVIEW_MARKER = 'claude-review:v1';
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const RISK_BY_CLASS = { A: ['R0', 'R1'], B: ['R2', 'R3'], C: ['R4'] };
-const STRICTNESS = [
-	'A',
-	'approved-B',
-	'approved-C',
-	'unapproved-B',
-	'unapproved-C',
-];
 
 /** @returns {any} */
 const result = (state, /** @type {any} */ extra = {}) => ({
@@ -73,129 +64,174 @@ function parseJsonMarker(body, name) {
 	}
 }
 
-const isCodexBot = (c) => c.login === CODEX_BOT_LOGIN && c.authorType === 'Bot';
+const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
+const REF = /^[\w.:-]{3,200}$/;
+const SEVERITY = ['P0', 'P1', 'P2'];
+const FINDING_STATUS = ['open', 'fixed-verified', 'dismissed'];
+const SCOPE_KEYS = ['code', 'tests', 'security', 'classification'];
 
-// Codex Review Summary（bot本人のコメント）を読み、対象headの完了状況を返す。
-export function readCodexSummary(comments, { repo, number, headSha }) {
-	const candidates = comments
-		.filter(isCodexBot)
-		.filter((c) => hasJsonMarker(c.body, 'codex-review-state:v1'));
-	if (!candidates.length)
+// 独立レビュー記録（claude-review:v1）の検証。形式・SHA・別担当・範囲・finding・分類を満たすものだけ有効。
+// 実装者と別の担当であることは reviewerRef(subagent:…) と makerRef の不一致で「記録上」確認するだけで、
+// 暗号学的な証明ではない。偽装対策のための新しい資格情報・サービスは導入しない。
+export function validateReviewRecord(m, { repo, number, headSha }) {
+	if (!isObj(m))
+		return { ok: false, code: 'review-unparsable', why: '形式不明' };
+	if (m.repository !== repo || m.pullRequestNumber !== number)
 		return {
 			ok: false,
-			code: 'summary-missing',
-			detail: 'Codex Review Summaryが未取得',
+			code: 'review-other-pr',
+			why: 'repository/PR番号が不一致',
 		};
-	// NaNをsortへ渡すとAPIの配列順に依存して不正時刻の証拠を無視し得る。
-	// 順序を確定できない候補は、正常な候補が別にあってもunknownを維持する。
-	const isTime = (value) =>
-		typeof value === 'string' && Number.isFinite(Date.parse(value));
+	if (!FULL_SHA.test(m.headSha ?? ''))
+		return {
+			ok: false,
+			code: 'review-sha-missing',
+			why: '対象headの完全SHAが欠落/不正',
+		};
+	if (m.headSha !== headSha)
+		return {
+			ok: false,
+			code: 'review-stale',
+			why: `旧head ${m.headSha.slice(0, 7)} のレビュー記録`,
+		};
+	const bad = (why) => ({ ok: false, code: 'review-invalid', why });
 	if (
-		candidates.some(
+		typeof m.reviewerRef !== 'string' ||
+		!/^subagent:[\w.-][\w.:-]{2,}$/.test(m.reviewerRef) ||
+		!REF.test(m.reviewerRef)
+	)
+		return bad('reviewerRef(subagent:<実行参照>)が欠落/不正');
+	if (
+		typeof m.makerRef !== 'string' ||
+		!REF.test(m.makerRef) ||
+		/^subagent:/.test(m.makerRef)
+	)
+		return bad('makerRef(実装者のセッション参照)が欠落/不正');
+	if (m.reviewerRef === m.makerRef)
+		return bad('レビュー担当が実装者と同一(独立レビューではない)');
+	if (!Number.isInteger(m.round) || m.round < 1) return bad('roundが欠落/不正');
+	if (m.status !== 'completed')
+		return {
+			ok: false,
+			code: 'review-not-completed',
+			why: `レビューstatus=${String(m.status)}`,
+		};
+	if (!isObj(m.scope) || !SCOPE_KEYS.every((k) => m.scope[k] === true))
+		return bad(`scopeが不足(${SCOPE_KEYS.join('/')}をすべてtrueで確認する)`);
+	if (
+		!Array.isArray(m.unverified) ||
+		!m.unverified.every((x) => typeof x === 'string')
+	)
+		return bad('unverifiedが欠落/型不明');
+	if (m.unverified.length)
+		return {
+			ok: false,
+			code: 'review-unverified',
+			why: `未確認項目が残っている: ${m.unverified.join(' / ')}`,
+		};
+	if (!Array.isArray(m.findings)) return bad('findingsが欠落/型不明');
+	for (const f of m.findings) {
+		if (
+			!isObj(f) ||
+			typeof f.id !== 'string' ||
+			!f.id ||
+			!SEVERITY.includes(f.severity) ||
+			typeof f.blocking !== 'boolean' ||
+			!FINDING_STATUS.includes(f.status) ||
+			typeof f.evidence !== 'string' ||
+			!f.evidence.trim()
+		)
+			return bad(
+				'findingの形式が不正(id/severity/blocking/status/evidenceが必須)',
+			);
+	}
+	const cls = validateClassification(
+		isObj(m.classification)
+			? {
+					repository: repo,
+					pullRequestNumber: number,
+					headSha,
+					...m.classification,
+				}
+			: null,
+		{ repo, number, headSha },
+	);
+	if (!cls.ok) return bad(`classification: ${cls.why}`);
+	const open = m.findings.filter((f) => f.blocking && f.status === 'open');
+	return {
+		ok: true,
+		reviewerRef: m.reviewerRef,
+		round: m.round,
+		openBlocking: open.map((f) => f.id),
+		classification: cls,
+	};
+}
+
+// PR commentsから独立レビュー記録を読む。信頼するのは人間アカウント(type=User)が投稿した構造化マーカーだけ。
+// Bot名義(旧Codex botを含む)の記録、自由文の「レビュー済み」、短SHAは採用しない。
+export function readClaudeReview(comments, ctx) {
+	const cands = comments.filter(
+		(c) => c.authorType === 'User' && hasJsonMarker(c.body, REVIEW_MARKER),
+	);
+	if (!cands.length)
+		return {
+			ok: false,
+			code: 'review-missing',
+			reviewState: 'unavailable',
+			detail:
+				'実装者と別のClaudeサブエージェントによるレビュー記録が未取得(review-evidence-unavailable)',
+		};
+	const isTime = (v) => typeof v === 'string' && Number.isFinite(Date.parse(v));
+	if (
+		cands.some(
 			(c) =>
 				!isTime(c.createdAt) || (c.updatedAt != null && !isTime(c.updatedAt)),
 		)
 	)
 		return {
 			ok: false,
-			code: 'summary-time-invalid',
+			code: 'review-time-invalid',
 			reviewState: 'unknown',
-			detail: 'サマリー候補の投稿/更新時刻が不正。最新結果を確定できない',
+			detail: 'レビュー記録の投稿/更新時刻が不正。最新結果を確定できない',
 		};
 	const at = (c) => Date.parse(c.updatedAt ?? c.createdAt);
-	candidates.sort((a, b) => at(b) - at(a));
-	const latest = candidates[0];
-	if (candidates.some((c) => at(c) === at(latest) && c.body !== latest.body))
+	cands.sort((a, b) => at(b) - at(a));
+	const latest = cands[0];
+	if (cands.some((c) => at(c) === at(latest) && c.body !== latest.body))
 		return {
 			ok: false,
-			code: 'summary-time-ambiguous',
+			code: 'review-time-ambiguous',
 			reviewState: 'unknown',
-			detail: '同時刻の最新サマリーの内容が異なる。順序を確定できない',
+			detail: '同時刻の最新記録の内容が異なる。順序を確定できない',
 		};
-	const state = parseJsonMarker(latest.body, 'codex-review-state:v1');
-	const sec = parseJsonMarker(latest.body, 'codex-security-review:v1');
-	const isObj = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
-	if (!isObj(state) || !isObj(sec))
+	const v = validateReviewRecord(
+		parseJsonMarker(latest.body, REVIEW_MARKER),
+		ctx,
+	);
+	if (!v.ok)
 		return {
 			ok: false,
-			code: 'summary-unparsable',
-			detail: 'メタデータ形式が未知',
+			code: v.code,
+			reviewState: v.code === 'review-stale' ? 'stale' : 'unknown',
+			detail: v.why,
 		};
-	if (sec.repository !== repo || sec.pullRequestNumber !== number) {
+	if (v.openBlocking.length)
 		return {
 			ok: false,
-			code: 'summary-other-pr',
-			detail: 'repository/PR番号が不一致',
+			code: 'review-findings',
+			reviewState: 'findings',
+			detail: `未解決のblocking finding: ${v.openBlocking.join(', ')}`,
 		};
-	}
-	// 完全SHAのみ比較する。欠落（Code対象SHAなし等）は合格にしない。
-	const check = (label, r) => {
-		if (!isObj(r) || !FULL_SHA.test(r.commit_sha ?? '')) {
-			return {
-				code: `${label}-sha-missing`,
-				detail: `${label}の対象commit_shaが欠落/不正`,
-			};
-		}
-		if (r.commit_sha !== headSha) {
-			return {
-				code: `${label}-stale`,
-				detail: `${label}は旧head ${r.commit_sha.slice(0, 7)}`,
-			};
-		}
-		if (['error', 'failed', 'cancelled', 'canceled'].includes(r.status)) {
-			return { code: `${label}-error`, detail: `${label}のstatus=${r.status}` };
-		}
-		if (r.status !== 'completed') {
-			return {
-				code: `${label}-${['running', 'queued', 'pending', 'in_progress'].includes(r.status) ? 'running' : 'unknown'}`,
-				detail: `${label}のstatus=${r.status}`,
-			};
-		}
-		if (r.has_unresolved_findings === true) {
-			return {
-				code: `${label}-findings`,
-				detail: `${label}に未解決指摘あり`,
-			};
-		}
-		if (r.has_unresolved_findings !== false)
-			return {
-				code: `${label}-unknown`,
-				detail: `${label}の指摘有無が不明（技術待ち）`,
-			};
-		return null;
+	return {
+		ok: true,
+		reviewState: 'clean',
+		classification: v.classification,
+		reviewerRef: v.reviewerRef,
+		round: v.round,
 	};
-	const problems = [
-		check('code', state.code_review),
-		check('security', state.security_review),
-	].filter(Boolean);
-	if (problems.length) {
-		// 別レビューの結果不明で、確認済みの実指摘を隠さない。
-		const primary =
-			problems.find((p) => p.code.endsWith('-findings')) ?? problems[0];
-		return {
-			ok: false,
-			...primary,
-			reviewState: /-(findings|running|error)$/.test(primary.code)
-				? primary.code.split('-').at(-1)
-				: 'unknown',
-			all: problems,
-		};
-	}
-	if (sec.headSha !== headSha || sec.status !== 'completed') {
-		const stale = sec.headSha !== headSha;
-		return {
-			ok: false,
-			code: stale
-				? 'security-meta-stale'
-				: `security-meta-${['running', 'queued', 'pending', 'in_progress'].includes(sec.status) ? 'running' : ['error', 'failed', 'cancelled', 'canceled'].includes(sec.status) ? 'error' : 'unknown'}`,
-			detail: `security-review meta headSha=${String(sec.headSha).slice(0, 7)} status=${sec.status}`,
-		};
-	}
-
-	return { ok: true, reviewState: 'clean' };
 }
 
-// 分類マーカー（codex-classification:v1）の検証。形式・SHA・分類とriskの整合・承認参照を満たすものだけ有効。
+// 独立レビュー記録内の分類の検証。形式・SHA・分類とriskの整合・承認参照を満たすものだけ有効。
 export function validateClassification(m, { repo, number, headSha }) {
 	if (!m || typeof m !== 'object' || Array.isArray(m))
 		return { ok: false, why: '形式不明' };
@@ -223,22 +259,11 @@ export function validateClassification(m, { repo, number, headSha }) {
 		typeof m.additionalRiskReview !== 'boolean'
 	)
 		return { ok: false, why: 'additionalRiskReviewの型が不明' };
-	if (
-		m.supersedes !== undefined &&
-		!(
-			Array.isArray(m.supersedes) &&
-			m.supersedes.every((x) => /^\d+$/.test(String(x).replace(/^.*[#/]/, '')))
-		)
-	)
-		return { ok: false, why: 'supersedesの形式が不明' };
-	const supersedes = (m.supersedes ?? []).map((x) =>
-		String(x).replace(/^.*[#/]/, ''),
-	);
 	if (m.class === 'A') {
 		if (m.unapprovedScope.length)
 			return { ok: false, why: 'Aなのに未承認範囲が残っている(矛盾)' };
 		return m.approvalStatus === 'not-required'
-			? { ok: true, label: 'A', class: 'A', risk: m.risk, supersedes }
+			? { ok: true, label: 'A', class: 'A', risk: m.risk }
 			: { ok: false, why: 'Aのapprovalが不正' };
 	}
 	if (m.approvalStatus === 'approved') {
@@ -253,7 +278,6 @@ export function validateClassification(m, { repo, number, headSha }) {
 			risk: m.risk,
 			approvalRef: ref,
 			additionalRiskReview: m.additionalRiskReview === true,
-			supersedes,
 		};
 	}
 	if (m.approvalStatus === 'unapproved') {
@@ -262,104 +286,9 @@ export function validateClassification(m, { repo, number, headSha }) {
 			label: `unapproved-${m.class}`,
 			class: m.class,
 			risk: m.risk,
-			supersedes,
 		};
 	}
 	return { ok: false, why: 'approvalStatusが不正' };
-}
-
-// 独立分類の自動証拠は、検証済みCodex連携botの構造化マーカーだけ。
-// ユーザー名義の自由文（Codexチャット経由を含む）はログインから人間/Codex/Claudeを区別できないため、
-// 自動許可の証拠にせず manual として件数だけ返す。
-export function readClassifications(comments, ctx) {
-	const valid = [];
-	const invalid = [];
-	let manual = 0;
-	for (const c of comments) {
-		const body = c.body ?? '';
-		if (isCodexBot(c) && hasJsonMarker(body, 'codex-classification:v1')) {
-			const v = Number.isFinite(Date.parse(c.createdAt))
-				? validateClassification(
-						parseJsonMarker(body, 'codex-classification:v1'),
-						ctx,
-					)
-				: { ok: false, why: '分類の投稿時刻が不正' };
-			// 他headを対象にした正しい形式のマーカーは今回のheadには無関係。
-			if (v.ok) valid.push({ ...v, id: c.id, at: c.createdAt });
-			else if (v.why !== '対象headが不一致')
-				invalid.push({ id: c.id, why: v.why, at: c.createdAt });
-			continue;
-		}
-		if (body.includes(ctx.headSha) && /独立分類/.test(body)) manual += 1;
-	}
-	// botが後続の分類で明示的に置き換えた旧判定だけを無効化する。未解決の反対判定は残り、厳しい側が優先される。
-	const live = valid.filter(
-		(v) =>
-			!valid.some(
-				(n) =>
-					n !== v &&
-					n.supersedes.includes(String(v.id)) &&
-					Date.parse(n.at) > Date.parse(v.at),
-			),
-	);
-	live.sort(
-		(a, b) => STRICTNESS.indexOf(b.label) - STRICTNESS.indexOf(a.label),
-	);
-	// 無効マーカーも、botが後続の有効な分類で明示的に置き換えた場合だけ解消する（無関係ID・先行投稿では解消しない）。
-	const liveInvalid = invalid.filter(
-		(i) =>
-			!valid.some(
-				(n) =>
-					n.supersedes.includes(String(i.id)) &&
-					Date.parse(n.at) > Date.parse(i.at),
-			),
-	);
-	const latestMarkerAt = valid.reduce(
-		(t, v) => Math.max(t, Date.parse(v.at)),
-		0,
-	);
-	return { valid: live, invalid: liveInvalid, manual, latestMarkerAt };
-}
-
-// 既存の依頼履歴（headとtypeで判定）。同じhead・同じ種別の依頼を重ねない根拠。
-// 依頼本文の単語出現から意図を推測しない。先頭行の明示コマンドだけを履歴にする。
-// 日本語は既存の「分類依頼（…）」と、対象headへの肯定的な依頼文を受け付ける。
-const isClassificationRequest = (body) =>
-	/^\s*@codex[^\S\r\n]+classify\b/im.test(body) ||
-	/^\s*@codex[^\S\r\n]+(?:分類依頼(?=[（(。\s]|$)|(?:review[^\S\r\n]+)?(?:このheadの|対象headの|同一headの|このPRの)?(?:独立分類|分類確認|分類)(?:を)?(?:お願いします|してください|依頼します)(?=[。.\s（(]|$))/im.test(
-		body,
-	);
-
-export function priorRequests(comments, headSha) {
-	const types = new Set();
-	for (const c of comments) {
-		if (isCodexBot(c) || !(c.body ?? '').includes(headSha)) continue;
-		const b = c.body;
-		if (isClassificationRequest(b)) types.add('classify');
-		else if (/@codex\s+security\s+review/i.test(b)) types.add('security');
-		else if (/@codex\s+review/i.test(b)) types.add('review');
-	}
-	return types;
-}
-
-// 分類の再照合依頼（承認参照の更新・形式訂正）を、更新ごとに一度だけ許可する。
-// 最後の分類依頼より後に、bot以外の「承認」を含むコメントがあるときだけ true（現在の判定が未承認B/Cまたは無効マーカーの場合に使う）。
-export function canRequestReconcile(comments, headSha, cls) {
-	const lastRequest = comments
-		.filter(
-			(c) =>
-				!isCodexBot(c) &&
-				(c.body ?? '').includes(headSha) &&
-				isClassificationRequest(c.body ?? ''),
-		)
-		.reduce((t, c) => Math.max(t, Date.parse(c.createdAt)), 0);
-	const updates = comments.filter(
-		(c) =>
-			!isCodexBot(c) &&
-			/承認|approval/i.test(c.body ?? '') &&
-			Date.parse(c.createdAt) > Math.max(lastRequest, cls.latestMarkerAt),
-	);
-	return lastRequest > 0 && updates.length > 0;
 }
 
 // 修正周回。履歴（コメント/本文）の最大値を採用し、再起動や重複で0に戻さない。取れなければnull。
@@ -411,31 +340,6 @@ function summarizeChecks(checks, headSha, required) {
 			failed.push(`${req.context}:${c.conclusion}`);
 	}
 	return { missing, pending, failed };
-}
-
-function reviewRequestHint(review, comments, head, snapshot) {
-	const prior = priorRequests(comments, head);
-	const security = /^security/.test(review.code);
-	const type = security ? 'security' : 'review';
-	if (prior.has(type)) {
-		return { suggest: null, note: `${type}は同headに依頼済み。待つ` };
-	}
-	const shaMissing = /sha-missing$/.test(review.code);
-	const ageMin =
-		snapshot.now != null && snapshot.pr.headCommittedAt
-			? (snapshot.now - Date.parse(snapshot.pr.headCommittedAt)) / 60000
-			: null;
-	const timedOut =
-		/^(summary-missing|code-stale|security-stale|security-meta-stale)$/.test(
-			review.code,
-		) &&
-		ageMin != null &&
-		ageMin >= REREQUEST_AFTER_MINUTES;
-	if (!shaMissing && !timedOut) return { suggest: null, note: null };
-	return {
-		suggest: `request-once: codex-${security ? 'security-review' : 'review'} (head ${head})`,
-		note: null,
-	};
 }
 
 // snapshot: scripts/pr-gate-status.mjs が正規化して渡す。unknown/null は「不明」として扱う。
@@ -559,13 +463,13 @@ function evaluateInner(snapshot) {
 		});
 	}
 
-	const review = readCodexSummary(comments, {
+	const review = readClaudeReview(comments, {
 		repo,
 		number: pr.number,
 		headSha: head,
 	});
 	if (!review.ok) {
-		if (/findings$/.test(review.code)) {
+		if (review.code === 'review-findings') {
 			return result('blocked', {
 				...base,
 				reasons: [review.detail],
@@ -573,76 +477,30 @@ function evaluateInner(snapshot) {
 				suggest: repairSuggestion('classify-and-fix-findings'),
 			});
 		}
-		const hint = reviewRequestHint(review, comments, head, snapshot);
+		// 未実施・取得不能・旧SHA・形式不正・矛盾は合格にしない。新headごとに別担当レビューを実施し、記録を追加する。
 		return result('wait-review', {
 			...base,
-			waitingOn: 'Codexレビュー',
-			reviewState:
-				review.reviewState ??
-				(/error$/.test(review.code)
-					? 'error'
-					: /running$/.test(review.code)
-						? 'running'
-						: 'unknown'),
+			waitingOn: '独立Claudeレビュー(同一head・別担当)',
+			reviewState: review.reviewState ?? 'unknown',
 			retriable: true,
-			reasons: [review.detail, ...(hint.note ? [hint.note] : [])],
-			suggest: hint.suggest,
+			reasons: [review.detail],
+			suggest: /^review-(missing|stale)$/.test(review.code)
+				? `run-independent-claude-review (head ${head})`
+				: 'fix-or-reissue-review-record',
 		});
 	}
 
-	const cls = readClassifications(comments, {
-		repo,
-		number: pr.number,
-		headSha: head,
-	});
-	if (!cls.valid.length) {
-		const requested = priorRequests(comments, head).has('classify');
-		return result('wait-classification', {
-			...base,
-			waitingOn: '独立分類(同一head・Codex bot)',
-			retriable: true,
-			reasons: [
-				'対象headの検証済みbot分類マーカーが未記録。「重大指摘なし」・ユーザー名義の自由文では代替しない',
-				...cls.invalid.map((i) => `無効なマーカー(${i.id}): ${i.why}`),
-				...(cls.manual
-					? [`手動の分類コメント${cls.manual}件は自動証拠にしない(人間が確認)`]
-					: []),
-				...(requested ? ['同headにCodex分類依頼済み。応答を待つ'] : []),
-			],
-			suggest: !requested
-				? `request-once: codex-classify (head ${head})`
-				: cls.invalid.length && canRequestReconcile(comments, head, cls)
-					? `request-once: codex-classify-reconcile (head ${head})`
-					: null,
-		});
-	}
-	// 同headに解消されていない無効マーカーが残る間は、有効な分類があっても進めない（矛盾を捨ててmerge-readyにしない）。
-	if (cls.invalid.length) {
-		return result('blocked', {
-			...base,
-			retriable: true,
-			reasons: [
-				'同headに矛盾/無効な分類マーカーが残っている。botのsupersedesで明示的に置き換えられるまで進めない',
-				...cls.invalid.map((i) => `無効なマーカー(${i.id}): ${i.why}`),
-			],
-			suggest: canRequestReconcile(comments, head, cls)
-				? `request-once: codex-classify-reconcile (head ${head})`
-				: null,
-		});
-	}
-	const top = cls.valid[0]; // 矛盾時は最も厳しい分類
+	// 分類は独立レビュー記録の一部。同じレビューが対象headの実差分・AC・許可境界で判定したものだけを使う。
+	const top = review.classification;
 	if (top.label.startsWith('unapproved-')) {
 		return result('blocked', {
 			...base,
 			classification: top.label,
 			reasons: [`分類${top.label}: 本人承認の参照が未照合。承認範囲外は人間へ`],
-			suggest: canRequestReconcile(comments, head, cls)
-				? `request-once: codex-classify-reconcile (head ${head})`
-				: 'request-approval-reference-or-return-to-human',
+			suggest: 'request-approval-reference-or-return-to-human',
 		});
 	}
-	// 同じラベル(例: approved-B)でもR3の追加リスクレビュー未記録の判定が1つでも残れば進めない。
-	if (cls.valid.some((v) => v.risk === 'R3' && !v.additionalRiskReview)) {
+	if (top.risk === 'R3' && !top.additionalRiskReview) {
 		return result('blocked', {
 			...base,
 			classification: top.label,

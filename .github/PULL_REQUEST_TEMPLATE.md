@@ -22,16 +22,16 @@
 ## 現在状態・待ち（Claude Codeが更新）
 
 - 現在状態 / 次の一手:
-- 待ち先（CI / Codexレビュー / 人間承認 / 利用上限）・待ち始め・再開条件:
+- 待ち先（CI / 独立Claudeレビュー / 人間承認 / 利用上限）・待ち始め・再開条件:
 - 対象head SHA:
 - 公開SHA・本番確認（Merge後）:
 
 ## レビュー対応
 
 - 修正ループ: 0/3
-- Codex Code/Security Review（対象head）:
+- 独立Claudeレビュー（実装者と別のサブエージェント。対象headの完全SHA・実行参照 `subagent:<ID>`・実装者参照 `makerRef`・round）:
 - 独立した区分確認（A / 承認済みB / 承認済みC、同一headの実差分・AC・許可境界）:
-  - Codex bot の分類マーカー（`codex-classification:v1`、対象head・class・risk・approvalStatus・approvalRef）のコメントリンク。依頼は1コメントだけにメンションを使い、進捗・引用では書かない（Codex分類依頼と言い換える）:
+  - `claude-review:v1` 記録のコメントリンク（形式は docs/ai-development-flow.md。scopeはcode/tests/security/classificationすべて確認、unverifiedは空）:
 - finding / CI run → 分類 → 修正コミット → CI / 再レビュー結果:
 - 残っているblocking / 人間判断事項:
 
@@ -39,6 +39,6 @@
 
 - 外部サービスで必要な手動確認・設定（なければ「なし」）:
 
-<!-- CI成功・最新headのCodex Code/Security独立レビューと区分（A / 承認済みB / 承認済みC）の確認が揃うまではMergeしない。
+<!-- CI成功・最新headの独立Claudeレビュー（実装者と別のサブエージェント）と区分（A / 承認済みB / 承認済みC）の確認が揃うまではMergeしない。
 Bは計画承認済みの範囲、Cは具体的な対象・差分・影響の承認を得た範囲のみ。承認がMerge/Deployを含むかは承認原文で確認する。
 運用規則: AGENTS.md / CLAUDE.md / docs/ai-development-flow.md -->
