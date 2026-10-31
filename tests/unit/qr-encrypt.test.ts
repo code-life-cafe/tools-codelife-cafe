@@ -255,3 +255,31 @@ test('estimateCapacity: practicalScanWarning は閾値超過時のみtrueにな�
 	assert.ok(smallEstimate.payloadBytes <= PRACTICAL_SCAN_WARNING_BYTES);
 	assert.equal(smallEstimate.practicalScanWarning, false);
 });
+
+test('異常なiterations（範囲外・負数・過大値）はdecodeQrPayloadで拒否される', () => {
+	const createPayload = (iterations: unknown) => {
+		const env = {
+			version: 1,
+			kdf: KDF_NAME,
+			iterations,
+			compression: 'none',
+			salt: 'AAAA',
+			iv: 'AAAA',
+			ciphertext: 'AAAA',
+		};
+		return (
+			ENVELOPE_PREFIX +
+			Buffer.from(JSON.stringify(env))
+				.toString('base64')
+				.replace(/\+/g, '-')
+				.replace(/\//g, '_')
+				.replace(/=+$/, '')
+		);
+	};
+
+	assert.equal(decodeQrPayload(createPayload(10_000)).ok, false); // 100,000未満
+	assert.equal(decodeQrPayload(createPayload(2_000_000_000)).ok, false); // 1,000,000超過
+	assert.equal(decodeQrPayload(createPayload(-1)).ok, false);
+	assert.equal(decodeQrPayload(createPayload('600000')).ok, false);
+	assert.equal(decodeQrPayload(createPayload(600_000)).ok, true);
+});

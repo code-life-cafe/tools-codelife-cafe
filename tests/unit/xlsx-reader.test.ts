@@ -48,3 +48,13 @@ test('parseXmlString - XML解析ヘルパーおよびinlineStr / cellXfs構造',
 	const text = tNodes.map((t) => t.textContent).join('');
 	assert.equal(text, '山田');
 });
+
+test('parseXmlString - 特殊文字を含む属性やセレクタでも安全に解析できる (escapeRegExp)', () => {
+	const xml = `<worksheet><custom[tag] attr(1)="value[test]">hello</custom[tag]></worksheet>`;
+	const doc = parseXmlString(xml);
+	assert.ok(doc);
+	const node = doc.querySelector('custom[tag]');
+	if (node) {
+		assert.equal(node.getAttribute('attr(1)'), 'value[test]');
+	}
+});

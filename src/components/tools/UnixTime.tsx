@@ -29,6 +29,7 @@ import {
 	convertBatch,
 	detectTimestampCandidates,
 	formatTimestamp,
+	isValidTimeZone,
 	nowInstantNanos,
 	parseDateTimeString,
 	type TimestampCandidate,
@@ -39,21 +40,21 @@ import { unixTimeTool } from '@/lib/webmcp/tools/unix-time.webmcp';
 const TIMEZONES: string[] =
 	typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
 		? // biome-ignore lint/suspicious/noExplicitAny: supportedValuesOf は型定義が古い環境向けに未対応の場合がある
-			(Intl as any).supportedValuesOf('timeZone')
+		(Intl as any).supportedValuesOf('timeZone')
 		: ['UTC', 'Asia/Tokyo', 'America/New_York', 'Europe/London'];
 
 const DISCORD_STYLES: {
 	key: 't' | 'T' | 'd' | 'D' | 'f' | 'F' | 'R';
 	label: string;
 }[] = [
-	{ key: 'F', label: '長い日時' },
-	{ key: 'f', label: '短い日時' },
-	{ key: 'D', label: '長い日付' },
-	{ key: 'd', label: '短い日付' },
-	{ key: 'T', label: '長い時刻' },
-	{ key: 't', label: '短い時刻' },
-	{ key: 'R', label: '相対時刻' },
-];
+		{ key: 'F', label: '長い日時' },
+		{ key: 'f', label: '短い日時' },
+		{ key: 'D', label: '長い日付' },
+		{ key: 'd', label: '短い日付' },
+		{ key: 'T', label: '長い時刻' },
+		{ key: 't', label: '短い時刻' },
+		{ key: 'R', label: '相対時刻' },
+	];
 
 interface Settings {
 	timeZone: string;
@@ -73,9 +74,22 @@ function OutputRow({ label, value }: { label: string; value: string }) {
 
 export default function UnixTime() {
 	const { trackRunDebounced } = useToolAnalytics('unix-time');
-	const [settings, updateSettings] = useToolSettings<Settings>('unix-time', {
-		timeZone: 'Asia/Tokyo',
-	});
+	const [settings, updateSettings] = useToolSettings<Settings>(
+		'unix-time',
+		{
+			timeZone: 'Asia/Tokyo',
+		},
+		(val: unknown, defaults: Settings) => {
+			if (!val || typeof val !== 'object') return { ...defaults };
+			const rawTz = (val as Record<string, unknown>).timeZone;
+			return {
+				timeZone:
+					typeof rawTz === 'string' && isValidTimeZone(rawTz)
+						? rawTz
+						: defaults.timeZone,
+			};
+		},
+	);
 	const { timeZone } = settings;
 
 	const [mode, setMode] = useState<'single' | 'batch'>('single');
@@ -269,12 +283,11 @@ export default function UnixTime() {
 									key={c.format}
 									type="button"
 									onClick={() => setSelectedFormat(c.format)}
-									className={`rounded-full border px-3 py-1 text-xs transition-colors ${
-										(activeCandidate?.format ?? candidates[0].format) ===
-										c.format
+									className={`rounded-full border px-3 py-1 text-xs transition-colors ${(activeCandidate?.format ?? candidates[0].format) ===
+											c.format
 											? 'border-primary bg-primary/10 text-primary font-medium'
 											: 'border-border text-muted-foreground hover:bg-muted'
-									}`}
+										}`}
 								>
 									{c.label}
 									{c.confidence === 'low' && '（低確度）'}

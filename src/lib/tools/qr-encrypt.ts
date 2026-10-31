@@ -9,12 +9,17 @@
 export const ENVELOPE_PREFIX = 'qre1.';
 export const KDF_NAME = 'PBKDF2-HMAC-SHA256';
 export const PBKDF2_ITERATIONS = 600_000;
+export const MIN_PBKDF2_ITERATIONS = 100_000;
+export const MAX_PBKDF2_ITERATIONS = 1_000_000;
 export const SALT_BYTES = 16;
 export const IV_BYTES = 12;
 export const GCM_TAG_BYTES = 16;
 
 /** 平文入力の上限（100KB）。巨大入力＋KDFによるブラウザフリーズを防ぐ。 */
 export const MAX_PLAINTEXT_BYTES = 100 * 1024;
+
+/** 展開後の最大バイト数（平文上限と同じ100KB）。Deflateボム対策。 */
+export const MAX_DECOMPRESSED_BYTES = MAX_PLAINTEXT_BYTES;
 
 /** QRペイロードの上限（Version 40 / ECC L / Byteモードの最大容量）。 */
 export const MAX_QR_PAYLOAD_BYTES = 2953;
@@ -91,6 +96,46 @@ async function runStream(
 	return new Uint8Array(buffer);
 }
 
+async function runStreamWithLimit(
+	stream: {
+		writable: WritableStream<BufferSource>;
+		readable: ReadableStream<Uint8Array>;
+	},
+	input: Uint8Array,
+	maxBytes: number,
+): Promise<Uint8Array> {
+	const writer = stream.writable.getWriter();
+	writer.write(input as BufferSource);
+	writer.close();
+
+	const reader = stream.readable.getReader();
+	const chunks: Uint8Array[] = [];
+	let totalBytes = 0;
+
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			totalBytes += value.byteLength;
+			if (totalBytes > maxBytes) {
+				await reader.cancel();
+				throw new Error('decompressed-size-exceeded');
+			}
+			chunks.push(value);
+		}
+	} finally {
+		reader.releaseLock();
+	}
+
+	const result = new Uint8Array(totalBytes);
+	let offset = 0;
+	for (const chunk of chunks) {
+		result.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return result;
+}
+
 async function compressBytes(
 	bytes: Uint8Array,
 ): Promise<{ bytes: Uint8Array; compression: CompressionMode }> {
@@ -116,7 +161,11 @@ async function decompressBytes(
 	if (!isCompressionSupported()) {
 		throw new Error('decompression-unsupported');
 	}
-	return runStream(new DecompressionStream('deflate-raw'), bytes);
+	return runStreamWithLimit(
+		new DecompressionStream('deflate-raw'),
+		bytes,
+		MAX_DECOMPRESSED_BYTES,
+	);
 }
 
 // --- KDF / AES-GCM ---
@@ -320,6 +369,9 @@ function isEnvelopeShape(value: unknown): value is Record<string, unknown> & {
 	const v = value as Record<string, unknown>;
 	return (
 		typeof v.iterations === 'number' &&
+		Number.isSafeInteger(v.iterations) &&
+		v.iterations >= MIN_PBKDF2_ITERATIONS &&
+		v.iterations <= MAX_PBKDF2_ITERATIONS &&
 		typeof v.salt === 'string' &&
 		typeof v.iv === 'string' &&
 		typeof v.ciphertext === 'string' &&

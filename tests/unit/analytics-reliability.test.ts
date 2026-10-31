@@ -44,6 +44,7 @@ test('synthetic monitoring does not persist page_view or custom events', async (
 	const headers = {
 		'X-CLC-Synthetic': '1',
 		'Content-Type': 'application/json',
+		Origin: 'https://tools.codelife.cafe',
 	};
 	const page = await onRequest({
 		request: new Request('https://tools.codelife.cafe/color/?settings=abc', {
@@ -76,6 +77,7 @@ test('only the explicit synthetic value opts out; ordinary events retain their s
 		const headers = new Headers({
 			'Content-Type': 'application/json',
 			'User-Agent': 'Mozilla/5.0',
+			Origin: 'https://tools.codelife.cafe',
 		});
 		if (value !== undefined) headers.set('X-CLC-Synthetic', value);
 		const env = {

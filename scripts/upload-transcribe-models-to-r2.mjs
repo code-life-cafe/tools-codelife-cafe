@@ -73,17 +73,16 @@ function contentTypeFor(path) {
 
 // --- wrangler 実行 ---
 
-const WRANGLER_BIN = process.env.WRANGLER_BIN ?? 'npx';
+const WRANGLER_BIN =
+	process.env.WRANGLER_BIN ??
+	(process.platform === 'win32' ? 'npx.cmd' : 'npx');
 const WRANGLER_PREFIX = process.env.WRANGLER_BIN ? [] : ['--yes', 'wrangler'];
 
 function runWrangler(wranglerArgs) {
-	// .cmd / .ps1 のラッパ解決を OS のシェルに任せる（Windows / WSL / macOS 共通）
-	const quoted = [...WRANGLER_PREFIX, ...wranglerArgs].map((a) =>
-		/[\s"']/.test(a) ? JSON.stringify(a) : a,
-	);
-	return spawnSync(`${WRANGLER_BIN} ${quoted.join(' ')}`, {
+	const args = [...WRANGLER_PREFIX, ...wranglerArgs];
+	return spawnSync(WRANGLER_BIN, args, {
 		cwd: ROOT,
-		shell: true,
+		shell: false,
 		encoding: 'utf8',
 	});
 }
@@ -210,7 +209,9 @@ console.log(
 console.log('');
 const sample = targets[0];
 console.log('検証:');
-console.log('  1. Pages をデプロイして Function と R2 バインディングを反映する');
+console.log(
+	'  1. Pages をデプロイして Function と R2 バインディングを反映する',
+);
 console.log(
 	`  2. curl -I https://tools.codelife.cafe${MODEL_BASE_PATH}${sample.repositoryPath}config.json`,
 );

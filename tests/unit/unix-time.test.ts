@@ -6,6 +6,7 @@ import {
 	detectTimestampCandidates,
 	formatTimestamp,
 	instantFromExplicitFormat,
+	isValidTimeZone,
 	parseDateTimeString,
 } from '../../src/lib/tools/unix-time.ts';
 
@@ -257,4 +258,17 @@ test('逆変換: 存在しない日時コンポーネントは拒否される', 
 	assert.equal(parseDateTimeString('2026-02-31T00:00:00Z', 'UTC'), null);
 	assert.equal(parseDateTimeString('2026-07-07T25:61:61Z', 'UTC'), null);
 	assert.equal(parseDateTimeString('2026/13/01 00:00:00', 'UTC'), null);
+});
+
+test('isValidTimeZone: 有効・無効なタイムゾーン判定とformatTimestampでの安全なフォールバック', () => {
+	assert.equal(isValidTimeZone('Asia/Tokyo'), true);
+	assert.equal(isValidTimeZone('UTC'), true);
+	assert.equal(isValidTimeZone('America/New_York'), true);
+	assert.equal(isValidTimeZone('Invalid/TimeZone'), false);
+	assert.equal(isValidTimeZone(''), false);
+	assert.equal(isValidTimeZone('null'), false);
+
+	// 不正なタイムゾーンでもクラッシュせず Asia/Tokyo にフォールバックしてフォーマットされる
+	const outputs = formatTimestamp(1783385779000000000n, 'Invalid/TimeZone');
+	assert.ok(outputs.isoLocal.includes('+09:00'));
 });

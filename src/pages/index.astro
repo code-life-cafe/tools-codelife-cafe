@@ -336,8 +336,9 @@ const schema = {
     if (!recentSection || !recentGrid || !toolGrid) return;
 
     try {
-      const recentIds = JSON.parse(localStorage.getItem('recent_tools') || '[]');
-      if (recentIds.length === 0) {
+      const rawRecent = localStorage.getItem('recent_tools');
+      const recentIds = rawRecent ? JSON.parse(rawRecent) : [];
+      if (!Array.isArray(recentIds) || recentIds.length === 0) {
         recentSection.classList.add('hidden');
         return;
       }
@@ -346,7 +347,8 @@ const schema = {
 
       let hasItems = false;
       for (const id of recentIds) {
-        const originCard = toolGrid.querySelector(`[data-tool-id="${id}"]`);
+        if (typeof id !== 'string' || !id) continue;
+        const originCard = toolGrid.querySelector(`[data-tool-id="${CSS.escape(id)}"]`);
         if (originCard) {
           const clone = originCard.cloneNode(true) as HTMLElement;
           clone.classList.remove('hidden');
