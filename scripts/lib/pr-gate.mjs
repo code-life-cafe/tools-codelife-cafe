@@ -22,6 +22,8 @@ export const DEPLOY_JOB = 'deploy';
 export const SMOKE_JOB = 'production-smoke';
 // 独立レビュー記録のマーカー名。Codexの旧マーカーは信頼元にしない。
 export const REVIEW_MARKER = 'claude-review:v1';
+// 記録を投稿できるのは、リポジトリに書き込み権限を持つ人間アカウントのみ(第三者コメントでの上書きを防ぐ)。
+const TRUSTED_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const RISK_BY_CLASS = { A: ['R0', 'R1'], B: ['R2', 'R3'], C: ['R4'] };
@@ -41,11 +43,8 @@ function hasJsonMarker(body, name) {
 }
 
 function parseJsonMarker(body, name) {
-	// Codex botの分類コメントは波括弧がHTML数値参照（&#123; &#125;）で返るため、先に戻す。
-	const text = (body ?? '')
-		.replaceAll('&#123;', '{')
-		.replaceAll('&#125;', '}')
-		.replaceAll('&quot;', '"');
+	const text = body ?? '';
+
 	if (
 		[...text.matchAll(new RegExp(`<!--\\s*${name}(?![\\w:-])`, 'g'))].length !==
 		1
@@ -168,10 +167,14 @@ export function validateReviewRecord(m, { repo, number, headSha }) {
 }
 
 // PR commentsから独立レビュー記録を読む。信頼するのは人間アカウント(type=User)が投稿した構造化マーカーだけ。
+// 人間アカウント(type=User)かつauthor_associationがOWNER/MEMBER/COLLABORATORの投稿だけを信頼する。
 // Bot名義(旧Codex botを含む)の記録、自由文の「レビュー済み」、短SHAは採用しない。
 export function readClaudeReview(comments, ctx) {
 	const cands = comments.filter(
-		(c) => c.authorType === 'User' && hasJsonMarker(c.body, REVIEW_MARKER),
+		(c) =>
+			c.authorType === 'User' &&
+			TRUSTED_ASSOCIATIONS.includes(c.authorAssociation) &&
+			hasJsonMarker(c.body, REVIEW_MARKER),
 	);
 	if (!cands.length)
 		return {

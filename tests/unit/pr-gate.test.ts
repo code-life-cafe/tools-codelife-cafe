@@ -51,6 +51,7 @@ const review = (over: Overrides = {}, sha = HEAD, extra: Overrides = {}) => ({
 	id: 1,
 	login: 'maru0014',
 	authorType: 'User',
+	authorAssociation: 'OWNER',
 	createdAt: '2026-10-28T00:00:00Z',
 	body: `<!-- claude-review:v1 ${JSON.stringify(record(over, sha))} -->`,
 	...extra,
@@ -1150,4 +1151,23 @@ test('2周目3: 進行照合の通信がハングしても、上限内に失敗�
 	});
 	await assert.rejects(async () => c.get('/x'), /全体期限/);
 	assert.ok(expired);
+});
+
+test('第三者(NONE/CONTRIBUTOR等)のUser投稿は記録として採用せず、先行のblocking記録を上書きできない', () => {
+	const open = [
+		{ id: 'F1', severity: 'P1', blocking: true, status: 'open', evidence: 'e' },
+	];
+	const real = review({ findings: open }, HEAD, { id: 1 });
+	for (const authorAssociation of ['NONE', 'CONTRIBUTOR', undefined]) {
+		const fake = review({}, HEAD, {
+			id: 2,
+			login: 'rando',
+			authorAssociation,
+			createdAt: '2026-10-28T00:10:00Z',
+		});
+		const v = evaluate(snap({ comments: [real, fake] }));
+		assert.equal(v.state, 'blocked', String(authorAssociation));
+	}
+	const only = review({}, HEAD, { authorAssociation: 'NONE' });
+	assert.equal(evaluate(snap({ comments: [only] })).reviewState, 'unavailable');
 });

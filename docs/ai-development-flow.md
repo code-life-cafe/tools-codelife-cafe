@@ -45,7 +45,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 <!-- claude-review:v1 {"repository":"code-life-cafe/tools-codelife-cafe","pullRequestNumber":N,"headSha":"<40桁>","reviewerRef":"subagent:<実行ID>","makerRef":"thread:<実装セッション参照>","round":1,"status":"completed","scope":{"code":true,"tests":true,"security":true,"classification":true},"findings":[{"id":"F1","severity":"P1","blocking":true,"status":"open","evidence":"ファイル:行 と根拠"}],"unverified":[],"classification":{"class":"A","risk":"R1","approvalStatus":"not-required","approvalRef":null,"unapprovedScope":[]}} -->
 ```
 
-- 投稿者は人間アカウント(type=User)のコメント。実装者と別のサブエージェントの結果を、主担当（Claude Code）がそのまま転記する。Botの投稿は採用しない。
+- 投稿者は人間アカウント(type=User)かつ `author_association` が OWNER/MEMBER/COLLABORATOR のコメント(第三者のコメントで記録を上書きさせない)。実装者と別のサブエージェントの結果を、主担当（Claude Code）がそのまま転記する。Botの投稿は採用しない。
 - `reviewerRef` は `subagent:` で始まる別実行の参照、`makerRef` は実装者の参照。同一値・欠落・形式不正は不合格。**これは記録上の別担当の確認であり、暗号学的な真正性の証明ではない**。偽装対策のための新しい資格情報・サービスは導入しない。PR上でレビュー依頼のプロンプトと結果を残し、人間が監査できるようにする。
 - `headSha` は完全SHA。push後は旧記録が失効し、新headで再レビューする。`scope` はコード・テスト・セキュリティ・区分の4つすべて `true`。`unverified` が空でない記録は合格にしない。
 - `findings` の `blocking` かつ `status:"open"` が残る間は `blocked`（修正周回に計上）。解消は新headの再レビュー記録で `fixed-verified`（または根拠付きの `dismissed`）にする。`evidence` は必須。

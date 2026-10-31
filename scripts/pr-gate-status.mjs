@@ -197,6 +197,7 @@ export async function collect(
 			id: c.id,
 			login: c.user?.login,
 			authorType: c.user?.type,
+			authorAssociation: c.author_association,
 			body: c.body,
 			createdAt: c.created_at,
 			updatedAt: c.updated_at,
