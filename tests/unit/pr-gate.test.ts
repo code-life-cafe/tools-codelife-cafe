@@ -1,13 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-	canRequestReconcile,
 	changesRequestedBy,
 	evaluate,
-	priorRequests,
-	readClassifications,
-	readCodexSummary,
+	readClaudeReview,
 	readFixLoops,
+	validateReviewRecord,
 } from '../../scripts/lib/pr-gate.mjs';
 import { collect, createClient } from '../../scripts/pr-gate-status.mjs';
 
@@ -16,7 +14,6 @@ const HEAD = 'a'.repeat(40);
 const OLD = 'b'.repeat(40);
 const BASE = 'c'.repeat(40);
 const MERGE = 'd'.repeat(40);
-const BOT = 'chatgpt-codex-connector[bot]';
 const ACTIONS_APP = 15368;
 const NOW = Date.parse('2026-10-28T03:00:00Z');
 
@@ -26,62 +23,42 @@ type Snap = { pr: Record<string, unknown>; comments: unknown[] } & Record<
 	unknown
 >;
 
-const botSummary = (sha: string, over: Overrides = {}) => {
-	const review = {
-		commit_sha: sha,
-		has_any_findings: false,
-		has_unresolved_findings: false,
-		status: 'completed',
-	};
-	const state = {
-		code_review: { ...review, ...(over.code as object) },
-		security_review: { ...review, ...(over.security as object) },
-	};
-	const meta = {
-		blockingSeverityThreshold: 'P0',
-		headSha: sha,
-		mergeGateEnabled: false,
-		pullRequestNumber: 7,
-		repository: REPO,
-		status: 'completed',
-		...(over.meta as object),
-	};
-	return {
-		id: 1,
-		login: BOT,
-		authorType: 'Bot',
-		createdAt: '2026-10-28T00:00:00Z',
-		updatedAt: '2026-10-28T00:00:00Z',
-		body: `<!-- codex-review-state:v1 ${JSON.stringify(state)} -->\n<!-- codex-security-review:v1 ${JSON.stringify(meta)} -->`,
-	};
-};
+const MAKER = 'thread:cmsg_maker_001';
+const REVIEWER = 'subagent:review-agent-001';
 
-// 実際のbot応答に合わせ、波括弧はHTML数値参照で返す。
-const marker = (over: Overrides = {}, sha = HEAD) => {
-	const m = {
-		repository: REPO,
-		pullRequestNumber: 7,
-		headSha: sha,
+// 実装者と別のClaudeサブエージェントのレビュー記録(claude-review:v1)。人間アカウント(User)名義のコメントとして残す。
+const record = (over: Overrides = {}, sha = HEAD) => ({
+	repository: REPO,
+	pullRequestNumber: 7,
+	headSha: sha,
+	reviewerRef: REVIEWER,
+	makerRef: MAKER,
+	round: 1,
+	status: 'completed',
+	scope: { code: true, tests: true, security: true, classification: true },
+	findings: [],
+	unverified: [],
+	classification: {
 		class: 'A',
 		risk: 'R1',
 		approvalStatus: 'not-required',
 		approvalRef: null,
 		unapprovedScope: [],
-		...over,
-	};
-	return `<!-- codex-classification:v1 ${JSON.stringify(m).replaceAll('{', '&#123;').replaceAll('}', '&#125;')} -->`;
-};
-const classification = (
-	over: Overrides = {},
-	sha = HEAD,
-	login = BOT,
-	authorType = 'Bot',
-) => ({
-	id: 2,
-	login,
-	authorType,
-	createdAt: '2026-10-28T00:01:00Z',
-	body: marker(over, sha),
+	},
+	...over,
+});
+const review = (over: Overrides = {}, sha = HEAD, extra: Overrides = {}) => ({
+	id: 1,
+	login: 'maru0014',
+	authorType: 'User',
+	authorAssociation: 'OWNER',
+	createdAt: '2026-10-28T00:00:00Z',
+	body: `<!-- claude-review:v1 ${JSON.stringify(record(over, sha))} -->`,
+	...extra,
+});
+const cls = (over: Overrides) => ({
+	...record().classification,
+	...over,
 });
 const check = (name: string, over: Overrides = {}) => ({
 	name,
@@ -110,7 +87,7 @@ const snap = (over: Overrides = {}): Snap => ({
 		body: '修正ループ: 0/3',
 		headCommittedAt: '2026-10-28T02:55:00Z',
 	},
-	comments: [botSummary(HEAD), classification()],
+	comments: [review()],
 	checks: [check('lint'), check('e2e')],
 	reviews: [],
 	behindBy: 0,
@@ -223,264 +200,6 @@ test('指摘5: bypass actorがある/確認できない/activeでないruleset�
 	);
 });
 
-test('Codex未取得・Running・旧SHAは wait-review。Code対象SHA欠落は再依頼候補つき', () => {
-	assert.equal(
-		evaluate(snap({ comments: [classification()] })).state,
-		'wait-review',
-	);
-	const running = botSummary(HEAD, { code: { status: 'running' } });
-	assert.equal(
-		evaluate(snap({ comments: [running, classification()] })).state,
-		'wait-review',
-	);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(OLD), classification()] })).state,
-		'wait-review',
-	);
-	const missing = evaluate(
-		snap({
-			comments: [
-				botSummary(HEAD, { code: { commit_sha: undefined } }),
-				classification(),
-			],
-		}),
-	);
-	assert.equal(missing.state, 'wait-review');
-	assert.match(missing.reasons[0], /commit_sha/);
-	assert.match(missing.suggest, /request-once: codex-review/);
-});
-
-test('再依頼の重複防止: 同head・同種別の依頼履歴があれば候補を出さない（種別が違えば出す）', () => {
-	const noSha = botSummary(HEAD, { code: { commit_sha: undefined } });
-	const asked = {
-		id: 50,
-		login: 'maru0014',
-		authorType: 'User',
-		createdAt: '2026-10-28T02:56:00Z',
-		body: `@codex review\nhead ${HEAD}`,
-	};
-	const dup = evaluate(snap({ comments: [noSha, classification(), asked] }));
-	assert.equal(dup.suggest, null);
-	assert.match(dup.reasons.join(), /依頼済み/);
-	// 旧headへの依頼は今回のheadの依頼にならない
-	const oldAsk = { ...asked, body: `@codex review\nhead ${OLD}` };
-	assert.match(
-		evaluate(snap({ comments: [noSha, classification(), oldAsk] })).suggest,
-		/codex-review/,
-	);
-	assert.deepEqual([...priorRequests([asked], HEAD)], ['review']);
-	// securityのみ欠落した場合、Code用の依頼履歴では抑止しない
-	const secMissing = botSummary(HEAD, { security: { commit_sha: undefined } });
-	assert.match(
-		evaluate(snap({ comments: [secMissing, classification(), asked] })).suggest,
-		/codex-security-review/,
-	);
-});
-
-test('Codex未取得・旧SHAの再依頼は、headのコミットから20分経つまで出さない', () => {
-	const stale = botSummary(OLD);
-	assert.equal(
-		evaluate(snap({ comments: [stale, classification()] })).suggest,
-		null,
-	);
-	const aged = withPr({ headCommittedAt: '2026-10-28T02:00:00Z' });
-	assert.match(
-		evaluate(snap({ pr: aged, comments: [stale, classification()] })).suggest,
-		/codex-review/,
-	);
-});
-
-test('未知形式・他PRのCodexサマリーは合格にしない', () => {
-	const broken = {
-		...botSummary(HEAD),
-		body: '<!-- codex-review-state:v1 {not json} -->',
-	};
-	assert.equal(
-		evaluate(snap({ comments: [broken, classification()] })).state,
-		'wait-review',
-	);
-	const other = botSummary(HEAD, { meta: { pullRequestNumber: 8 } });
-	assert.equal(
-		evaluate(snap({ comments: [other, classification()] })).state,
-		'wait-review',
-	);
-});
-
-test('botを装う利用者コメント（loginやtypeが違う）はCodex完了信号にならない', () => {
-	const asUser = { ...botSummary(HEAD), login: 'maru0014', authorType: 'User' };
-	assert.equal(
-		evaluate(snap({ comments: [asUser, classification()] })).state,
-		'wait-review',
-	);
-	const botLoginUserType = { ...botSummary(HEAD), authorType: 'User' };
-	assert.equal(
-		evaluate(snap({ comments: [botLoginUserType, classification()] })).state,
-		'wait-review',
-	);
-});
-
-test('Codexの指摘が未解決なら blocked', () => {
-	const c = botSummary(HEAD, { code: { has_unresolved_findings: true } });
-	assert.equal(
-		evaluate(snap({ comments: [c, classification()] })).state,
-		'blocked',
-	);
-});
-
-test('指摘2: ユーザー名義の自由文は自動の分類証拠にしない（Claude footerの有無に依らない）', () => {
-	const free = {
-		id: 3,
-		login: 'maru0014',
-		authorType: 'User',
-		createdAt: '2026-10-28T00:02:00Z',
-		body: `対象head ${HEAD}\n独立分類: A / R1`,
-	};
-	const v = evaluate(snap({ comments: [botSummary(HEAD), free] }));
-	assert.equal(v.state, 'wait-classification');
-	assert.match(v.reasons.join(), /手動の分類コメント1件/);
-	assert.equal(
-		readClassifications([free], { repo: REPO, number: 7, headSha: HEAD }).valid
-			.length,
-		0,
-	);
-});
-
-test('指摘2: botを装うユーザーのマーカーや旧head・他PRのマーカーは無効', () => {
-	const ctx = { repo: REPO, number: 7, headSha: HEAD };
-	assert.equal(
-		readClassifications([classification({}, HEAD, 'maru0014', 'User')], ctx)
-			.valid.length,
-		0,
-	);
-	assert.equal(
-		readClassifications([classification({}, OLD)], ctx).valid.length,
-		0,
-	);
-	assert.equal(
-		readClassifications([classification({ pullRequestNumber: 8 })], ctx).valid
-			.length,
-		0,
-	);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), classification({}, OLD)] }))
-			.state,
-		'wait-classification',
-	);
-});
-
-test('指摘2: 必須項目の欠落・矛盾・不明形式のマーカーは不合格で理由が残る', () => {
-	const ctx = { repo: REPO, number: 7, headSha: HEAD };
-	const bad = [
-		{ class: 'A', risk: 'R3' }, // classとrisk矛盾
-		{ class: 'Z' },
-		{ approvalStatus: 'maybe' },
-		{ class: 'B', risk: 'R2', approvalStatus: 'approved', approvalRef: '' },
-		{
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'x',
-			unapprovedScope: ['deploy.yml'],
-		},
-		{ class: 'A', approvalStatus: 'approved', approvalRef: 'x' },
-	];
-	for (const o of bad) {
-		const r = readClassifications([classification(o)], ctx);
-		assert.equal(r.valid.length, 0, JSON.stringify(o));
-		assert.equal(r.invalid.length, 1, JSON.stringify(o));
-	}
-	const v = evaluate(
-		snap({
-			comments: [botSummary(HEAD), classification({ class: 'A', risk: 'R3' })],
-		}),
-	);
-	assert.equal(v.state, 'wait-classification');
-	assert.match(v.reasons.join(), /矛盾/);
-});
-
-test('同一headの重複したbot分類コメントでも判定は変わらない（冪等）', () => {
-	const c = classification();
-	const a = evaluate(snap({ comments: [botSummary(HEAD), c] }));
-	const b = evaluate(
-		snap({ comments: [botSummary(HEAD), c, { ...c, id: 99 }] }),
-	);
-	assert.deepEqual(a, b);
-});
-
-test('分類依頼の履歴がある間は再依頼候補を出さず応答を待つ', () => {
-	const asked = {
-		id: 60,
-		login: 'maru0014',
-		authorType: 'User',
-		createdAt: 'x',
-		body: `@codex classify\n${HEAD}`,
-	};
-	const v = evaluate(snap({ comments: [botSummary(HEAD), asked] }));
-	assert.equal(v.state, 'wait-classification');
-	assert.equal(v.suggest, null);
-	assert.match(
-		evaluate(snap({ comments: [botSummary(HEAD)] })).suggest,
-		/request-once: codex-classify/,
-	);
-});
-
-test('指摘4: 未承認B/Cは blocked。承認参照つきのCodex bot approved-B/Cだけ継続できる', () => {
-	const unapproved = classification({
-		class: 'B',
-		risk: 'R2',
-		approvalStatus: 'unapproved',
-	});
-	const u = evaluate(snap({ comments: [botSummary(HEAD), unapproved] }));
-	assert.equal(u.state, 'blocked');
-	assert.equal(u.classification, 'unapproved-B');
-	const approved = classification({
-		class: 'B',
-		risk: 'R2',
-		approvalStatus: 'approved',
-		approvalRef:
-			'https://github.com/code-life-cafe/tools-codelife-cafe/issues/526#issuecomment-1',
-	});
-	const a = evaluate(snap({ comments: [botSummary(HEAD), approved] }));
-	assert.equal(a.state, 'merge-ready');
-	assert.equal(a.classification, 'approved-B');
-});
-
-test('指摘4: R3は追加独立リスクレビューの記録がなければ止める。承認参照が空のapprovedは無効', () => {
-	const r3 = {
-		class: 'B',
-		risk: 'R3',
-		approvalStatus: 'approved',
-		approvalRef: 'ref',
-	};
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), classification(r3)] })).state,
-		'blocked',
-	);
-	const ok = classification({ ...r3, additionalRiskReview: true });
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), ok] })).state,
-		'merge-ready',
-	);
-	const empty = classification({ ...r3, approvalRef: '  ' });
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), empty] })).state,
-		'wait-classification',
-	);
-});
-
-test('分類が矛盾したら最も厳しい側（A と unapproved-C が並べば blocked）', () => {
-	const c = classification({
-		class: 'C',
-		risk: 'R4',
-		approvalStatus: 'unapproved',
-	});
-	const v = evaluate(
-		snap({ comments: [botSummary(HEAD), classification(), { ...c, id: 9 }] }),
-	);
-	assert.equal(v.state, 'blocked');
-	assert.equal(v.classification, 'unapproved-C');
-});
-
 test('修正ループは履歴の最大値を採用し、3周超過は blocked、履歴なしはmerge-readyにしない', () => {
 	assert.equal(readFixLoops(['修正ループ: 1/3', '修正ループ: 2/3', null]), 2);
 	assert.equal(
@@ -490,90 +209,6 @@ test('修正ループは履歴の最大値を採用し、3周超過は blocked�
 	const none = evaluate(snap({ pr: withPr({ body: '' }) }));
 	assert.equal(none.state, 'blocked');
 	assert.equal(none.retriable, true);
-});
-
-test('修正予算: CI失敗とCode/Security指摘は2周なら修正候補、3/4周と履歴不明なら人間へ返す', () => {
-	for (const body of [
-		'修正ループ: 2/3',
-		'修正ループ: 3/3',
-		'修正ループ: 4/3',
-		'',
-	]) {
-		for (const kind of ['ci', 'code', 'security']) {
-			const v = evaluate(
-				snap({
-					pr: withPr({ body }),
-					...(kind === 'ci'
-						? {
-								checks: [
-									check('lint'),
-									check('e2e', { conclusion: 'failure' }),
-								],
-							}
-						: {
-								comments: [
-									botSummary(HEAD, {
-										[kind]: { has_unresolved_findings: true },
-									}),
-									classification(),
-								],
-							}),
-				}),
-			);
-			assert.equal(v.state, 'blocked');
-			assert.equal(
-				v.suggest,
-				body.includes('2/3')
-					? kind === 'ci'
-						? 'fix-ci(修正周回に計上)'
-						: 'classify-and-fix-findings'
-					: 'return-to-human',
-				`${body}/${kind}`,
-			);
-		}
-	}
-});
-
-test('修正予算: 成功した3周目は進行し、待機や旧headの証拠は追加修正を始めない', () => {
-	const pr = withPr({ body: '修正ループ: 3/3' });
-	assert.equal(evaluate(snap({ pr })).state, 'merge-ready');
-	assert.equal(
-		evaluate(
-			snap({
-				pr,
-				checks: [check('lint', { status: 'in_progress', conclusion: null })],
-			}),
-		).state,
-		'wait-ci',
-	);
-	const stale = evaluate(
-		snap({
-			pr,
-			comments: [
-				botSummary(OLD, { code: { has_unresolved_findings: true } }),
-				classification(),
-			],
-		}),
-	);
-	assert.equal(stale.state, 'wait-review');
-	assert.doesNotMatch(stale.suggest ?? '', /fix/);
-});
-
-test('修正予算: 例外承認の自由文で恒久上限を拡張しない。4周目の成功も人間が限定承認を照合する', () => {
-	const pr = withPr({
-		body: '修正ループ: 4/3\n本人承認: 今回だけ追加1周。以後停止。',
-	});
-	for (const comments of [
-		[botSummary(HEAD), classification()],
-		[
-			botSummary(HEAD, { code: { has_unresolved_findings: true } }),
-			classification(),
-		],
-	]) {
-		const v = evaluate(snap({ pr, comments }));
-		assert.equal(v.state, 'blocked');
-		assert.equal(v.suggest, 'return-to-human');
-	}
 });
 
 test('未解決thread・thread取得不能・strict未確認は merge-ready にしない', () => {
@@ -778,203 +413,6 @@ test('指摘3: Issue未指定・取得失敗・AC未完了は close/done にし�
 });
 
 // ---- 2周目の指摘 ----
-test('2周目1: 同一headで後から届いた approved-B が、bot明示の supersedes で旧 unapproved-B を置き換える', () => {
-	const unapproved = {
-		...classification({ class: 'B', risk: 'R2', approvalStatus: 'unapproved' }),
-		id: 2,
-		createdAt: '2026-10-28T00:01:00Z',
-	};
-	const approved = {
-		...classification({
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-			supersedes: [2],
-		}),
-		id: 5,
-		createdAt: '2026-10-28T00:10:00Z',
-	};
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), unapproved, approved] }))
-			.classification,
-		'approved-B',
-	);
-	// 順序が逆でも・重複しても同じ
-	assert.equal(
-		evaluate(
-			snap({ comments: [approved, unapproved, approved, botSummary(HEAD)] }),
-		).state,
-		'merge-ready',
-	);
-	// supersedes が無ければ、未解決の反対判定として厳しい側が残る
-	const plain = {
-		...approved,
-		body: marker({
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-		}),
-	};
-	const v = evaluate(snap({ comments: [botSummary(HEAD), unapproved, plain] }));
-	assert.equal(v.state, 'blocked');
-	assert.equal(v.classification, 'unapproved-B');
-	// 無関係なidを指していても、古い方は消えない
-	const wrong = {
-		...approved,
-		body: marker({
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-			supersedes: [999],
-		}),
-	};
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), unapproved, wrong] }))
-			.classification,
-		'unapproved-B',
-	);
-	// 古いマーカーが新しいマーカーを置き換える向きは無効
-	const backwards = { ...approved, createdAt: '2026-10-28T00:00:30Z' };
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), unapproved, backwards] }))
-			.classification,
-		'unapproved-B',
-	);
-});
-
-// ---- 3周目(4周目承認): 同head矛盾マーカー ----
-test('4周目: 有効Aと矛盾する無効マーカー(承認済みなのに未承認範囲あり)が並ぶ間はmerge-readyにしない', () => {
-	const validA = {
-		...classification(),
-		id: 2,
-		createdAt: '2026-10-28T00:01:00Z',
-	};
-	const contradictory = {
-		...classification({
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-			unapprovedScope: ['deploy.yml'],
-		}),
-		id: 3,
-		createdAt: '2026-10-28T00:02:00Z',
-	};
-	for (const comments of [
-		[botSummary(HEAD), validA, contradictory],
-		[botSummary(HEAD), contradictory, validA], // 順序逆転
-		[botSummary(HEAD), validA, contradictory, validA], // 重複
-	]) {
-		const v = evaluate(snap({ comments }));
-		assert.equal(v.state, 'blocked');
-		assert.notEqual(v.state, 'merge-ready');
-	}
-	// 有効Aだけなら進める
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), validA] })).state,
-		'merge-ready',
-	);
-	// 後続の有効な分類がsupersedesで当該コメントを明示置換したときだけ解消
-	const replacement = {
-		...classification({ supersedes: [3] }),
-		id: 4,
-		createdAt: '2026-10-28T00:10:00Z',
-	};
-	assert.equal(
-		evaluate(
-			snap({
-				comments: [botSummary(HEAD), validA, contradictory, replacement],
-			}),
-		).state,
-		'merge-ready',
-	);
-	// 無関係ID・先行投稿・信頼外投稿・旧headでは解消/発生しない
-	const unrelated = { ...replacement, body: marker({ supersedes: [999] }) };
-	assert.equal(
-		evaluate(
-			snap({ comments: [botSummary(HEAD), validA, contradictory, unrelated] }),
-		).state,
-		'blocked',
-	);
-	const earlier = { ...replacement, createdAt: '2026-10-28T00:01:30Z' };
-	assert.equal(
-		evaluate(
-			snap({ comments: [botSummary(HEAD), validA, contradictory, earlier] }),
-		).state,
-		'blocked',
-	);
-	const human = { ...contradictory, login: 'someone', authorType: 'User' };
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), validA, human] })).state,
-		'merge-ready',
-	);
-	const oldHead = classification(
-		{
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-			unapprovedScope: ['x'],
-		},
-		'0'.repeat(40),
-	);
-	assert.equal(
-		evaluate(
-			snap({ comments: [botSummary(HEAD), validA, { ...oldHead, id: 9 }] }),
-		).state,
-		'merge-ready',
-	);
-});
-
-test('2周目1: 承認の更新があったときだけ、分類の再照合依頼を一度だけ提案する', () => {
-	const unapproved = {
-		...classification({ class: 'B', risk: 'R2', approvalStatus: 'unapproved' }),
-		createdAt: '2026-10-28T00:05:00Z',
-	};
-	const ask = (at: string) => ({
-		id: 70,
-		login: 'maru0014',
-		authorType: 'User',
-		createdAt: at,
-		body: `@codex classify\n${HEAD}`,
-	});
-	const approval = (at: string) => ({
-		id: 71,
-		login: 'maru0014',
-		authorType: 'User',
-		createdAt: at,
-		body: '計画を承認します（2026-10-28）',
-	});
-	const run = (extra: unknown[]) =>
-		evaluate(snap({ comments: [botSummary(HEAD), unapproved, ...extra] }));
-	// 依頼後、分類より後に承認 → 再照合の提案
-	assert.match(
-		run([ask('2026-10-28T00:02:00Z'), approval('2026-10-28T00:20:00Z')])
-			.suggest,
-		/reconcile/,
-	);
-	// 承認が分類より前（無関係/古い承認）→ 提案しない
-	assert.doesNotMatch(
-		run([ask('2026-10-28T00:02:00Z'), approval('2026-10-28T00:03:00Z')])
-			.suggest,
-		/reconcile/,
-	);
-	// すでに承認後に再依頼済み → 重ねない
-	assert.doesNotMatch(
-		run([
-			ask('2026-10-28T00:02:00Z'),
-			approval('2026-10-28T00:20:00Z'),
-			{ ...ask('2026-10-28T00:21:00Z'), id: 72 },
-		]).suggest,
-		/reconcile/,
-	);
-	// 承認の言及がない → 提案しない
-	assert.doesNotMatch(run([ask('2026-10-28T00:02:00Z')]).suggest, /reconcile/);
-});
-
 test('2周目2: run集約が未完了でも、同じrun・attemptの必須jobが成功なら判定する。1jobでも未完了/失敗/欠落/別attemptなら進めない', () => {
 	const running = { status: 'in_progress', conclusion: null };
 	assert.equal(evaluate(post({ deploy: deployRun(running) })).state, 'close');
@@ -1028,143 +466,6 @@ test('2周目2: run集約が未完了でも、同じrun・attemptの必須jobが
 	assert.equal(v.state, 'wait-deploy');
 });
 
-test('2周目4: 必須項目の欠落・型不明は補完せず不合格', () => {
-	const ctx = { repo: REPO, number: 7, headSha: HEAD };
-	const noScope = JSON.parse(
-		JSON.stringify({
-			repository: REPO,
-			pullRequestNumber: 7,
-			headSha: HEAD,
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: 'ref',
-		}),
-	);
-	const mk = (m: object) => ({
-		id: 3,
-		login: BOT,
-		authorType: 'Bot',
-		createdAt: '2026-10-28T00:01:00Z',
-		body: `<!-- codex-classification:v1 ${JSON.stringify(m)} -->`,
-	});
-	assert.equal(readClassifications([mk(noScope)], ctx).valid.length, 0);
-	assert.equal(
-		readClassifications([mk({ ...noScope, unapprovedScope: [] })], ctx).valid
-			.length,
-		1,
-	);
-	const { approvalRef: _omit, ...noRef } = { ...noScope, unapprovedScope: [] };
-	assert.equal(readClassifications([mk(noRef)], ctx).valid.length, 0);
-	for (const bad of [
-		{ approvalRef: 5 },
-		{ unapprovedScope: 'none' },
-		{ additionalRiskReview: 'yes' },
-		{ supersedes: ['abc'] },
-		{ supersedes: 'x' },
-	]) {
-		assert.equal(
-			readClassifications(
-				[mk({ ...noScope, unapprovedScope: [], ...bad })],
-				ctx,
-			).valid.length,
-			0,
-			JSON.stringify(bad),
-		);
-	}
-	// Aでも項目欠落は不合格
-	assert.equal(
-		readClassifications(
-			[
-				mk({
-					repository: REPO,
-					pullRequestNumber: 7,
-					headSha: HEAD,
-					class: 'A',
-					risk: 'R1',
-					approvalStatus: 'not-required',
-				}),
-			],
-			ctx,
-		).valid.length,
-		0,
-	);
-});
-
-test('2周目4: Codexメタデータがnull・文字列・配列でも例外にせず待ち状態を返す', () => {
-	const mkState = (state: unknown, meta: unknown) => ({
-		...botSummary(HEAD),
-		body: `<!-- codex-review-state:v1 ${JSON.stringify(state)} -->\n<!-- codex-security-review:v1 ${JSON.stringify(meta)} -->`,
-	});
-	const meta = {
-		headSha: HEAD,
-		status: 'completed',
-		pullRequestNumber: 7,
-		repository: REPO,
-	};
-	for (const state of [
-		{ code_review: null, security_review: null },
-		{ code_review: 'x', security_review: [] },
-		[],
-		'str',
-		{},
-	]) {
-		const v = evaluate(
-			snap({ comments: [mkState(state, meta), classification()] }),
-		);
-		assert.equal(v.state, 'wait-review', JSON.stringify(state));
-	}
-	assert.equal(
-		evaluate(
-			snap({
-				comments: [
-					mkState({ code_review: {}, security_review: {} }, null),
-					classification(),
-				],
-			}),
-		).state,
-		'wait-review',
-	);
-	// 想定外のsnapshotでも例外にしない
-	const odd = evaluate(snap({ comments: [null] }));
-	assert.equal(odd.state, 'blocked');
-	assert.equal(odd.retriable, true);
-});
-
-test('2周目3: 進行照合の通信がハングしても、上限内に失敗して blocked(retriable) になる', async () => {
-	const hang = (async () => new Promise(() => {})) as never;
-	const t0 = Date.now();
-	const s = await collect(createClient({ fetchImpl: hang, timeoutMs: 30 }), {
-		repo: REPO,
-		number: 7,
-	});
-	assert.ok(Date.now() - t0 < 2000);
-	assert.match(s.errors[0], /タイムアウト/);
-	assert.equal(evaluate(s).state, 'blocked');
-	// 本文の読取だけが止まる場合も同様
-	const slowBody = (async () => ({
-		ok: true,
-		status: 200,
-		json: () => new Promise(() => {}),
-	})) as never;
-	const s2 = await collect(
-		createClient({ fetchImpl: slowBody, timeoutMs: 30 }),
-		{ repo: REPO, number: 7 },
-	);
-	assert.match(s2.errors[0], /タイムアウト/);
-	// 全体期限を超えたら以降の通信を始めない
-	const gh = fakeGithub();
-	const expired = gh.client('t');
-	const c = createClient({
-		token: 't',
-		totalMs: -1,
-		fetchImpl: (async () => json({})) as never,
-	});
-	await assert.rejects(async () => c.get('/x'), /全体期限/);
-	assert.ok(expired);
-});
-
-// ---- 3周目（正式Codex Code review の4件）----
 test('3周目1: マージで自動closeされたIssueでも、未チェックACが残るなら done にしない', () => {
 	const v = evaluate(
 		post({ issue: issue({ state: 'closed', body: '- [x] AC1\n- [ ] AC2' }) }),
@@ -1177,82 +478,6 @@ test('3周目1: マージで自動closeされたIssueでも、未チェックAC�
 	);
 });
 
-test('3周目2: 同じラベルでもR3の追加リスクレビュー未記録の判定が1つでも残れば進めない', () => {
-	const ref = 'https://example.test/approval';
-	const r2 = {
-		...classification({
-			class: 'B',
-			risk: 'R2',
-			approvalStatus: 'approved',
-			approvalRef: ref,
-		}),
-		id: 10,
-		createdAt: '2026-10-28T00:01:00Z',
-	};
-	const r3 = {
-		...classification({
-			class: 'B',
-			risk: 'R3',
-			approvalStatus: 'approved',
-			approvalRef: ref,
-		}),
-		id: 11,
-		createdAt: '2026-10-28T00:02:00Z',
-	};
-	const both = evaluate(snap({ comments: [botSummary(HEAD), r2, r3] }));
-	assert.equal(both.state, 'blocked');
-	assert.match(both.reasons[0], /R3/);
-	// 順序を逆にしても同じ（起動順・再起動に依存しない）
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), r3, r2] })).state,
-		'blocked',
-	);
-	// R3側がレビュー記録済みなら進める
-	const reviewed = {
-		...r3,
-		body: marker({
-			class: 'B',
-			risk: 'R3',
-			approvalStatus: 'approved',
-			approvalRef: ref,
-			additionalRiskReview: true,
-		}),
-	};
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), r2, reviewed] })).state,
-		'merge-ready',
-	);
-	// botが明示的に置き換えたときは、置換後の判定だけを見る
-	const replaced = {
-		...r3,
-		body: marker({
-			class: 'B',
-			risk: 'R3',
-			approvalStatus: 'approved',
-			approvalRef: ref,
-			additionalRiskReview: true,
-			supersedes: [10],
-		}),
-	};
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), r2, replaced] })).state,
-		'merge-ready',
-	);
-});
-
-test('3周目3: Aなのに未承認範囲が残る矛盾したマーカーは無効', () => {
-	const ctx = { repo: REPO, number: 7, headSha: HEAD };
-	const contradictory = classification({ unapprovedScope: ['deploy.yml'] });
-	const r = readClassifications([contradictory], ctx);
-	assert.equal(r.valid.length, 0);
-	assert.match(r.invalid[0]?.why ?? '', /未承認範囲/);
-	assert.equal(
-		evaluate(snap({ comments: [botSummary(HEAD), contradictory] })).state,
-		'wait-classification',
-	);
-});
-
-// ---- 取得層 ----
 const json = (body: unknown, status = 200) =>
 	new Response(JSON.stringify(body), { status });
 
@@ -1545,334 +770,404 @@ test('collect(merge後): Deploy runのjobsを取得し、Issueの本文を読む
 	assert.equal(v.runId, 111);
 });
 
-test('第1段階: 不明/実指摘/Running/Error/cleanを区別し技術待ちは修正予算を消費しない', () => {
-	for (const kind of ['code', 'security']) {
-		for (const loops of [0, 3]) {
-			for (const unknown of [null, undefined, 'false', 0]) {
-				const comments = [
-					botSummary(HEAD, { [kind]: { has_unresolved_findings: unknown } }),
-					classification(),
-				];
-				const v = evaluate(
-					snap({ comments, pr: withPr({ body: `修正ループ: ${loops}/3` }) }),
-				);
-				assert.equal(v.state, 'wait-review');
-				assert.equal(v.reviewState, 'unknown');
-				assert.equal(v.retriable, true);
-				assert.equal(v.suggest, null);
-			}
-			for (const [status, expected] of [
-				['running', 'running'],
-				['queued', 'running'],
-				['error', 'error'],
-				['failed', 'error'],
-				['cancelled', 'error'],
-				['new-status', 'unknown'],
-			]) {
-				const v = evaluate(
-					snap({
-						comments: [
-							botSummary(HEAD, { [kind]: { status } }),
-							classification(),
-						],
-						pr: withPr({ body: `修正ループ: ${loops}/3` }),
-					}),
-				);
-				assert.equal(v.state, 'wait-review');
-				assert.equal(v.reviewState, expected);
-				assert.equal(v.suggest, null);
-			}
-		}
+test('レビュー記録が無ければ wait-review(unavailable)。Merge不可で、別担当レビューの実施を促す', () => {
+	const v = evaluate(snap({ comments: [] }));
+	assert.equal(v.state, 'wait-review');
+	assert.equal(v.reviewState, 'unavailable');
+	assert.equal(v.suggest, `run-independent-claude-review (head ${HEAD})`);
+	assert.doesNotMatch(JSON.stringify(v), /@codex|request-once/);
+});
+
+test('旧headのレビュー記録は失効し、新headで再レビューが必要', () => {
+	const v = evaluate(snap({ comments: [review({}, OLD)] }));
+	assert.equal(v.state, 'wait-review');
+	assert.equal(v.reviewState, 'stale');
+	assert.equal(v.suggest, `run-independent-claude-review (head ${HEAD})`);
+});
+
+test('Bot名義・旧Codexマーカー・自由文・短SHAはレビュー証拠にならない', () => {
+	const bot = review({}, HEAD, { login: 'some-bot[bot]', authorType: 'Bot' });
+	const codexBot = review({}, HEAD, {
+		login: 'chatgpt-codex-connector[bot]',
+		authorType: 'Bot',
+	});
+	const free = {
+		id: 3,
+		login: 'maru0014',
+		authorType: 'User',
+		createdAt: '2026-10-28T00:00:00Z',
+		body: `レビュー済み・指摘なし ${HEAD.slice(0, 7)}`,
+	};
+	const oldMarker = {
+		...free,
+		body: `<!-- codex-classification:v1 {"headSha":"${HEAD}"} -->`,
+	};
+	for (const comments of [[bot], [codexBot], [free], [oldMarker]]) {
+		const v = evaluate(snap({ comments }));
+		assert.equal(v.state, 'wait-review');
+		assert.equal(v.reviewState, 'unavailable');
+	}
+});
+
+test('実装者と同一の参照・subagent以外・参照欠落は独立レビューとして不合格', () => {
+	for (const over of [
+		{ reviewerRef: MAKER },
+		{ reviewerRef: 'thread:cmsg_other_001' },
+		{ makerRef: REVIEWER },
+		{ makerRef: undefined },
+		{ reviewerRef: undefined },
+		{ reviewerRef: 'subagent:' },
+	]) {
+		const v = evaluate(snap({ comments: [review(over)] }));
+		assert.equal(v.state, 'wait-review', JSON.stringify(over));
+		assert.equal(v.reviewState, 'unknown');
+	}
+});
+
+test('未完了・範囲不足・未確認項目・形式不正は合格にしない', () => {
+	const bad: Overrides[] = [
+		{ status: 'running' },
+		{ status: undefined },
+		{ scope: { code: true, tests: true, security: true } },
+		{
+			scope: { code: true, tests: true, security: true, classification: false },
+		},
+		{ unverified: ['E2E実機未確認'] },
+		{ unverified: undefined },
+		{ findings: undefined },
+		{
+			findings: [{ id: 'F1', severity: 'P1', blocking: true, status: 'open' }],
+		},
+		{
+			findings: [
+				{
+					id: 'F1',
+					severity: 'P9',
+					blocking: true,
+					status: 'open',
+					evidence: 'x',
+				},
+			],
+		},
+		{ round: 0 },
+		{ classification: undefined },
+		{ headSha: HEAD.slice(0, 7) },
+		{ pullRequestNumber: 8 },
+		{ repository: 'other/repo' },
+	];
+	for (const over of bad) {
+		const v = evaluate(snap({ comments: [review(over)] }));
+		assert.equal(
+			v.state === 'wait-review' || v.state === 'blocked',
+			true,
+			JSON.stringify(over),
+		);
+		assert.notEqual(v.state, 'merge-ready', JSON.stringify(over));
+	}
+});
+
+test('blocking findingが未解決なら blocked。解消確認済み・非blocking・却下(根拠付き)は進める', () => {
+	const f = (over: Overrides) => ({
+		id: 'F1',
+		severity: 'P1',
+		blocking: true,
+		status: 'open',
+		evidence: 'src/a.ts:10 で境界値が欠落',
+		...over,
+	});
+	const open = evaluate(snap({ comments: [review({ findings: [f({})] })] }));
+	assert.equal(open.state, 'blocked');
+	assert.equal(open.reviewState, 'findings');
+	assert.equal(open.suggest, 'classify-and-fix-findings');
+	for (const findings of [
+		[f({ status: 'fixed-verified' })],
+		[f({ status: 'dismissed', evidence: '誤検出: 該当経路はテストで確認' })],
+		[f({ severity: 'P2', blocking: false })],
+	]) {
+		const v = evaluate(snap({ comments: [review({ findings })] }));
+		assert.equal(v.state, 'merge-ready', JSON.stringify(findings));
+	}
+});
+
+test('同一headでは最新の記録が有効。新しい記録でfindingsを解消でき、時刻が曖昧なら unknown', () => {
+	const f = [
+		{ id: 'F1', severity: 'P1', blocking: true, status: 'open', evidence: 'e' },
+	];
+	const first = review({ findings: f }, HEAD, {
+		id: 1,
+		createdAt: '2026-10-28T00:00:00Z',
+	});
+	const second = review({ round: 2 }, HEAD, {
+		id: 2,
+		createdAt: '2026-10-28T00:05:00Z',
+	});
+	assert.equal(evaluate(snap({ comments: [first] })).state, 'blocked');
+	assert.equal(
+		evaluate(snap({ comments: [first, second] })).state,
+		'merge-ready',
+	);
+	assert.equal(
+		evaluate(snap({ comments: [second, first] })).state,
+		'merge-ready',
+	);
+	const same = review({ round: 3 }, HEAD, {
+		id: 3,
+		createdAt: '2026-10-28T00:05:00Z',
+	});
+	const amb = evaluate(snap({ comments: [first, second, same] }));
+	assert.equal(amb.state, 'wait-review');
+	assert.equal(amb.reviewState, 'unknown');
+	const badTime = evaluate(
+		snap({ comments: [review({}, HEAD, { createdAt: 'xx' })] }),
+	);
+	assert.equal(badTime.state, 'wait-review');
+	// 同一内容の重複は冪等
+	const dup = review({}, HEAD, { id: 9 });
+	assert.equal(
+		evaluate(snap({ comments: [review(), dup] })).state,
+		'merge-ready',
+	);
+});
+
+test('壊れた/重複したマーカー本文は不合格(fail-closed)', () => {
+	const base = review();
+	const broken = { ...base, body: '<!-- claude-review:v1 {oops} -->' };
+	const dupMarker = { ...base, body: `${base.body}\n${base.body}` };
+	const mention = { ...base, body: '説明: claude-review:v1 マーカーを残す' };
+	for (const c of [broken, dupMarker]) {
+		assert.equal(evaluate(snap({ comments: [c] })).state, 'wait-review');
 	}
 	assert.equal(
-		readCodexSummary([botSummary(HEAD)], {
-			repo: REPO,
-			number: 7,
-			headSha: HEAD,
-		}).reviewState,
-		'clean',
+		evaluate(snap({ comments: [mention] })).reviewState,
+		'unavailable',
 	);
-	const mixed = evaluate(
+});
+
+test('分類: 未承認B/Cは blocked。承認参照つき approved-B/C だけ継続し、R3は追加リスクレビュー記録が必要', () => {
+	const unapproved = evaluate(
 		snap({
 			comments: [
-				botSummary(HEAD, {
-					code: { has_unresolved_findings: null },
-					security: { has_unresolved_findings: true },
+				review({
+					classification: cls({
+						class: 'B',
+						risk: 'R2',
+						approvalStatus: 'unapproved',
+						unapprovedScope: ['新規tool'],
+					}),
 				}),
 			],
 		}),
 	);
-	assert.equal(mixed.state, 'blocked');
-	assert.equal(mixed.reviewState, 'findings');
-	assert.equal(mixed.suggest, 'classify-and-fix-findings');
-});
-
-test('第1段階: 説明中のmarker名は無視し構造化された不正markerは報告する', () => {
-	const explanation = {
-		...classification(),
-		id: 3,
-		body: 'codex-classification:v1 の not-required を説明します',
-	};
-	assert.equal(
+	assert.equal(unapproved.state, 'blocked');
+	assert.match(unapproved.classification, /unapproved-B/);
+	const approvedB = evaluate(
+		snap({
+			comments: [
+				review({
+					classification: cls({
+						class: 'B',
+						risk: 'R2',
+						approvalStatus: 'approved',
+						approvalRef: '#12 plan',
+					}),
+				}),
+			],
+		}),
+	);
+	assert.equal(approvedB.state, 'merge-ready');
+	assert.equal(approvedB.classification, 'approved-B');
+	const approvedC = evaluate(
+		snap({
+			comments: [
+				review({
+					classification: cls({
+						class: 'C',
+						risk: 'R4',
+						approvalStatus: 'approved',
+						approvalRef: '#538 本人指示',
+					}),
+				}),
+			],
+		}),
+	);
+	assert.equal(approvedC.state, 'merge-ready');
+	const r3 = (extra: Overrides) =>
 		evaluate(
-			snap({ comments: [botSummary(HEAD), classification(), explanation] }),
-		).state,
-		'merge-ready',
-	);
-	for (const body of [
-		'<!-- codex-classification:v1 {bad} -->',
-		'<!-- codex-classification:v1 -->',
-		marker({ approvalStatus: 'not_required' }),
-		marker({ headSha: 'abcdef0' }),
-		marker({ unapprovedScope: [1] }),
-		`${marker()}\n${marker()}`,
-	]) {
-		const invalid = { ...explanation, body };
-		assert.equal(
-			evaluate(
-				snap({ comments: [botSummary(HEAD), classification(), invalid] }),
-			).state,
-			'blocked',
-		);
-	}
-});
-
-test('第1段階: 日本語分類依頼は通常reviewに誤分類せず同headの再依頼を抑制する', () => {
-	for (const request of [
-		'@codex このheadの独立分類をお願いします',
-		'@codex review このheadの分類確認をお願いします',
-		'@codex classify',
-	]) {
-		const c = {
-			id: 3,
-			login: 'maker',
-			authorType: 'User',
-			createdAt: '2026-10-28T01:00:00Z',
-			body: `${request}\n${HEAD}`,
-		};
-		assert.deepEqual([...priorRequests([c], HEAD)], ['classify']);
-		const v = evaluate(snap({ comments: [botSummary(HEAD), c] }));
-		assert.equal(v.state, 'wait-classification');
-		assert.equal(v.suggest, null);
-		assert.equal(priorRequests([c], OLD).size, 0);
-	}
-});
-
-test('第1段階: receipt自由文/偽bot/短SHA/時刻不明はunknownをcleanにしない', () => {
-	const summary = botSummary(HEAD, {
-		security: { has_unresolved_findings: null },
-	});
-	const receipt = {
-		...classification(),
-		id: 3,
-		body: 'No security issues found. Reviewed commit abcdef0. SecurityReport',
-	};
-	for (const extra of [
-		receipt,
-		{ ...botSummary(HEAD), login: 'fake' },
-		{ ...botSummary(HEAD), authorType: 'User' },
-		botSummary('abcdef0'),
-	]) {
-		const v = evaluate(snap({ comments: [summary, extra, classification()] }));
-		assert.equal(v.state, 'wait-review');
-		assert.notEqual(v.suggest, 'classify-and-fix-findings');
-	}
-	const badTime = { ...botSummary(HEAD), createdAt: 'bad', updatedAt: 'bad' };
-	assert.equal(
-		evaluate(snap({ comments: [badTime, classification()] })).state,
-		'wait-review',
-	);
-	assert.equal(
-		readClassifications([{ ...classification(), createdAt: 'bad' }], {
-			repo: REPO,
-			number: 7,
-			headSha: HEAD,
-		}).invalid.length,
-		1,
-	);
-});
-
-test('第1段階: PR531/533で観測した正式receiptの形でも構造化結果が無ければunknown', () => {
-	// 2026-10-30取得: comment 6497625946 / 6499340453。完全SHAではなく10桁、自由文のみ。
-	for (const shortSha of ['ae0fa97060', '71cffecc92']) {
-		const receipt = {
-			...classification(),
-			id: 3,
-			body: `<!-- codex-review-receipt:v1 -->\n### Codex Security Review\nSecurity review completed. No security issues were found in this pull request.\nReviewed commit: ${shortSha}`,
-		};
-		const v = evaluate(
 			snap({
 				comments: [
-					botSummary(HEAD, { security: { has_unresolved_findings: null } }),
-					receipt,
-					classification(),
+					review({
+						classification: cls({
+							class: 'B',
+							risk: 'R3',
+							approvalStatus: 'approved',
+							approvalRef: '#12',
+							...extra,
+						}),
+					}),
 				],
 			}),
 		);
-		assert.equal(v.state, 'wait-review');
-		assert.equal(v.reviewState, 'unknown');
-		assert.equal(v.suggest, null);
+	assert.equal(r3({}).state, 'blocked');
+	assert.equal(r3({ additionalRiskReview: true }).state, 'merge-ready');
+	for (const c of [
+		cls({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: '  ',
+		}),
+		cls({ class: 'A', risk: 'R4' }),
+		cls({ unapprovedScope: ['x'] }),
+		cls({ approvalStatus: 'not_required' }),
+		cls({ approvalRef: undefined }),
+		cls({ headSha: OLD }),
+	]) {
+		const v = evaluate(snap({ comments: [review({ classification: c })] }));
+		assert.equal(v.state, 'wait-review', JSON.stringify(c));
 	}
 });
 
-test('第1段階: 日本語分類依頼の再照合も承認更新ごとに一度だけ', () => {
-	const request = {
-		id: 3,
-		login: 'maker',
-		authorType: 'User',
-		body: `@codex このheadの独立分類をお願いします ${HEAD}`,
-		createdAt: '2026-10-28T01:00:00Z',
-	};
-	const approval = {
-		...request,
-		id: 4,
-		body: '本人承認の参照を更新',
-		createdAt: '2026-10-28T02:00:00Z',
-	};
-	const cls = { latestMarkerAt: 0 };
-	assert.equal(canRequestReconcile([request], HEAD, cls), false);
-	assert.equal(canRequestReconcile([request, approval], HEAD, cls), true);
-	const reconcile = { ...request, id: 5, createdAt: '2026-10-28T02:10:00Z' };
+test('readClaudeReview / validateReviewRecord は純粋関数として理由を返す', () => {
+	const ctx = { repo: REPO, number: 7, headSha: HEAD };
+	assert.equal(readClaudeReview([review()], ctx).ok, true);
+	assert.equal(validateReviewRecord(null, ctx).ok, false);
 	assert.equal(
-		canRequestReconcile([request, approval, reconcile], HEAD, cls),
+		validateReviewRecord(record({ reviewerRef: MAKER }), ctx).ok,
 		false,
 	);
-	assert.equal(canRequestReconcile([request, approval], OLD, cls), false);
+	assert.equal(validateReviewRecord(record(), ctx).ok, true);
+	const noStatic = readClaudeReview([], ctx);
+	assert.equal(noStatic.code, 'review-missing');
 });
 
-test('第1段階: JSON前の空白が無い壊れた実markerは有効Aが別にあってもfail-closed', () => {
-	const unapproved = {
-		class: 'B',
-		risk: 'R2',
-		approvalStatus: 'unapproved',
-		unapprovedScope: ['scope'],
-	};
-	const encoded = marker(unapproved).replace(
-		'codex-classification:v1 ',
-		'codex-classification:v1',
-	);
-	const raw = encoded.replaceAll('&#123;', '{').replaceAll('&#125;', '}');
+test('修正予算: CI失敗とblocking指摘は2周なら修正候補、3/4周と履歴不明なら人間へ返す', () => {
+	const open = [
+		{ id: 'F1', severity: 'P1', blocking: true, status: 'open', evidence: 'e' },
+	];
 	for (const body of [
-		raw,
-		encoded,
-		'<!-- codex-classification:v1[] -->',
-		'<!-- codex-classification:v1"bad" -->',
+		'修正ループ: 2/3',
+		'修正ループ: 3/3',
+		'修正ループ: 4/3',
+		'',
 	]) {
-		const broken = { ...classification(), id: 3, body };
-		const cls = readClassifications([classification(), broken], {
-			repo: REPO,
-			number: 7,
-			headSha: HEAD,
-		});
-		assert.equal(cls.invalid.length, 1);
-		assert.equal(cls.invalid[0].id, 3);
-		const v = evaluate(
-			snap({ comments: [botSummary(HEAD), classification(), broken] }),
-		);
-		assert.equal(v.state, 'blocked');
-		assert.notEqual(v.suggest, `merge --match-head-commit ${HEAD}`);
-	}
-});
-
-test('第1段階: 通常reviewの説明・否定・別途予定は分類依頼ではない', () => {
-	for (const description of [
-		'変更内容: 独立分類マーカーのパーサ修正。通常のCode/Securityレビューをお願いします。分類依頼は別途行います。',
-		'独立分類は不要です。分類を依頼しないでください。',
-		'分類確認の説明を修正しました。分類依頼は別途行います。',
-	]) {
-		const request = {
-			id: 3,
-			login: 'maker',
-			authorType: 'User',
-			createdAt: '2026-10-28T01:00:00Z',
-			body: `@codex review\n${HEAD}\n${description}`,
-		};
-		assert.deepEqual([...priorRequests([request], HEAD)], ['review']);
-		const v = evaluate(snap({ comments: [botSummary(HEAD), request] }));
-		assert.match(v.suggest, /request-once: codex-classify /);
-		assert.equal(
-			canRequestReconcile(
-				[
-					request,
-					{
-						...request,
-						id: 4,
-						body: '承認の参照を更新',
-						createdAt: '2026-10-28T02:00:00Z',
-					},
-				],
-				HEAD,
-				{ latestMarkerAt: 0 },
-			),
-			false,
-		);
-	}
-	const actual = {
-		id: 3,
-		login: 'maker',
-		authorType: 'User',
-		body: `@codex 分類依頼（読み取り専用。編集・commit・push は禁止）。\n対象head: ${HEAD}`,
-	};
-	assert.deepEqual([...priorRequests([actual], HEAD)], ['classify']);
-});
-
-test('第1段階: 正常/不正時刻summaryの混在と曖昧な最新順はunknownに倒す（base既存問題）', () => {
-	const clean = botSummary(HEAD);
-	for (const times of [
-		{ createdAt: 'bad', updatedAt: 'bad' },
-		{ createdAt: 'bad', updatedAt: clean.updatedAt },
-		{ createdAt: clean.createdAt, updatedAt: 'bad' },
-		{ createdAt: undefined, updatedAt: clean.updatedAt },
-		{ createdAt: 0, updatedAt: clean.updatedAt },
-		{ createdAt: clean.createdAt, updatedAt: 0 },
-	]) {
-		const invalid = { ...botSummary(HEAD), id: 3, ...times };
-		for (const summaries of [
-			[clean, invalid],
-			[invalid, clean],
-		]) {
-			const v = evaluate(snap({ comments: [...summaries, classification()] }));
-			assert.equal(v.state, 'wait-review');
-			assert.equal(v.reviewState, 'unknown');
-			assert.equal(v.suggest, null);
-			assert.equal(v.retriable, true);
+		for (const kind of ['ci', 'review']) {
+			const v = evaluate(
+				snap({
+					pr: withPr({ body }),
+					...(kind === 'ci'
+						? {
+								checks: [
+									check('lint'),
+									check('e2e', { conclusion: 'failure' }),
+								],
+							}
+						: { comments: [review({ findings: open })] }),
+				}),
+			);
+			assert.equal(v.state, 'blocked');
+			assert.equal(
+				v.suggest,
+				body.includes('2/3')
+					? kind === 'ci'
+						? 'fix-ci(修正周回に計上)'
+						: 'classify-and-fix-findings'
+					: 'return-to-human',
+				`${body}/${kind}`,
+			);
 		}
 	}
-	const findings = {
-		...botSummary(HEAD, { security: { has_unresolved_findings: true } }),
-		id: 3,
-	};
-	for (const summaries of [
-		[clean, findings],
-		[findings, clean],
-	]) {
-		const v = evaluate(snap({ comments: [...summaries, classification()] }));
-		assert.equal(v.state, 'wait-review');
-		assert.equal(v.reviewState, 'unknown');
-		assert.equal(v.suggest, null);
-	}
-	// 同時刻でも同じ内容の重複は順序が結果に影響しない。偽botは時刻判定の証拠にも使わない。
-	assert.equal(
-		evaluate(snap({ comments: [clean, { ...clean, id: 3 }, classification()] }))
-			.state,
-		'merge-ready',
-	);
+});
+
+test('修正予算: 成功した3周目は進行し、待機や旧headの証拠は追加修正を始めない', () => {
+	const pr = withPr({ body: '修正ループ: 3/3' });
+	assert.equal(evaluate(snap({ pr })).state, 'merge-ready');
 	assert.equal(
 		evaluate(
 			snap({
-				comments: [
-					clean,
-					{
-						...clean,
-						id: 3,
-						login: 'fake',
-						createdAt: 'bad',
-						updatedAt: 'bad',
-					},
-					classification(),
-				],
+				pr,
+				checks: [check('lint', { status: 'in_progress', conclusion: null })],
 			}),
 		).state,
-		'merge-ready',
+		'wait-ci',
 	);
+	const open = [
+		{ id: 'F1', severity: 'P1', blocking: true, status: 'open', evidence: 'e' },
+	];
+	const stale = evaluate(
+		snap({ pr, comments: [review({ findings: open }, OLD)] }),
+	);
+	assert.equal(stale.state, 'wait-review');
+	assert.doesNotMatch(stale.suggest ?? '', /^fix|classify-and-fix/);
+});
+
+test('修正予算: 4周目は成功でも自由文の例外承認で拡張せず人間へ返す', () => {
+	const pr = withPr({
+		body: '修正ループ: 4/3\n本人承認: 今回だけ追加1周。以後停止。',
+	});
+	const v = evaluate(snap({ pr }));
+	assert.equal(v.state, 'blocked');
+	assert.equal(v.suggest, 'return-to-human');
+});
+
+test('Codexへの依頼・待機・再依頼の候補をどの状態でも生成しない', () => {
+	for (const comments of [
+		[],
+		[review({}, OLD)],
+		[review({ status: 'running' })],
+	]) {
+		const v = evaluate(snap({ comments }));
+		assert.doesNotMatch(JSON.stringify(v), /codex/i);
+	}
+});
+
+test('2周目3: 進行照合の通信がハングしても、上限内に失敗して blocked(retriable) になる', async () => {
+	const hang = (async () => new Promise(() => {})) as never;
+	const t0 = Date.now();
+	const s = await collect(createClient({ fetchImpl: hang, timeoutMs: 30 }), {
+		repo: REPO,
+		number: 7,
+	});
+	assert.ok(Date.now() - t0 < 2000);
+	assert.match(s.errors[0], /タイムアウト/);
+	assert.equal(evaluate(s).state, 'blocked');
+	// 本文の読取だけが止まる場合も同様
+	const slowBody = (async () => ({
+		ok: true,
+		status: 200,
+		json: () => new Promise(() => {}),
+	})) as never;
+	const s2 = await collect(
+		createClient({ fetchImpl: slowBody, timeoutMs: 30 }),
+		{ repo: REPO, number: 7 },
+	);
+	assert.match(s2.errors[0], /タイムアウト/);
+	// 全体期限を超えたら以降の通信を始めない
+	const gh = fakeGithub();
+	const expired = gh.client('t');
+	const c = createClient({
+		token: 't',
+		totalMs: -1,
+		fetchImpl: (async () => json({})) as never,
+	});
+	await assert.rejects(async () => c.get('/x'), /全体期限/);
+	assert.ok(expired);
+});
+
+test('第三者(NONE/CONTRIBUTOR等)のUser投稿は記録として採用せず、先行のblocking記録を上書きできない', () => {
+	const open = [
+		{ id: 'F1', severity: 'P1', blocking: true, status: 'open', evidence: 'e' },
+	];
+	const real = review({ findings: open }, HEAD, { id: 1 });
+	for (const authorAssociation of ['NONE', 'CONTRIBUTOR', undefined]) {
+		const fake = review({}, HEAD, {
+			id: 2,
+			login: 'rando',
+			authorAssociation,
+			createdAt: '2026-10-28T00:10:00Z',
+		});
+		const v = evaluate(snap({ comments: [real, fake] }));
+		assert.equal(v.state, 'blocked', String(authorAssociation));
+	}
+	const only = review({}, HEAD, { authorAssociation: 'NONE' });
+	assert.equal(evaluate(snap({ comments: [only] })).reviewState, 'unavailable');
 });
