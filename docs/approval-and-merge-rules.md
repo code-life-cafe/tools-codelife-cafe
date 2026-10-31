@@ -56,7 +56,7 @@ Merge・承認区分の判断では、必ずこの文書の全文に従う。条
 - 人間が、対象PRを指定し、この不具合のため Security 信号を無視してよいと明示している。CI、独立分類、Code Review、最新base、非Draft、未解決の明示的指摘、修正3周の免除には使わない。
 - 信頼botのサマリーで Security の status が `completed`、head の完全SHAが一致し、二つの指摘フィールドがどちらも null である。どちらかが true、status が `completed` 以外、サマリー自体がない場合は使わない。
 - Maker 以外が、その head の実差分を読み、外部送信・保存・権限・信頼境界と、ゲート変更なら抜けがないことを確認する。問題がない旨、確認者、head SHA を Merge 前に PR へ書く。この記録は人間判断の根拠であり、botの構造化結果そのものにはしない。
-- Code Review は同じ最終headで完了し、修正を要する finding がない。最新baseを取り込む merge commit だけで、main との製品差分がレビュー済み head と同一のときは、その Code Review を引き継いでよい。製品差分が増えたら、新しい head の Code Review を取り直す。
+- Code Review は同じ最終headで完了し、修正を要する finding がない。baseを取り込んでheadが変わった場合は、通常どおり新しいheadのCode Reviewを確認する。
 - 独立分類、必須CI `lint` / `e2e`、最新base、非Draft、未解決blockingなし、修正3周以内は維持する。実行前の記録と、確認した head を指定する通常Mergeも維持する。
 
 常設の操作主体は変えない。人間がその会話で対象PRの Merge を特定のエージェントに指示した場合、そのエージェントが当該PRだけを操作できる。旧Grok Bot運用ループは再開しない。Codex Security が同じ head で明示的な boolean を返すようになったら、この例外は使わず通常信号に戻る。
