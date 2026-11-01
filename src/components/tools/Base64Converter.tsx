@@ -55,7 +55,8 @@ export default function Base64Converter() {
 
 	// Computed Text Result
 	const textResult = useMemo(() => {
-		if (!textInput.trim()) return { output: '', error: null, size: 0 };
+		// 空白だけの入力はエンコード対象。結果を出さないのは空文字だけ。
+		if (textInput.length === 0) return { output: '', error: null, size: 0 };
 		try {
 			if (direction === 'encode') {
 				const out = encodeBase64(textInput);

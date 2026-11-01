@@ -12,6 +12,48 @@ test.describe('Base64 Converter Tool', () => {
 			'\uFEFFabc',
 		);
 	});
+
+	test('空白だけのテキストはエンコードし、空文字は空出力のままにする', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('base64');
+		await toolPage.goto();
+
+		const input = page.getByRole('textbox', {
+			name: /^入力 \(プレーンテキスト\)/,
+		});
+		const output = page.getByRole('textbox', { name: '変換結果' });
+
+		await input.fill(' ');
+		await expect(output).toHaveValue('IA==');
+		await input.fill('\t');
+		await expect(output).toHaveValue('CQ==');
+		await input.fill('\n');
+		await expect(output).toHaveValue('Cg==');
+
+		await input.fill('');
+		await expect(output).toHaveValue('');
+
+		await input.fill(' こんにちは ');
+		await expect(output).toHaveValue('IOOBk+OCk+OBq+OBoeOBryA=');
+		await input.fill('\uFEFFabc');
+		await expect(output).toHaveValue('77u/YWJj');
+
+		await page.getByRole('switch').click();
+		const decodeInput = page.getByRole('textbox', { name: /^入力 \(Base64\)/ });
+		await decodeInput.fill('I A==');
+		await expect(output).toHaveValue(' ');
+		await decodeInput.fill('@@@@');
+		await expect(output).toHaveValue(
+			'デコードに失敗しました。Base64文字列の形式を確認してください。',
+		);
+		await decodeInput.fill('77u/YWJj');
+		await expect(output).toHaveValue('\uFEFFabc');
+		await decodeInput.fill('IOOBk+OCk+OBq+OBoeOBryA=');
+		await expect(output).toHaveValue(' こんにちは ');
+	});
+
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('base64');
 		await toolPage.goto();
