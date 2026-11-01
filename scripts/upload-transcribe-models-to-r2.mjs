@@ -73,17 +73,39 @@ function contentTypeFor(path) {
 
 // --- wrangler 実行 ---
 
-const WRANGLER_BIN = process.env.WRANGLER_BIN ?? 'npx';
-const WRANGLER_PREFIX = process.env.WRANGLER_BIN ? [] : ['--yes', 'wrangler'];
+// シェルを介さず起動する。Windows の .cmd / .bat は shell:false では spawn できない
+// （Node の CVE-2024-27980 対策で EINVAL）ため、npx は JS 本体を node で直接起動する。
+function resolveWrangler() {
+	const bin = process.env.WRANGLER_BIN;
+	if (bin) {
+		if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin)) {
+			console.error(
+				'Windows では WRANGLER_BIN に .cmd / .bat を指定できません。未指定にすると npx を node 経由で起動します。',
+			);
+			process.exit(1);
+		}
+		return { command: bin, prefix: [] };
+	}
+	if (process.platform === 'win32') {
+		const npxCli = join(
+			dirname(process.execPath),
+			'node_modules',
+			'npm',
+			'bin',
+			'npx-cli.js',
+		);
+		return { command: process.execPath, prefix: [npxCli, '--yes', 'wrangler'] };
+	}
+	return { command: 'npx', prefix: ['--yes', 'wrangler'] };
+}
+
+const { command: WRANGLER_BIN, prefix: WRANGLER_PREFIX } = resolveWrangler();
 
 function runWrangler(wranglerArgs) {
-	// .cmd / .ps1 のラッパ解決を OS のシェルに任せる（Windows / WSL / macOS 共通）
-	const quoted = [...WRANGLER_PREFIX, ...wranglerArgs].map((a) =>
-		/[\s"']/.test(a) ? JSON.stringify(a) : a,
-	);
-	return spawnSync(`${WRANGLER_BIN} ${quoted.join(' ')}`, {
+	const args = [...WRANGLER_PREFIX, ...wranglerArgs];
+	return spawnSync(WRANGLER_BIN, args, {
 		cwd: ROOT,
-		shell: true,
+		shell: false,
 		encoding: 'utf8',
 	});
 }
@@ -210,7 +232,9 @@ console.log(
 console.log('');
 const sample = targets[0];
 console.log('検証:');
-console.log('  1. Pages をデプロイして Function と R2 バインディングを反映する');
+console.log(
+	'  1. Pages をデプロイして Function と R2 バインディングを反映する',
+);
 console.log(
 	`  2. curl -I https://tools.codelife.cafe${MODEL_BASE_PATH}${sample.repositoryPath}config.json`,
 );

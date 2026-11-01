@@ -29,6 +29,7 @@ import {
 	convertBatch,
 	detectTimestampCandidates,
 	formatTimestamp,
+	isValidTimeZone,
 	nowInstantNanos,
 	parseDateTimeString,
 	type TimestampCandidate,
@@ -73,9 +74,22 @@ function OutputRow({ label, value }: { label: string; value: string }) {
 
 export default function UnixTime() {
 	const { trackRunDebounced } = useToolAnalytics('unix-time');
-	const [settings, updateSettings] = useToolSettings<Settings>('unix-time', {
-		timeZone: 'Asia/Tokyo',
-	});
+	const [settings, updateSettings] = useToolSettings<Settings>(
+		'unix-time',
+		{
+			timeZone: 'Asia/Tokyo',
+		},
+		(val: unknown, defaults: Settings) => {
+			if (!val || typeof val !== 'object') return { ...defaults };
+			const rawTz = (val as Record<string, unknown>).timeZone;
+			return {
+				timeZone:
+					typeof rawTz === 'string' && isValidTimeZone(rawTz)
+						? rawTz
+						: defaults.timeZone,
+			};
+		},
+	);
 	const { timeZone } = settings;
 
 	const [mode, setMode] = useState<'single' | 'batch'>('single');

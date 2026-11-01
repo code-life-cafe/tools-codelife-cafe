@@ -36,6 +36,7 @@ import {
 	toCrontabLine,
 	toGithubActionsSchedule,
 } from '@/lib/tools/cron-checker';
+import { isValidTimeZone } from '@/lib/tools/unix-time';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { cronCheckerTool } from '@/lib/webmcp/tools/cron-checker.webmcp';
 
@@ -59,18 +60,33 @@ interface Settings {
 }
 
 function formatInZone(date: Date, timeZone: string): string {
-	const formatter = new Intl.DateTimeFormat('ja-JP', {
-		timeZone,
-		year: 'numeric',
-		month: '2-digit',
-		day: '2-digit',
-		hour: '2-digit',
-		minute: '2-digit',
-		second: '2-digit',
-		weekday: 'short',
-		hourCycle: 'h23',
-	});
-	return formatter.format(date);
+	try {
+		const formatter = new Intl.DateTimeFormat('ja-JP', {
+			timeZone,
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			weekday: 'short',
+			hourCycle: 'h23',
+		});
+		return formatter.format(date);
+	} catch {
+		const fallbackFormatter = new Intl.DateTimeFormat('ja-JP', {
+			timeZone: 'Asia/Tokyo',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+			weekday: 'short',
+			hourCycle: 'h23',
+		});
+		return fallbackFormatter.format(date);
+	}
 }
 
 function severityBadgeVariant(
@@ -88,9 +104,22 @@ export default function CronChecker() {
 			requireInteractionForAutoRun: true,
 		},
 	);
-	const [settings, updateSettings] = useToolSettings<Settings>('cron-checker', {
-		extraTimeZone: 'UTC',
-	});
+	const [settings, updateSettings] = useToolSettings<Settings>(
+		'cron-checker',
+		{
+			extraTimeZone: 'UTC',
+		},
+		(val: unknown, defaults: Settings) => {
+			if (!val || typeof val !== 'object') return { ...defaults };
+			const rawTz = (val as Record<string, unknown>).extraTimeZone;
+			return {
+				extraTimeZone:
+					typeof rawTz === 'string' && isValidTimeZone(rawTz)
+						? rawTz
+						: defaults.extraTimeZone,
+			};
+		},
+	);
 
 	const [input, setInput] = useState('0 9 * * 1');
 	const [jaInput, setJaInput] = useState('');

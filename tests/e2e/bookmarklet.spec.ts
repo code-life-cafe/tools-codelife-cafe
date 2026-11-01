@@ -107,7 +107,7 @@ test.describe('ブックマークレット変換ツール（JS ⇔ Bookmarklet�
 		const encoded = await output.inputValue();
 		const decoded = decodeURIComponent(encoded.replace('javascript:', ''));
 		expect(decoded).toContain("document.createElement('script')");
-		expect(decoded).toContain("s.src='https://example.com/a.js'");
+		expect(decoded).toContain('s.src="https://example.com/a.js"');
 	});
 
 	test('ドラッグ&ドロップ用のブックマークリンクが表示されること', async ({

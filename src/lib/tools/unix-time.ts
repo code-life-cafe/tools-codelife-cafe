@@ -320,10 +320,22 @@ function isValidDateTimeComponents(
 	);
 }
 
+/** 指定されたタイムゾーン文字列が有効かどうか判定する */
+export function isValidTimeZone(timeZone: string): boolean {
+	if (!timeZone || typeof timeZone !== 'string') return false;
+	try {
+		Intl.DateTimeFormat(undefined, { timeZone });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 /** 指定タイムゾーンにおける、あるUTC時刻でのオフセット(分)を求める */
 function getTimeZoneOffsetMinutes(timeZone: string, epochMs: number): number {
+	const safeTz = isValidTimeZone(timeZone) ? timeZone : 'Asia/Tokyo';
 	const dtf = new Intl.DateTimeFormat('en-US', {
-		timeZone,
+		timeZone: safeTz,
 		hourCycle: 'h23',
 		year: 'numeric',
 		month: '2-digit',
@@ -510,8 +522,9 @@ function formatInTimeZone(
 	timeZone: string,
 	fractional: string,
 ): string {
+	const safeTz = isValidTimeZone(timeZone) ? timeZone : 'Asia/Tokyo';
 	const dtf = new Intl.DateTimeFormat('en-US', {
-		timeZone,
+		timeZone: safeTz,
 		hourCycle: 'h23',
 		year: 'numeric',
 		month: '2-digit',
@@ -524,15 +537,16 @@ function formatInTimeZone(
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
 	const hour = map.hour === '24' ? '00' : map.hour;
-	const offsetMinutes = getTimeZoneOffsetMinutes(timeZone, epochMs);
-	const offsetStr = timeZone === 'UTC' ? 'Z' : formatOffset(offsetMinutes);
+	const offsetMinutes = getTimeZoneOffsetMinutes(safeTz, epochMs);
+	const offsetStr = safeTz === 'UTC' ? 'Z' : formatOffset(offsetMinutes);
 	return `${map.year}-${map.month}-${map.day}T${hour}:${map.minute}:${map.second}${fractional}${offsetStr}`;
 }
 
 function formatWareki(epochMs: number, timeZone: string): string {
+	const safeTz = isValidTimeZone(timeZone) ? timeZone : 'Asia/Tokyo';
 	const date = new Date(epochMs);
 	const dtf = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', {
-		timeZone,
+		timeZone: safeTz,
 		era: 'long',
 		year: 'numeric',
 		month: 'numeric',
