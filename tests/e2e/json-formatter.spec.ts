@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { expect, test } from './fixtures/base';
 
 test.describe('JSON Formatter', () => {
@@ -240,4 +243,188 @@ test.describe('JSON Formatter', () => {
 		);
 		expect(resize).toBe('none');
 	});
+
+	test('保存ボタンはJSONをダウンロードと表示し、空出力では無効、整形と圧縮の結果はformatted.jsonのまま保存できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-formatter');
+		await toolPage.goto();
+		await installBlobTypeCapture(page);
+
+		const downloadButton = page.getByRole('button', {
+			name: 'JSONをダウンロード',
+			exact: true,
+		});
+		await expect(downloadButton).toBeVisible();
+		await expect(downloadButton).toHaveText('JSONをダウンロード');
+		await expect(
+			page.getByRole('button', { name: '.json', exact: true }),
+		).toHaveCount(0);
+		await expect(downloadButton).toBeDisabled();
+
+		const inputArea = page.locator('#json-input-textarea');
+		await inputArea.fill('   \n\t');
+		await expect(downloadButton).toBeDisabled();
+
+		await inputArea.fill('{"a":1');
+		await expect(page.locator('.bg-destructive\\/10')).toBeVisible();
+		await expect(downloadButton).toBeDisabled();
+
+		await inputArea.fill('{"a":1,"b":"hello"}');
+		await expect(page.locator('pre')).toContainText('"a": 1');
+		await expect(page.locator('pre')).toContainText('"b": "hello"');
+		await expect(downloadButton).toBeEnabled();
+
+		const formattedDownloadPromise = page.waitForEvent('download');
+		await downloadButton.click();
+		const formattedDownload = await formattedDownloadPromise;
+		expect(formattedDownload.suggestedFilename()).toBe('formatted.json');
+		expect(await readDownloadText(formattedDownload)).toBe(FORMATTED_JSON);
+		expect(await lastBlobType(page)).toBe('application/json');
+
+		await page.getByRole('button', { name: '圧縮', exact: true }).click();
+		await expect(page.locator('pre')).toContainText('{"a":1,"b":"hello"}');
+
+		await downloadButton.focus();
+		await expect(downloadButton).toBeFocused();
+		const minifiedDownloadPromise = page.waitForEvent('download');
+		await page.keyboard.press('Enter');
+		const minifiedDownload = await minifiedDownloadPromise;
+		expect(minifiedDownload.suggestedFilename()).toBe('formatted.json');
+		expect(await readDownloadText(minifiedDownload)).toBe(MINIFIED_JSON);
+		expect(await lastBlobType(page)).toBe('application/json');
+	});
+
+	test('保存ボタンはPCとモバイルで他のボタンと重ならず、キーボードで保存できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('json-formatter');
+
+		for (const viewport of [
+			{ width: 1280, height: 900 },
+			{ width: 390, height: 844 },
+		]) {
+			await page.setViewportSize(viewport);
+			await toolPage.goto();
+			await page.locator('#json-input-textarea').fill('{"a":1}');
+
+			const downloadButton = page.getByRole('button', {
+				name: 'JSONをダウンロード',
+				exact: true,
+			});
+			await expect(downloadButton).toBeEnabled();
+
+			const controlButtons = [
+				page.getByRole('button', { name: '整形', exact: true }),
+				page.getByRole('button', { name: '圧縮', exact: true }),
+				page.getByRole('button', { name: '設定を共有', exact: true }),
+			];
+			await controlButtons[0].scrollIntoViewIfNeeded();
+			await assertButtonsDoNotOverlap(controlButtons, viewport);
+
+			const outputButtons = [
+				page.getByRole('button', { name: 'コピー', exact: true }),
+				downloadButton,
+			];
+			await downloadButton.scrollIntoViewIfNeeded();
+			await assertButtonsDoNotOverlap(outputButtons, viewport);
+
+			await downloadButton.focus();
+			await expect(downloadButton).toBeFocused();
+			const downloadPromise = page.waitForEvent('download');
+			await page.keyboard.press('Enter');
+			const download = await downloadPromise;
+			expect(download.suggestedFilename()).toBe('formatted.json');
+			expect(await readDownloadText(download)).toBe('{\n  "a": 1\n}');
+		}
+	});
 });
+
+const FORMATTED_JSON = '{\n  "a": 1,\n  "b": "hello"\n}';
+const MINIFIED_JSON = '{"a":1,"b":"hello"}';
+
+async function installBlobTypeCapture(page: {
+	evaluate: (pageFunction: () => void) => Promise<unknown>;
+}) {
+	await page.evaluate(() => {
+		const target = window as Window & { __jsonDownloadBlobTypes?: string[] };
+		if (target.__jsonDownloadBlobTypes) return;
+		target.__jsonDownloadBlobTypes = [];
+		const original = URL.createObjectURL.bind(URL);
+		URL.createObjectURL = (obj: Blob | MediaSource) => {
+			if (obj instanceof Blob) {
+				target.__jsonDownloadBlobTypes?.push(obj.type);
+			}
+			return original(obj);
+		};
+	});
+}
+
+async function lastBlobType(page: {
+	evaluate: (
+		pageFunction: () => string | undefined,
+	) => Promise<string | undefined>;
+}) {
+	return page.evaluate(() => {
+		const types = (window as Window & { __jsonDownloadBlobTypes?: string[] })
+			.__jsonDownloadBlobTypes;
+		return types?.at(-1);
+	});
+}
+
+async function readDownloadText(download: {
+	saveAs: (path: string) => Promise<void>;
+}) {
+	const savePath = path.join(
+		os.tmpdir(),
+		`json-formatter-${Date.now()}-${Math.random().toString(16).slice(2)}.json`,
+	);
+	await download.saveAs(savePath);
+	try {
+		return fs.readFileSync(savePath, 'utf8');
+	} finally {
+		fs.unlinkSync(savePath);
+	}
+}
+
+async function assertButtonsDoNotOverlap(
+	buttons: Array<{
+		boundingBox: () => Promise<{
+			x: number;
+			y: number;
+			width: number;
+			height: number;
+		} | null>;
+		scrollIntoViewIfNeeded: () => Promise<void>;
+	}>,
+	viewport: { width: number; height: number },
+) {
+	await buttons[0]?.scrollIntoViewIfNeeded();
+	const boxes = [];
+	for (const button of buttons) {
+		const box = await button.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) continue;
+		expect(box.width).toBeGreaterThan(0);
+		expect(box.height).toBeGreaterThan(0);
+		expect(box.x).toBeGreaterThanOrEqual(-1);
+		expect(box.y).toBeGreaterThanOrEqual(-1);
+		expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+		expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+		boxes.push(box);
+	}
+
+	for (let i = 0; i < boxes.length; i++) {
+		for (let j = i + 1; j < boxes.length; j++) {
+			const a = boxes[i];
+			const b = boxes[j];
+			const overlapX =
+				Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
+			const overlapY =
+				Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
+			expect(overlapX > 1 && overlapY > 1).toBe(false);
+		}
+	}
+}

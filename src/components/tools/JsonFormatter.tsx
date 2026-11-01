@@ -312,18 +312,19 @@ export default function JsonFormatter() {
 
 			{/* Output */}
 			<div>
-				<div className="flex items-center justify-between mb-2">
+				<div className="mb-2 flex flex-wrap items-center justify-between gap-2">
 					<Label className="text-sm font-medium">出力</Label>
-					<div className="flex gap-2">
+					<div className="flex flex-wrap gap-2">
 						<CopyButton text={output} />
 						<Button
 							variant="outline"
 							size="sm"
 							onClick={handleDownload}
 							disabled={!output}
+							aria-label="JSONをダウンロード"
 						>
-							<Download className="h-4 w-4 mr-1" />
-							.json
+							<Download className="h-4 w-4 mr-1" aria-hidden="true" />
+							JSONをダウンロード
 						</Button>
 					</div>
 				</div>
