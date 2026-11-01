@@ -73,10 +73,33 @@ function contentTypeFor(path) {
 
 // --- wrangler 実行 ---
 
-const WRANGLER_BIN =
-	process.env.WRANGLER_BIN ??
-	(process.platform === 'win32' ? 'npx.cmd' : 'npx');
-const WRANGLER_PREFIX = process.env.WRANGLER_BIN ? [] : ['--yes', 'wrangler'];
+// シェルを介さず起動する。Windows の .cmd / .bat は shell:false では spawn できない
+// （Node の CVE-2024-27980 対策で EINVAL）ため、npx は JS 本体を node で直接起動する。
+function resolveWrangler() {
+	const bin = process.env.WRANGLER_BIN;
+	if (bin) {
+		if (process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin)) {
+			console.error(
+				'Windows では WRANGLER_BIN に .cmd / .bat を指定できません。未指定にすると npx を node 経由で起動します。',
+			);
+			process.exit(1);
+		}
+		return { command: bin, prefix: [] };
+	}
+	if (process.platform === 'win32') {
+		const npxCli = join(
+			dirname(process.execPath),
+			'node_modules',
+			'npm',
+			'bin',
+			'npx-cli.js',
+		);
+		return { command: process.execPath, prefix: [npxCli, '--yes', 'wrangler'] };
+	}
+	return { command: 'npx', prefix: ['--yes', 'wrangler'] };
+}
+
+const { command: WRANGLER_BIN, prefix: WRANGLER_PREFIX } = resolveWrangler();
 
 function runWrangler(wranglerArgs) {
 	const args = [...WRANGLER_PREFIX, ...wranglerArgs];

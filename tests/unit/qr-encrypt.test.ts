@@ -2,6 +2,7 @@
 // 単体実行: node --test tests/unit/qr-encrypt.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { deflateRawSync } from 'node:zlib';
 import {
 	decodeQrPayload,
 	decryptQrPayload,
@@ -11,7 +12,10 @@ import {
 	estimatePassphraseStrength,
 	isPracticalScanWarning,
 	KDF_NAME,
+	MAX_DECOMPRESSED_BYTES,
+	MAX_PBKDF2_ITERATIONS,
 	MAX_QR_PAYLOAD_BYTES,
+	MIN_PBKDF2_ITERATIONS,
 	PRACTICAL_SCAN_WARNING_BYTES,
 } from '../../src/lib/tools/qr-encrypt.ts';
 
@@ -282,4 +286,104 @@ test('異常なiterations（範囲外・負数・過大値）はdecodeQrPayload�
 	assert.equal(decodeQrPayload(createPayload(-1)).ok, false);
 	assert.equal(decodeQrPayload(createPayload('600000')).ok, false);
 	assert.equal(decodeQrPayload(createPayload(600_000)).ok, true);
+});
+
+function toBase64Url(bytes: Uint8Array): string {
+	return Buffer.from(bytes)
+		.toString('base64')
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+}
+
+function envelopeWithIterations(iterations: number): string {
+	const env = {
+		version: 1,
+		kdf: KDF_NAME,
+		iterations,
+		compression: 'none',
+		salt: 'AAAA',
+		iv: 'AAAA',
+		ciphertext: 'AAAA',
+	};
+	return ENVELOPE_PREFIX + toBase64Url(Buffer.from(JSON.stringify(env)));
+}
+
+test('iterations の境界: 100,000と1,000,000は許可し、その外側と非整数は拒否する', () => {
+	assert.equal(
+		decodeQrPayload(envelopeWithIterations(MIN_PBKDF2_ITERATIONS)).ok,
+		true,
+	);
+	assert.equal(
+		decodeQrPayload(envelopeWithIterations(MAX_PBKDF2_ITERATIONS)).ok,
+		true,
+	);
+	assert.equal(
+		decodeQrPayload(envelopeWithIterations(MIN_PBKDF2_ITERATIONS - 1)).ok,
+		false,
+	);
+	assert.equal(
+		decodeQrPayload(envelopeWithIterations(MAX_PBKDF2_ITERATIONS + 1)).ok,
+		false,
+	);
+	assert.equal(decodeQrPayload(envelopeWithIterations(600_000.5)).ok, false);
+});
+
+/** 任意の展開後サイズを持つdeflate-raw圧縮済みエンベロープを、正規の鍵導出で作る */
+async function buildCompressedEnvelope(
+	plainBytes: Uint8Array,
+	passphrase: string,
+): Promise<string> {
+	const iterations = MIN_PBKDF2_ITERATIONS;
+	const salt = crypto.getRandomValues(new Uint8Array(16));
+	const iv = crypto.getRandomValues(new Uint8Array(12));
+	const baseKey = await crypto.subtle.importKey(
+		'raw',
+		new TextEncoder().encode(passphrase),
+		'PBKDF2',
+		false,
+		['deriveKey'],
+	);
+	const key = await crypto.subtle.deriveKey(
+		{ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+		baseKey,
+		{ name: 'AES-GCM', length: 256 },
+		false,
+		['encrypt'],
+	);
+	const compressed = deflateRawSync(plainBytes);
+	const ciphertext = new Uint8Array(
+		await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, compressed),
+	);
+	const env = {
+		version: 1,
+		kdf: KDF_NAME,
+		iterations,
+		compression: 'deflate-raw',
+		salt: toBase64Url(salt),
+		iv: toBase64Url(iv),
+		ciphertext: toBase64Url(ciphertext),
+	};
+	return ENVELOPE_PREFIX + toBase64Url(Buffer.from(JSON.stringify(env)));
+}
+
+test('展開後サイズ上限: 100KBちょうどは復号でき、超過（Deflateボム）は拒否する', async () => {
+	const passphrase = 'correct horse battery staple';
+	const atLimit = await buildCompressedEnvelope(
+		new Uint8Array(MAX_DECOMPRESSED_BYTES).fill(0x61),
+		passphrase,
+	);
+	const ok = await decryptQrPayload(atLimit, passphrase);
+	assert.equal(ok.ok, true);
+	if (ok.ok) assert.equal(ok.plaintext.length, MAX_DECOMPRESSED_BYTES);
+
+	const overLimit = await buildCompressedEnvelope(
+		new Uint8Array(MAX_DECOMPRESSED_BYTES + 1).fill(0x61),
+		passphrase,
+	);
+	const ng = await decryptQrPayload(overLimit, passphrase);
+	assert.deepEqual(ng, {
+		ok: false,
+		reason: 'invalid-passphrase-or-corrupted',
+	});
 });

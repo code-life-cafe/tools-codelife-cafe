@@ -105,8 +105,9 @@ async function runStreamWithLimit(
 	maxBytes: number,
 ): Promise<Uint8Array> {
 	const writer = stream.writable.getWriter();
-	writer.write(input as BufferSource);
-	writer.close();
+	// 上限超過で読み取りを中断すると書き込み側がrejectするため、未処理rejectionにしない
+	writer.write(input as BufferSource).catch(() => {});
+	writer.close().catch(() => {});
 
 	const reader = stream.readable.getReader();
 	const chunks: Uint8Array[] = [];

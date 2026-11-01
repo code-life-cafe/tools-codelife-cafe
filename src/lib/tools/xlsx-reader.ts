@@ -242,8 +242,9 @@ async function unzipXlsx(buffer: ArrayBuffer): Promise<Map<string, string>> {
 			try {
 				const ds = new DecompressionStream('deflate-raw');
 				const writer = ds.writable.getWriter();
-				writer.write(compBytes);
-				writer.close();
+				// 上限超過で読み取りを中断すると書き込み側がrejectするため、未処理rejectionにしない
+				writer.write(compBytes).catch(() => {});
+				writer.close().catch(() => {});
 				const reader = ds.readable.getReader();
 				const chunks: Uint8Array[] = [];
 				let entryBytes = 0;

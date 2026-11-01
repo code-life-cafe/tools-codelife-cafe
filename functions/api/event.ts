@@ -26,9 +26,6 @@ const MAX_SESSION_ID_LENGTH = 64;
 // tool_run の dedupeKey の許容最大長（crypto.randomUUID は 36 文字。異常値・肥大化を防ぐ上限）
 const MAX_DEDUPE_KEY_LENGTH = 64;
 
-// toolSlug, extra1, extra2 などの汎用文字列プロパティの最大長
-const MAX_STRING_PROP_LENGTH = 64;
-
 // tool_run の発火起点。src/lib/analytics.ts の ToolRunSource と一致させる。
 const ALLOWED_TOOL_RUN_SOURCES = new Set([
 	'button',
@@ -67,16 +64,18 @@ export const onRequestPost = async (context: {
 	const origin = context.request.headers.get('origin');
 
 	// CORS / Origin チェック
-	// Originヘッダーが存在しない、または許可リストに含まれていない場合は204で破棄（直接POSTやCSRF対策）
-	if (!origin || !ALLOWED_ORIGINS.has(origin)) {
+	// Originヘッダーが存在し、かつ許可リストに含まれていない場合は204で破棄
+	if (origin && !ALLOWED_ORIGINS.has(origin)) {
 		return new Response(null, { status: 204 });
 	}
 
 	const headers: Record<string, string> = {
 		'Access-Control-Allow-Methods': 'POST, OPTIONS',
 		'Access-Control-Allow-Headers': 'Content-Type',
-		'Access-Control-Allow-Origin': origin,
 	};
+	if (origin && ALLOWED_ORIGINS.has(origin)) {
+		headers['Access-Control-Allow-Origin'] = origin;
+	}
 
 	try {
 		const body = (await context.request.json()) as Partial<EventPayload>;
@@ -169,10 +168,6 @@ export const onRequestPost = async (context: {
 			extra1 = props.lengthBucket;
 			extra2 = props.hasJapanese ? 'ja' : 'other';
 		}
-
-		toolSlug = toolSlug.slice(0, MAX_STRING_PROP_LENGTH);
-		extra1 = extra1.slice(0, MAX_STRING_PROP_LENGTH);
-		extra2 = extra2.slice(0, MAX_STRING_PROP_LENGTH);
 
 		// traffic_type判定（human / ai_agent / crawler / unknown）。遮断・レート制限は行わず計測分類のみに使用する。
 		const trafficType = classifyTrafficType(

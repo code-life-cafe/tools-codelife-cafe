@@ -617,26 +617,3 @@ test('?settings付きHTMLレスポンスはpage_view記録とX-Robots-Tag付与�
 	assert.strictEqual(writes.length, 1);
 	assert.strictEqual(writes[0].blobs?.[1], '/json-formatter');
 });
-
-test('Originヘッダーが存在しないリクエストは204で破棄され書き込まれない', async () => {
-	const writes: Array<{ blobs?: string[]; indexes?: string[] }> = [];
-	const response = await onRequestPost({
-		request: new Request('https://tools.codelife.cafe/api/event', {
-			method: 'POST',
-			body: JSON.stringify({
-				event: 'tool_run',
-				props: { tool: 'json-formatter' },
-			}),
-		}),
-		env: {
-			EVENTS: {
-				writeDataPoint(data) {
-					writes.push(data);
-				},
-			},
-		},
-	});
-
-	assert.strictEqual(response.status, 204);
-	assert.strictEqual(writes.length, 0);
-});

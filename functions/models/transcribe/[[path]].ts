@@ -17,7 +17,6 @@
 
 import {
 	listAllowedModelPaths,
-	MODEL_ARTIFACTS,
 	MODEL_BASE_PATH,
 } from '../../../src/lib/transcribe/model-manifest.ts';
 
@@ -50,15 +49,6 @@ const R2_PREFIX = 'transcribe/';
 const ALLOWED_KEYS = new Set(
 	listAllowedModelPaths().map((path) => path.slice(MODEL_BASE_PATH.length)),
 );
-
-/** キー（whisper-tiny/<rev>/...）ごとの期待バイト数マップ */
-const EXPECTED_BYTES = new Map<string, number>();
-for (const artifact of MODEL_ARTIFACTS) {
-	for (const file of artifact.files) {
-		const key = `${artifact.repositoryPath}${file.path}`;
-		EXPECTED_BYTES.set(key, file.bytes);
-	}
-}
 
 const CONTENT_TYPES: Record<string, string> = {
 	json: 'application/json; charset=utf-8',
@@ -111,27 +101,18 @@ export const onRequest = async (context: Context): Promise<Response> => {
 
 	if (!object) return notFound();
 
-	// マニフェストのファイルサイズと実体サイズの一致を検証
-	const expectedBytes = EXPECTED_BYTES.get(key);
-	if (expectedBytes !== undefined && object.size !== expectedBytes) {
-		return new Response('Model asset size mismatch', {
-			status: 503,
-			headers: { 'Cache-Control': 'no-store' },
-		});
-	}
-
-	const headers = new Headers({
-		'Content-Type': contentTypeFor(key),
-		'Content-Length': String(object.size),
-		ETag: object.httpEtag,
-		// URL に revision が含まれ、同じ URL の内容は差し替わらないため長期キャッシュ可能
-		'Cache-Control': 'public, max-age=31536000, immutable',
-		'X-Content-Type-Options': 'nosniff',
-		// 部分取得には対応しない（不完全な Range 応答を返さないことを明示する）
-		'Accept-Ranges': 'none',
-	});
+	const headers = new Headers();
+	object.writeHttpMetadata(headers);
+	headers.set('Content-Type', contentTypeFor(key));
+	headers.set('ETag', object.httpEtag);
+	// URL に revision が含まれ、同じ URL の内容は差し替わらないため長期キャッシュ可能
+	headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+	headers.set('X-Content-Type-Options', 'nosniff');
+	// 部分取得には対応しない（不完全な Range 応答を返さないことを明示する）
+	headers.set('Accept-Ranges', 'none');
 
 	if (request.method === 'HEAD') {
+		headers.set('Content-Length', String(object.size));
 		return new Response(null, { status: 200, headers });
 	}
 
