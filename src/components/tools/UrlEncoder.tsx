@@ -89,11 +89,12 @@ export default function UrlEncoder() {
 						ENCODE
 					</Label>
 					<Switch
+						id="url-encoder-direction"
 						checked={direction === 'decode'}
 						onCheckedChange={(checked) =>
 							setDirection(checked ? 'decode' : 'encode')
 						}
-						// わかりやすく緑と青を反転させるなどの見た目より、標準機能でOK
+						aria-label="変換方向（オンでデコード、オフでエンコード）"
 					/>
 					<Label className="text-sm font-medium whitespace-nowrap min-w-[3rem]">
 						DECODE
@@ -105,11 +106,15 @@ export default function UrlEncoder() {
 				{/* Input Pane */}
 				<div className="flex flex-col h-full">
 					<div className="flex justify-between items-center mb-2 min-h-9">
-						<Label className="text-sm font-medium block">
+						<Label
+							htmlFor="url-encoder-input"
+							className="text-sm font-medium block"
+						>
 							入力 ({direction === 'encode' ? 'エンコード前' : 'デコード前'})
 						</Label>
 					</div>
 					<Textarea
+						id="url-encoder-input"
 						value={textInput}
 						onChange={(e) => setTextInput(e.target.value)}
 						placeholder={
@@ -151,7 +156,9 @@ export default function UrlEncoder() {
 				{/* Output Pane */}
 				<div className="flex flex-col h-full">
 					<div className="flex items-center justify-between mb-2 min-h-9 pl-0 md:pl-4">
-						<Label className="text-sm font-medium">変換結果</Label>
+						<Label htmlFor="url-encoder-output" className="text-sm font-medium">
+							変換結果
+						</Label>
 						<div className="flex gap-2">
 							<CopyButton
 								text={textResult.output}
@@ -170,6 +177,7 @@ export default function UrlEncoder() {
 						</div>
 					</div>
 					<Textarea
+						id="url-encoder-output"
 						value={textResult.error ? textResult.error : textResult.output}
 						readOnly
 						placeholder="変換結果がここに表示されます..."
