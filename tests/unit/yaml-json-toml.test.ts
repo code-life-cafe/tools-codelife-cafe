@@ -389,3 +389,17 @@ test('safeMode: WebMCPのみaliasを拒否し、通常の変換は従来どお�
 	});
 	assert.equal(safe.ok, false);
 });
+
+test('通常UIモード: YAML Alias Bomb または過剰なエイリアス展開は安全に拒否される', () => {
+	// 多段エイリアスによる指数関数的爆発
+	const bomb = `
+a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol","lol"]
+b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a,*a]
+c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b,*b]
+d: &d [*c,*c,*c,*c,*c,*c,*c,*c,*c,*c]
+e: &e [*d,*d,*d,*d,*d,*d,*d,*d,*d,*d]
+root: *e
+`;
+	const result = convertFormats('yaml', 'json', bomb, DEFAULT_OPTS);
+	assert.equal(result.ok, false);
+});

@@ -70,6 +70,21 @@ export function parseXmlString(xmlText: string): SimpleXmlNode {
 	return createFallbackXmlTree(xmlText);
 }
 
+/** 展開後の1エントリあたりの上限（20MB）。Zip Bomb対策。 */
+export const MAX_ENTRY_DECOMPRESSED_BYTES = 20 * 1024 * 1024;
+/** 展開後の全エントリ合計上限（60MB）。Zip Bomb対策。 */
+export const MAX_TOTAL_DECOMPRESSED_BYTES = 60 * 1024 * 1024;
+/** パース可能な最大行数（100,000行）。Sparse座標による巨大配列確保防止。 */
+export const MAX_PARSE_ROWS = 100_000;
+/** パース可能な最大列数（1,000列）。 */
+export const MAX_PARSE_COLS = 1_000;
+/** パース可能な最大総セル数（2,000,000セル）。 */
+export const MAX_TOTAL_CELLS = 2_000_000;
+
+function escapeRegExp(str: string): string {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function createFallbackXmlTree(xml: string): SimpleXmlNode {
 	// タグを洗出し、簡易なノード木を構築する
 	function parseElement(str: string): SimpleXmlNode {
@@ -77,7 +92,8 @@ function createFallbackXmlTree(xml: string): SimpleXmlNode {
 		const tagName = tagMatch ? tagMatch[1] : '';
 
 		const getAttribute = (name: string): string | null => {
-			const attrRegex = new RegExp(`${name}=(?:"([^"]*)"|'([^']*)')`);
+			const escapedName = escapeRegExp(name);
+			const attrRegex = new RegExp(`${escapedName}=(?:"([^"]*)"|'([^']*)')`);
 			const m = str.match(attrRegex);
 			if (m) return m[1] ?? m[2] ?? '';
 			return null;
@@ -88,8 +104,9 @@ function createFallbackXmlTree(xml: string): SimpleXmlNode {
 
 		const querySelectorAll = (selector: string): SimpleXmlNode[] => {
 			const results: SimpleXmlNode[] = [];
+			const escapedSelector = escapeRegExp(selector);
 			const regex = new RegExp(
-				`<${selector}(\\s[^>]*)?>([\\s\\S]*?)</${selector}>|<${selector}(\\s[^>]*)?/>`,
+				`<${escapedSelector}(\\s[^>]*)?>([\\s\\S]*?)</${escapedSelector}>|<${escapedSelector}(\\s[^>]*)?/>`,
 				'g',
 			);
 			let match: RegExpExecArray | null = null;
@@ -160,6 +177,7 @@ async function unzipXlsx(buffer: ArrayBuffer): Promise<Map<string, string>> {
 
 	const entries = new Map<string, string>();
 	const textDecoder = new TextDecoder('utf-8');
+	let totalDecompressedBytes = 0;
 
 	let currCd = cdOffset;
 	for (let i = 0; i < cdRecords; i++) {
@@ -185,6 +203,15 @@ async function unzipXlsx(buffer: ArrayBuffer): Promise<Map<string, string>> {
 			continue;
 		}
 
+		// XLSXのパースに必要な関連ファイルのみを展開対象とする（Zip Bomb / 不要展開対策）
+		const isTargetFile =
+			fileName === '[Content_Types].xml' ||
+			fileName.startsWith('_rels/') ||
+			fileName.startsWith('xl/');
+		if (!isTargetFile) {
+			continue;
+		}
+
 		const localNameLen = view.getUint16(localOffset + 26, true);
 		const localExtraLen = view.getUint16(localOffset + 28, true);
 		const dataStart = localOffset + 30 + localNameLen + localExtraLen;
@@ -194,6 +221,16 @@ async function unzipXlsx(buffer: ArrayBuffer): Promise<Map<string, string>> {
 		let decompressedBytes: Uint8Array;
 		if (method === 0) {
 			// stored
+			if (
+				compBytes.byteLength > MAX_ENTRY_DECOMPRESSED_BYTES ||
+				totalDecompressedBytes + compBytes.byteLength >
+					MAX_TOTAL_DECOMPRESSED_BYTES
+			) {
+				throw new Error(
+					`.xlsx ファイルの展開後サイズが安全上限を超えています (${fileName})。`,
+				);
+			}
+			totalDecompressedBytes += compBytes.byteLength;
 			decompressedBytes = compBytes;
 		} else if (method === 8) {
 			// deflate
@@ -205,11 +242,35 @@ async function unzipXlsx(buffer: ArrayBuffer): Promise<Map<string, string>> {
 			try {
 				const ds = new DecompressionStream('deflate-raw');
 				const writer = ds.writable.getWriter();
-				writer.write(compBytes);
-				writer.close();
-				const resp = new Response(ds.readable);
-				const buf = await resp.arrayBuffer();
-				decompressedBytes = new Uint8Array(buf);
+				// 上限超過で読み取りを中断すると書き込み側がrejectするため、未処理rejectionにしない
+				writer.write(compBytes).catch(() => {});
+				writer.close().catch(() => {});
+				const reader = ds.readable.getReader();
+				const chunks: Uint8Array[] = [];
+				let entryBytes = 0;
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					entryBytes += value.byteLength;
+					if (
+						entryBytes > MAX_ENTRY_DECOMPRESSED_BYTES ||
+						totalDecompressedBytes + entryBytes > MAX_TOTAL_DECOMPRESSED_BYTES
+					) {
+						await reader.cancel();
+						throw new Error(
+							`.xlsx ファイルの展開後サイズが安全上限を超えています (${fileName})。`,
+						);
+					}
+					chunks.push(value);
+				}
+				totalDecompressedBytes += entryBytes;
+				const merged = new Uint8Array(entryBytes);
+				let offset = 0;
+				for (const chunk of chunks) {
+					merged.set(chunk, offset);
+					offset += chunk.byteLength;
+				}
+				decompressedBytes = merged;
 			} catch (err) {
 				throw new Error(
 					`.xlsx ファイルの解凍に失敗しました (${fileName}): ${err instanceof Error ? err.message : String(err)}`,
@@ -349,8 +410,18 @@ export async function parseXlsx(
 			const ref = cNode.getAttribute('r');
 			if (!ref) continue;
 			const { row, col } = cellRefToCoords(ref);
+			if (row >= MAX_PARSE_ROWS || col >= MAX_PARSE_COLS) {
+				throw new Error(
+					'シートの行数または列数が多すぎるため表示できません（最大100,000行・1,000列）。',
+				);
+			}
 			if (row > maxRow) maxRow = row;
 			if (col > maxCol) maxCol = col;
+			if ((maxRow + 1) * (maxCol + 1) > MAX_TOTAL_CELLS) {
+				throw new Error(
+					'シートのセル総数が多すぎるため表示できません（最大2,000,000セル）。',
+				);
+			}
 
 			const type = cNode.getAttribute('t');
 			const styleIdx = Number(cNode.getAttribute('s') ?? -1);

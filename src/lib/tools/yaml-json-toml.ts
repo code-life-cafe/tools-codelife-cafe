@@ -208,8 +208,10 @@ function parseValue(
 				value:
 					yaml.load(
 						text,
-						// パーサの2フレーム分を許可し、実データは下の50段検査で制限する。
-						safeMode ? { maxAliases: 0, maxDepth: 52 } : undefined,
+						// safeModeではエイリアス禁止、通常UIでもAlias Bombを防ぐため100個・深さ100段で制限する
+						safeMode
+							? { maxAliases: 0, maxDepth: 52 }
+							: { maxAliases: 100, maxDepth: 100 },
 					) ?? null,
 			};
 		}
@@ -294,49 +296,111 @@ function serializeValue(
 // 変換エントリポイント
 // ---------------------------------------------------------------------------
 
-/** 展開後のグラフをシリアライズ前に制限し、巨大出力や再帰を防ぐ。 */
-function checkSafeStructure(value: unknown): string | null {
-	const stack: { value: unknown; depth: number; pathUnits: number }[] = [
-		{ value, depth: 0, pathUnits: 0 },
+/** 展開後のグラフをシリアライズ前に制限し、巨大出力や再帰・エイリアス爆弾を防ぐ。 */
+function checkSafeStructure(value: unknown, safeMode = false): string | null {
+	if (safeMode) {
+		const stack: { value: unknown; depth: number; pathUnits: number }[] = [
+			{ value, depth: 0, pathUnits: 0 },
+		];
+		const seen = new WeakSet<object>();
+		// ルート容器は要素に含めず、配列の10000要素をそのまま受理する。
+		let nodes = -1;
+		let stringUnits = 0;
+		let estimatedBytes = 0;
+		while (stack.length) {
+			const current = stack.pop();
+			if (!current) break;
+			if (++nodes > 10_000) return '安全上限（10000要素）を超えています。';
+			if (current.depth > 50) return '安全上限（ネスト50段）を超えています。';
+			estimatedBytes += 64 + current.pathUnits * 6 + (current.depth + 2) * 8;
+			if (typeof current.value === 'string') {
+				stringUnits += current.value.length;
+				estimatedBytes += current.value.length * 6;
+				// YAMLのブロック文字列は各改行にネスト分のインデントを追加する。
+				for (const character of current.value) {
+					if (character === '\n') estimatedBytes += (current.depth + 2) * 4;
+				}
+			}
+			if (current.value !== null && typeof current.value === 'object') {
+				if (seen.has(current.value))
+					return '循環または共有参照には対応していません。';
+				seen.add(current.value);
+				const entries = Object.entries(current.value);
+				if (nodes + stack.length + entries.length > 10_000)
+					return '安全上限（10000要素）を超えています。';
+				for (const [key, child] of entries) {
+					stringUnits += key.length;
+					stack.push({
+						value: child,
+						depth: current.depth + 1,
+						pathUnits: current.pathUnits + key.length + 2,
+					});
+				}
+			}
+			if (estimatedBytes > 4 * 1024 * 1024)
+				return '出力見積もりが安全上限（4MiB）を超えています。';
+			if (stringUnits > 1_000_000)
+				return '展開後の文字列が安全上限を超えています。';
+		}
+		return null;
+	}
+
+	// 通常UIモード: 共有参照（合法なエイリアス）は許容しつつ、循環参照およびAlias Bomb（延べノード数爆発）を防御する
+	const maxNodes = 100_000;
+	const maxDepth = 100;
+	const maxBytes = 16 * 1024 * 1024;
+	const maxStringUnits = 5_000_000;
+
+	type StackItem = {
+		value: unknown;
+		depth: number;
+		pathUnits: number;
+		ancestors: Set<object>;
+	};
+	const stack: StackItem[] = [
+		{ value, depth: 0, pathUnits: 0, ancestors: new Set() },
 	];
-	const seen = new WeakSet<object>();
-	// ルート容器は要素に含めず、配列の10000要素をそのまま受理する。
 	let nodes = -1;
 	let stringUnits = 0;
 	let estimatedBytes = 0;
+
 	while (stack.length) {
 		const current = stack.pop();
 		if (!current) break;
-		if (++nodes > 10_000) return '安全上限（10000要素）を超えています。';
-		if (current.depth > 50) return '安全上限（ネスト50段）を超えています。';
+		if (++nodes > maxNodes) return '安全上限（100,000要素）を超えています。';
+		if (current.depth > maxDepth)
+			return '安全上限（ネスト100段）を超えています。';
 		estimatedBytes += 64 + current.pathUnits * 6 + (current.depth + 2) * 8;
 		if (typeof current.value === 'string') {
 			stringUnits += current.value.length;
 			estimatedBytes += current.value.length * 6;
-			// YAMLのブロック文字列は各改行にネスト分のインデントを追加する。
 			for (const character of current.value) {
 				if (character === '\n') estimatedBytes += (current.depth + 2) * 4;
 			}
 		}
 		if (current.value !== null && typeof current.value === 'object') {
-			if (seen.has(current.value))
-				return '循環または共有参照には対応していません。';
-			seen.add(current.value);
+			if (current.ancestors.has(current.value)) {
+				return '循環参照には対応していません。';
+			}
+			const nextAncestors = new Set(current.ancestors);
+			nextAncestors.add(current.value);
+
 			const entries = Object.entries(current.value);
-			if (nodes + stack.length + entries.length > 10_000)
-				return '安全上限（10000要素）を超えています。';
+			if (nodes + stack.length + entries.length > maxNodes)
+				return '安全上限（100,000要素）を超えています。';
 			for (const [key, child] of entries) {
 				stringUnits += key.length;
 				stack.push({
 					value: child,
 					depth: current.depth + 1,
 					pathUnits: current.pathUnits + key.length + 2,
+					ancestors: nextAncestors,
 				});
 			}
 		}
-		if (estimatedBytes > 4 * 1024 * 1024)
-			return '出力見積もりが安全上限（4MiB）を超えています。';
-		if (stringUnits > 1_000_000)
+		if (estimatedBytes > maxBytes)
+			return '出力見積もりが安全上限を超えています。';
+		if (stringUnits > maxStringUnits)
 			return '展開後の文字列が安全上限を超えています。';
 	}
 	return null;
@@ -363,10 +427,8 @@ export function convertFormats(
 		};
 	}
 
-	if (options.safeMode) {
-		const error = checkSafeStructure(parsed.value);
-		if (error) return { ok: false, error };
-	}
+	const error = checkSafeStructure(parsed.value, Boolean(options.safeMode));
+	if (error) return { ok: false, error };
 
 	const value = options.sortKeys ? sortKeysDeep(parsed.value) : parsed.value;
 

@@ -62,12 +62,15 @@ test('detectDirection: それ以外の入力はencode', () => {
 // isValidExternalScriptUrl
 // ---------------------------------------------------------------------------
 
-test('isValidExternalScriptUrl: http(s)スキームのみ許可', () => {
+test('isValidExternalScriptUrl: http(s)スキームのみ許可し空白や引用符を拒否', () => {
 	assert.ok(isValidExternalScriptUrl('https://example.com/a.js'));
 	assert.ok(isValidExternalScriptUrl('http://example.com/a.js'));
 	assert.ok(!isValidExternalScriptUrl('ftp://example.com/a.js'));
 	assert.ok(!isValidExternalScriptUrl('example.com/a.js'));
 	assert.ok(!isValidExternalScriptUrl(''));
+	assert.ok(!isValidExternalScriptUrl("https://example.com/a.js';alert(1)//"));
+	assert.ok(!isValidExternalScriptUrl('https://example.com/a.js\\'));
+	assert.ok(!isValidExternalScriptUrl('https://example.com/a\n.js'));
 });
 
 // ---------------------------------------------------------------------------
@@ -81,10 +84,10 @@ test('wrapIIFE: コードをIIFEでラップする', () => {
 	assert.ok(wrapped.includes('alert(1);'));
 });
 
-test('buildExternalScriptSnippet: script要素生成コードを返す', () => {
+test('buildExternalScriptSnippet: script要素生成コードを安全にエスケープして返す', () => {
 	const snippet = buildExternalScriptSnippet('https://example.com/a.js');
 	assert.ok(snippet.includes("document.createElement('script')"));
-	assert.ok(snippet.includes("s.src='https://example.com/a.js'"));
+	assert.ok(snippet.includes('s.src="https://example.com/a.js"'));
 	assert.ok(snippet.includes('document.body.appendChild(s)'));
 });
 

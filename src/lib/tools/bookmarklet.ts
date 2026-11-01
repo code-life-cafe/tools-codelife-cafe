@@ -27,7 +27,16 @@ export function detectDirection(input: string): Direction {
 }
 
 export function isValidExternalScriptUrl(url: string): boolean {
-	return /^https?:\/\/.+/i.test(url.trim());
+	const trimmed = url.trim();
+	try {
+		const parsed = new URL(trimmed);
+		return (
+			(parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+			!/[\s'\\]/.test(trimmed)
+		);
+	} catch {
+		return false;
+	}
 }
 
 /** コードを即時実行関数（IIFE）でラップする */
@@ -37,7 +46,8 @@ export function wrapIIFE(code: string): string {
 
 /** 外部スクリプトを非同期ロードするコード片を生成する（ユーザーコードの前に挿入） */
 export function buildExternalScriptSnippet(url: string): string {
-	return `var s=document.createElement('script');s.src='${url}';document.body.appendChild(s);`;
+	const safeUrlLiteral = JSON.stringify(new URL(url.trim()).href);
+	return `var s=document.createElement('script');s.src=${safeUrlLiteral};document.body.appendChild(s);`;
 }
 
 /**
