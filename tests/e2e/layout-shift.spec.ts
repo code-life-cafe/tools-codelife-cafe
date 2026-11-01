@@ -187,6 +187,35 @@ for (const { width, height } of [
 	}) => {
 		await page.setViewportSize({ width, height });
 		await observeLayoutShifts(page);
+		// 解析が速いと生成中表示が一瞬で消えるため、Workerの応答をテスト側で保留・解放できるようにする
+		await page.addInitScript(() => {
+			const NativeWorker = window.Worker;
+			const held: Array<() => void> = [];
+			const control = {
+				holdWorkerMessages: false,
+				releaseWorkerMessages: () => {
+					control.holdWorkerMessages = false;
+					for (const deliver of held.splice(0)) deliver();
+				},
+			};
+			Object.assign(window, { workerControl: control });
+			window.Worker = class extends NativeWorker {
+				get onmessage() {
+					return super.onmessage;
+				}
+				set onmessage(handler: Worker['onmessage']) {
+					super.onmessage = handler
+						? (event: MessageEvent) => {
+								if (control.holdWorkerMessages) {
+									held.push(() => handler.call(this, event));
+								} else {
+									handler.call(this, event);
+								}
+							}
+						: null;
+				}
+			};
+		});
 		await page.goto('/wordcloud/');
 		const setText = (text: string) =>
 			page.evaluate((value) => {
@@ -224,11 +253,22 @@ for (const { width, height } of [
 			};
 			requestAnimationFrame(tick);
 			window.layoutShiftValues.length = 0;
+			(
+				window as unknown as { workerControl: { holdWorkerMessages: boolean } }
+			).workerControl.holdWorkerMessages = true;
 		});
 		await setText(
 			'猫と犬と鳥と魚。猫と犬と鳥と魚。名前は猫である。名前はまだ無い。',
 		);
 		await expect(card.getByText('生成中')).toBeVisible();
+		expect(await heightOf()).toBe(emptyHeight);
+		await page.evaluate(() =>
+			(
+				window as unknown as {
+					workerControl: { releaseWorkerMessages: () => void };
+				}
+			).workerControl.releaseWorkerMessages(),
+		);
 		await expect(card.locator('svg')).toBeVisible();
 		await page.waitForTimeout(500);
 		const heights = await page.evaluate(
