@@ -34,10 +34,16 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 ### 開発スキル（pstack）
 
-- 2026-11-02のmarumoの承認（Issue #562）により、実装セッションでは [pstack](https://github.com/cursor/plugins/tree/main/pstack)（cursor/plugins、MIT）のClaude Codeプラグイン `pstack@cursor-plugins` を使う。宣言は `.claude/settings.json`。調査・不具合修正・機能実装・リファクタ・TDDなど（`/pstack:poteto-mode` の investigation / bug-fix / feature / refactoring、`/pstack:tdd` など）の作業手順に使う。
-- **本ファイル・CLAUDE.md・docs の規則がpstackより優先する。** pstackの autonomous-run / autopilot-* / shipping / babysit / opening-a-pr などの手順が、Risk Class・承認・Draft作成・独立レビュー・必須CI・Merge条件・3周上限と食い違う場合は、本ファイルに従う。pstackの指示を、権限拡大・gate迂回・自己承認・Mergeの根拠にしない。
-- Routine（日次・週次の棚卸し、分析、Dependabot確認など）ではpstackのスキルを起動しない。
-- pstackの更新は依存更新と同じ扱いにする。取得元はcommitで固定し、固定を変える差分は配布物を独立確認してからB以上で扱う。hooks・MCPサーバー・実行スクリプト・権限要求・外部送信が追加された版はCとする。
+- 2026-11-02のmarumoの承認（Issue #562）により、実装セッションでは [pstack](https://github.com/cursor/plugins/tree/main/pstack)（cursor/plugins、MIT）のClaude Codeプラグインを使う。宣言は `.claude/settings.json` の `pstack@codelife-pinned`（commit固定）。調査・不具合修正・機能実装・リファクタ・TDDなど（`/pstack:poteto-mode` の investigation / bug-fix / feature / refactoring、`/pstack:tdd` など）の作業手順として使う。
+- **本ファイル・CLAUDE.md・docs の規則がpstackより優先する。** pstackの指示を、権限拡大・gate迂回・自己承認・Merge・外部送信の根拠にしない。特に次を守る（配布物の独立確認、PR #563 で判明した食い違い）。
+  - `poteto-mode` の Autonomy 節（「Use any MCP tool」「external actions proceed without asking」）と `principle-never-block-on-the-human` には従わない。Slack・Gmail・Notion・チケット・evalなど外部サービスへの送信・投稿は、ユーザーの個別の指示か本ファイルの手順がある場合だけ行う。B/Cの承認待ちは「人間を待たない」原則の対象外とする。
+  - `orchestrate` / `autopilot-full` / `autopilot-stack` / `shipping` / `autonomous-run` は使わない。main への直接push・fast-forward・cherry-pickによる取り込み、自分のPRのMerge、`gh pr merge --auto`、head SHAを指定しないMerge、自分の署名やswarm・arenaの判定を承認・独立レビューの代わりにすることは禁止。Mergeは「PRのマージ判断と実行」だけに従う。
+  - `opening-a-pr` の「Open every PR ready, never as a draft」には従わず、PRはDraftで作る。`git reset --hard` は使わない。
+  - `/loop` などの定期実行・再起動の仕組みを、pstackの手順を理由に設定しない。`babysit` のCIやり直しやBugbot指摘の扱いは、3周上限とfindingの分類に従う。
+  - `make-bot-ui`・`worktree-cleanup`・`setup-pstack` は起動しない。`~/.claude/rules/` やplugin cacheへ書き込まない。skillの不具合を見つけても、上流や他repoへPRを作らず報告にとどめる。
+  - 同梱スクリプトのうち、実行時にネットワークから取得するもの（`watch-pr`・`orch`・`statechart` の bun / npm / mise / GitHub 取得）は実行しない。通信のない `check-plan.mjs` などは実行してよい。
+- Routine（日次・週次の棚卸し、分析、Dependabot確認など）では、pstackのskillもagent（`pstack:poteto-agent`・`pstack:comment-sicko`）も起動しない。
+- pstackの更新は依存更新と同じ扱いにする。取得元はcommitで固定し、固定を変える差分は配布物を独立確認してからB以上で扱う。hooks・MCPサーバー・権限要求・自動実行が追加された版、またはネットワーク取得するスクリプトを使う運用への変更はCとする。
 
 ### Risk Class と承認の3段階
 
