@@ -165,7 +165,7 @@ export default function YamlJsonToml() {
 			<div className="flex flex-wrap items-end gap-3 rounded-lg border border-border p-4">
 				<div className="flex items-end gap-2">
 					<div className="space-y-1.5">
-						<Label className="text-xs text-muted-foreground">From</Label>
+						<Label className="text-xs text-muted-foreground">変換元</Label>
 						<Select value={from} onValueChange={(v) => setFrom(v as Format)}>
 							<SelectTrigger aria-label="変換元の形式" className="w-[110px]">
 								<SelectValue />
@@ -183,13 +183,13 @@ export default function YamlJsonToml() {
 						variant="outline"
 						size="icon"
 						onClick={handleSwap}
-						aria-label="From/Toと入力/出力を入れ替え"
+						aria-label="変換元・変換先と入力・出力を入れ替え"
 						className="mb-0.5"
 					>
 						<ArrowLeftRight className="h-4 w-4" />
 					</Button>
 					<div className="space-y-1.5">
-						<Label className="text-xs text-muted-foreground">To</Label>
+						<Label className="text-xs text-muted-foreground">変換先</Label>
 						<Select value={to} onValueChange={(v) => setTo(v as Format)}>
 							<SelectTrigger aria-label="変換先の形式" className="w-[110px]">
 								<SelectValue />
@@ -237,7 +237,7 @@ export default function YamlJsonToml() {
 
 			{from === to && (
 				<p className="text-xs text-muted-foreground">
-					From/Toが同じ形式のため、整形（インデント・キーソート適用）のみ行います。
+					変換元と変換先が同じ形式のため、整形（インデント・キーソート適用）のみ行います。
 				</p>
 			)}
 
