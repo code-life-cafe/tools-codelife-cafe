@@ -24,7 +24,7 @@ Notion/GitHubで分析・施策 → GitHub Issue（AC・Risk Class・Bは計画�
 
 ### 待ち状態の記録
 
-Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに次を残して更新する: 現在状態、次の一手、待ち先（CI / 独立Claudeレビュー / 人間承認 / 利用上限）、待ち始め、再開条件、対象head SHA。CI・レビューの完了・失敗・指摘後の対応はClaude Codeが担当する。既存の定期確認と実際に利用できるイベント応答だけを使い、未設定の自動再開は保証しない。利用上限時は別の実装者へ自動で切り替えず、待ち状態と再開条件を明記して止める。同じheadに同じ種別のレビューを重ねない（変更も新しい失敗もなければ再実行しない）。
+Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに次を残して更新する: 現在状態、次の一手、待ち先（CI / 独立Claudeレビュー / 人間承認 / 利用上限）、待ち始め、再開条件、対象head SHA。CI・レビューの完了・失敗・指摘後の対応はClaude Codeが担当する。PR購読・Routine・`/loop`（Claudeが追加した定期実行は同時5本まで）を再開手段として使ってよい。未設定の自動再開は保証しない。利用上限時は別の実装者へ自動で切り替えず、待ち状態と再開条件を明記して止める。同じheadに同じ種別のレビューを重ねない（変更も新しい失敗もなければ再実行しない）。
 
 ### 進行照合（読み取り専用）
 
@@ -112,13 +112,13 @@ R3の追加リスクレビューは必要な領域を対象とし、必要な領
 
 以下はリポジトリ外で人間が確認する。確認済みなら再設定不要。
 
-2026-09-17の読み取り調査ではmainの有効rulesetにPR必須・required checks `lint` / `e2e` が存在した。承認必須人数は0、レビューthread解決・最新pushへの承認は必須ではない。B（R2/R3）の計画承認やC（R4）の対象別承認は現行設定だけで強制されているとはいえない。bypass権限やRoutine側条件は未確認。
+2026-09-17の読み取り調査ではmainの有効rulesetにPR必須・required checks `lint` / `e2e` が存在した。承認必須人数は0、レビューthread解決・最新pushへの承認は必須ではない。B（R2/R3）の計画記録やC（R4）の対象別承認は現行設定だけで強制されているとはいえない。bypass権限やRoutine側条件は未確認。
 
 - [x] Codexの自動Code/Security Reviewは全リポジトリで停止済み（2026-10-31、ユーザーが実施）。再開しない。
-- [ ] Claude Codeが最新CLAUDE.md/AGENTS.mdを読み、IssueからのAC取得・Production/Tests編集・Draft PR・独立レビュー依頼・CI対応・待ち状態の記録までMakerとして実行できることを確認する。スケジュールやUI設定は変更しない。
+- [ ] Claude Codeが最新CLAUDE.md/AGENTS.mdを読み、IssueからのAC取得・Production/Tests編集・PR作成（最初からReadyでよい）・独立レビュー依頼・CI対応・待ち状態の記録・条件を満たした後のセルフMergeまでMakerとして実行できることを確認する。スケジュールやUI設定は変更しない。
 - [ ] 代表PRでレビューfinding → Makerによる分類 → 修正と周回記録 → 最新headのCI → 新headの独立再レビューを確認する（Issue #538の一巡検証）。外部Routineからの自然起動で同じ流れが完走することは未実証。設定保存・手動一巡・自然実行は分けて報告する。
 - [ ] 確認済みのrequired checks `lint` / `e2e` を維持し、mainへの直接pushやbypassで失敗を迂回できない運用か確認する。branch protection・repository permissionsはこのPRでは変更しない。
-- [ ] B（R2/R3）の計画承認とC（R4）の対象別承認、最大3周・重複イベント・再起動後の履歴確認をRoutine運用で確認する。文書による規則であり、独自カウンターや機械的ロックは追加していない。
+- [ ] B（R2/R3）の計画記録とC（R4）の対象別承認、最大3周・重複イベント・再起動後の履歴確認をRoutine運用で確認する。文書による規則であり、独自カウンターや機械的ロックは追加していない。
 - [ ] ChatGPTのNotionでの分析・施策・効果測定が、実装Issue/PRへのリンクを保って継続していることを確認する。新しいschedule、Notion DBの新設、Cloudflare設定、secrets、deployment permissionsは不要。
 
 ### 履歴: 旧Codex信号の扱い（Issue #534・#538）

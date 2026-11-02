@@ -207,5 +207,5 @@ Productionコードと追加・変更・削除されたテストを一体で確�
 7. **Scope / simplicity:** ACの無断変更、スコープ外リファクタ、不要なAgent・Workflow・状態管理・抽象化を持ち込んでいないか。
 
 findingは `actionable defect` / `test inadequacy` / `informational` / `nit` / `specification ambiguity` に分類し、ファイル・行、発生条件、影響、根拠、必要な検証を示す。重大度はP0（緊急）、P1（高）、P2（通常）を区別する。出力環境の対応範囲で報告し、P2を投稿させるためにP1へ水増ししない。
-style/nitだけではblockingにしない。修正を要するdefect/test不足はblocking、仕様の曖昧さは人間判断待ちとして明示する。根拠のない懸念だけで修正を要求しない。
+style/nitだけではblockingにしない。修正を要するdefect/test不足はblocking、仕様の曖昧さは specification ambiguity として明示する（対応は§7。Claudeが目的に沿って判断し、Cや目的自体が決められない場合だけ人間へ）。根拠のない懸念だけで修正を要求しない。
 再レビューでは対象コミット・元finding・修正・回帰テスト・CIを照合する。レビューコメントの不在を承認とみなさず、未確認の項目を明示する。
