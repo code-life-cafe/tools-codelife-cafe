@@ -115,4 +115,78 @@ test.describe('Unicode Converter Tool', () => {
 			await expect(page.locator('#unicode-mode-switch')).toBeVisible();
 		});
 	}
+
+	for (const viewport of [
+		{ width: 1280, height: 900 },
+		{ width: 390, height: 844 },
+	]) {
+		test(`入力・結果欄は可視ラベルで識別・フォーカスできる (${viewport.width}px)`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize(viewport);
+			const toolPage = createToolPage('unicode-converter');
+			await toolPage.goto();
+
+			const inputName = '入力 (プレーンテキスト)';
+			const decodeInputName = '入力 (ユニコード(\\uXXXX))';
+			const input = page.getByRole('textbox', { name: inputName, exact: true });
+			const output = page.getByRole('textbox', {
+				name: '変換結果',
+				exact: true,
+			});
+
+			// encode: 名前で一意に識別でき、結果欄はreadOnly
+			await expect(input).toHaveCount(1);
+			await expect(output).toHaveCount(1);
+			await expect(output).toHaveAttribute('readonly', '');
+			await expect(input).not.toHaveAttribute('readonly', '');
+
+			// 可視ラベルのクリックで対応欄にフォーカスする
+			await page.getByText(inputName, { exact: true }).click();
+			await expect(input).toBeFocused();
+			await page.getByText('変換結果', { exact: true }).click();
+			await expect(output).toBeFocused();
+
+			// キーボードで名前付き入力に入力でき、「日本語」がencodeされる
+			await input.focus();
+			await page.keyboard.type('日本語');
+			await expect(output).toHaveValue('\\u65e5\\u672c\\u8a9e');
+
+			// 方向切替（キーボード）で入力欄の名前が更新される
+			const modeSwitch = page.getByRole('switch', { name: '変換モード切替' });
+			await modeSwitch.focus();
+			await page.keyboard.press('Space');
+			await expect(modeSwitch).toHaveAttribute('aria-checked', 'true');
+			const decodeInput = page.getByRole('textbox', {
+				name: decodeInputName,
+				exact: true,
+			});
+			await expect(decodeInput).toHaveCount(1);
+			await expect(input).toHaveCount(0);
+			await expect(output).toHaveCount(1);
+
+			// decode: 既存のencode結果をデコードして「日本語」に戻る
+			await page.getByText(decodeInputName, { exact: true }).click();
+			await expect(decodeInput).toBeFocused();
+			await decodeInput.fill('\\u65e5\\u672c\\u8a9e');
+			await expect(output).toHaveValue('日本語');
+
+			// 不正Unicodeは既存どおりエラーを表示し、結果欄はreadOnlyのまま
+			await decodeInput.fill('\\u{110000}');
+			await expect(output).toHaveValue(/デコードに失敗しました/);
+			await expect(output).toHaveAttribute('readonly', '');
+
+			// 空入力は結果も空
+			await decodeInput.fill('');
+			await expect(output).toHaveValue('');
+
+			// クリアは入力を空にする
+			await decodeInput.fill('\\u3042');
+			await expect(output).toHaveValue('あ');
+			await page.getByRole('button', { name: 'クリア' }).click();
+			await expect(decodeInput).toHaveValue('');
+			await expect(output).toHaveValue('');
+		});
+	}
 });

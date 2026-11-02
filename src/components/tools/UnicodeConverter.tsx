@@ -79,7 +79,10 @@ export default function UnicodeConverter() {
 				{/* 入力エリア */}
 				<div>
 					<div className="flex justify-between items-center mb-2 min-h-9">
-						<Label className="text-sm font-medium block">
+						<Label
+							htmlFor="unicode-input"
+							className="text-sm font-medium block"
+						>
 							入力 (
 							{direction === 'encode'
 								? 'プレーンテキスト'
@@ -88,6 +91,7 @@ export default function UnicodeConverter() {
 						</Label>
 					</div>
 					<Textarea
+						id="unicode-input"
 						value={input}
 						onChange={(e) => setInput(e.target.value)}
 						placeholder={
@@ -102,7 +106,9 @@ export default function UnicodeConverter() {
 				{/* 出力エリア */}
 				<div>
 					<div className="flex items-center justify-between mb-2 min-h-9">
-						<Label className="text-sm font-medium">変換結果</Label>
+						<Label htmlFor="unicode-output" className="text-sm font-medium">
+							変換結果
+						</Label>
 						<div className="flex gap-2">
 							<CopyButton text={result.output} />
 							<Button
@@ -117,6 +123,7 @@ export default function UnicodeConverter() {
 						</div>
 					</div>
 					<Textarea
+						id="unicode-output"
 						value={result.error ? result.error : result.output}
 						readOnly
 						placeholder="変換結果がここに表示されます..."
