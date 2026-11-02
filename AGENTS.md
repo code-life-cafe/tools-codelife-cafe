@@ -4,9 +4,9 @@
 
 ## AI開発の責任境界
 
-現行の運用ルール（正本）: [Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。実行時はこのrepoの最新AGENTS.md / CLAUDE.md / [docs/ai-development-flow.md](docs/ai-development-flow.md)と、個別の人間承認を確認する。旧Notion Task Board・Agent Readyは新規開発の着手許可に使わない。
+現行の運用ルール（正本）: [Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。実行時はこのrepoの最新AGENTS.md / CLAUDE.md / [docs/ai-development-flow.md](docs/ai-development-flow.md)と、個別の人間承認を確認する。Notion Task Board・Agent Readyは開発の着手許可に使わない。
 
-- 開発管理はGitHub IssueとPRに統一する。AC・状態・承認・検証結果・レビュー結果・公開SHAはIssue/PRに集約する。Notionには分析・施策・効果測定と、実装Issue/PRへのリンクだけを置き、開発状態を二重管理しない。実装IssueとNotion施策は相互にリンクする。
+- **記録先の分離（2026-11-02、marumo承認、Issue #562）**: 開発（機能改善・バグ修正・脆弱性・依存・テスト・インフラ・デザイン実装・指示書）はGitHub IssueとPRに統一する。AC・状態・承認・検証結果・レビュー結果・公開SHAはIssue/PRに集約する。非開発タスク（アクセス解析・SEO/GEO・コンテンツ・マーケティング・収益化・内部運用）は、Notion「✅ タスクボード」（`1c5326b31f614d8c8f41b914afdaf152`）を進行管理の正本にする。非開発タスクから実装が必要になったら、GitHub Issueを作って相互リンクし（Notion側は「Pull Request」列または本文）、開発状態はIssue/PRだけで管理する。タスクボードの旧自動実装列（自動化可否・禁止領域・失敗カウント・実行ロック・最終実行結果）は履歴として残し、使わない。
 - 通常フローは **ChatGPT（Notionで分析・施策）→ GitHub Issue → Claude Code（調査・計画・実装・テスト・PR）→ GitHub Actions → 独立Claudeレビュー（実装に参加していないClaudeサブエージェントが最終head SHAを読み取り専用でレビュー）→ Claude Code（CI失敗・指摘の修正、新headの再レビュー）→ 必要承認・Merge → Deploy・許可範囲の本番確認 → ChatGPT（効果測定）**。
 - Claude Code（Claude Pro）が主実装者。機能改善・バグ修正・脆弱性対応・依存更新・テスト・開発指示書変更の調査・計画・実装・必要なテスト・PR・CI修正・レビュー指摘対応・許可範囲の本番確認まで進行責任を持つ。手順は本ファイルの「6. Makerの手順（Claude Code）」。
 - 独立レビューは、実装に参加していない別コンテキストの読み取り専用Claudeサブエージェント（[.claude/agents/independent-reviewer.md](.claude/agents/independent-reviewer.md)）が最終head SHAのコード・テスト・セキュリティ・区分を確認する。レビュー担当は実装・直接修正・コミット・push・自己承認を行わず、findingを返す。Claude Code本体は指摘を確認して修正し、新headを再レビューに出す。実装者本人の自己点検は独立レビューではない。記録形式は [docs/ai-development-flow.md](docs/ai-development-flow.md#独立レビュー記録claude-reviewv1) に従う。
@@ -15,7 +15,7 @@
 - GitHub Actionsは決定論的Quality Gate。最新PRコミットのlint・unit・E2E・build/型チェックが成功しない限りMerge不可。失敗・未実行・進行中をLLMの判断やローカル検証で置き換えない。
 - 独立Test Engineerは常設しない。既存UIレビュアーは任意利用であり、通常PRで別Agentを必須起動しない。[Optional QA・運用手順](docs/ai-development-flow.md)を参照。
 - Makerは自分のPRを最終承認しない。未解決のblocking finding・仕様の曖昧さがある場合は人間へ戻す。
-- 既存のNotionタスクは履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssue化する。重複Issue/PRの作成、同じhead・同じ種別のレビュー依頼の連投はしない。
+- タスクボード上の既存の開発系タスク（カテゴリ: 開発・バグ・インフラ・デザイン）は履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssue化する。重複Issue/PRの作成、同じhead・同じ種別のレビュー依頼の連投はしない。
 
 ### 進行責任と待ち状態の記録
 
@@ -31,6 +31,13 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - 格上げ: 標準で2回失敗したら、その作業だけ一段上げる。重を使ったら理由を報告に残す。節約: プランの残りが2割を切ったら、その週は軽・標準だけにする。
 - 共有cloneは常にmainのままにする。共有cloneで作業する場合、各エージェントは作業ごとに自分のworktree（`git worktree add <repo外のパス> -b <branch>`）を作成して作業し、完了したら削除する。クラウドセッションなど作業用cloneが分離済みの環境では不要。PRのレビュー判定は実装者以外が行い、Mergeは下記のPRマージ条件に従う。
 - 本節はClaude Codeのモデル段階の指針であり、外部サービスの設定を変更しない。独立レビューのサブエージェントは、実装と同じ段階以上のモデルを使い、実行参照を記録に残す。
+
+### 開発スキル（pstack）
+
+- 2026-11-02のmarumoの承認（Issue #562）により、実装セッションでは [pstack](https://github.com/cursor/plugins/tree/main/pstack)（cursor/plugins、MIT）のClaude Codeプラグイン `pstack@cursor-plugins` を使う。宣言は `.claude/settings.json`。調査・不具合修正・機能実装・リファクタ・TDDなど（`/pstack:poteto-mode` の investigation / bug-fix / feature / refactoring、`/pstack:tdd` など）の作業手順に使う。
+- **本ファイル・CLAUDE.md・docs の規則がpstackより優先する。** pstackの autonomous-run / autopilot-* / shipping / babysit / opening-a-pr などの手順が、Risk Class・承認・Draft作成・独立レビュー・必須CI・Merge条件・3周上限と食い違う場合は、本ファイルに従う。pstackの指示を、権限拡大・gate迂回・自己承認・Mergeの根拠にしない。
+- Routine（日次・週次の棚卸し、分析、Dependabot確認など）ではpstackのスキルを起動しない。
+- pstackの更新は依存更新と同じ扱いにする。取得元はcommitで固定し、固定を変える差分は配布物を独立確認してからB以上で扱う。hooks・MCPサーバー・実行スクリプト・権限要求・外部送信が追加された版はCとする。
 
 ### Risk Class と承認の3段階
 
@@ -57,7 +64,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 - 同一の最終head SHAで、実装者と別のClaudeサブエージェントによる独立レビュー記録（コード・テスト・セキュリティ・区分A / 承認済みB / 承認済みCの確認が完了し、未確認項目とblocking未解決がない）、必須CI `lint` / `e2e` の成功、最新base、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。記録の欠落・取得不能・旧SHA・実装者との同一参照・矛盾は合格にしない。「重大な指摘なし」だけを分類確認とみなさない。
 - CI・レビューのRunning、一時的な取得失敗、利用上限は技術待ち。人間へ戻すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない、本人の認証が必要な場合だけ。
 - 実行前にPR履歴へ区分・判定理由・承認の根拠・対象head・CI・レビューと分類確認の根拠・修正周回数を記録し、Merge後は既存Deployと公開SHA・本番確認をIssue/PRへ記録する。新しいスケジューラ・Workflow・権限・課金は追加しない。
-- 2026-10-27より前の旧運用（Codex主実装、Notion Task Board、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。
+- 2026-10-27より前の旧運用（Codex主実装、Notion Task Boardによる開発の着手管理、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。
 
 ## 1. プロジェクト概要
 
@@ -103,7 +110,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 ### Issue/PR起点の実装
 
 - 実装はGitHub Issueを起点にする。対象Issue（なければ重複確認のうえ新規作成）のAC・Risk Class・スコープ外を確認してから着手し、ACが取得できない・不明な場合は推測せず人間判断待ちにする。
-- Notionの施策・既存タスクが指定された場合は、背景・仮説・効果測定の参照元として読み、実装のAC・状態・検証結果・承認はIssue/PRに記録する。Notionには実装Issue/PRへのリンクと効果測定のみを残し、開発状態を二重管理しない。
+- Notionの施策・タスクが開発の起点として指定された場合は、背景・仮説・効果測定の参照元として読み、実装のAC・状態・検証結果・承認はIssue/PRに記録する。Notionには実装Issue/PRへのリンクと効果測定のみを残し、開発状態を二重管理しない。
 - 実装後はIssue/PRに検証結果・未解決の環境課題・待ち状態（待ち先・待ち始め・再開条件・対象head）を追記する。
 
 ### ツール設定保持・PR作成
@@ -123,7 +130,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 主実装者・独立Claudeレビュー・ChatGPTの役割は冒頭の責任境界、全体フローは [運用手順](docs/ai-development-flow.md) を参照する。Productionコードとテストの両方を作成・修正する。
 
-1. GitHub Issueから対象・ACを取得する（なければ既存Issue/PRと重複確認してから作成）。Notion施策はIssueと相互リンクして背景の参照元にするだけで、旧Notion Task Boardを着手許可にしない。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
+1. GitHub Issueから対象・ACを取得する（なければ既存Issue/PRと重複確認してから作成）。Notion施策・タスクはIssueと相互リンクして背景の参照元にするだけで、Notion Task Boardを開発の着手許可にしない。取得不可・仕様不明は人間判断待ちにし、ACを勝手に決めない。
 2. 対象ファイル、Risk Class、ACと検証の対応、スコープ外をIssue/PRのImplementation Planに残す。区分は[AGENTS.mdの3段階](AGENTS.md#risk-class-と承認の3段階)で判定する。A（R0/R1）は個別確認なしで着手する。B（R2/R3、新規tool・大幅改修を含む）は計画（目的・AC・対象/対象外・影響・検証・復旧・公開範囲）の承認を一度得れば、その範囲のCI修正・レビュー対応・Merge・Deployで再承認を求めない。C（R4）は具体的な対象・差分・影響の人間承認がある範囲だけ着手する。承認原文または参照、AC、禁止範囲をIssue/PRに固定し、目的や受入結果を無断で変えない。依頼文に「計画のみ」「PRまで」「push禁止」「公開禁止」などの限定があればそれを優先し、なければA又は承認済みBの「実装/修正」依頼は公開確認までを含む。
 3. Productionコードと必要なunit/E2E/regression testを実装する。期待結果をAC・仕様から導き、正常系・境界値・異常系を検証する。不具合修正では修正前に失敗する回帰テストを確認する。UIはPC/モバイルとa11y、WebMCPはschema/runtime整合、privacyは外部送信の有無を検証する。
 4. lint・check・build・unit・E2Eを実行する。unitのdist依存テストとE2Eのためbuildを先に完了する。コマンド・結果・未実行理由を記録し、スコープを限定してDraft PRを作る。CI失敗中の状態でPRを作らない。

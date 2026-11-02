@@ -1,6 +1,6 @@
 # AI開発フロー
 
-現行の運用ルール（正本）は[Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。以前の正本だったNotion計画（アーカイブ済み）は参照しない。実行時はこのrepoの最新[AGENTS.md](../AGENTS.md)・[CLAUDE.md](../CLAUDE.md)・本書と個別の人間承認を確認する。共通規則・Risk Class・Code Review Rulesは[AGENTS.md](../AGENTS.md)、Maker手順・3周上限は[CLAUDE.md](../CLAUDE.md)に集約する。旧Notion Task Board・Agent Readyは新規開発の着手許可に使わない。
+現行の運用ルール（正本）は[Notion「現行運用ルール」](https://app.notion.com/p/406dfd36033681abbafce47bac685278)。以前の正本だったNotion計画（アーカイブ済み）は参照しない。実行時はこのrepoの最新[AGENTS.md](../AGENTS.md)・[CLAUDE.md](../CLAUDE.md)・本書と個別の人間承認を確認する。共通規則・Risk Class・Code Review Rulesは[AGENTS.md](../AGENTS.md)、Maker手順・3周上限は[CLAUDE.md](../CLAUDE.md)に集約する。Notion Task Board・Agent Readyは開発の着手許可に使わない。
 
 ## 役割と管理場所
 
@@ -10,9 +10,11 @@
 | 独立Claudeレビュー（読み取り専用サブエージェント） | 最終head SHAのコード・テスト・セキュリティ・区分を実装者と別コンテキストで確認。実装・直接修正・自己承認はしない | PRのレビュー記録（`claude-review:v1`） |
 | ChatGPT | アクセス解析・SEO/GEO・仮説・優先順位・効果測定 | Notion |
 | GitHub Actions | 決定論的Quality Gate | PRのcheck |
+| Claude Code（非開発タスク） | アクセス解析・SEO/GEO・コンテンツ・マーケティング・収益化・内部運用の進行管理 | Notion「✅ タスクボード」 |
 
 - 実装のAC・状態・承認・検証・レビュー・公開SHAはIssue/PRに集約する。Notionには分析・施策・効果と、実装Issue/PRへのリンクだけを置く。実装IssueとNotion施策は相互にリンクし、開発状態を二重管理しない。
-- 既存のNotionタスクは履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssueにする。
+- 非開発タスクの進行管理は、Notion「✅ タスクボード」（`1c5326b31f614d8c8f41b914afdaf152`）を正本とする（2026-11-02、Issue #562）。実装が必要になった時点でGitHub Issueを作って相互リンクし、以後の開発状態はIssue/PRだけで管理する。タスクボードの旧自動実装列は使わない。
+- タスクボード上の既存の開発系タスクは履歴として保持する。未実装分は、GitHubの既存Issue/PRと重複確認してからIssueにする。
 
 ## 通常フロー
 
