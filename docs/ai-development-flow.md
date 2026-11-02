@@ -18,7 +18,7 @@
 
 ## 通常フロー
 
-ChatGPT（Notionで分析・施策）→ GitHub Issue（AC・Risk Class）→ Claude Code（調査・計画・実装・テスト・Draft PR）→ GitHub Actions → 独立Claudeレビュー（最終headを別サブエージェントが読み取り専用で確認）→ findingがあればClaude Code修正（最大3周）→ CI → 新headの再レビュー → 区分に応じた承認（A不要・Bは計画承認済み・Cは対象別承認）→ Merge → Deploy・許可範囲の本番確認 → ChatGPT（効果測定）。
+Notion/GitHubで分析・施策 → GitHub Issue（AC・Risk Class・Bは計画）→ Claude Code（調査・計画・実装・テスト・PR。最初からReadyでよい）→ GitHub Actions → 独立Claudeレビュー（最終headを別サブエージェントが読み取り専用で確認）→ findingがあればClaude Code修正（最大3周）→ CI → 新headの再レビュー → 区分の確認（A・Bは人間承認不要、Cだけ対象別承認）→ Claude CodeがMerge（セルフMerge可）→ Deploy・本番確認 → 効果測定。
 
 新しいAgent framework、orchestrator、Test Engineer常設、LLM判定Workflowは使わない。モデル選択・worktreeの規則は[AGENTS.md](../AGENTS.md#モデル選択worktree)に従う。この文書で外部サービスのモデル設定・権限・スケジュールを変更するものではない。
 
@@ -32,7 +32,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 
 | state | 意味と次の一手 |
 | --- | --- |
-| `ready` | Draftで対象headの必須CIが成功。Ready化し、最終headを別サブエージェントのレビューに出す |
+| `ready` | Draftで対象headの必須CIが成功。Ready化し、最終headを別サブエージェントのレビューに出す（最初からReadyのPRは `wait-review` 以降から始まる） |
 | `sync-base` | headが最新baseより遅れている。通常mergeで取り込み、新headのCI・レビューを再照合 |
 | `wait-ci` / `wait-review` | 対象head向けのCI（rulesetの必須checkと連携app一致）/ 同一headの独立Claudeレビュー記録が未成立（未実施・取得不能=`unavailable`・旧SHA=`stale`・形式不正/矛盾=`unknown`）。技術待ち（修正周回に数えない）。レビュー記録が無い間は必ずここで止まり、無条件Mergeにしない |
 | `blocked` | CI失敗、競合、未解決指摘・thread、人間の変更要求、3周超過、未承認B/C、rules・bypass・thread・履歴を確認できない等。`retriable` が真なら取得を再試行 |
@@ -67,11 +67,11 @@ PR購読（`subscribe_pr_activity`）はCI・レビュー・merge等のイベン
 
 承認の3段階（A=R0/R1、B=R2/R3、C=R4）の定義は[AGENTS.md](../AGENTS.md#risk-class-と承認の3段階)に従う。A（R0/R1）は個別の人間確認なし、Bは計画の一度の承認、Cは具体的な対象・差分・影響の人間承認。Mergeまでの流れは次のとおり。
 
-- 実装者と別のClaudeサブエージェントが、コード・テスト・セキュリティを確認し、同じ最終headの実差分・AC・許可境界をA、承認済みB、今回承認済みCのいずれかに分類して `claude-review:v1` 記録としてPRに残す。「重大な指摘なし」だけでは分類確認にならない。分類が矛盾する場合は厳しい側に倒し、未承認の範囲だけを人間へ返す。
+- 実装者と別のClaudeサブエージェントが、コード・テスト・セキュリティを確認し、同じ最終headの実差分・AC・許可境界をA、B、今回承認済みCのいずれかに分類して `claude-review:v1` 記録としてPRに残す。「重大な指摘なし」だけでは分類確認にならない。分類が矛盾する場合は厳しい側に倒し、未承認の範囲だけを人間へ返す。
 - GitHub Actionsが客観的に検証する。
-- 操作主体（既存Claude Routine、またはClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド）が、[PRマージ条件](../AGENTS.md#prのマージ判断と実行)の全条件を照合してMergeする。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRだけ当該エージェントが操作できる。常設担当は増やさない。独立判断と、その後の条件照合つきMerge操作を分け、Makerの自己承認は許可しない。別の常設Merge専用Agentは作らない。
+- 操作主体（既存Claude Routine、Claudeが追加したRoutine、またはClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド）が、[PRマージ条件](../AGENTS.md#prのマージ判断と実行)の全条件を照合してMergeする。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRだけ当該エージェントが操作できる。独立判断（別サブエージェントのレビュー記録）と、その後の条件照合つきMerge操作を分ける。条件がそろえば、Maker自身がMergeしてよい（2026-11-02、Issue #562）。
 - 承認済みのB/Cは、区分名だけで再度人間に止めない。人間へ返すのは、未承認のB/C、ACや禁止範囲の変更、意味の判断が必要な競合、3周でblockingが解消しない場合、本人の認証が必要な場合だけ。R3の追加独立リスクレビューは維持する。
-- CI / レビューのRunning、一時的な取得失敗、利用上限は技術待ち。既存のPR購読等の実在する再開手段で続け、同じheadの連投・無限の再試行・未確認のMergeはしない。待ち状態の照合は修正3周に数えない。通常はDraftで作成し、CI成功後にReadyにして、最終headを別サブエージェントのレビューに出す（同じheadを重ねてレビューしない）。
+- CI / レビューのRunning、一時的な取得失敗、利用上限は技術待ち。既存のPR購読等の実在する再開手段で続け、同じheadの連投・無限の再試行・未確認のMergeはしない。待ち状態の照合は修正3周に数えない。PRは最初からReadyで作成してよく、CI成功後に最終headを別サブエージェントのレビューに出す（同じheadを重ねてレビューしない）。PR購読に加え、Routine・`/loop` を再開手段として追加してよい（同時5本まで）。
 - 完全な無人化は実測で確認できた範囲だけを報告する。
 
 これは2026-10-28のmarumoの承認に基づく運用で、今回承認された操作範囲（指定Claudeプロジェクトによる条件付きMerge操作を含む）を反映したもので、GitHubトークン・ruleset等の技術的権限、新スケジューラ・Workflow・サービス・課金は追加・変更しない。日次21時・週次月08:52の読み取り専用の棚卸しは、実装やMergeを担当するものへ拡張しない。

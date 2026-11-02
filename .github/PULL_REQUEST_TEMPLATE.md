@@ -2,7 +2,7 @@
 
 - 対応Issue（Closes / Refs #）:
 - Notion施策リンク（任意。分析・効果測定の参照元のみ）:
-- 区分 / Risk Class: A（R0/R1）/ B（R2/R3）/ C（R4）（判定理由。B/Cは承認原文または参照リンクと、承認された範囲）
+- 区分 / Risk Class: A（R0/R1）/ B（R2/R3）/ C（R4）（判定理由。Bは計画のリンク、Cは承認原文または参照リンクと、承認された範囲）
 - ACと検証の対応:
 
 ## 変更概要
@@ -30,7 +30,7 @@
 
 - 修正ループ: 0/3
 - 独立Claudeレビュー（実装者と別のサブエージェント。対象headの完全SHA・実行参照 `subagent:<ID>`・実装者参照 `makerRef`・round）:
-- 独立した区分確認（A / 承認済みB / 承認済みC、同一headの実差分・AC・許可境界）:
+- 独立した区分確認（A / B / 承認済みC、同一headの実差分・AC・許可境界）:
   - `claude-review:v1` 記録のコメントリンク（形式は docs/ai-development-flow.md。scopeはcode/tests/security/classificationすべて確認、unverifiedは空）:
 - finding / CI run → 分類 → 修正コミット → CI / 再レビュー結果:
 - 残っているblocking / 人間判断事項:
@@ -39,6 +39,6 @@
 
 - 外部サービスで必要な手動確認・設定（なければ「なし」）:
 
-<!-- CI成功・最新headの独立Claudeレビュー（実装者と別のサブエージェント）と区分（A / 承認済みB / 承認済みC）の確認が揃うまではMergeしない。
-Bは計画承認済みの範囲、Cは具体的な対象・差分・影響の承認を得た範囲のみ。承認がMerge/Deployを含むかは承認原文で確認する。
+<!-- CI成功・最新headの独立Claudeレビュー（実装者と別のサブエージェント）と区分（A / B / 承認済みC）の確認が揃うまではMergeしない。揃えば実装者自身がMergeしてよい。
+BはIssue/PRに計画がある範囲、Cは具体的な対象・差分・影響の承認を得た範囲のみ。承認がMerge/Deployを含むかは承認原文で確認する。
 運用規則: AGENTS.md / CLAUDE.md / docs/ai-development-flow.md -->
