@@ -97,4 +97,157 @@ test.describe('Text Diff', () => {
 		await expect(leftRows.nth(3)).toContainText('line3');
 		await expect(rightRows.nth(3)).toContainText('line3');
 	});
+
+	test('変更前・変更後の可視ラベルが各欄に関連付く', async ({ page }) => {
+		for (const viewport of [
+			{ width: 1280, height: 900 },
+			{ width: 390, height: 844 },
+		]) {
+			await page.setViewportSize(viewport);
+
+			const before = page.getByRole('textbox', {
+				name: 'テキストA（変更前）',
+				exact: true,
+			});
+			const after = page.getByRole('textbox', {
+				name: 'テキストB（変更後）',
+				exact: true,
+			});
+			await expect(before).toHaveId('text-diff-textarea-a');
+			await expect(after).toHaveId('text-diff-textarea-b');
+			await expect(before).toBeVisible();
+			await expect(after).toBeVisible();
+
+			const beforeBox = await before.boundingBox();
+			const afterBox = await after.boundingBox();
+			expect(beforeBox).not.toBeNull();
+			expect(afterBox).not.toBeNull();
+			if (beforeBox && afterBox) {
+				expect(beforeBox.height).toBeGreaterThan(100);
+				expect(afterBox.height).toBeGreaterThan(100);
+				if (viewport.width >= 640) {
+					expect(Math.abs(beforeBox.y - afterBox.y)).toBeLessThan(8);
+				} else {
+					expect(afterBox.y).toBeGreaterThan(beforeBox.y + beforeBox.height);
+				}
+			}
+
+			await page.locator('label[for="text-diff-textarea-a"]').click();
+			await expect(before).toBeFocused();
+			await page.keyboard.press('Tab');
+			await expect(after).toBeFocused();
+			await page.keyboard.press('Shift+Tab');
+			await expect(before).toBeFocused();
+			await before.pressSequentially('キーボード前');
+			await expect(before).toHaveValue('キーボード前');
+
+			await page.locator('label[for="text-diff-textarea-b"]').click();
+			await expect(after).toBeFocused();
+			await after.pressSequentially('キーボード後');
+			await expect(after).toHaveValue('キーボード後');
+
+			const clears = page.getByRole('button', { name: 'クリア', exact: true });
+			await clears.nth(0).click();
+			await clears.nth(1).click();
+			await expect(before).toHaveValue('');
+			await expect(after).toHaveValue('');
+			await expect(page.getByText('差分統計')).toHaveCount(0);
+		}
+	});
+
+	test('日本語差分・同一内容・空入力・クリア・モードとファイルdropを維持する', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		const before = page.locator('#text-diff-textarea-a');
+		const after = page.locator('#text-diff-textarea-b');
+
+		await expect(page.getByText('差分統計')).toHaveCount(0);
+
+		await before.fill('あいう');
+		await expect(page.getByText(/削除:\s*1行\s*\(4文字\)/)).toBeVisible();
+		await expect(page.getByText(/追加:\s*0行\s*\(0文字\)/)).toBeVisible();
+
+		await before.fill('りんご\nみかん');
+		await after.fill('りんご\nぶどう');
+		await expect(page.getByText(/追加:\s*1行\s*\(4文字\)/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*1行\s*\(4文字\)/)).toBeVisible();
+		await expect(page.getByText('差分結果')).toBeVisible();
+		await expect(page.getByText('- みかん')).toBeVisible();
+		await expect(page.getByText('+ ぶどう')).toBeVisible();
+
+		await before.fill('こんにちは');
+		await after.fill('こんにちは');
+		await expect(page.getByText(/追加:\s*0行\s*\(0文字\)/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*0行\s*\(0文字\)/)).toBeVisible();
+
+		await page.getByRole('tab', { name: '文字単位' }).click();
+		await before.fill('あいう');
+		await after.fill('あえう');
+		await expect(page.getByText(/追加:\s*1行\s*\(1文字\)/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*1行\s*\(1文字\)/)).toBeVisible();
+
+		await page.getByRole('tab', { name: '行単位' }).click();
+		await before.fill('りんご\nみかん');
+		await after.fill('りんご\nぶどう');
+		await page.getByRole('tab', { name: 'Unified' }).click();
+		await expect(page.getByText('- みかん')).toBeVisible();
+		await page.getByRole('tab', { name: 'Split' }).click();
+		await expect(page.getByText('- みかん')).toBeVisible();
+		await expect(page.getByText('+ ぶどう')).toBeVisible();
+
+		const clears = page.getByRole('button', { name: 'クリア', exact: true });
+		await clears.nth(0).click();
+		await expect(before).toHaveValue('');
+		await expect(after).toHaveValue('りんご\nぶどう');
+		await expect(page.getByText(/追加:\s*2行\s*\(8文字\)/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*0行\s*\(0文字\)/)).toBeVisible();
+		await clears.nth(1).click();
+		await expect(after).toHaveValue('');
+		await expect(page.getByText('差分統計')).toHaveCount(0);
+
+		await before.evaluate((el) => {
+			const transfer = new DataTransfer();
+			transfer.items.add(
+				new File(['ドロップ甲'], 'a.txt', { type: 'text/plain' }),
+			);
+			el.dispatchEvent(
+				new DragEvent('drop', {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer: transfer,
+				}),
+			);
+		});
+		await expect(before).toHaveValue('ドロップ甲');
+		await after.evaluate((el) => {
+			const transfer = new DataTransfer();
+			transfer.items.add(
+				new File(['ドロップ乙'], 'b.txt', { type: 'text/plain' }),
+			);
+			el.dispatchEvent(
+				new DragEvent('drop', {
+					bubbles: true,
+					cancelable: true,
+					dataTransfer: transfer,
+				}),
+			);
+		});
+		await expect(after).toHaveValue('ドロップ乙');
+		await expect(page.getByText(/追加:\s*1行/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*1行/)).toBeVisible();
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		await before.fill('猫');
+		await after.fill('犬');
+		await expect(before).toBeVisible();
+		await expect(after).toBeVisible();
+		await expect(page.getByText(/追加:\s*1行/)).toBeVisible();
+		await expect(page.getByText(/削除:\s*1行/)).toBeVisible();
+		await clears.nth(0).click();
+		await clears.nth(1).click();
+		await expect(before).toHaveValue('');
+		await expect(after).toHaveValue('');
+		await expect(page.getByText('差分統計')).toHaveCount(0);
+	});
 });

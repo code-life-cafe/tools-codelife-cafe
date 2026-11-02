@@ -153,7 +153,12 @@ export default function TextDiff() {
 			<div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
 				<div>
 					<div className="flex items-center justify-between mb-2">
-						<Label className="text-sm font-medium">テキストA（変更前）</Label>
+						<Label
+							htmlFor="text-diff-textarea-a"
+							className="text-sm font-medium"
+						>
+							テキストA（変更前）
+						</Label>
 						<Button
 							variant="outline"
 							size="sm"
@@ -188,7 +193,12 @@ export default function TextDiff() {
 				</div>
 				<div>
 					<div className="flex items-center justify-between mb-2">
-						<Label className="text-sm font-medium">テキストB（変更後）</Label>
+						<Label
+							htmlFor="text-diff-textarea-b"
+							className="text-sm font-medium"
+						>
+							テキストB（変更後）
+						</Label>
 						<Button
 							variant="outline"
 							size="sm"
