@@ -94,7 +94,9 @@ test.describe('YAML ⇔ JSON ⇔ TOML 変換ツール', () => {
 		await input.fill('id: 9007199254740993\n');
 		const error = page.getByTestId('yaml-json-toml-error');
 		await expect(error).toContainText('id');
-		await expect(output).toHaveValue('');
+		// 古いJSONは表示されず、コピーもできない
+		await expect(output).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /コピー/ })).toHaveCount(0);
 
 		await input.fill('id: "9007199254740993"\n');
 		await expect(output).toHaveValue('{\n  "id": "9007199254740993"\n}');

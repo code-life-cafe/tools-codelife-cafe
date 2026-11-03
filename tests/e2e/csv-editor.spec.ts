@@ -53,6 +53,52 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 		await expect(tbodyInputs.nth(0)).toHaveValue('田中');
 	});
 
+	test('引用符付きセル内の改行をテーブルで保持して編集できる（#570）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('csv-editor');
+		await toolPage.goto();
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						window.sessionStorage.setItem('lastCopy', text);
+					},
+				},
+			});
+		});
+
+		await page
+			.getByRole('textbox')
+			.first()
+			.fill('メモ,数量\n"一行目\n二行目, ""引用""",1\n単一行,2');
+		await page.getByRole('button', { name: 'パースして編集へ' }).click();
+
+		const cell = page.locator('table tbody textarea').first();
+		await expect(cell).toHaveValue('一行目\n二行目, "引用"');
+		await cell.click();
+		await page.keyboard.press('Control+End');
+		await page.keyboard.type('X');
+		await expect(cell).toHaveValue('一行目\n二行目, "引用"X');
+
+		// 改行を含まないセルは従来どおり1行入力
+		await expect(
+			page.locator('table tbody input[type="text"]').first(),
+		).toHaveValue('1');
+
+		await page.getByRole('button', { name: /^コピー$/ }).click();
+		const copied = await page.evaluate(() =>
+			window.sessionStorage.getItem('lastCopy'),
+		);
+		expect(copied).toContain('"一行目\n二行目, ""引用""X"');
+		expect(copied).toContain('単一行,2');
+
+		await page.getByRole('button', { name: '元に戻す (Undo)' }).click();
+		await expect(cell).toHaveValue('一行目\n二行目, "引用"');
+	});
+
 	test('should import TSV file correctly', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('csv-editor');
 		await toolPage.goto();
