@@ -79,6 +79,27 @@ test.describe('YAML ⇔ JSON ⇔ TOML 変換ツール', () => {
 		await expect(error).toContainText('YAML');
 	});
 
+	test('安全整数を超える整数はエラーにし、古いJSONを残さない（#567）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('yaml-json-toml');
+		await toolPage.goto();
+
+		const input = page.getByLabel('YAML入力');
+		const output = page.getByLabel('JSON出力');
+		await input.fill('id: 1\n');
+		await expect(output).toHaveValue('{\n  "id": 1\n}');
+
+		await input.fill('id: 9007199254740993\n');
+		const error = page.getByTestId('yaml-json-toml-error');
+		await expect(error).toContainText('id');
+		await expect(output).toHaveValue('');
+
+		await input.fill('id: "9007199254740993"\n');
+		await expect(output).toHaveValue('{\n  "id": "9007199254740993"\n}');
+	});
+
 	test('不正なTOMLで行番号付きエラーが表示されること', async ({
 		page,
 		createToolPage,

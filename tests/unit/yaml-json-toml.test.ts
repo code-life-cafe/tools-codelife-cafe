@@ -403,3 +403,46 @@ root: *e
 	const result = convertFormats('yaml', 'json', bomb, DEFAULT_OPTS);
 	assert.equal(result.ok, false);
 });
+
+test('YAMLの安全整数範囲外の整数は黙って丸めず、パス付きエラーにする（#567）', () => {
+	for (const to of ['json', 'yaml', 'toml'] as const) {
+		const result = convertFormats(
+			'yaml',
+			to,
+			'id: 9007199254740993\n',
+			DEFAULT_OPTS,
+		);
+		assert.equal(result.ok, false, to);
+		if (!result.ok) {
+			assert.match(result.error, /id/);
+			assert.match(result.error, /引用符/);
+		}
+	}
+	const nested = convertFormats(
+		'yaml',
+		'json',
+		'a:\n  list: [12, -9007199254740993]\n',
+		DEFAULT_OPTS,
+	);
+	assert.equal(nested.ok, false);
+	if (!nested.ok) assert.match(nested.error, /a\.list\[1\]/);
+});
+
+test('YAMLの整数: 境界値・引用済み文字列・浮動小数点表記は従来どおり変換する（#567）', () => {
+	const cases: [string, string][] = [
+		['id: 9007199254740991\n', '{"id":9007199254740991}'],
+		['id: -9007199254740991\n', '{"id":-9007199254740991}'],
+		// 2^53 は丸めが起きないため変換する
+		['id: 9007199254740992\n', '{"id":9007199254740992}'],
+		['id: "9007199254740993"\n', '{"id":"9007199254740993"}'],
+		['id: 1.0e+20\n', '{"id":100000000000000000000}'],
+	];
+	for (const [input, expected] of cases) {
+		const result = convertFormats('yaml', 'json', input, {
+			indent: 0,
+			sortKeys: false,
+		});
+		assert.equal(result.ok, true, input);
+		if (result.ok) assert.equal(result.output, expected, input);
+	}
+});
