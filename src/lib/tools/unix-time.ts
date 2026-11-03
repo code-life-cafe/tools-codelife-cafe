@@ -66,6 +66,13 @@ const PLAUSIBLE_YEAR_MAX = 2040;
 const ACCEPTABLE_YEAR_MIN = 1;
 const ACCEPTABLE_YEAR_MAX = 9999;
 
+/**
+ * Date で表せる最大のエポックミリ秒（±8.64e15）から、タイムゾーン換算の余裕として
+ * 1日分を引いた値。これを超える値は現地時刻・オフセットの計算で Date の範囲を外れ、
+ * Intl が RangeError を投げたりオフセットが NaN になったりするため、解釈不能として扱う。
+ */
+const MAX_FORMATTABLE_EPOCH_MS = 8_640_000_000_000_000n - 86_400_000n;
+
 /** 全角数字・全角記号を半角に正規化する */
 function toHalfWidth(input: string): string {
 	return input
@@ -84,8 +91,8 @@ function floorDivBigInt(a: bigint, b: bigint): bigint {
 function instantToYear(instantNanos: bigint): number | null {
 	const epochMs = floorDivBigInt(instantNanos, 1_000_000n);
 	if (
-		epochMs < BigInt(Number.MIN_SAFE_INTEGER) ||
-		epochMs > BigInt(Number.MAX_SAFE_INTEGER)
+		epochMs < -MAX_FORMATTABLE_EPOCH_MS ||
+		epochMs > MAX_FORMATTABLE_EPOCH_MS
 	) {
 		return null;
 	}
@@ -194,8 +201,12 @@ function detectFromDecimal(
 	const nanos = BigInt(fracNanos);
 	const instantNanos = (seconds * 1_000_000_000n + nanos) * BigInt(sign);
 
+	// Date/Intl で表示できない範囲外の値は、例外を起こさないよう解釈不能（空配列）にする。
+	const year = instantToYear(instantNanos);
+	if (year === null) return [];
+
 	const isSlackTs = intDigits.length === 10;
-	const confidence = confidenceForYear(instantToYear(instantNanos)) ?? 'low';
+	const confidence = confidenceForYear(year) ?? 'low';
 
 	return [
 		{
@@ -230,7 +241,9 @@ export function instantFromExplicitFormat(
 		const fracNanos = fracDigits.slice(0, 9).padEnd(9, '0');
 		const seconds = BigInt(intDigits);
 		const nanos = BigInt(fracNanos);
-		return (seconds * 1_000_000_000n + nanos) * BigInt(signPart ? -1 : 1);
+		const instantNanos =
+			(seconds * 1_000_000_000n + nanos) * BigInt(signPart ? -1 : 1);
+		return instantToYear(instantNanos) === null ? null : instantNanos;
 	}
 
 	const intMatch = normalized.match(INTEGER_PATTERN);
@@ -239,7 +252,8 @@ export function instantFromExplicitFormat(
 	const magnitude = BigInt(digits) * BigInt(signPart ? -1 : 1);
 	const def = FORMAT_BY_ID.get(format === 'slack-ts' ? 'unix-s' : format);
 	if (!def) return null;
-	return magnitude * def.nanosPerUnit;
+	const instantNanos = magnitude * def.nanosPerUnit;
+	return instantToYear(instantNanos) === null ? null : instantNanos;
 }
 
 /**
@@ -344,7 +358,10 @@ function getTimeZoneOffsetMinutes(timeZone: string, epochMs: number): number {
 		minute: '2-digit',
 		second: '2-digit',
 	});
-	const parts = dtf.formatToParts(new Date(epochMs));
+	// 壁時計の部品は秒までしか持たないため、比較対象も秒単位に切り捨てる
+	// （ミリ秒を残すと、オフセットに端数が出て「+08:59.99…」のように壊れる）。
+	const epochSecondMs = Math.floor(epochMs / 1000) * 1000;
+	const parts = dtf.formatToParts(new Date(epochSecondMs));
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
 	const asUtc = Date.UTC(
@@ -355,7 +372,7 @@ function getTimeZoneOffsetMinutes(timeZone: string, epochMs: number): number {
 		Number(map.minute),
 		Number(map.second),
 	);
-	return (asUtc - epochMs) / 60000;
+	return (asUtc - epochSecondMs) / 60000;
 }
 
 /** 指定タイムゾーンでの壁時計時刻をUTCエポックミリ秒に変換する（DST収束2回） */

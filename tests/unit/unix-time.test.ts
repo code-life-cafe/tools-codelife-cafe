@@ -272,3 +272,114 @@ test('isValidTimeZone: 有効・無効なタイムゾーン判定とformatTimest
 	const outputs = formatTimestamp(1783385779000000000n, 'Invalid/TimeZone');
 	assert.ok(outputs.isoLocal.includes('+09:00'));
 });
+
+// #586: ミリ秒を含む時刻でタイムゾーンオフセットが壊れる回帰
+test('ミリ秒を含む時刻でもISO/RFC3339のオフセットが正しい（#586）', () => {
+	const ms123 = 1_700_000_000_123n * 1_000_000n;
+	const tokyo = formatTimestamp(ms123, 'Asia/Tokyo');
+	assert.equal(tokyo.isoLocal, '2023-11-15T07:13:20.123+09:00');
+	assert.equal(tokyo.rfc3339, '2023-11-15T07:13:20.123+09:00');
+
+	const utc = formatTimestamp(ms123, 'UTC');
+	assert.equal(utc.isoUtc, '2023-11-14T22:13:20.123Z');
+	assert.equal(utc.rfc3339, '2023-11-14T22:13:20.123+00:00');
+
+	assert.equal(
+		formatTimestamp(ms123, 'America/New_York').rfc3339,
+		'2023-11-14T17:13:20.123-05:00',
+	);
+	assert.equal(
+		formatTimestamp(ms123, 'Asia/Kolkata').rfc3339,
+		'2023-11-15T03:43:20.123+05:30',
+	);
+	assert.equal(
+		formatTimestamp(ms123, 'Asia/Kathmandu').rfc3339,
+		'2023-11-15T03:58:20.123+05:45',
+	);
+	// 負のタイムスタンプ（1970年以前）でも端数でオフセットが崩れない
+	assert.equal(
+		formatTimestamp(-1_700_000_000_123n * 1_000_000n, 'Asia/Tokyo').rfc3339,
+		'1916-02-18T10:46:39.877+09:00',
+	);
+	// マイクロ秒・ナノ秒の端数でも同じ
+	assert.equal(
+		formatTimestamp(1_700_000_000_123_456_789n, 'Asia/Tokyo').rfc3339,
+		'2023-11-15T07:13:20.123456789+09:00',
+	);
+});
+
+test('秒未満の有無でオフセットが変わらない（#586）', () => {
+	for (const tz of ['Asia/Tokyo', 'America/New_York', 'Asia/Kathmandu']) {
+		const whole = formatTimestamp(1_700_000_000_000n * 1_000_000n, tz).rfc3339;
+		const frac = formatTimestamp(1_700_000_000_999n * 1_000_000n, tz).rfc3339;
+		assert.equal(whole.slice(-6), frac.slice(-6), tz);
+	}
+});
+
+test('一括変換でもミリ秒入力のUTC表記が正しい（#586）', () => {
+	const rows = convertBatch('1700000000123', 'Asia/Tokyo');
+	assert.equal(rows[0].ok, true);
+	assert.equal(rows[0].isoUtc, '2023-11-14T22:13:20.123Z');
+});
+
+// #587: 範囲外の小数タイムスタンプで例外が起き、UI全体が消える回帰
+test('範囲外の小数は例外にせず解釈不能（候補なし）にする（#587）', () => {
+	assert.deepEqual(detectTimestampCandidates('99999999999999999999.1'), []);
+	assert.deepEqual(detectTimestampCandidates('-99999999999999999999.1'), []);
+	assert.deepEqual(detectTimestampCandidates('8640000000000.5'), []);
+	assert.deepEqual(detectTimestampCandidates('-8640000000000.5'), []);
+});
+
+test('Dateで表示できる範囲内の小数・整数は従来どおり解釈する（#587）', () => {
+	const decimal = detectTimestampCandidates('1700000000.5');
+	assert.equal(decimal.length, 1);
+	assert.doesNotThrow(() => formatTimestamp(decimal[0].instantNanos, 'UTC'));
+
+	const negative = detectTimestampCandidates('-1700000000.5');
+	assert.equal(negative.length, 1);
+	assert.equal(
+		formatTimestamp(negative[0].instantNanos, 'UTC').unixSeconds,
+		'-1700000000.500',
+	);
+
+	// 境界の内側（約27万年先）は低確度として扱い、例外を起こさない
+	const nearMax = detectTimestampCandidates('8639999000000.5');
+	assert.equal(nearMax.length, 1);
+	assert.equal(nearMax[0].confidence, 'low');
+	assert.doesNotThrow(() =>
+		formatTimestamp(nearMax[0].instantNanos, 'Asia/Tokyo'),
+	);
+	assert.doesNotMatch(
+		formatTimestamp(nearMax[0].instantNanos, 'Asia/Tokyo').rfc3339,
+		/NaN/,
+	);
+
+	// どの単位でも表示できない巨大な整数は従来どおり候補なし
+	assert.deepEqual(detectTimestampCandidates('9'.repeat(30)), []);
+});
+
+test('一括変換で範囲外の行だけエラーにし、正常な行は残す（#587）', () => {
+	const rows = convertBatch(
+		'1700000000\n99999999999999999999.1\n2023-11-15T07:13:20+09:00',
+		'Asia/Tokyo',
+	);
+	assert.equal(rows.length, 3);
+	assert.equal(rows[0].ok, true);
+	assert.equal(rows[0].isoUtc, '2023-11-14T22:13:20Z');
+	assert.equal(rows[1].ok, false);
+	assert.equal(rows[1].error, '解釈できません');
+	assert.equal(rows[2].ok, true);
+	assert.equal(rows[2].unixSeconds, '1700000000');
+});
+
+test('WebMCP明示形式: Dateで表示できない範囲外の値はnullを返す（#587）', () => {
+	assert.equal(
+		instantFromExplicitFormat('99999999999999999999.1', 'unix-s'),
+		null,
+	);
+	assert.equal(
+		instantFromExplicitFormat('99999999999999999999', 'unix-ms'),
+		null,
+	);
+	assert.notEqual(instantFromExplicitFormat('1700000000123', 'unix-ms'), null);
+});
