@@ -36,7 +36,7 @@ const PATTERNS = {
 	),
 	zipcode: new RegExp(`(?<![0-9０-９])${D}{3}${H}${D}{4}(?![0-9０-９])`, 'g'),
 	card: new RegExp(
-		`(?<![0-9０-９])(?:${D}{4}[ ${H}]?){3}${D}{4}(?![0-9０-９])`,
+		`(?<![0-9０-９])(?:${D}{4}(?:[ 　]|${H})?){3}${D}{4}(?![0-9０-９])`,
 		'g',
 	),
 	mynumber: new RegExp(`(?<![0-9０-９])${D}{12}(?![0-9０-９])`, 'g'),
@@ -92,8 +92,45 @@ function replaceEmails(
 	return parts.join('') + text.slice(last);
 }
 
+interface Candidate {
+	start: number;
+	end: number;
+	type: MaskTarget;
+	replacement: string;
+}
+
+/**
+ * 重なった検出範囲の解決順。長い範囲を優先し、同じ長さなら機微度の高い種別を優先する。
+ * 検出は常に原文に対して行い、置換は範囲を確定してから1回だけ行う（検出順序に依存させない）。
+ */
+const TYPE_PRIORITY: MaskTarget[] = [
+	'mynumber',
+	'card',
+	'email',
+	'phone',
+	'zipcode',
+	'name',
+];
+
+function collectRegex(
+	text: string,
+	pattern: RegExp,
+	type: MaskTarget,
+	build: (match: string, groups: (string | undefined)[]) => string,
+	out: Candidate[],
+): void {
+	for (const m of text.matchAll(pattern)) {
+		const start = m.index ?? 0;
+		out.push({
+			start,
+			end: start + m[0].length,
+			type,
+			replacement: build(m[0], m.slice(1)),
+		});
+	}
+}
+
 export function maskText(text: string, options: MaskOptions): MaskResult {
-	let masked = text;
 	const counts: Record<MaskTarget, number> = {
 		email: 0,
 		phone: 0,
@@ -102,86 +139,97 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 		mynumber: 0,
 		name: 0,
 	};
-	const ranges: { start: number; end: number; type: MaskTarget }[] = [];
-
 	const { maskChar, strength } = options;
+	const candidates: Candidate[] = [];
 
 	if (options.targets.has('email')) {
-		masked = replaceEmails(masked, (match, local, domain, offset) => {
-			counts.email++;
-			ranges.push({ start: offset, end: offset + match.length, type: 'email' });
-			if (strength === 'full') return maskChar.repeat(match.length);
-			const mLocal =
-				local.charAt(0) + maskChar.repeat(Math.max(0, local.length - 1));
-			return `${mLocal}@${domain}`;
+		replaceEmails(text, (match, local, domain, offset) => {
+			let replacement: string;
+			if (strength === 'full') {
+				replacement = maskChar.repeat(match.length);
+			} else if (local.length <= 1) {
+				// 1文字のローカル部は先頭を残すと何も伏せられないため、その1文字も伏せる。
+				replacement = `${maskChar.repeat(local.length)}@${domain}`;
+			} else {
+				replacement = `${local.charAt(0)}${maskChar.repeat(local.length - 1)}@${domain}`;
+			}
+			candidates.push({
+				start: offset,
+				end: offset + match.length,
+				type: 'email',
+				replacement,
+			});
+			return match;
 		});
 	}
 
 	if (options.targets.has('card')) {
-		masked = masked.replace(PATTERNS.card, (match, offset) => {
-			counts.card++;
-			ranges.push({ start: offset, end: offset + match.length, type: 'card' });
-			if (strength === 'full') return maskChar.repeat(match.length);
-			const digits = match.replace(/[ -－]/g, '');
-			const last4 = digits.slice(-4);
-			return match.replace(/[0-9０-９]/g, () => maskChar).slice(0, -4) + last4;
-		});
+		collectRegex(
+			text,
+			PATTERNS.card,
+			'card',
+			(match) => {
+				if (strength === 'full') return maskChar.repeat(match.length);
+				// 末尾4桁だけを残し、それ以外の数字を伏せる（区切り文字は保持）。
+				const head = match.slice(0, -4).replace(/[0-9０-９]/g, maskChar);
+				return head + match.slice(-4);
+			},
+			candidates,
+		);
 	}
 
 	if (options.targets.has('phone')) {
-		masked = masked.replace(PATTERNS.phone, (match, offset) => {
-			counts.phone++;
-			ranges.push({ start: offset, end: offset + match.length, type: 'phone' });
-			if (strength === 'full') return maskChar.repeat(match.length);
-			const parts = match.split(/[-－]/);
-			if (parts.length === 3) {
-				const sep = match.includes('－') ? '－' : '-';
-				return `${parts[0]}${sep}${maskChar.repeat(parts[1].length)}${sep}${parts[2]}`;
-			}
-			return (
-				match.slice(0, 3) +
-				maskChar.repeat(Math.max(0, match.length - 7)) +
-				match.slice(-4)
-			);
-		});
+		collectRegex(
+			text,
+			PATTERNS.phone,
+			'phone',
+			(match) => {
+				if (strength === 'full') return maskChar.repeat(match.length);
+				const parts = match.split(/[-－]/);
+				if (parts.length === 3) {
+					const sep = match.includes('－') ? '－' : '-';
+					return `${parts[0]}${sep}${maskChar.repeat(parts[1].length)}${sep}${parts[2]}`;
+				}
+				return (
+					match.slice(0, 3) +
+					maskChar.repeat(Math.max(0, match.length - 7)) +
+					match.slice(-4)
+				);
+			},
+			candidates,
+		);
 	}
 
 	if (options.targets.has('zipcode')) {
-		masked = masked.replace(PATTERNS.zipcode, (match, offset) => {
-			counts.zipcode++;
-			ranges.push({
-				start: offset,
-				end: offset + match.length,
-				type: 'zipcode',
-			});
-			if (strength === 'full') return maskChar.repeat(match.length);
-			const sep = match.includes('－') ? '－' : '-';
-			return `${maskChar.repeat(3)}${sep}${maskChar.repeat(4)}`;
-		});
+		collectRegex(
+			text,
+			PATTERNS.zipcode,
+			'zipcode',
+			(match) => {
+				if (strength === 'full') return maskChar.repeat(match.length);
+				const sep = match.includes('－') ? '－' : '-';
+				return `${maskChar.repeat(3)}${sep}${maskChar.repeat(4)}`;
+			},
+			candidates,
+		);
 	}
 
 	if (options.targets.has('mynumber')) {
-		masked = masked.replace(PATTERNS.mynumber, (match, offset) => {
-			counts.mynumber++;
-			ranges.push({
-				start: offset,
-				end: offset + match.length,
-				type: 'mynumber',
-			});
-			return maskChar.repeat(match.length);
-		});
+		collectRegex(
+			text,
+			PATTERNS.mynumber,
+			'mynumber',
+			(match) => maskChar.repeat(match.length),
+			candidates,
+		);
 	}
 
 	if (options.targets.has('name')) {
-		masked = masked.replace(
+		collectRegex(
+			text,
 			PATTERNS.name,
-			(match, labeledName, surname, _givenName, offset) => {
-				counts.name++;
-				ranges.push({
-					start: offset,
-					end: offset + match.length,
-					type: 'name',
-				});
+			'name',
+			(match, [labeledName, surname]) => {
 				if (labeledName) {
 					const pfx = match.slice(0, match.indexOf(labeledName));
 					if (strength === 'full')
@@ -191,15 +239,64 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 						labeledName.charAt(0) +
 						maskChar.repeat(Math.max(0, labeledName.length - 1))
 					);
-				} else {
-					if (strength === 'full') return maskChar.repeat(match.length);
-					return (
-						surname.charAt(0) + maskChar.repeat(Math.max(0, match.length - 1))
-					);
 				}
+				if (strength === 'full') return maskChar.repeat(match.length);
+				return (
+					(surname ?? '').charAt(0) +
+					maskChar.repeat(Math.max(0, match.length - 1))
+				);
 			},
+			candidates,
 		);
 	}
 
-	return { maskedText: masked, counts, ranges };
+	// 重なりを解決する: 長い範囲 → 機微度の高い種別 → 先に現れた範囲 の順で採用する。
+	const ordered = [...candidates].sort(
+		(a, b) =>
+			b.end - b.start - (a.end - a.start) ||
+			TYPE_PRIORITY.indexOf(a.type) - TYPE_PRIORITY.indexOf(b.type) ||
+			a.start - b.start,
+	);
+	const accepted: Candidate[] = [];
+	for (const c of ordered) {
+		if (accepted.some((a) => c.start < a.end && a.start < c.end)) continue;
+		accepted.push(c);
+	}
+	accepted.sort((a, b) => a.start - b.start);
+
+	for (const c of accepted) counts[c.type]++;
+
+	// 置換はすべて文字数を保つため、位置ごとに「どれか1つの候補でも伏せた位置は伏せる」で合成する。
+	// 採用しなかった（重なった）候補が伏せる位置も残すことで、検出対象を増やしても
+	// 単独選択時より保護が弱くならない。件数・ハイライトは採用した範囲で数える。
+	// ただし、より機微度の高い採用範囲に完全に含まれる候補（例: 電話番号の一部に見える郵便番号）は
+	// その範囲の一部と解釈し、合成しない。
+	const rank = (t: MaskTarget) => TYPE_PRIORITY.indexOf(t);
+	const acceptedSet = new Set(accepted);
+	const chars = text.split('');
+	for (const c of candidates) {
+		if (
+			!acceptedSet.has(c) &&
+			accepted.some(
+				(a) =>
+					a.start <= c.start && c.end <= a.end && rank(a.type) < rank(c.type),
+			)
+		) {
+			continue;
+		}
+		for (let k = 0; k < c.replacement.length; k++) {
+			const at = c.start + k;
+			const r = c.replacement[k];
+			if (r === text[at]) continue;
+			// 伏字を最優先し、それ以外の変化（区切り文字の統一など）は未変更の位置にだけ適用する。
+			if (r === maskChar || chars[at] === text[at]) chars[at] = r;
+		}
+	}
+	const masked = chars.join('');
+
+	return {
+		maskedText: masked,
+		counts,
+		ranges: accepted.map(({ start, end, type }) => ({ start, end, type })),
+	};
 }

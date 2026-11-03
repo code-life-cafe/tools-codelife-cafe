@@ -1,8 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	decodeLegacyRegexSettingsParam,
+	decodeRegexShareFragment,
+	encodeRegexShareFragment,
 	execRegexSync,
 	MAX_MATCHES,
+	REGEX_PERSISTED_DEFAULTS,
+	sanitizeRegexTesterPersistedSettings,
 	sanitizeRegexTesterSettings,
 	toRegexErrorMessage,
 } from '../../src/lib/tools/regex-tester.ts';
@@ -159,4 +164,60 @@ test('toRegexErrorMessage: SyntaxError以外の予期しない例外も日本語
 		assert.match(message, JA_ERROR);
 		assert.doesNotMatch(message, /boom|secret|str\b/);
 	}
+});
+
+test('sanitizeRegexTesterPersistedSettings: パターン・置換文字列は保存対象に含めない', () => {
+	const result = sanitizeRegexTesterPersistedSettings(
+		{
+			pattern: '合成-秘密',
+			replacement: '合成',
+			flags: 'gi',
+			showReplace: true,
+		},
+		REGEX_PERSISTED_DEFAULTS,
+	);
+	assert.deepEqual(result, { flags: 'gi', showReplace: true });
+	assert.deepEqual(
+		sanitizeRegexTesterPersistedSettings(
+			{ flags: 'zz' },
+			REGEX_PERSISTED_DEFAULTS,
+		),
+		REGEX_PERSISTED_DEFAULTS,
+	);
+	assert.deepEqual(
+		sanitizeRegexTesterPersistedSettings(null, REGEX_PERSISTED_DEFAULTS),
+		REGEX_PERSISTED_DEFAULTS,
+	);
+});
+
+test('共有フラグメント: パターンと置換文字列を往復でき、不正値は採用しない', () => {
+	const inputs = { pattern: '[あ-ん]+#&=%', replacement: '$1 置換' };
+	const fragment = encodeRegexShareFragment(inputs);
+	assert.deepEqual(decodeRegexShareFragment(`#${fragment}`), inputs);
+	assert.deepEqual(decodeRegexShareFragment(fragment), inputs);
+	assert.equal(decodeRegexShareFragment(''), null);
+	assert.equal(decodeRegexShareFragment('#regex=%7Bbroken'), null);
+	assert.equal(
+		decodeRegexShareFragment(
+			`#${encodeRegexShareFragment({ pattern: 'a'.repeat(1001), replacement: '' })}`,
+		),
+		null,
+	);
+});
+
+test('旧形式の共有クエリ: パターン・置換文字列だけを読み出す', () => {
+	const encode = (value: unknown) =>
+		Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
+	assert.deepEqual(
+		decodeLegacyRegexSettingsParam(
+			encode({ pattern: '[A-Z]+', flags: 'gi', replacement: '置換' }),
+		),
+		{ pattern: '[A-Z]+', replacement: '置換' },
+	);
+	assert.equal(
+		decodeLegacyRegexSettingsParam(encode({ flags: 'g', showReplace: true })),
+		null,
+	);
+	assert.equal(decodeLegacyRegexSettingsParam(null), null);
+	assert.equal(decodeLegacyRegexSettingsParam('%%%'), null);
 });

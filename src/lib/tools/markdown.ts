@@ -3,6 +3,25 @@ import {
 	SVG_RESOURCE_ATTRIBUTES,
 } from './svg-resource-policy.ts';
 
+/**
+ * プレビュー描画時に外部取得を発生させうる属性。
+ * img の data:image src 以外はすべて除去する。
+ */
+const FETCHING_ATTRIBUTES = [
+	'src',
+	'srcset',
+	'poster',
+	'background',
+	'lowsrc',
+	'dynsrc',
+	'ping',
+	'action',
+	'formaction',
+	'data',
+	'codebase',
+	'manifest',
+] as const;
+
 /** 入力文字数の上限。超過時はレンダリングを行わずエラーメッセージを返す */
 export const MAX_INPUT_CHARS = 1_000_000;
 
@@ -28,7 +47,8 @@ export async function markdownToHtml(src: string): Promise<string> {
  * - marked（GFM有効: テーブル・タスクリスト・打ち消し線・自動リンク、breaksオフ）でHTML化
  * - DOMPurifyでサニタイズ（script・iframe・イベントハンドラ属性・javascript: URLを除去）
  * - リンクには target="_blank" + rel="noopener noreferrer" を付与
- * - 外部URLの画像は src を除去（外部リクエストを発生させない。data: URIのみ表示可）
+ * - 描画時に取得が走る属性（src・poster・background等）を除去（外部リクエストを発生させない。imgのdata: URIのみ表示可）
+ * - video・audio・track・link・meta・baseなど外部取得を伴う要素は除去
  *
  * DOMPurifyはブラウザのwindowを必要とするため、Node環境（unit test）では呼び出せない。
  * Node環境向けのテストは markdownToHtml / buildStandaloneHtml を直接対象にする。
@@ -53,12 +73,16 @@ export async function renderMarkdown(src: string): Promise<string> {
 		}
 		// 外部URLの画像はプレビュー描画時に外部リクエストが発生し、
 		// 「データを外部送信しない」保証に反するため src を除去する（data: URIのみ許可）
-		if (node.tagName === 'IMG') {
-			const src = node.getAttribute('src') ?? '';
-			if (!/^data:image\//i.test(src)) {
-				node.removeAttribute('src');
-			}
-			node.removeAttribute('srcset');
+		// 画像以外の要素の src（input type=image 等）や、poster・background など
+		// 描画時に取得が走る属性は要素の種類を問わず除去する（allowlist: data:画像のimg srcのみ）。
+		for (const attribute of FETCHING_ATTRIBUTES) {
+			if (!node.hasAttribute(attribute)) continue;
+			const value = node.getAttribute(attribute) ?? '';
+			const allowed =
+				attribute === 'src' &&
+				node.tagName === 'IMG' &&
+				/^data:image\//i.test(value.trim());
+			if (!allowed) node.removeAttribute(attribute);
 		}
 		if (node.namespaceURI === 'http://www.w3.org/2000/svg') {
 			const image = node.localName === 'image' || node.localName === 'feImage';
@@ -93,6 +117,12 @@ export async function renderMarkdown(src: string): Promise<string> {
 			'form',
 			'picture',
 			'source',
+			'video',
+			'audio',
+			'track',
+			'link',
+			'meta',
+			'base',
 		],
 		FORBID_ATTR: ['style'],
 		ALLOW_DATA_ATTR: false,

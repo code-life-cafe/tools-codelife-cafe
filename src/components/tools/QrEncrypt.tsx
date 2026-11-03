@@ -10,7 +10,7 @@ import {
 	QrCode as QrCodeIcon,
 	RotateCcw,
 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import CameraScanner from '@/components/qr-reader/CameraScanner';
 import ImageUploader from '@/components/qr-reader/ImageUploader';
@@ -183,13 +183,43 @@ function EncryptTab() {
 		};
 	}, [plaintext]);
 
+	// 本文・パスフレーズが変わったら、生成済み（または生成中）のQRを無効にする。
+	// 古い入力から作ったQRを保存・共有できないようにするため。
+	const generationRef = useRef(0);
+	const invalidateQr = useCallback(() => {
+		generationRef.current++;
+		setQrDataUrl('');
+		setQrSvg('');
+		setPayloadBytes(0);
+		setError(null);
+		setProcessing(false);
+		setZoomOpen(false);
+	}, []);
+	const handlePlaintextChange = useCallback(
+		(value: string) => {
+			setPlaintext(value);
+			invalidateQr();
+		},
+		[invalidateQr],
+	);
+	const handlePassphraseChange = useCallback(
+		(value: string) => {
+			setPassphrase(value);
+			invalidateQr();
+		},
+		[invalidateQr],
+	);
+
 	const handleGenerate = useCallback(async () => {
+		const generation = ++generationRef.current;
+		const isCurrent = () => generation === generationRef.current;
 		setError(null);
 		setQrDataUrl('');
 		setQrSvg('');
 		setProcessing(true);
 		try {
 			const result = await encryptToQrPayload(plaintext, passphrase);
+			if (!isCurrent()) return;
 			if (!result.ok) {
 				setError(ENCRYPT_ERROR_MESSAGES[result.reason]);
 				setPayloadBytes(result.payloadBytes ?? 0);
@@ -199,16 +229,18 @@ function EncryptTab() {
 				generateQRDataUrl(result.envelope, QR_OPTIONS),
 				generateQRSvg(result.envelope, QR_OPTIONS),
 			]);
+			if (!isCurrent()) return;
 			setQrDataUrl(dataUrl);
 			setQrSvg(svg);
 			setPayloadBytes(result.payloadBytes);
 			trackRun();
 		} catch {
+			if (!isCurrent()) return;
 			setError(
 				'QRコードの生成に失敗しました。時間をおいて再度お試しください。',
 			);
 		} finally {
-			setProcessing(false);
+			if (isCurrent()) setProcessing(false);
 		}
 	}, [plaintext, passphrase, trackRun]);
 
@@ -236,7 +268,7 @@ function EncryptTab() {
 					</div>
 					<Textarea
 						value={plaintext}
-						onChange={(e) => setPlaintext(e.target.value)}
+						onChange={(e) => handlePlaintextChange(e.target.value)}
 						placeholder="QRコードにして共有したい秘密のメッセージを入力してください"
 						className="min-h-[160px] rounded-xl focus:ring-2 focus:ring-primary"
 					/>
@@ -246,7 +278,7 @@ function EncryptTab() {
 					id="qr-encrypt-passphrase"
 					label="パスフレーズ"
 					value={passphrase}
-					onChange={setPassphrase}
+					onChange={handlePassphraseChange}
 					showStrength
 				/>
 

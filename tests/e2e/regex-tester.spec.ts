@@ -8,6 +8,150 @@ test.describe('Regex Tester Tool', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
+	test('パターン・置換文字列は既定で保存・共有せず、明示した場合だけURLの#以降で共有する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('regex-tester');
+		await toolPage.goto();
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						window.sessionStorage.setItem('lastShareUrl', text);
+					},
+				},
+			});
+		});
+
+		const secretPattern = '合成秘密[0-9]+';
+		const secretReplacement = '合成置換値';
+		await page.locator('input').first().fill(secretPattern);
+		await page.getByLabel('置換モードを有効にする').click();
+		await page
+			.getByPlaceholder('***-**** または $1 など')
+			.fill(secretReplacement);
+
+		// localStorage にはフラグ等だけが保存され、パターン・置換文字列は残らない
+		await expect
+			.poll(() =>
+				page.evaluate(() => localStorage.getItem('tool_settings_regex-tester')),
+			)
+			.toContain('"showReplace":true');
+		const stored = await page.evaluate(
+			() => localStorage.getItem('tool_settings_regex-tester') ?? '',
+		);
+		expect(stored).not.toContain('合成');
+
+		const share = page.getByRole('button', { name: /設定を共有/ });
+		const lastShareUrl = () =>
+			page.evaluate(() => window.sessionStorage.getItem('lastShareUrl') ?? '');
+
+		// 既定（チェックなし）ではパターンも置換文字列も共有URLに入らない
+		await share.click();
+		const plainUrl = new URL(await lastShareUrl());
+		expect(plainUrl.hash).toBe('');
+		expect(decodeURIComponent(plainUrl.href)).not.toContain('合成');
+		const query = Buffer.from(
+			plainUrl.searchParams.get('settings') ?? '',
+			'base64',
+		).toString('utf8');
+		expect(query).not.toContain('合成');
+
+		// 明示的に含めた場合は、サーバーに送られないフラグメントだけに入る
+		await page.getByLabel('共有URLにパターンと置換文字列を含める').click();
+		await expect(page.locator('#regex-share-include-note')).toContainText(
+			'URLを知る人は誰でも',
+		);
+		await page.waitForTimeout(2100);
+		await share.click();
+		const fullUrl = new URL(await lastShareUrl());
+		expect(fullUrl.search).not.toContain('pattern');
+		expect(
+			Buffer.from(
+				fullUrl.searchParams.get('settings') ?? '',
+				'base64',
+			).toString('utf8'),
+		).not.toContain('合成');
+		expect(decodeURIComponent(fullUrl.hash)).toContain(secretPattern);
+
+		// 共有URLを開くとパターン・置換文字列が復元され、アドレスバーからは消える
+		const serverRequests: string[] = [];
+		page.on('request', (request) => {
+			if (request.url().includes('regex-tester'))
+				serverRequests.push(request.url());
+		});
+		await page.evaluate(() => localStorage.clear());
+		await page.goto(`${fullUrl.pathname}${fullUrl.search}${fullUrl.hash}`);
+		await expect(page.locator('input').first()).toHaveValue(secretPattern);
+		await expect(page.getByPlaceholder('***-**** または $1 など')).toHaveValue(
+			secretReplacement,
+		);
+		await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('');
+		expect(page.url()).not.toContain('settings=');
+		for (const url of serverRequests) {
+			expect(decodeURIComponent(url)).not.toContain('合成');
+		}
+	});
+
+	test('旧形式の保存値（パターン・置換文字列を含む）は読み込まず、フラグ等だけで上書きする', async ({
+		page,
+	}) => {
+		await page.addInitScript(() => {
+			if (sessionStorage.getItem('seeded')) return;
+			sessionStorage.setItem('seeded', '1');
+			localStorage.setItem(
+				'tool_settings_regex-tester',
+				JSON.stringify({
+					pattern: '合成旧パターン',
+					flags: 'gi',
+					showReplace: true,
+					replacement: '合成旧置換',
+				}),
+			);
+		});
+		await page.goto('/regex-tester');
+		await expect(page.locator('input').first()).toHaveValue('\\d{3}-\\d{4}');
+		await expect(page.getByPlaceholder('***-**** または $1 など')).toHaveValue(
+			'',
+		);
+		await expect
+			.poll(async () =>
+				JSON.parse(
+					(await page.evaluate(() =>
+						localStorage.getItem('tool_settings_regex-tester'),
+					)) ?? '{}',
+				),
+			)
+			.toEqual({ flags: 'gi', showReplace: true });
+	});
+
+	test('旧形式の共有URL（クエリにパターンを含む）も復元し、アドレスバーから消す', async ({
+		page,
+	}) => {
+		const legacy = Buffer.from(
+			JSON.stringify({
+				pattern: '[A-Z]+',
+				flags: 'gi',
+				showReplace: true,
+				replacement: '置換',
+			}),
+			'utf8',
+		).toString('base64');
+		await page.goto(`/regex-tester?settings=${encodeURIComponent(legacy)}`);
+		await expect(page.locator('input').first()).toHaveValue('[A-Z]+');
+		await expect(page.getByPlaceholder('***-**** または $1 など')).toHaveValue(
+			'置換',
+		);
+		await expect.poll(() => page.url()).not.toContain('settings=');
+		const stored = await page.evaluate(
+			() => localStorage.getItem('tool_settings_regex-tester') ?? '',
+		);
+		expect(stored).not.toContain('[A-Z]+');
+		expect(stored).toContain('"flags":"gi"');
+	});
+
 	test('should display regex matches and handle pattern changes', async ({
 		page,
 		createToolPage,
