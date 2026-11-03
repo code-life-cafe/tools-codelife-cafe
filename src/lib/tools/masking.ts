@@ -264,14 +264,35 @@ export function maskText(text: string, options: MaskOptions): MaskResult {
 	}
 	accepted.sort((a, b) => a.start - b.start);
 
-	let masked = '';
-	let last = 0;
-	for (const c of accepted) {
-		masked += text.slice(last, c.start) + c.replacement;
-		last = c.end;
-		counts[c.type]++;
+	for (const c of accepted) counts[c.type]++;
+
+	// 置換はすべて文字数を保つため、位置ごとに「どれか1つの候補でも伏せた位置は伏せる」で合成する。
+	// 採用しなかった（重なった）候補が伏せる位置も残すことで、検出対象を増やしても
+	// 単独選択時より保護が弱くならない。件数・ハイライトは採用した範囲で数える。
+	// ただし、より機微度の高い採用範囲に完全に含まれる候補（例: 電話番号の一部に見える郵便番号）は
+	// その範囲の一部と解釈し、合成しない。
+	const rank = (t: MaskTarget) => TYPE_PRIORITY.indexOf(t);
+	const acceptedSet = new Set(accepted);
+	const chars = text.split('');
+	for (const c of candidates) {
+		if (
+			!acceptedSet.has(c) &&
+			accepted.some(
+				(a) =>
+					a.start <= c.start && c.end <= a.end && rank(a.type) < rank(c.type),
+			)
+		) {
+			continue;
+		}
+		for (let k = 0; k < c.replacement.length; k++) {
+			const at = c.start + k;
+			const r = c.replacement[k];
+			if (r === text[at]) continue;
+			// 伏字を最優先し、それ以外の変化（区切り文字の統一など）は未変更の位置にだけ適用する。
+			if (r === maskChar || chars[at] === text[at]) chars[at] = r;
+		}
 	}
-	masked += text.slice(last);
+	const masked = chars.join('');
 
 	return {
 		maskedText: masked,

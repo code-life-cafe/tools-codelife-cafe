@@ -114,6 +114,14 @@ test.describe('ツール設定共有URL', () => {
 					}, tool.slug);
 				})
 				.toMatchObject('stored' in tool ? tool.stored : tool.settings);
+			if ('stored' in tool) {
+				// 保存してよい設定以外（パターン・置換文字列）が残っていないことを厳密に確認する
+				const stored = await page.evaluate(
+					(slug) => localStorage.getItem(`tool_settings_${slug}`),
+					tool.slug,
+				);
+				expect(JSON.parse(stored ?? '{}')).toEqual(tool.stored);
+			}
 		});
 	}
 

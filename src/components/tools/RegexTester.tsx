@@ -78,10 +78,10 @@ export default function RegexTester() {
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
-		if (params.has('settings') || window.location.hash) {
+		if (params.has('settings') || initialShared) {
 			trackSharedUrlOpen();
 		}
-	}, [trackSharedUrlOpen]);
+	}, [trackSharedUrlOpen, initialShared]);
 
 	// 読み込んだパターン・置換文字列をアドレスバーと履歴に残さない
 	// （フラグ等の設定は復元済みで、localStorageにも保存されている）。
@@ -274,7 +274,7 @@ export default function RegexTester() {
 									id="regex-share-include-note"
 									className="text-xs text-muted-foreground"
 								>
-									オフのときはフラグと置換モードだけを共有し、パターンと置換文字列はこの端末にも保存しません。オンにすると、URLを知る人は誰でもパターンと置換文字列を読めます。個人情報や社外秘の文字列を含めないでください（URLの「#」以降に入れるため、サーバーには送信されません）。
+									オフのときはフラグと置換モードだけを共有し、パターンと置換文字列はこの端末にも保存しません。オンにすると、URLを知る人は誰でもパターンと置換文字列を読めます。個人情報や社外秘の文字列を含めないでください。パターンと置換文字列はURLの「#」以降に入れ、ページを開くときの通信には含めません。読み込み後はアドレスバーからも消します。
 								</p>
 							</div>
 						</div>

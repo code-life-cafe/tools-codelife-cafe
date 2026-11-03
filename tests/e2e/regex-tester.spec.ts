@@ -95,6 +95,38 @@ test.describe('Regex Tester Tool', () => {
 		}
 	});
 
+	test('旧形式の保存値（パターン・置換文字列を含む）は読み込まず、フラグ等だけで上書きする', async ({
+		page,
+	}) => {
+		await page.addInitScript(() => {
+			if (sessionStorage.getItem('seeded')) return;
+			sessionStorage.setItem('seeded', '1');
+			localStorage.setItem(
+				'tool_settings_regex-tester',
+				JSON.stringify({
+					pattern: '合成旧パターン',
+					flags: 'gi',
+					showReplace: true,
+					replacement: '合成旧置換',
+				}),
+			);
+		});
+		await page.goto('/regex-tester');
+		await expect(page.locator('input').first()).toHaveValue('\\d{3}-\\d{4}');
+		await expect(page.getByPlaceholder('***-**** または $1 など')).toHaveValue(
+			'',
+		);
+		await expect
+			.poll(async () =>
+				JSON.parse(
+					(await page.evaluate(() =>
+						localStorage.getItem('tool_settings_regex-tester'),
+					)) ?? '{}',
+				),
+			)
+			.toEqual({ flags: 'gi', showReplace: true });
+	});
+
 	test('旧形式の共有URL（クエリにパターンを含む）も復元し、アドレスバーから消す', async ({
 		page,
 	}) => {

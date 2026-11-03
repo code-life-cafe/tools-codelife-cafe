@@ -421,3 +421,58 @@ test('maskText: 1文字のメールローカル部もpartialで伏せる', () =>
 		'*************',
 	);
 });
+
+test('maskText: 範囲が重なる入力でも、どの組み合わせでもマイナンバー・カード番号・メールを単独選択時より弱く伏せない', () => {
+	const texts = [
+		// メールのローカル部に12桁の数字列が入る
+		'連絡先 101234567890@example.com まで',
+		// 電話番号の直後に数字が続く・数字列が隣接する
+		'090-1234-56789 と 0312345678901234',
+		// 郵便番号・電話・カード・マイナンバーが接する
+		'100-0001 4111-1111-1111-1111 101234567890 田中太郎',
+		'氏名: 佐藤花子 a@example.com 0９0-1234-5678',
+	];
+	for (const text of texts) {
+		for (const strength of ['partial', 'full'] as const) {
+			const alone = new Map(
+				ALL_TARGETS.map((t) => [
+					t,
+					maskText(text, {
+						targets: new Set([t]),
+						maskChar: '*',
+						strength,
+					}).maskedText,
+				]),
+			);
+			for (const targets of targetCombinations()) {
+				const result = maskText(text, { targets, maskChar: '*', strength });
+				assert.strictEqual(result.maskedText.length, text.length);
+				for (const t of targets) {
+					// 郵便番号・電話番号・氏名は、より機微度の高い種別の一部と解釈される場合があるため対象外
+					if (!['mynumber', 'card', 'email'].includes(t)) continue;
+					const single = alone.get(t) ?? '';
+					for (let k = 0; k < text.length; k++) {
+						if (single[k] === '*' && text[k] !== '*') {
+							assert.strictEqual(
+								result.maskedText[k],
+								'*',
+								`${strength}: ${[...targets].join(',')} / ${t} / ${k} / ${text}`,
+							);
+						}
+					}
+				}
+			}
+		}
+	}
+});
+
+test('maskText: 電話番号の一部に見える郵便番号は電話番号として扱い、partialの先頭・末尾を残す', () => {
+	const result = maskText('090-1234-5678', {
+		targets: new Set(['phone', 'zipcode'] as const),
+		maskChar: '●',
+		strength: 'partial',
+	});
+	assert.strictEqual(result.maskedText, '090-●●●●-5678');
+	assert.strictEqual(result.counts.phone, 1);
+	assert.strictEqual(result.counts.zipcode, 0);
+});
