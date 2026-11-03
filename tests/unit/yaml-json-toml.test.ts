@@ -446,3 +446,35 @@ test('YAMLの整数: 境界値・引用済み文字列・浮動小数点表記�
 		if (result.ok) assert.equal(result.output, expected, input);
 	}
 });
+
+test('YAMLの整数: 数値にすると無限大になる桁数でも例外を出さず、値を変えずに変換する（#567）', () => {
+	const digits = '9'.repeat(400);
+	const result = convertFormats('yaml', 'json', `big: ${digits}\n`, {
+		indent: 0,
+		sortKeys: false,
+	});
+	assert.equal(result.ok, true);
+	if (result.ok) assert.equal(result.output, `{"big":"${digits}"}`);
+});
+
+test('YAMLの整数: 引用符の文字列・コメント内の長い数字では誤検出しない（#567）', () => {
+	const cases: [string, string][] = [
+		[
+			'a: "9007199254740993"\nb: 9007199254740992\n',
+			'{"a":"9007199254740993","b":9007199254740992}',
+		],
+		[
+			"a: 'x 9007199254740993'\nb: 9007199254740992\n",
+			'{"a":"x 9007199254740993","b":9007199254740992}',
+		],
+		['b: 9007199254740992 # 9007199254740993\n', '{"b":9007199254740992}'],
+	];
+	for (const [input, expected] of cases) {
+		const result = convertFormats('yaml', 'json', input, {
+			indent: 0,
+			sortKeys: false,
+		});
+		assert.equal(result.ok, true, input);
+		if (result.ok) assert.equal(result.output, expected, input);
+	}
+});

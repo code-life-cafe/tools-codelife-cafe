@@ -248,3 +248,43 @@ test('compactSql: 方言ごとの引用（ドル引用・バックスラッシ�
 	assert.equal(compactSql('  SELECT\t1\n\n', 'sql'), 'SELECT 1');
 	assert.equal(compactSql("SELECT 'open", 'sql'), "SELECT 'open");
 });
+
+test('compactSql: MySQLの「#」行コメントを除去し、空白のない「--」は演算子として残す', () => {
+	assert.equal(
+		compactSql('SELECT 1 # コメント\nFROM t', 'mysql'),
+		'SELECT 1 FROM t',
+	);
+	assert.equal(compactSql('SELECT 5--1 FROM t', 'mysql'), 'SELECT 5--1 FROM t');
+	assert.equal(compactSql('SELECT 1 -- c\nFROM t', 'mysql'), 'SELECT 1 FROM t');
+	assert.equal(compactSql('SELECT 1 --', 'mysql'), 'SELECT 1');
+	// MySQL以外では「#」はコメントではない
+	assert.equal(compactSql('SELECT a #b', 'postgresql'), 'SELECT a #b');
+});
+
+test('compactSql: PostgreSQLのE文字列とPL/SQLのq引用の中身を保持する', () => {
+	assert.equal(
+		compactSql("SELECT E'a\\'  b' -- c\nFROM t", 'postgresql'),
+		"SELECT E'a\\'  b' FROM t",
+	);
+	assert.equal(
+		compactSql("SELECT q'[it's  -- x]' FROM dual", 'plsql'),
+		"SELECT q'[it's  -- x]' FROM dual",
+	);
+	assert.equal(
+		compactSql("SELECT Q'!a  b!' FROM dual", 'plsql'),
+		"SELECT Q'!a  b!' FROM dual",
+	);
+});
+
+test('compactSql: CRのみの改行でも行コメントの後のSQLを残す', () => {
+	assert.equal(compactSql('SELECT 1 -- c\rFROM t', 'sql'), 'SELECT 1 FROM t');
+});
+
+test('formatSql: 大文字化+圧縮で整形に失敗しても文字列リテラルを保持する', () => {
+	const result = formatSql(
+		"select 'a  -- b' from (",
+		formatOpts({ compress: true, uppercase: true }),
+	);
+	assert.ok(result.output.includes("'a  -- b'"), result.output);
+	assert.ok(!result.output.includes('\n'), result.output);
+});

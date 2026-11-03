@@ -120,6 +120,10 @@ export default function CsvEditor() {
 	// Undo stack for row/cell edits only
 	const [undoStack, setUndoStack] = useState<string[][][]>([]);
 	const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+	// 改行を全部消しても、編集中のセルは textarea のまま保つ（入力欄の切替でフォーカスを失わないため）
+	const [multilineEditingCell, setMultilineEditingCell] = useState<
+		string | null
+	>(null);
 	const clearButtonRef = useRef<HTMLButtonElement>(null);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -804,8 +808,16 @@ export default function CsvEditor() {
 															className="border p-0 min-w-[140px]"
 														>
 															{/* input[type=text] は改行を除去するため、セル内改行を含む値は textarea で編集する（#570） */}
-															{/[\r\n]/.test(rowData[cIdx] ?? '') ? (
+															{/[\r\n]/.test(rowData[cIdx] ?? '') ||
+															multilineEditingCell ===
+																`${origRowIdx}:${cIdx}` ? (
 																<textarea
+																	onFocus={() =>
+																		setMultilineEditingCell(
+																			`${origRowIdx}:${cIdx}`,
+																		)
+																	}
+																	onBlur={() => setMultilineEditingCell(null)}
 																	value={rowData[cIdx] ?? ''}
 																	rows={Math.min(
 																		6,

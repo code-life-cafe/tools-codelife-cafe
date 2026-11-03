@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from './fixtures/base';
@@ -97,6 +98,66 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 
 		await page.getByRole('button', { name: '元に戻す (Undo)' }).click();
 		await expect(cell).toHaveValue('一行目\n二行目, "引用"');
+	});
+
+	test('セル内改行: 改行をすべて消しても編集中はフォーカスを保ち、他セル編集・JSON保存・CRLFを保持する（#570）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('csv-editor');
+		await toolPage.goto();
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						window.sessionStorage.setItem('lastCopy', text);
+					},
+				},
+			});
+		});
+
+		// textarea経由ではCRLFがLFに正規化されるため、CRLFを含むCSVはファイルで読み込む
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'memo.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from(
+				'メモ,備考,数量\r\n"一行目\n二行目","A\r\nB",1',
+				'utf-8',
+			),
+		});
+		await expect(page.getByRole('tab', { name: /テーブル/ })).toHaveAttribute(
+			'data-state',
+			'active',
+		);
+
+		// 改行をすべて消しても、編集中のセルはフォーカスを失わずに入力を続けられる
+		const cell = page.locator('table tbody textarea').first();
+		await cell.click();
+		await page.keyboard.press('ControlOrMeta+A');
+		await page.keyboard.type('XY');
+		await expect(page.locator('table tbody textarea').first()).toBeFocused();
+		await expect(page.locator('table tbody textarea').first()).toHaveValue(
+			'XY',
+		);
+
+		// 他のセル（1行入力）を編集する
+		await page.locator('table tbody input[type="text"]').first().fill('2');
+
+		// 編集していないCRLFのセルはそのまま書き出される
+		await page.getByRole('button', { name: /^コピー$/ }).click();
+		const copied = await page.evaluate(() =>
+			window.sessionStorage.getItem('lastCopy'),
+		);
+		expect(copied).toContain('"A\r\nB"');
+		expect(copied).toContain('XY');
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'JSONを保存' }).click();
+		const download = await downloadPromise;
+		const filePath = await download.path();
+		const json = JSON.parse(await readFile(filePath, 'utf-8'));
+		expect(json).toEqual([{ メモ: 'XY', 備考: 'A\r\nB', 数量: '2' }]);
 	});
 
 	test('should import TSV file correctly', async ({ page, createToolPage }) => {
