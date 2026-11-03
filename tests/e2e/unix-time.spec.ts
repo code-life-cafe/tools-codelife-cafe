@@ -102,6 +102,51 @@ test.describe('UNIXタイムスタンプ⇔日時変換ツール', () => {
 		await expect(page.getByText('解釈できません')).toBeVisible();
 	});
 
+	test('ミリ秒を含むタイムスタンプでもタイムゾーンオフセットが正しいこと（#586）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('unix-time');
+		await toolPage.goto();
+
+		// 既定のタイムゾーンは Asia/Tokyo
+		await page.getByLabel('タイムスタンプまたは日時').fill('1700000000123');
+
+		const result = page.getByTestId('unix-time-result');
+		await expect(result).toContainText('2023-11-15T07:13:20.123+09:00');
+		await expect(result).not.toContainText('+08:59');
+	});
+
+	test('範囲外の小数を入力してもUIが消えず、正常な値で復帰できること（#587）', async ({
+		page,
+		createToolPage,
+	}) => {
+		const errors: string[] = [];
+		page.on('pageerror', (error) => errors.push(error.message));
+
+		const toolPage = createToolPage('unix-time');
+		await toolPage.goto();
+
+		const input = page.getByLabel('タイムスタンプまたは日時');
+		await input.fill('99999999999999999999.1');
+		await expect(page.getByText('解釈できません')).toBeVisible();
+		await expect(input).toBeVisible();
+
+		await input.fill('1783385779');
+		await expect(page.getByTestId('unix-time-result')).toBeVisible();
+		await expect(page.getByText('解釈できません')).toHaveCount(0);
+
+		await page.getByRole('tab', { name: '一括変換' }).click();
+		await page
+			.getByLabel('一括入力（1行1値）')
+			.fill('1783385779\n99999999999999999999.1');
+		const table = page.getByTestId('unix-time-batch-result');
+		await expect(table.locator('tbody tr')).toHaveCount(2);
+		await expect(table.getByText('エラー')).toBeVisible();
+
+		expect(errors).toEqual([]);
+	});
+
 	test('現在時刻ボタンで入力欄に値が入り結果が表示されること', async ({
 		page,
 		createToolPage,
