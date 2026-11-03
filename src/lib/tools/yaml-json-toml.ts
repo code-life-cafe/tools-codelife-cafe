@@ -101,6 +101,115 @@ function findNullPaths(value: unknown, prefix = ''): string[] {
 	return [];
 }
 
+const YAML_INT_TOKEN =
+	/(?<![\w.])[-+]?(?:0x[0-9a-fA-F_]+|0o[0-7_]+|0b[01_]+|\d[\d_]*)(?![\w.])/g;
+
+function yamlIntTokenToBigInt(token: string): bigint | null {
+	const negative = token.startsWith('-');
+	const body = token.replace(/^[-+]/, '').replace(/_/g, '');
+	try {
+		const value = BigInt(body);
+		return negative ? -value : value;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * 引用符で囲んだ文字列とコメントを空白に置き換える（数値の字句を探す前処理）。
+ * 引用符は行頭・空白・[ { , の直後だけを開始とみなし、it's のような通常の文字列内の
+ * アポストロフィは対象にしない。
+ */
+function stripYamlStringsAndComments(text: string): string {
+	let out = '';
+	let i = 0;
+	const n = text.length;
+	while (i < n) {
+		const ch = text[i];
+		const prev = i === 0 ? undefined : text[i - 1];
+		const atBoundary = prev === undefined || /[\s[{,]/.test(prev);
+		if (ch === '#' && (prev === undefined || /\s/.test(prev))) {
+			let j = i;
+			while (j < n && text[j] !== '\n' && text[j] !== '\r') j++;
+			out += ' '.repeat(j - i);
+			i = j;
+			continue;
+		}
+		if ((ch === '"' || ch === "'") && atBoundary) {
+			let j = i + 1;
+			while (j < n) {
+				if (ch === '"' && text[j] === '\\') {
+					j += 2;
+					continue;
+				}
+				if (text[j] === ch) {
+					if (ch === "'" && text[j + 1] === "'") {
+						j += 2;
+						continue;
+					}
+					j++;
+					break;
+				}
+				j++;
+			}
+			j = Math.min(j, n);
+			out += ' '.repeat(j - i);
+			i = j;
+			continue;
+		}
+		out += ch;
+		i++;
+	}
+	return out;
+}
+
+/**
+ * YAMLの整数リテラルのうち、JavaScriptの数値に変換した時点で値が変わったもの（安全整数の範囲外で
+ * 丸められたもの）のパスを返す。浮動小数点の表記（1.0e+20 など）や、丸めの起きない値は対象外。
+ */
+export function findLossyYamlIntegerPaths(
+	value: unknown,
+	text: string,
+	limit = 5,
+): string[] {
+	const rounded = new Map<number, boolean>();
+	for (const match of stripYamlStringsAndComments(text).matchAll(
+		YAML_INT_TOKEN,
+	)) {
+		const exact = yamlIntTokenToBigInt(match[0]);
+		if (exact === null) continue;
+		const num = Number(exact);
+		if (Number.isSafeInteger(num)) continue;
+		// 桁数が多すぎて Infinity になった値も、丸められた値として扱う
+		if (!Number.isFinite(num) || BigInt(num) !== exact) rounded.set(num, true);
+	}
+	if (rounded.size === 0) return [];
+
+	const paths: string[] = [];
+	const seen = new Set<unknown>();
+	const stack: { node: unknown; path: string }[] = [{ node: value, path: '' }];
+	while (stack.length > 0 && paths.length < limit) {
+		const { node, path } = stack.pop() as { node: unknown; path: string };
+		if (typeof node === 'number') {
+			if (rounded.has(node)) paths.push(path || '(ルート)');
+			continue;
+		}
+		if (node === null || typeof node !== 'object' || seen.has(node)) continue;
+		seen.add(node);
+		if (Array.isArray(node)) {
+			for (let i = node.length - 1; i >= 0; i--)
+				stack.push({ node: node[i], path: `${path}[${i}]` });
+		} else if (isPlainObject(node)) {
+			const entries = Object.entries(node);
+			for (let i = entries.length - 1; i >= 0; i--) {
+				const [key, child] = entries[i];
+				stack.push({ node: child, path: path ? `${path}.${key}` : key });
+			}
+		}
+	}
+	return paths;
+}
+
 // ---------------------------------------------------------------------------
 // エラーマッピング
 // ---------------------------------------------------------------------------
@@ -429,6 +538,16 @@ export function convertFormats(
 
 	const error = checkSafeStructure(parsed.value, Boolean(options.safeMode));
 	if (error) return { ok: false, error };
+
+	if (from === 'yaml') {
+		const lossy = findLossyYamlIntegerPaths(parsed.value, text);
+		if (lossy.length > 0) {
+			return {
+				ok: false,
+				error: `JavaScriptで正確に扱える範囲（±9007199254740991）を超える整数があり、変換すると値が変わるため変換を中止しました: ${lossy.join(', ')}。値を引用符で囲んで文字列にしてください。`,
+			};
+		}
+	}
 
 	const value = options.sortKeys ? sortKeysDeep(parsed.value) : parsed.value;
 

@@ -121,28 +121,19 @@ export function formatSql(
 	if (!sql.trim()) return { output: '' };
 
 	if (options.compress) {
-		// Basic compression strategy
-		const compressed = sql
-			.replace(/--.*$/gm, '') // Remove single line comments
-			.replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi line comments
-			.replace(/\s+/g, ' ') // Collapse whitespace
-			.trim();
-
 		if (options.uppercase) {
-			// In compress mode with uppercase, we might still want keywords uppercase?
-			// Full formatter is better. We can format it then compress it.
+			// 大文字化はフォーマッタに任せ、その出力をトークン単位で1行化する。
 			try {
 				const formatted = format(sql, {
 					language: options.dialect,
 					keywordCase: 'upper',
 				});
-				const comp = formatted.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-				return { output: comp };
+				return { output: compactSql(formatted, options.dialect) };
 			} catch {
-				return { output: compressed };
+				return { output: compactSql(sql, options.dialect) };
 			}
 		}
-		return { output: compressed };
+		return { output: compactSql(sql, options.dialect) };
 	}
 
 	try {
@@ -164,4 +155,161 @@ export function formatSql(
 			error: `SQLの構文エラー:\n${msg}`,
 		};
 	}
+}
+
+/**
+ * SQLを1行に圧縮する。文字列リテラル・引用識別子・ドル引用の中身は一切変えず、
+ * それ以外の部分のコメントを除去し、連続する空白を1つの空白にまとめる。
+ */
+export function compactSql(sql: string, dialect: SqlDialect): string {
+	const backslashEscapes = dialect === 'mysql';
+	let out = '';
+	let pendingSpace = false;
+	const emit = (chunk: string) => {
+		if (pendingSpace && out.length > 0) out += ' ';
+		pendingSpace = false;
+		out += chunk;
+	};
+	let i = 0;
+	const n = sql.length;
+	while (i < n) {
+		const ch = sql[i];
+		// 空白
+		if (/\s/.test(ch)) {
+			pendingSpace = true;
+			i++;
+			continue;
+		}
+		// 行コメント（MySQLは「--」の後に空白・制御文字が必要で、「#」も行コメント）
+		if (isLineCommentStart(sql, i, dialect)) {
+			i = lineEnd(sql, i);
+			pendingSpace = true;
+			continue;
+		}
+		// ブロックコメント（閉じがなければ末尾まで）
+		if (ch === '/' && sql[i + 1] === '*') {
+			const close = sql.indexOf('*/', i + 2);
+			i = close === -1 ? n : close + 2;
+			pendingSpace = true;
+			continue;
+		}
+		// PL/SQL の q'[…]' 引用（区切り文字の対応で閉じる）
+		if (
+			dialect === 'plsql' &&
+			(ch === 'q' || ch === 'Q') &&
+			sql[i + 1] === "'" &&
+			i + 2 < n &&
+			!isIdentChar(sql[i - 1])
+		) {
+			const open = sql[i + 2];
+			const close = Q_QUOTE_PAIRS[open] ?? open;
+			const end = sql.indexOf(`${close}'`, i + 3);
+			const j = end === -1 ? n : end + 2;
+			emit(sql.slice(i, j));
+			i = j;
+			continue;
+		}
+		// 文字列リテラル・引用識別子
+		if (
+			ch === "'" ||
+			ch === '"' ||
+			ch === '`' ||
+			(ch === '[' && dialect === 'tsql')
+		) {
+			// PostgreSQL の E'…' はバックスラッシュエスケープを使う
+			const pgEscape =
+				dialect === 'postgresql' &&
+				ch === "'" &&
+				(sql[i - 1] === 'E' || sql[i - 1] === 'e') &&
+				!isIdentChar(sql[i - 2]);
+			const escapes = (backslashEscapes && ch !== '`') || pgEscape;
+			const closeChar = ch === '[' ? ']' : ch;
+			let j = i + 1;
+			while (j < n) {
+				if (escapes && sql[j] === '\\') {
+					j += 2;
+					continue;
+				}
+				if (sql[j] === closeChar) {
+					if (sql[j + 1] === closeChar) {
+						j += 2;
+						continue;
+					}
+					j++;
+					break;
+				}
+				j++;
+			}
+			emit(sql.slice(i, Math.min(j, n)));
+			i = j;
+			continue;
+		}
+		// PostgreSQLのドル引用 $tag$...$tag$
+		if (ch === '$' && dialect === 'postgresql') {
+			const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+			if (m) {
+				const tag = m[0];
+				const close = sql.indexOf(tag, i + tag.length);
+				const j = close === -1 ? n : close + tag.length;
+				emit(sql.slice(i, j));
+				i = j;
+				continue;
+			}
+		}
+		// その他のトークン（次の空白・コメント・引用の手前まで）
+		let j = i + 1;
+		while (
+			j < n &&
+			!/[\s'"`$[]/.test(sql[j]) &&
+			!isLineCommentStart(sql, j, dialect) &&
+			!(
+				dialect === 'plsql' &&
+				(sql[j] === 'q' || sql[j] === 'Q') &&
+				sql[j + 1] === "'" &&
+				!isIdentChar(sql[j - 1])
+			) &&
+			!(sql[j] === '/' && sql[j + 1] === '*')
+		) {
+			j++;
+		}
+		emit(sql.slice(i, j));
+		i = j;
+	}
+	return out;
+}
+
+const Q_QUOTE_PAIRS: Record<string, string> = {
+	'[': ']',
+	'{': '}',
+	'(': ')',
+	'<': '>',
+};
+
+function isIdentChar(ch: string | undefined): boolean {
+	return ch !== undefined && /[A-Za-z0-9_$]/.test(ch);
+}
+
+function isLineCommentStart(
+	sql: string,
+	i: number,
+	dialect: SqlDialect,
+): boolean {
+	if (dialect === 'mysql') {
+		if (sql[i] === '#') return true;
+		if (sql[i] === '-' && sql[i + 1] === '-') {
+			const next = sql[i + 2];
+			// MySQLでは「--」の直後に空白か制御文字（または入力の終わり）が必要
+			return next === undefined || next.charCodeAt(0) <= 0x20;
+		}
+		return false;
+	}
+	return sql[i] === '-' && sql[i + 1] === '-';
+}
+
+/** 行コメントの終わり（改行文字の位置。CRのみの改行にも対応）。 */
+function lineEnd(sql: string, i: number): number {
+	for (let j = i; j < sql.length; j++) {
+		if (sql[j] === '\n' || sql[j] === '\r') return j;
+	}
+	return sql.length;
 }

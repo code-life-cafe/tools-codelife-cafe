@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, test } from './fixtures/base';
 
 test.describe('SQL Formatter Tool', () => {
@@ -55,6 +56,42 @@ test.describe('SQL Formatter Tool', () => {
 		await expect(page.locator('.shimmer code')).toContainText(
 			'SELECT id, name FROM users WHERE status = 1;',
 		);
+	});
+
+	test('圧縮: 画面の出力・コピー・.sql保存が一致し、引用符内の空白とコメント後のSQLを保持する（#566）', async ({
+		page,
+	}) => {
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						window.sessionStorage.setItem('lastCopy', text);
+					},
+				},
+			});
+		});
+		await page
+			.locator('textarea')
+			.fill("select 'a  -- b' as x -- 注記\nfrom users");
+		await page.getByLabel('圧縮 (1行化)').click();
+
+		const expected = "SELECT 'a  -- b' AS x FROM users";
+		const code = page.locator('.shimmer code');
+		await expect(code).toHaveText(expected);
+
+		await page.getByRole('button', { name: 'コピー', exact: true }).click();
+		await expect
+			.poll(() =>
+				page.evaluate(() => window.sessionStorage.getItem('lastCopy')),
+			)
+			.toBe(expected);
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: '.sql保存' }).click();
+		const download = await downloadPromise;
+		expect(download.suggestedFilename()).toBe('query.sql');
+		expect(await readFile(await download.path(), 'utf-8')).toBe(expected);
 	});
 
 	test('should handle different dialects and indents', async ({ page }) => {

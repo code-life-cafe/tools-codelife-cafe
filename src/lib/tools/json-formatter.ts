@@ -122,7 +122,7 @@ type ReadResult =
 
 /**
  * JSON.parse 相当のパーサー。安全整数範囲外の整数リテラルは Number ではなく
- * BigIntLiteral として桁を保持する（小数・指数表記は従来どおり Number化）。
+ * BigIntLiteral として桁を保持する。小数・指数表記なども元のトークンのまま保持する（#568）。
  * プレースホルダー文字列を経由しないため、エラー位置も常に元入力基準になる。
  * ネストしたオブジェクト・配列は再帰呼び出しではなく明示的なスタック
  * （ParseFrame[]）で処理するため、ネスト段数がコールスタックの深さに
@@ -276,13 +276,14 @@ function parseJsonPreservingIntegers(text: string): unknown {
 			if (!(text[i] >= '0' && text[i] <= '9')) fail('Invalid number in JSON');
 			while (i < len && text[i] >= '0' && text[i] <= '9') i++;
 		}
-		if (isInteger) {
-			const digits = text.slice(start, intEnd);
-			const num = Number(digits);
-			if (!Number.isSafeInteger(num)) return new BigIntLiteral(digits);
-			return num;
+		const raw = text.slice(start, i);
+		if (isInteger && intEnd === i) {
+			const num = Number(raw);
+			// 安全整数で、出力（String(num)）が元のトークンと同じ場合だけ数値として扱う。
+			if (Number.isSafeInteger(num) && String(num) === raw) return num;
 		}
-		return Number(text.slice(start, i));
+		// 大整数・小数・指数表記・-0 などは、丸めや null 化を避けるため元のトークンを保持する。
+		return new BigIntLiteral(raw);
 	};
 
 	// 構築中のコンテナをスタックで管理し、ネストしたオブジェクト・配列を

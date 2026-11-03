@@ -641,3 +641,45 @@ test('formatJson/minifyJson: 有効な 0・-0・大整数・負数・小数は�
 		'{"n":-9007199254740993}',
 	);
 });
+
+test('数値トークンを丸めたりnullに変えたりせず保持する（#568）', () => {
+	const tokens = [
+		'9007199254740993e0',
+		'1e400',
+		'-1E-400',
+		'0.1000000000000000055511151231257827',
+		'1.50',
+		'-0',
+		'-12.5e+3',
+		'5e-324',
+		'9007199254740993',
+		'-9007199254740993',
+		'12',
+		'-7',
+		'0',
+	];
+	const input = `{"values":[${tokens.join(', ')}],"nested":{"x":1e400}}`;
+	const minified = minifyJson(input);
+	assert.equal(minified.success, true);
+	assert.equal(
+		minified.output,
+		`{"values":[${tokens.join(',')}],"nested":{"x":1e400}}`,
+	);
+	for (const indent of ['2', '4', 'tab'] as const) {
+		const formatted = formatJson(input, indent);
+		assert.equal(formatted.success, true);
+		for (const token of tokens) {
+			assert.match(
+				formatted.output,
+				new RegExp(
+					`(^|[\\s\\[,:])${token.replace(/[.+]/g, '\\$&')}(,|\\s|$)`,
+					'm',
+				),
+				`${indent}: ${token}`,
+			);
+		}
+		assert.ok(!formatted.output.includes('null'), indent);
+		// 整形結果を圧縮すると元の圧縮結果と一致する（往復で値が変わらない）
+		assert.equal(minifyJson(formatted.output).output, minified.output);
+	}
+});
