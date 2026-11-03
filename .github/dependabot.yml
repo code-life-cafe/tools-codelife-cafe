@@ -5,6 +5,8 @@ updates:
     schedule:
       interval: "weekly"
       day: "monday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
     open-pull-requests-limit: 5
     groups:
       astro:
@@ -18,3 +20,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Tokyo"
