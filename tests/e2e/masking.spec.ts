@@ -29,6 +29,27 @@ test.describe('Personal Info Masking Tool', () => {
 		await expect(textareas.last()).not.toContainText('090-1234-5678');
 	});
 
+	test('既定の検出対象でカード番号とマイナンバーを伏せ、件数とハイライトが一致する', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('masking');
+		await toolPage.goto();
+
+		const textareas = page.getByRole('textbox');
+		await textareas
+			.first()
+			.fill(
+				'カード 4111-1111-1111-1111 / 4111111111111111、マイナンバー 101234567890',
+			);
+
+		const output = textareas.last();
+		await expect(output).toHaveValue(
+			'カード ****-****-****-1111 / ************1111、マイナンバー ************',
+		);
+		await expect(page.locator('#mask-highlight-overlay mark')).toHaveCount(3);
+	});
+
 	test('input and output textareas allow vertical resize with min/max height on desktop', async ({
 		page,
 		createToolPage,

@@ -294,3 +294,130 @@ test('メールの線形走査: 従来の検出範囲・件数・位置を維持
 		);
 	}
 });
+
+const ALL_TARGETS = [
+	'email',
+	'phone',
+	'zipcode',
+	'card',
+	'mynumber',
+	'name',
+] as const;
+
+/** 対象集合の全組み合わせ（空集合を除く）。 */
+function targetCombinations() {
+	const out: Set<(typeof ALL_TARGETS)[number]>[] = [];
+	for (let mask = 1; mask < 1 << ALL_TARGETS.length; mask++) {
+		out.push(new Set(ALL_TARGETS.filter((_, i) => mask & (1 << i))));
+	}
+	return out;
+}
+
+test('maskText: カード番号を区切りなし・半角/全角ハイフン・空白・全角数字で検出する（partialは末尾4桁のみ残す）', () => {
+	const cases: [string, string][] = [
+		['4111111111111111', '************1111'],
+		['4111-1111-1111-1111', '****-****-****-1111'],
+		['4111 1111 1111 1111', '**** **** **** 1111'],
+		['４１１１－１１１１－１１１１－１１１１', '****－****－****－１１１１'],
+		['４１１１１１１１１１１１１１１１', '************１１１１'],
+		['4111　1111　1111　1111', '****　****　****　1111'],
+	];
+	for (const [input, expected] of cases) {
+		const result = maskText(`番号: ${input} です`, {
+			targets: new Set(['card'] as const),
+			maskChar: '*',
+			strength: 'partial',
+		});
+		assert.strictEqual(result.counts.card, 1, input);
+		assert.strictEqual(result.maskedText, `番号: ${expected} です`, input);
+	}
+});
+
+test('maskText: カード番号のfull伏字では数字が1桁も残らない', () => {
+	for (const input of ['4111111111111111', '4111-1111-1111-1111']) {
+		const result = maskText(input, {
+			targets: new Set(['card'] as const),
+			maskChar: '●',
+			strength: 'full',
+		});
+		assert.strictEqual(result.counts.card, 1);
+		assert.doesNotMatch(result.maskedText, /[0-9０-９]/);
+		assert.strictEqual(result.maskedText.length, input.length);
+	}
+});
+
+test('maskText: 17桁以上の数字列はカード番号として扱わない', () => {
+	const result = maskText('41111111111111111', {
+		targets: new Set(['card'] as const),
+		maskChar: '*',
+		strength: 'partial',
+	});
+	assert.strictEqual(result.counts.card, 0);
+});
+
+test('maskText: どの検出対象の組み合わせでも、マイナンバーとカード番号の保護が単独選択時より弱くならない', () => {
+	const text =
+		'マイナンバー 101234567890、カード 4111111111111111、電話 090-1234-5678';
+	for (const strength of ['partial', 'full'] as const) {
+		const alone = {
+			mynumber: maskText(text, {
+				targets: new Set(['mynumber'] as const),
+				maskChar: '*',
+				strength,
+			}),
+			card: maskText(text, {
+				targets: new Set(['card'] as const),
+				maskChar: '*',
+				strength,
+			}),
+		};
+		for (const targets of targetCombinations()) {
+			const result = maskText(text, { targets, maskChar: '*', strength });
+			const label = `${strength}: ${[...targets].join(',')}`;
+			if (targets.has('mynumber')) {
+				assert.ok(!result.maskedText.includes('101234567890'), label);
+				assert.ok(
+					result.maskedText.includes(alone.mynumber.maskedText.slice(7, 19)),
+					label,
+				);
+				assert.strictEqual(result.counts.mynumber, 1, label);
+			}
+			if (targets.has('card')) {
+				assert.ok(!result.maskedText.includes('41111111'), label);
+				assert.strictEqual(result.counts.card, 1, label);
+			}
+			// 件数とハイライト範囲が一致し、範囲は重ならない。
+			const total = Object.values(result.counts).reduce((a, b) => a + b, 0);
+			assert.strictEqual(result.ranges.length, total, label);
+			for (let i = 1; i < result.ranges.length; i++) {
+				assert.ok(result.ranges[i - 1].end <= result.ranges[i].start, label);
+			}
+			// 置換は文字数を保つため、出力長は入力長と一致する。
+			assert.strictEqual(result.maskedText.length, text.length, label);
+		}
+	}
+});
+
+test('maskText: 1文字のメールローカル部もpartialで伏せる', () => {
+	const options = {
+		targets: new Set(['email'] as const),
+		maskChar: '*' as const,
+		strength: 'partial' as const,
+	};
+	assert.strictEqual(
+		maskText('a@example.com', options).maskedText,
+		'*@example.com',
+	);
+	assert.strictEqual(
+		maskText('ab@example.com', options).maskedText,
+		'a*@example.com',
+	);
+	assert.strictEqual(
+		maskText('abc@example.com', options).maskedText,
+		'a**@example.com',
+	);
+	assert.strictEqual(
+		maskText('a@example.com', { ...options, strength: 'full' }).maskedText,
+		'*************',
+	);
+});
