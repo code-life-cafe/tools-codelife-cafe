@@ -27,9 +27,13 @@ import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import type { RegexResult } from '@/lib/tools/regex-tester';
 import {
 	COMMON_PATTERNS,
+	decodeLegacyRegexSettingsParam,
+	decodeRegexShareFragment,
+	encodeRegexShareFragment,
 	MAX_DISPLAY_MATCHES,
 	MAX_MATCHES,
-	sanitizeRegexTesterSettings,
+	REGEX_PERSISTED_DEFAULTS,
+	sanitizeRegexTesterPersistedSettings,
 	testRegex,
 } from '@/lib/tools/regex-tester';
 import { useCopyFeedback } from '@/lib/useCopyFeedback';
@@ -42,18 +46,30 @@ export default function RegexTester() {
 		canTrackAutoRun,
 	} = useToolAnalytics('regex-tester', { requireInteractionForAutoRun: true });
 
+	// パターン・置換文字列は個人情報を含みうるため、localStorageと共有URLのクエリには保存しない。
 	const [settings, updateSettings, generateShareUrl] = useToolSettings(
 		'regex-tester',
-		{
-			pattern: '\\d{3}-\\d{4}',
-			flags: 'g',
-			showReplace: false,
-			replacement: '',
-		},
-		sanitizeRegexTesterSettings,
+		REGEX_PERSISTED_DEFAULTS,
+		sanitizeRegexTesterPersistedSettings,
 	);
+	const { flags, showReplace } = settings;
 
-	const { pattern, flags, showReplace, replacement } = settings;
+	// 共有URLのフラグメント（または旧形式のクエリ）から開いた場合だけ、その値で始める。
+	const [initialShared] = useState(() => {
+		if (typeof window === 'undefined') return null;
+		const fromHash = decodeRegexShareFragment(window.location.hash);
+		if (fromHash) return fromHash;
+		return decodeLegacyRegexSettingsParam(
+			new URLSearchParams(window.location.search).get('settings'),
+		);
+	});
+	const [pattern, setPattern] = useState(
+		initialShared?.pattern ?? '\\d{3}-\\d{4}',
+	);
+	const [replacement, setReplacement] = useState(
+		initialShared?.replacement ?? '',
+	);
+	const [includeInputsInShare, setIncludeInputsInShare] = useState(false);
 	const [text, setText] = useState('郵便番号: 100-0001 と 530-0001');
 	const { state: shareState, copy: copyShareUrl } = useCopyFeedback();
 	const shareCopied = shareState === 'copied';
@@ -62,10 +78,20 @@ export default function RegexTester() {
 	// 共有URLからアクセスされた場合の計測
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
-		if (params.has('settings')) {
+		if (params.has('settings') || window.location.hash) {
 			trackSharedUrlOpen();
 		}
 	}, [trackSharedUrlOpen]);
+
+	// 読み込んだパターン・置換文字列をアドレスバーと履歴に残さない
+	// （フラグ等の設定は復元済みで、localStorageにも保存されている）。
+	useEffect(() => {
+		if (!initialShared) return;
+		const url = new URL(window.location.href);
+		url.hash = '';
+		url.searchParams.delete('settings');
+		window.history.replaceState(window.history.state, '', url.toString());
+	}, [initialShared]);
 
 	// Auto-sync flags
 	const toggleFlag = (flag: string) => {
@@ -165,9 +191,18 @@ export default function RegexTester() {
 	}, [text, result.matches, result.error, pattern]);
 
 	const handleShare = useCallback(async () => {
-		const shareUrl = generateShareUrl();
-		await copyShareUrl(shareUrl);
-	}, [generateShareUrl, copyShareUrl]);
+		const url = new URL(generateShareUrl());
+		url.hash = includeInputsInShare
+			? encodeRegexShareFragment({ pattern, replacement })
+			: '';
+		await copyShareUrl(url.toString());
+	}, [
+		generateShareUrl,
+		copyShareUrl,
+		includeInputsInShare,
+		pattern,
+		replacement,
+	]);
 
 	return (
 		<div
@@ -202,10 +237,8 @@ export default function RegexTester() {
 									onValueChange={(val) => {
 										const pat = COMMON_PATTERNS.find((p) => p.label === val);
 										if (pat) {
-											updateSettings({
-												pattern: pat.pattern,
-												flags: pat.flags,
-											});
+											setPattern(pat.pattern);
+											updateSettings({ flags: pat.flags });
 										}
 									}}
 								>
@@ -222,11 +255,34 @@ export default function RegexTester() {
 								</Select>
 							</div>
 						</div>
+						<div className="mb-2 flex items-start gap-2">
+							<Checkbox
+								id="regex-share-include-inputs"
+								className="mt-0.5"
+								checked={includeInputsInShare}
+								onCheckedChange={(v) => setIncludeInputsInShare(v === true)}
+								aria-describedby="regex-share-include-note"
+							/>
+							<div className="space-y-0.5">
+								<Label
+									htmlFor="regex-share-include-inputs"
+									className="text-xs font-medium cursor-pointer"
+								>
+									共有URLにパターンと置換文字列を含める
+								</Label>
+								<p
+									id="regex-share-include-note"
+									className="text-xs text-muted-foreground"
+								>
+									オフのときはフラグと置換モードだけを共有し、パターンと置換文字列はこの端末にも保存しません。オンにすると、URLを知る人は誰でもパターンと置換文字列を読めます。個人情報や社外秘の文字列を含めないでください（URLの「#」以降に入れるため、サーバーには送信されません）。
+								</p>
+							</div>
+						</div>
 						<div className="flex items-center gap-2">
 							<div className="text-xl font-mono text-muted-foreground">/</div>
 							<Input
 								value={pattern}
-								onChange={(e) => updateSettings({ pattern: e.target.value })}
+								onChange={(e) => setPattern(e.target.value)}
 								className={`font-mono-tool text-base rounded-xl focus:ring-2 focus:ring-primary ${
 									result.error
 										? 'border-red-500 ring-red-500 focus:ring-red-500'
@@ -388,7 +444,7 @@ export default function RegexTester() {
 						<Label className="text-sm font-medium mb-2 block">置換文字列</Label>
 						<Input
 							value={replacement}
-							onChange={(e) => updateSettings({ replacement: e.target.value })}
+							onChange={(e) => setReplacement(e.target.value)}
 							placeholder="***-**** または $1 など"
 							className="font-mono-tool rounded-xl bg-background"
 							disabled={!showReplace}

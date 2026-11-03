@@ -16,6 +16,8 @@ const tools = [
 			replacement: '置換',
 		},
 		secret: 'secret-regex-target-12345',
+		// パターン・置換文字列は個人情報を含みうるため保存しない（フラグ等だけを保存）
+		stored: { flags: 'gi', showReplace: true },
 	},
 	{
 		slug: 'csv-editor',
@@ -111,7 +113,7 @@ test.describe('ツール設定共有URL', () => {
 						return value ? JSON.parse(value) : null;
 					}, tool.slug);
 				})
-				.toMatchObject(tool.settings);
+				.toMatchObject('stored' in tool ? tool.stored : tool.settings);
 		});
 	}
 
