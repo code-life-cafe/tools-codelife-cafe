@@ -121,28 +121,19 @@ export function formatSql(
 	if (!sql.trim()) return { output: '' };
 
 	if (options.compress) {
-		// Basic compression strategy
-		const compressed = sql
-			.replace(/--.*$/gm, '') // Remove single line comments
-			.replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi line comments
-			.replace(/\s+/g, ' ') // Collapse whitespace
-			.trim();
-
 		if (options.uppercase) {
-			// In compress mode with uppercase, we might still want keywords uppercase?
-			// Full formatter is better. We can format it then compress it.
+			// 大文字化はフォーマッタに任せ、その出力をトークン単位で1行化する。
 			try {
 				const formatted = format(sql, {
 					language: options.dialect,
 					keywordCase: 'upper',
 				});
-				const comp = formatted.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-				return { output: comp };
+				return { output: compactSql(formatted, options.dialect) };
 			} catch {
-				return { output: compressed };
+				return { output: compactSql(sql, options.dialect) };
 			}
 		}
-		return { output: compressed };
+		return { output: compactSql(sql, options.dialect) };
 	}
 
 	try {
@@ -164,4 +155,97 @@ export function formatSql(
 			error: `SQLの構文エラー:\n${msg}`,
 		};
 	}
+}
+
+/**
+ * SQLを1行に圧縮する。文字列リテラル・引用識別子・ドル引用の中身は一切変えず、
+ * それ以外の部分のコメントを除去し、連続する空白を1つの空白にまとめる。
+ */
+export function compactSql(sql: string, dialect: SqlDialect): string {
+	const backslashEscapes = dialect === 'mysql';
+	let out = '';
+	let pendingSpace = false;
+	const emit = (chunk: string) => {
+		if (pendingSpace && out.length > 0) out += ' ';
+		pendingSpace = false;
+		out += chunk;
+	};
+	let i = 0;
+	const n = sql.length;
+	while (i < n) {
+		const ch = sql[i];
+		// 空白
+		if (/\s/.test(ch)) {
+			pendingSpace = true;
+			i++;
+			continue;
+		}
+		// 行コメント
+		if (ch === '-' && sql[i + 1] === '-') {
+			const nl = sql.indexOf('\n', i);
+			i = nl === -1 ? n : nl;
+			pendingSpace = true;
+			continue;
+		}
+		// ブロックコメント（閉じがなければ末尾まで）
+		if (ch === '/' && sql[i + 1] === '*') {
+			const close = sql.indexOf('*/', i + 2);
+			i = close === -1 ? n : close + 2;
+			pendingSpace = true;
+			continue;
+		}
+		// 文字列リテラル・引用識別子
+		if (
+			ch === "'" ||
+			ch === '"' ||
+			ch === '`' ||
+			(ch === '[' && dialect === 'tsql')
+		) {
+			const closeChar = ch === '[' ? ']' : ch;
+			let j = i + 1;
+			while (j < n) {
+				if (backslashEscapes && ch !== '`' && sql[j] === '\\') {
+					j += 2;
+					continue;
+				}
+				if (sql[j] === closeChar) {
+					if (sql[j + 1] === closeChar) {
+						j += 2;
+						continue;
+					}
+					j++;
+					break;
+				}
+				j++;
+			}
+			emit(sql.slice(i, Math.min(j, n)));
+			i = j;
+			continue;
+		}
+		// PostgreSQLのドル引用 $tag$...$tag$
+		if (ch === '$' && dialect === 'postgresql') {
+			const m = /^\$([A-Za-z_][A-Za-z0-9_]*)?\$/.exec(sql.slice(i));
+			if (m) {
+				const tag = m[0];
+				const close = sql.indexOf(tag, i + tag.length);
+				const j = close === -1 ? n : close + tag.length;
+				emit(sql.slice(i, j));
+				i = j;
+				continue;
+			}
+		}
+		// その他のトークン（次の空白・コメント・引用の手前まで）
+		let j = i + 1;
+		while (
+			j < n &&
+			!/[\s'"`$[]/.test(sql[j]) &&
+			!(sql[j] === '-' && sql[j + 1] === '-') &&
+			!(sql[j] === '/' && sql[j + 1] === '*')
+		) {
+			j++;
+		}
+		emit(sql.slice(i, j));
+		i = j;
+	}
+	return out;
 }

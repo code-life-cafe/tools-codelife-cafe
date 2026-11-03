@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	compactSql,
 	formatSql,
 	SQL_KEYWORDS,
 	type SqlFormatOptions,
@@ -201,4 +202,49 @@ test('sanitizeSqlFormatterSettings: 一部のキーのみ指定した場合は�
 	assert.equal(result.compress, true);
 	assert.equal(result.dialect, DEFAULT_SETTINGS.dialect);
 	assert.equal(result.uppercase, DEFAULT_SETTINGS.uppercase);
+});
+
+test('formatSql: 圧縮は引用符内の空白・改行・エスケープを保持し、行コメント後のSQLを吸収しない（#566）', () => {
+	for (const uppercase of [false, true]) {
+		const opts = formatOpts({ compress: true, uppercase });
+		const first = formatSql(
+			"SELECT 'a  b' AS value; -- comment\nSELECT 2;",
+			opts,
+		).output;
+		assert.ok(first.includes("'a  b'"), first);
+		assert.ok(!first.includes('comment'), first);
+		assert.match(first, /; SELECT 2;$/, first);
+
+		const literalComment = formatSql(
+			"SELECT 'a--b' AS v, '/* x */' AS w /* 本物 */ FROM t;",
+			opts,
+		).output;
+		assert.ok(literalComment.includes("'a--b'"), literalComment);
+		assert.ok(literalComment.includes("'/* x */'"), literalComment);
+		assert.ok(!literalComment.includes('本物'), literalComment);
+
+		const escaped = formatSql(
+			"SELECT 'it''s\n  ok', \"col  name\" FROM t",
+			opts,
+		).output;
+		assert.ok(escaped.includes("'it''s\n  ok'"), escaped);
+		assert.ok(escaped.includes('"col  name"'), escaped);
+	}
+});
+
+test('compactSql: 方言ごとの引用（ドル引用・バックスラッシュ・角括弧）を保持する', () => {
+	assert.equal(
+		compactSql('SELECT $$a  -- b$$,\n  $f$ x $f$', 'postgresql'),
+		'SELECT $$a  -- b$$, $f$ x $f$',
+	);
+	assert.equal(
+		compactSql("SELECT 'a\\'  b' x -- c\nFROM t", 'mysql'),
+		"SELECT 'a\\'  b' x FROM t",
+	);
+	assert.equal(
+		compactSql('SELECT [col  -- x]  FROM t', 'tsql'),
+		'SELECT [col  -- x] FROM t',
+	);
+	assert.equal(compactSql('  SELECT\t1\n\n', 'sql'), 'SELECT 1');
+	assert.equal(compactSql("SELECT 'open", 'sql'), "SELECT 'open");
 });
