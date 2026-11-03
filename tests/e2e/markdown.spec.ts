@@ -114,6 +114,82 @@ test.describe('Markdownプレビュー Tool', () => {
 		expect(externalImageRequests).toEqual([]);
 	});
 
+	test('外部URLを参照する要素・属性はプレビューとダウンロードHTMLから除去され通信しないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('markdown');
+		await toolPage.goto();
+
+		const probeRequests: string[] = [];
+		page.on('request', (request) => {
+			if (request.url().includes('probe.invalid')) {
+				probeRequests.push(request.url());
+			}
+		});
+
+		const pixel =
+			'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+		const urls = [
+			'https://probe.invalid/a',
+			'http://probe.invalid/b',
+			'//probe.invalid/c',
+		];
+		const lines: string[] = [];
+		for (const url of urls) {
+			lines.push(
+				`<video poster="${url}.png" src="${url}.mp4"></video>`,
+				`<audio src="${url}.mp3"><track src="${url}.vtt"></audio>`,
+				`<svg><image href="${url}.svg"></image><use href="${url}.svg#x"></use></svg>`,
+				`<input type="image" src="${url}.png">`,
+				`<table background="${url}.png"><tr><td background="${url}-td.png">セル</td></tr></table>`,
+				`<link rel="stylesheet" href="${url}.css">`,
+				`<img srcset="${url}-2x.png 2x">`,
+				'',
+			);
+		}
+		lines.push(
+			`![埋め込み画像](${pixel})`,
+			'',
+			'- [x] 完了タスク',
+			'',
+			'[通常リンク](https://example.com/)',
+			'',
+			'本文テキスト',
+		);
+		await page.getByLabel('Markdown入力').fill(lines.join('\n'));
+
+		const preview = page.getByTestId('markdown-preview');
+		await expect(preview).toContainText('本文テキスト');
+		// 描画後に発生しうる取得を待つ余裕を持たせる
+		await page.waitForTimeout(500);
+
+		const html = await preview.innerHTML();
+		expect(html).not.toContain('probe.invalid');
+		expect(probeRequests).toEqual([]);
+
+		// 埋め込み画像・タスクリスト・表・通常リンクは従来どおり表示される
+		await expect(preview.locator('img[src^="data:image/png"]')).toHaveCount(1);
+		await expect(preview.locator('input[type="checkbox"]')).toHaveCount(1);
+		await expect(preview.locator('td', { hasText: 'セル' })).toHaveCount(3);
+		const link = preview.locator('a', { hasText: '通常リンク' });
+		await expect(link).toHaveAttribute('target', '_blank');
+		await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'HTMLダウンロード' }).click();
+		const download = await downloadPromise;
+		const savePath = path.join(
+			os.tmpdir(),
+			`markdown-external-${Date.now()}.html`,
+		);
+		await download.saveAs(savePath);
+		const content = fs.readFileSync(savePath, 'utf-8');
+		fs.unlinkSync(savePath);
+		expect(content).not.toContain('probe.invalid');
+		expect(content).toContain('本文テキスト');
+	});
+
 	test('HTMLダウンロードでファイルがダウンロードされ入力由来のテキストを含むこと', async ({
 		page,
 		createToolPage,
