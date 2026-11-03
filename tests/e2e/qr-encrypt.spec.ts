@@ -69,6 +69,58 @@ test.describe('QR Encrypt Tool', () => {
 		).toBeEnabled();
 	});
 
+	test('本文・パスフレーズを変更・消去すると旧QRを無効にし、再生成前は保存できない', async ({
+		page,
+		createToolPage,
+	}) => {
+		const toolPage = createToolPage('qr-encrypt');
+		await toolPage.goto();
+
+		const plaintext = page.getByPlaceholder(
+			'QRコードにして共有したい秘密のメッセージを入力してください',
+		);
+		const passphrase = page.getByPlaceholder('共有するパスフレーズ');
+		const generate = page.getByRole('button', { name: '暗号化してQR生成' });
+		const qrImage = page.getByRole('img', { name: '暗号化QRコード' });
+		const png = page.getByRole('button', { name: /PNG ダウンロード/i });
+		const svg = page.getByRole('button', { name: /SVG ダウンロード/i });
+
+		const expectInvalidated = async () => {
+			await expect(qrImage).toHaveCount(0);
+			await expect(png).toBeDisabled();
+			await expect(svg).toBeDisabled();
+		};
+
+		await plaintext.fill('合成メッセージ1');
+		await passphrase.fill('合成パスフレーズ1');
+		await generate.click();
+		await expect(qrImage).toBeVisible({ timeout: 15_000 });
+
+		// 本文の変更
+		await plaintext.fill('合成メッセージ2');
+		await expectInvalidated();
+		await generate.click();
+		await expect(qrImage).toBeVisible({ timeout: 15_000 });
+
+		// パスフレーズの変更
+		await passphrase.fill('合成パスフレーズ2');
+		await expectInvalidated();
+		await generate.click();
+		await expect(qrImage).toBeVisible({ timeout: 15_000 });
+
+		// 本文の消去
+		await plaintext.fill('');
+		await expectInvalidated();
+
+		// 生成中に入力を変えた場合も、古い入力のQRを表示しない
+		await plaintext.fill('合成メッセージ3');
+		await generate.click();
+		await plaintext.fill('合成メッセージ4');
+		await page.waitForTimeout(3000);
+		await expectInvalidated();
+		await expect(generate).toBeEnabled();
+	});
+
 	test('shows validation error for empty passphrase-less generation attempt', async ({
 		page,
 		createToolPage,
