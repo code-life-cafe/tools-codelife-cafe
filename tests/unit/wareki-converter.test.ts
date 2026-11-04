@@ -15,6 +15,7 @@ import {
 	getZodiac,
 	isValidDate,
 	normalizeWarekiInput,
+	sameYearBirthNotice,
 } from '../../src/lib/tools/wareki-converter.ts';
 
 const REF_DATE = '2026-07-12';
@@ -315,6 +316,97 @@ test('年齢計算: 実行日ではなく渡された基準日にのみ依存す
 		resultB,
 		'同一の基準日なら常に同じ結果になること',
 	);
+});
+
+test('年齢計算: 生年と基準年が同じで月日未指定でも負の年齢にならない（#571）', () => {
+	const age = calculateAge(2026, REF_DATE);
+	assert.deepStrictEqual(age, {
+		kind: 'range',
+		min: 0,
+		max: 0,
+		referenceDate: '2026-07-12',
+	});
+	// 前年生まれは 0〜1歳（下限0のまま範囲表示）
+	assert.deepStrictEqual(calculateAge(2025, REF_DATE), {
+		kind: 'range',
+		min: 0,
+		max: 1,
+		referenceDate: '2026-07-12',
+	});
+	// 基準日が1月1日でも同じ（境界値）
+	const newYear = calculateAge(2026, '2026-01-01');
+	assert.strictEqual(newYear.kind, 'range');
+	if (newYear.kind === 'range') {
+		assert.strictEqual(newYear.min, 0);
+		assert.strictEqual(newYear.max, 0);
+	}
+});
+
+test('当年生まれ: 年齢欄は0歳と表示し、未出生の可能性を注記で区別する（#571）', () => {
+	const result = convertWesternYearToResult(2026, REF_DATE);
+	assert.strictEqual(formatAgeColumnText(result), '0歳');
+	assert.ok(result.notices.includes(sameYearBirthNotice(2026)));
+	assert.ok(
+		!result.notices.includes(
+			'誕生日前後で年齢が変わるため、範囲で表示しています。',
+		),
+		'当年生まれだけなら範囲表示の注記は出さない',
+	);
+	assert.ok(formatResultForCopy(result).includes('年齢: 0歳'));
+	assert.ok(
+		formatResultForCopy(result).includes(`注意: ${sameYearBirthNotice(2026)}`),
+	);
+	assert.ok(!formatResultForCopy(result).includes('-1'));
+
+	// 前年生まれは範囲表示のまま
+	const lastYear = convertWesternYearToResult(2025, REF_DATE);
+	assert.strictEqual(formatAgeColumnText(lastYear), '0〜1歳');
+	assert.ok(!lastYear.notices.includes(sameYearBirthNotice(2026)));
+
+	// 月日を指定した当年生まれは満年齢0歳（注記なし）
+	const withDate = convertWesternYearToResult(2026, REF_DATE, 3, 1);
+	assert.deepStrictEqual(withDate.age, {
+		kind: 'exact',
+		value: 0,
+		referenceDate: '2026-07-12',
+	});
+	assert.ok(!withDate.notices.includes(sameYearBirthNotice(2026)));
+});
+
+test('早見表: 基準年が当年でも負の年齢を表示しない（#571）', () => {
+	const table = buildConversionTable(2026, REF_DATE, 3);
+	const row2026 = table.rows.find((r) => r.westernYear === 2026);
+	assert.ok(row2026);
+	assert.strictEqual(formatAgeColumnText(row2026.result), '0歳');
+	for (const row of table.rows) {
+		assert.ok(
+			!formatAgeColumnText(row.result).includes('-'),
+			`${row.westernYear}年の年齢欄に負数がない`,
+		);
+	}
+	assert.ok(table.notices.includes(sameYearBirthNotice(2026)));
+	assert.ok(
+		table.notices.includes(
+			'誕生日前後で年齢が変わるため、範囲で表示しています。',
+		),
+		'他の過去年の行があるため範囲注記も残る',
+	);
+	assert.ok(formatTableForCopy(table).includes('2026年（基準年）\t午年\t0歳'));
+});
+
+test('当年生まれの注記は入力年（基準年バッジ）と混同しないよう対象年を明示する（#571）', () => {
+	assert.strictEqual(
+		sameYearBirthNotice(2026),
+		'2026年生まれ（月日未指定）は0歳と表示しています。誕生日が今日より後の場合は、まだ生まれていません。',
+	);
+	// 入力年（基準年）が2024年でも、注記は基準日の年である2026年の行を指す
+	const table = buildConversionTable(2024, REF_DATE, 3);
+	const row2024 = table.rows.find((r) => r.westernYear === 2024);
+	assert.ok(row2024?.isInputYear);
+	assert.strictEqual(formatAgeColumnText(row2024.result), '1〜2歳');
+	assert.ok(table.notices.includes(sameYearBirthNotice(2026)));
+	assert.ok(!table.notices.some((n) => n.startsWith('2024年生まれ')));
+	assert.ok(!table.notices.some((n) => n.includes('基準年生まれ')));
 });
 
 test('年齢計算: 未来の年はunavailableになる', () => {
