@@ -39,6 +39,11 @@ export function ImageMergePage() {
 	} | null>(null);
 	// 画像の読み込み中フラグ（結合結果の生成・ダウンロードは useSingleResultProcessing が管理）
 	const [loadingFiles, setLoadingFiles] = useState(false);
+	// ファイル受付時のエラー（非対応形式・上限超過・デコード失敗）。
+	// プレビュー/書き出しのエラー（useSingleResultProcessing の error）とは責務を分け、
+	// 正常分のプレビューが完成しても拒否したファイルの通知が消えないようにする。
+	// 次のファイル追加か「すべてクリア」で更新・解除する。
+	const [fileError, setFileError] = useState<string | null>(null);
 	// 結果（結合画像）はダウンロード後にUIで参照しないため、React状態に保持しない
 	const { processing, error, setError, run } = useSingleResultProcessing<void>({
 		fallbackErrorMessage: '画像の書き出しに失敗しました。',
@@ -102,56 +107,53 @@ export function ImageMergePage() {
 		}
 	}, [items, options, setError]);
 
-	const handleFilesSelect = useCallback(
-		async (files: File[]) => {
-			const existing = itemsRef.current;
-			const totalCount = existing.length + files.length;
-			const totalSize =
-				existing.reduce((sum, it) => sum + it.file.size, 0) +
-				files.reduce((sum, f) => sum + f.size, 0);
-			const batchCheck = validateBatch(totalCount, totalSize);
-			if (!batchCheck.ok) {
-				setError(batchCheck.message);
-				return;
-			}
+	const handleFilesSelect = useCallback(async (files: File[]) => {
+		const existing = itemsRef.current;
+		const totalCount = existing.length + files.length;
+		const totalSize =
+			existing.reduce((sum, it) => sum + it.file.size, 0) +
+			files.reduce((sum, f) => sum + f.size, 0);
+		const batchCheck = validateBatch(totalCount, totalSize);
+		if (!batchCheck.ok) {
+			setFileError(batchCheck.message);
+			return;
+		}
 
-			const valid: File[] = [];
-			const errors: string[] = [];
-			for (const file of files) {
-				const v = validateImageFile(file);
-				if (v.ok) valid.push(file);
-				else errors.push(`${file.name}: ${v.message}`);
-			}
-			if (valid.length === 0) {
-				setError(errors.join('\n'));
-				return;
-			}
+		const valid: File[] = [];
+		const errors: string[] = [];
+		for (const file of files) {
+			const v = validateImageFile(file);
+			if (v.ok) valid.push(file);
+			else errors.push(`${file.name}: ${v.message}`);
+		}
+		if (valid.length === 0) {
+			setFileError(errors.join('\n'));
+			return;
+		}
 
-			setLoadingFiles(true);
-			const loaded: LoadedItem[] = [];
-			for (const file of valid) {
-				try {
-					const bitmap = await loadImageBitmap(file);
-					loaded.push({
-						id: createId(),
-						file,
-						previewUrl: URL.createObjectURL(file),
-						width: bitmap.width,
-						height: bitmap.height,
-						bitmap,
-					});
-				} catch {
-					errors.push(`${file.name}: 画像の読み込みに失敗しました。`);
-				}
+		setLoadingFiles(true);
+		const loaded: LoadedItem[] = [];
+		for (const file of valid) {
+			try {
+				const bitmap = await loadImageBitmap(file);
+				loaded.push({
+					id: createId(),
+					file,
+					previewUrl: URL.createObjectURL(file),
+					width: bitmap.width,
+					height: bitmap.height,
+					bitmap,
+				});
+			} catch {
+				errors.push(`${file.name}: 画像の読み込みに失敗しました。`);
 			}
-			setLoadingFiles(false);
-			setError(errors.length > 0 ? errors.join('\n') : null);
-			if (loaded.length > 0) {
-				setItems((prev) => [...prev, ...loaded]);
-			}
-		},
-		[setError],
-	);
+		}
+		setLoadingFiles(false);
+		setFileError(errors.length > 0 ? errors.join('\n') : null);
+		if (loaded.length > 0) {
+			setItems((prev) => [...prev, ...loaded]);
+		}
+	}, []);
 
 	const handleReorder = useCallback((from: number, to: number) => {
 		setItems((prev) => {
@@ -180,6 +182,7 @@ export function ImageMergePage() {
 			it.bitmap.close();
 		}
 		setItems([]);
+		setFileError(null);
 		setError(null);
 		setOutputSize(null);
 	}, [setError]);
@@ -204,13 +207,16 @@ export function ImageMergePage() {
 		});
 	}, [items, options, run]);
 
+	// ファイル受付エラーとプレビュー/書き出しエラーは独立に発生しうるため、両方をまとめて表示する
+	const alertMessage = [fileError, error].filter(Boolean).join('\n');
+
 	return (
 		<div className="space-y-6">
 			<FileDropzone
 				multiple
 				onFileSelect={() => {}}
 				onFilesSelect={(files) => void handleFilesSelect(files)}
-				onValidationError={(msg) => setError(msg)}
+				onValidationError={setFileError}
 				accept={ACCEPT}
 				disabled={busy}
 				label="画像をドラッグ＆ドロップ"
@@ -220,12 +226,12 @@ export function ImageMergePage() {
 				data-testid="image-merge-input"
 			/>
 
-			{error && (
+			{alertMessage && (
 				<div
 					role="alert"
 					className="whitespace-pre-wrap rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
 				>
-					{error}
+					{alertMessage}
 				</div>
 			)}
 

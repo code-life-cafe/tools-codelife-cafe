@@ -18,6 +18,40 @@ const BLUE = path.join(
 	'merge-blue-80x60.png',
 );
 
+const INVALID_XLSX = path.join(
+	process.cwd(),
+	'tests',
+	'e2e',
+	'fixtures',
+	'invalid.xlsx',
+);
+
+// Playwright の setInputFiles はパスとバッファを混在できないため、混在ケースはすべてバッファで渡す
+const asPayload = (filePath: string, mimeType: string) => ({
+	name: path.basename(filePath),
+	mimeType,
+	buffer: fs.readFileSync(filePath),
+});
+const RED_PAYLOAD = asPayload(RED, 'image/png');
+const BLUE_PAYLOAD = asPayload(BLUE, 'image/png');
+const INVALID_XLSX_PAYLOAD = asPayload(
+	INVALID_XLSX,
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+);
+
+// PNGのMIME・拡張子だが中身がデコードできない「破損PNG」。input の accept は通るが createImageBitmap が失敗する
+const BROKEN_PNG = {
+	name: 'broken.png',
+	mimeType: 'image/png',
+	buffer: Buffer.concat([
+		Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		Buffer.from('this is not a valid png body'),
+	]),
+};
+
+const errorAlert = (page: import('@playwright/test').Page) =>
+	page.getByRole('alert');
+
 const fileInput = (page: import('@playwright/test').Page) =>
 	page.locator('input[type="file"]');
 
@@ -122,5 +156,56 @@ test.describe('画像連結・コンタクトシート', () => {
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await uploadAndWait(page, [RED, BLUE]);
 		await expect(previewCanvas(page)).toBeVisible();
+	});
+	test.describe('不正ファイル混在時のエラー表示（#608）', () => {
+		test('正常PNGと非対応形式を同時投入: エラーが残り、正常分のプレビューも作られる', async ({
+			page,
+		}) => {
+			await fileInput(page).setInputFiles([RED_PAYLOAD, INVALID_XLSX_PAYLOAD]);
+
+			// 正常分（赤120x80）だけでプレビューが完成する
+			await expect.poll(async () => canvasSize(page)).toEqual([120, 80]);
+			await expect(page.getByText('出力サイズ: 120×80px')).toBeVisible();
+			// プレビュー完成後も、拒否したファイルのエラーは消えない
+			await expect(errorAlert(page)).toBeVisible();
+			await expect(errorAlert(page)).toContainText('invalid.xlsx');
+		});
+
+		test('正常PNGと破損PNG（acceptは通るがデコード失敗）を同時投入: 読み込み失敗のエラーが残る', async ({
+			page,
+		}) => {
+			await fileInput(page).setInputFiles([RED_PAYLOAD, BROKEN_PNG]);
+
+			await expect.poll(async () => canvasSize(page)).toEqual([120, 80]);
+			await expect(errorAlert(page)).toBeVisible();
+			await expect(errorAlert(page)).toContainText(
+				'broken.png: 画像の読み込みに失敗しました。',
+			);
+
+			// 続けて正常画像だけを追加すると、エラーは消えて2枚で結合される
+			await fileInput(page).setInputFiles([BLUE_PAYLOAD]);
+			await expect.poll(async () => canvasSize(page)).toEqual([120, 170]);
+			await expect(errorAlert(page)).toHaveCount(0);
+		});
+
+		test('全ファイルが不正: エラーのみ表示され、プレビューは作られない', async ({
+			page,
+		}) => {
+			await fileInput(page).setInputFiles([INVALID_XLSX_PAYLOAD, BROKEN_PNG]);
+
+			await expect(errorAlert(page)).toContainText('invalid.xlsx');
+			await expect(errorAlert(page)).toContainText('broken.png');
+			await expect(page.getByText(/出力サイズ:/)).toHaveCount(0);
+		});
+
+		test('すべてクリアでエラーも消える', async ({ page }) => {
+			await fileInput(page).setInputFiles([RED_PAYLOAD, INVALID_XLSX_PAYLOAD]);
+			await expect.poll(async () => canvasSize(page)).toEqual([120, 80]);
+			await expect(errorAlert(page)).toContainText('invalid.xlsx');
+
+			await page.getByRole('button', { name: 'すべてクリア' }).click();
+			await expect(errorAlert(page)).toHaveCount(0);
+			await expect(page.getByText(/出力サイズ:/)).toHaveCount(0);
+		});
 	});
 });
