@@ -243,4 +243,32 @@ test.describe('Wareki Converter Tool', () => {
 			page.getByText('指定した和暦と月日の組み合わせが一致しません'),
 		).toBeVisible();
 	});
+
+	test('当年生まれは負の年齢を表示せず、0歳と未出生の注記を表示する（#571）', async ({
+		page,
+		createToolPage,
+	}) => {
+		// 基準日（実行日）を固定する。年齢は new Date() の暦日から算出される。
+		await page.clock.setFixedTime(new Date('2026-07-12T12:00:00+09:00'));
+		const toolPage = createToolPage('wareki-converter');
+		await toolPage.goto();
+
+		const seirekiInput = page.locator('input[type="number"]');
+		await seirekiInput.fill('2026');
+
+		const notice =
+			'基準年生まれは0歳と表示しています。誕生日が基準日より後の場合は、まだ生まれていません。';
+
+		const row2026 = rowByYear(page, 2026);
+		await expect(row2026).toContainText('0歳');
+		await expect(row2026).not.toContainText('-1');
+		await expect(rowByYear(page, 2025)).toContainText('0〜1歳');
+		await expect(page.getByText(notice)).toBeVisible();
+
+		// モバイル幅（カード表示）でも同じ表示になる
+		await page.setViewportSize({ width: 375, height: 800 });
+		await expect(rowByYear(page, 2026)).toContainText('0歳');
+		await expect(rowByYear(page, 2026)).not.toContainText('-1');
+		await expect(page.getByText(notice)).toBeVisible();
+	});
 });

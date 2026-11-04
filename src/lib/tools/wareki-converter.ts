@@ -315,7 +315,10 @@ function formatCalendarDate(date: CalendarDate): string {
  * 年齢を算出する。基準日は暦日（タイムゾーンに依存しない年月日）として扱う。
  * - 誕生月日が判明している場合は満年齢を確定する（exact）。誕生日が基準日より
  *   後（未来）の場合は unavailable を返し、負の年齢を返すことはない。
- * - 年のみの場合は「基準年-生年-1」〜「基準年-生年」の範囲を返す（range）
+ * - 年のみの場合は「基準年-生年-1」〜「基準年-生年」の範囲を返す（range）。
+ *   ただし下限は0歳とし、負の年齢を返さない。生年と基準年が同じ場合は
+ *   min=max=0 になる（基準日より後に生まれる場合は未出生だが、年のみでは
+ *   区別できないため、注記で補足する）。
  * - 生年が基準年より後（未来）の場合は unavailable を返す
  */
 export function calculateAge(
@@ -358,11 +361,15 @@ export function calculateAge(
 
 	return {
 		kind: 'range',
-		min: refParts.year - westernYear - 1,
+		min: Math.max(0, refParts.year - westernYear - 1),
 		max: refParts.year - westernYear,
 		referenceDate: referenceIso,
 	};
 }
+
+/** 基準年生まれ（年のみ入力）の年齢表示に付ける注記。 */
+export const SAME_YEAR_BIRTH_NOTICE =
+	'基準年生まれは0歳と表示しています。誕生日が基準日より後の場合は、まだ生まれていません。';
 
 function buildNotices(
 	westernYear: number,
@@ -386,7 +393,11 @@ function buildNotices(
 	// 旧暦期間はそもそも年単位換算である旨を既に案内済みのため、
 	// 「誕生日前後で年齢が変わる」注記は近代以降（年のみ入力）の場合にのみ表示する。
 	if (age.kind === 'range' && !isLunisolarYear) {
-		notices.push('誕生日前後で年齢が変わるため、範囲で表示しています。');
+		if (age.max === 0) {
+			notices.push(SAME_YEAR_BIRTH_NOTICE);
+		} else {
+			notices.push('誕生日前後で年齢が変わるため、範囲で表示しています。');
+		}
 	}
 
 	return notices;
@@ -681,7 +692,9 @@ export function formatEraColumnText(result: ConversionResult): string {
 export function formatAgeColumnText(result: ConversionResult): string {
 	const { age } = result;
 	if (age.kind === 'exact') return `${age.value}歳`;
-	if (age.kind === 'range') return `${age.min}〜${age.max}歳`;
+	if (age.kind === 'range') {
+		return age.min === age.max ? `${age.min}歳` : `${age.min}〜${age.max}歳`;
+	}
 	return age.reason;
 }
 
