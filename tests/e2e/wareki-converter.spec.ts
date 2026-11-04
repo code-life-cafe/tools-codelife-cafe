@@ -257,7 +257,7 @@ test.describe('Wareki Converter Tool', () => {
 		await seirekiInput.fill('2026');
 
 		const notice =
-			'基準年生まれは0歳と表示しています。誕生日が基準日より後の場合は、まだ生まれていません。';
+			'2026年生まれ（月日未指定）は0歳と表示しています。誕生日が今日より後の場合は、まだ生まれていません。';
 
 		const row2026 = rowByYear(page, 2026);
 		await expect(row2026).toContainText('0歳');
@@ -269,6 +269,12 @@ test.describe('Wareki Converter Tool', () => {
 		await page.setViewportSize({ width: 375, height: 800 });
 		await expect(rowByYear(page, 2026)).toContainText('0歳');
 		await expect(rowByYear(page, 2026)).not.toContainText('-1');
+		await expect(page.getByText(notice)).toBeVisible();
+
+		// 入力年（基準年バッジ）が当年でなくても、注記は当年の行を指す
+		await seirekiInput.fill('2024');
+		await expect(rowByYear(page, 2024)).toContainText('1〜2歳');
+		await expect(rowByYear(page, 2026)).toContainText('0歳');
 		await expect(page.getByText(notice)).toBeVisible();
 	});
 });

@@ -367,9 +367,13 @@ export function calculateAge(
 	};
 }
 
-/** 基準年生まれ（年のみ入力）の年齢表示に付ける注記。 */
-export const SAME_YEAR_BIRTH_NOTICE =
-	'基準年生まれは0歳と表示しています。誕生日が基準日より後の場合は、まだ生まれていません。';
+/**
+ * 年齢計算の基準日と同じ年の生まれ（年のみ入力）の年齢表示に付ける注記。
+ * UIの「基準年」は入力年を指すため、混同しないよう対象の西暦年を明示する。
+ */
+export function sameYearBirthNotice(year: number): string {
+	return `${year}年生まれ（月日未指定）は0歳と表示しています。誕生日が今日より後の場合は、まだ生まれていません。`;
+}
 
 function buildNotices(
 	westernYear: number,
@@ -394,7 +398,7 @@ function buildNotices(
 	// 「誕生日前後で年齢が変わる」注記は近代以降（年のみ入力）の場合にのみ表示する。
 	if (age.kind === 'range' && !isLunisolarYear) {
 		if (age.max === 0) {
-			notices.push(SAME_YEAR_BIRTH_NOTICE);
+			notices.push(sameYearBirthNotice(westernYear));
 		} else {
 			notices.push('誕生日前後で年齢が変わるため、範囲で表示しています。');
 		}
