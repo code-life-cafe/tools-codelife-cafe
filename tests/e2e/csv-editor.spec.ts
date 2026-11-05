@@ -1,10 +1,141 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+test('Shift-JISのCSV/TSVを文字化けせず表示する（#615）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	for (const extension of ['csv', 'tsv']) {
+		await page.locator('input[type="file"]').setInputFiles({
+			name: `shift-jis.${extension}`,
+			mimeType: 'text/plain',
+			buffer: Buffer.from([0x6e, 0x61, 0x6d, 0x65, 0x0a, 0x82, 0xa0]),
+		});
+		await expect(page.locator('table tbody input').first()).toHaveValue('あ');
+	}
+});
+
+test('文字コード判別不能時は選択まで既存データを保ち、選択後に読み込む（#615）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	await page.getByRole('textbox').first().fill('名前\n保持する値');
+	await page.getByRole('button', { name: 'パースして編集へ' }).click();
+	await page.locator('input[type="file"]').setInputFiles({
+		name: 'ambiguous.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from([0x6e, 0x61, 0x6d, 0x65, 0x0a, 0xc2, 0xa9]),
+	});
+	const dialog = page.getByRole('dialog', { name: '読み込み文字コードの選択' });
+	await expect(dialog).toBeVisible();
+	await expect(page.locator('table tbody input').first()).toHaveValue(
+		'保持する値',
+	);
+	await dialog.getByRole('combobox', { name: '文字コード' }).click();
+	await page.getByRole('option', { name: 'Shift-JIS', exact: true }).click();
+	await dialog
+		.getByRole('button', { name: '選択した文字コードで読み込む' })
+		.click();
+	await expect(dialog).toBeHidden();
+	await expect(page.locator('table tbody input').first()).toHaveValue('ﾂｩ');
+});
+
+test('不正なバイト列は置換文字で取り込まず、エラー表示後にキャンセルできる（#615）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	await page.getByRole('textbox').first().fill('名前\n保持する値');
+	await page.getByRole('button', { name: 'パースして編集へ' }).click();
+	await page.locator('input[type="file"]').setInputFiles({
+		name: 'invalid.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from([0x82]),
+	});
+	const dialog = page.getByRole('dialog', { name: '読み込み文字コードの選択' });
+	await dialog
+		.getByRole('button', { name: '選択した文字コードで読み込む' })
+		.click();
+	await expect(dialog.getByRole('alert')).toContainText(
+		'指定した文字コードで読み込めません',
+	);
+	await dialog.getByRole('button', { name: 'キャンセル' }).click();
+	await expect(dialog).toBeHidden();
+	await expect(page.locator('table tbody input').first()).toHaveValue(
+		'保持する値',
+	);
+	await expect(
+		page.getByRole('button', { name: 'ファイル読込 (.csv / .tsv / .xlsx)' }),
+	).toBeFocused();
+});
+
+test('安全整数を超えるIDを区別してソート・等値フィルタできる（#617）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	await page
+		.getByRole('textbox')
+		.first()
+		.fill('id\n9007199254740993\n9007199254740992');
+	await page.getByRole('button', { name: 'パースして編集へ' }).click();
+	await page.getByRole('columnheader', { name: /id/ }).click();
+	await expect(page.locator('table tbody input').nth(0)).toHaveValue(
+		'9007199254740992',
+	);
+	await expect(page.locator('table tbody input').nth(1)).toHaveValue(
+		'9007199254740993',
+	);
+	await page.getByRole('tab', { name: /絞込・ソート/ }).click();
+	await page.getByRole('button', { name: /条件を追加/ }).click();
+	await page
+		.getByRole('combobox')
+		.filter({ hasText: /^含む$/ })
+		.click();
+	await page.getByRole('option', { name: '等しい', exact: true }).click();
+	await page.getByPlaceholder('値', { exact: true }).fill('9007199254740993');
+	await page.getByRole('tab', { name: /テーブル/ }).click();
+	await expect(page.locator('table tbody tr')).toHaveCount(1);
+	await expect(page.locator('table tbody input').first()).toHaveValue(
+		'9007199254740993',
+	);
+});
+
+test('JSON保存は特殊キーを保持し、重複ヘッダーでは警告して保存しない（#616）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	await page.getByRole('textbox').first().fill('__proto__,name\nx,y');
+	await page.getByRole('button', { name: 'パースして編集へ' }).click();
+	const downloadPromise = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'JSONを保存' }).click();
+	const downloaded = await downloadPromise;
+	const json = JSON.parse(await readFile(await downloaded.path(), 'utf-8'));
+	expect(Object.keys(json[0])).toEqual(['__proto__', 'name']);
+	expect(Object.getOwnPropertyDescriptor(json[0], '__proto__')?.value).toBe(
+		'x',
+	);
+	await page.getByRole('tab', { name: 'テキスト', exact: true }).click();
+	await page.getByRole('textbox').first().fill('name,name\na,b');
+	await page.getByRole('button', { name: 'パースして編集へ' }).click();
+	const downloads: string[] = [];
+	page.on('download', (download) =>
+		downloads.push(download.suggestedFilename()),
+	);
+	await page.getByRole('button', { name: 'JSONを保存' }).click();
+	await expect(page.getByRole('alert')).toContainText('ヘッダーが重複');
+	expect(downloads).toEqual([]);
+	await expect(page.locator('table tbody input').nth(0)).toHaveValue('a');
+	await expect(page.locator('table tbody input').nth(1)).toHaveValue('b');
+});
 
 test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 	test('should load the page correctly and show initial UI', async ({

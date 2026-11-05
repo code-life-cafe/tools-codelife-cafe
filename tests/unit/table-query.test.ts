@@ -13,6 +13,86 @@ import {
 	validateFilterCondition,
 } from '../../src/lib/tools/table-query.ts';
 
+test('parseNumber - 安全整数の境界を超える値を丸めて返さない（#617）', () => {
+	for (const value of [
+		'9007199254740992',
+		'9007199254740993',
+		'-9007199254740993',
+		'９００７１９９２５４７４０９９３',
+		'￥9,007,199,254,740,993',
+		9007199254740992,
+	]) {
+		assert.equal(parseNumber(value), null, String(value));
+	}
+	assert.equal(parseNumber('9007199254740991'), Number.MAX_SAFE_INTEGER);
+	assert.equal(parseNumber('-9007199254740991'), Number.MIN_SAFE_INTEGER);
+	assert.equal(parseNumber('123.5'), 123.5);
+});
+
+test('inferColumnType - 安全整数外が1件でも含まれる列は文字列として保持する（#617）', () => {
+	assert.equal(
+		inferColumnType(['1', '2', '3', '4', '9007199254740993']),
+		'text',
+	);
+	assert.equal(
+		inferColumnType(['1', '0', '1', '0', '-9007199254740993']),
+		'text',
+	);
+	assert.equal(
+		inferColumnType(['9007199254740991', '-9007199254740991']),
+		'number',
+	);
+});
+
+test('queryRows - 大整数の等値フィルタで異なる値を一致させない（#617）', () => {
+	const values = ['9007199254740993', '9007199254740992'];
+	const rows = values.map((v) => [v]);
+	const columns: Column[] = [
+		{ id: 'c0', name: 'id', type: inferColumnType(values) },
+	];
+	for (const operator of ['eq', 'neq'] as const) {
+		assert.deepEqual(
+			queryRows(rows, columns, {
+				filter: {
+					combinator: 'and',
+					conditions: [{ columnId: 'c0', operator, value: values[0] }],
+				},
+			}),
+			operator === 'eq' ? [0] : [1],
+		);
+	}
+});
+
+test('inferColumnType - Numberでオーバーフローする整数も文字列として保持する（#617）', () => {
+	const huge = '9'.repeat(400);
+	assert.equal(parseNumber(huge), null);
+	assert.equal(inferColumnType(['1', '2', '3', '4', huge]), 'text');
+});
+
+test('queryRows - 大整数を区別して昇順・降順で安定ソートする（#617）', () => {
+	const values = ['9007199254740993', '9007199254740992', '9007199254740993'];
+	const rows = values.map((v) => [v]);
+	const columns: Column[] = [
+		{ id: 'c0', name: 'id', type: inferColumnType(values) },
+	];
+	assert.deepEqual(
+		queryRows(rows, columns, {
+			sortKeys: [{ columnId: 'c0', direction: 'asc' }],
+		}),
+		[1, 0, 2],
+	);
+	assert.deepEqual(
+		queryRows(rows, columns, {
+			sortKeys: [{ columnId: 'c0', direction: 'desc' }],
+		}),
+		[0, 2, 1],
+	);
+	assert.deepEqual(
+		rows,
+		values.map((v) => [v]),
+	);
+});
+
 test('inferColumnType - 型推定', () => {
 	assert.equal(inferColumnType(['100', '2,000', '￥300', '-50']), 'number');
 	assert.equal(inferColumnType(['１２３', '456', '789']), 'number');
