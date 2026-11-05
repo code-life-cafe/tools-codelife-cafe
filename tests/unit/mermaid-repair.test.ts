@@ -1269,6 +1269,46 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels(input), input);
 	});
 
+	for (const connector of ['-->', '---', '==>', '-.->', '--', '==', '&', ';']) {
+		test(`引用符内の閉じ括弧と ${connector} はノード終端にしない`, () => {
+			for (const [open, close, innerClose] of [
+				['((', '))', ')'],
+				['[[', ']]', ']'],
+				['(', ')', ')'],
+				['[', ']', ']'],
+				['([', '])', ')'],
+				['([', '])', ']'],
+				['[(', ')]', ')'],
+				['[(', ')]', ']'],
+			]) {
+				const node = `A${open}"left ${innerClose} ${connector} right"${close}`;
+				const input = `${node} --> B[完了]`;
+				assert.equal(safeQuoteNodeLabels(input), input);
+				assert.equal(
+					repairMermaidCode(`flowchart TD\n${input}`).repairedCode,
+					`flowchart TD\n${input}`,
+				);
+			}
+		});
+	}
+
+	test('引用符が未閉じの場合は従来の終端判定を維持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((a"b))'), 'A(("a\'b"))');
+		assert.equal(safeQuoteNodeLabels('B[[a"b]]'), 'B[["a\'b"]]');
+		assert.equal(
+			safeQuoteNodeLabels('A("left ) --> B[完了]'),
+			'A("left ) --> B[完了]',
+		);
+		assert.equal(
+			safeQuoteNodeLabels('A((a"b)) --> B[["ok"]]'),
+			'A(("a\'b")) --> B[["ok"]]',
+		);
+		assert.equal(
+			safeQuoteNodeLabels('A((a"b)) --> B(("ok"))'),
+			'A(("a\'b")) --> B(("ok"))',
+		);
+	});
+
 	test('内部に生の引用符を含む不正な複合ラベルは引用符を正規化する', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A(("He said "hello"")) --> B[["x "y" z"]]'),
