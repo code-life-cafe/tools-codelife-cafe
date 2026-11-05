@@ -1,4 +1,26 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
+
+test('自動修復OFFでも画像URLへの取得を描画前に拒否する', async ({
+	page,
+	createToolPage,
+}) => {
+	const imageUrl = 'https://example.com/pixel?customer=DEMO';
+	const requests: string[] = [];
+	// 要求を観測してから止める。遮断されただけでは成功にしない。
+	await page.route(imageUrl, (route) => {
+		requests.push(route.request().url());
+		return route.abort();
+	});
+	await createToolPage('mermaid').goto();
+	await page.getByRole('switch', { name: '日本語・AI修復' }).uncheck();
+	await page
+		.locator('textarea')
+		.fill(`flowchart TD\n A@{ img: "${imageUrl}", label: "x", h: 20 }`);
+	const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+	if (await previewTab.isVisible()) await previewTab.click();
+	await expect(page.getByText(/外部リソース/)).toBeVisible();
+	expect(requests).toEqual([]);
+});
 
 test.describe('Mermaidプレビュー・修復 Tool', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {

@@ -569,6 +569,65 @@ test('stripMetadata: XMP APP1 も除去する', () => {
 	assert.equal(foundXmp, false, 'XMP APP1 は除去されるべき');
 });
 
+for (const includeStandardXmp of [false, true]) {
+	test(`stripMetadata: Extended XMPの全チャンクを除去する (標準XMP併存=${includeStandardXmp})`, () => {
+		const appSegment = (marker: number, payload: number[]) => [
+			0xff,
+			marker,
+			...u16be(payload.length + 2),
+			...payload,
+		];
+		const guid = '0123456789ABCDEF0123456789ABCDEF';
+		const personalData = asciiBytes('DEMO_PRIVATE_NAME;DEMO_PRIVATE_LOCATION');
+		const split = 18;
+		const extendedChunk = (offset: number, data: number[]) =>
+			appSegment(0xe1, [
+				...asciiBytes('http://ns.adobe.com/xmp/extension/\0'),
+				...asciiBytes(guid),
+				...u32be(personalData.length),
+				...u32be(offset),
+				...data,
+			]);
+		const standard = includeStandardXmp
+			? appSegment(0xe1, [
+					...asciiBytes('http://ns.adobe.com/xap/1.0/\0'),
+					...asciiBytes(`<x:xmpmeta xmpNote:HasExtendedXMP="${guid}"/>`),
+				])
+			: [];
+		const app0 = appSegment(0xe0, asciiBytes('JFIF\0'));
+		const icc = appSegment(0xe2, asciiBytes('ICC_PROFILE\0test'));
+		const unknownApp1 = appSegment(0xe1, asciiBytes('OTHER\0keep'));
+		const imageData = [0xff, 0xda, 0, 2, 0x12, 0x34, 0xff, 0xd9];
+		const jpeg = new Uint8Array([
+			0xff,
+			0xd8,
+			...app0,
+			// チャンク順が逆でも、間に別セグメントがあっても全件除去する。
+			...extendedChunk(split, personalData.slice(split)),
+			...icc,
+			...standard,
+			...extendedChunk(0, personalData.slice(0, split)),
+			...unknownApp1,
+			...imageData,
+		]);
+		const original = jpeg.slice();
+		const result = stripMetadata(jpeg, 'jpeg');
+		assert.deepEqual(
+			result.data,
+			new Uint8Array([
+				0xff,
+				0xd8,
+				...app0,
+				...icc,
+				...unknownApp1,
+				...imageData,
+			]),
+		);
+		assert.deepEqual(result.warnings, []);
+		assert.deepEqual(jpeg, original, '入力バイト列を変更しない');
+	});
+}
+
 test('stripMetadata: IPTC APP13 を除去する', () => {
 	const iptcId = asciiBytes('Photoshop 3.0\0');
 	const iptcPayload = [...iptcId, 0x00, 0x01, 0x02];
