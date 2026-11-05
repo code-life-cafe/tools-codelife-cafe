@@ -5,6 +5,54 @@ export interface CsvData {
 	colCount: number;
 }
 
+export type CsvTextEncoding = 'utf-8' | 'shift-jis' | 'utf-16le' | 'utf-16be';
+
+/** BOMを優先し、BOMなしでは厳密UTF-8、Shift-JISの順に試し、両方不正ならnullを返す。 */
+export function decodeCsvBytes(
+	bytes: Uint8Array,
+	encoding: CsvTextEncoding | 'auto' = 'auto',
+): string | null {
+	const decode = (label: CsvTextEncoding) => {
+		try {
+			return new TextDecoder(label, { fatal: true }).decode(bytes);
+		} catch {
+			throw new Error(
+				'指定した文字コードで読み込めません。文字コードまたはファイルを確認してください。',
+			);
+		}
+	};
+	if (encoding !== 'auto') return decode(encoding);
+	if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
+		return decode('utf-8');
+	if (bytes[0] === 0xff && bytes[1] === 0xfe) return decode('utf-16le');
+	if (bytes[0] === 0xfe && bytes[1] === 0xff) return decode('utf-16be');
+
+	for (const label of ['utf-8', 'shift-jis'] as const) {
+		try {
+			return decode(label);
+		} catch {
+			// 不正なバイトを置換文字へ変換せず、次の文字コードを試す。
+		}
+	}
+	return null;
+}
+
+export function exportCsvJson(data: CsvData, hasHeader: boolean): string {
+	if (hasHeader && data.rows.length > 1) {
+		const headers = data.rows[0].map((h, i) => h || `Column${i + 1}`);
+		if (new Set(headers).size !== headers.length) {
+			throw new Error(
+				'ヘッダーが重複しているためJSONを保存できません。列名を変更するか、CSVで保存してください。',
+			);
+		}
+		const jsonArray = data.rows
+			.slice(1)
+			.map((row) => Object.fromEntries(headers.map((h, i) => [h, row[i]])));
+		return JSON.stringify(jsonArray, null, 2);
+	}
+	return JSON.stringify(data.rows, null, 2);
+}
+
 const VALID_DELIMITERS = [',', '\t', ';', '|'];
 
 export interface CsvEditorSettings {
