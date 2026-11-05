@@ -463,6 +463,7 @@ export default function CsvEditor() {
 
 	const clearData = () => {
 		setClearConfirmOpen(false);
+		setError('');
 		setCsvData(null);
 		setSheets([]);
 		setInputText('');
@@ -624,12 +625,6 @@ export default function CsvEditor() {
 				</div>
 			</div>
 
-			{error && !pendingCsv && (
-				<p role="alert" className="text-destructive text-sm">
-					{error}
-				</p>
-			)}
-
 			<Dialog
 				open={pendingCsv !== null}
 				onOpenChange={(open) => {
@@ -720,6 +715,20 @@ export default function CsvEditor() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+
+			{error && !pendingCsv && (
+				<div
+					role="alert"
+					className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
+				>
+					<p>{error}</p>
+					{csvData && (
+						<p className="mt-1">
+							読み込みに失敗しました。表示中のデータは読み込み前のもので、編集内容は保持されています。
+						</p>
+					)}
+				</div>
+			)}
 
 			{/* Main Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
