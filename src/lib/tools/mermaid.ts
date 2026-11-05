@@ -1,3 +1,4 @@
+import { JSON_SCHEMA, load } from 'js-yaml';
 import { exceedsMaxCharacters } from '../string-length.ts';
 /**
  * Mermaidレンダリング・エクスポート共通ロジック
@@ -136,6 +137,36 @@ export const MONO_THEME_VARIABLES = {
 	},
 } as const;
 
+/** imgを含む拡張ノードは、描画中にImage.srcへ渡されるため事前に拒否する。 */
+export function assertMermaidNoExternalImages(code: string): void {
+	// Mermaidの拡張ノードと同様、二重引用符内の } は終端にしない。
+	// コメント・通常ラベル内にある記法の説明は検査対象にしない。
+	const tokens = /%%[^\r\n]*|"[^"]*"|@\{((?:[^"}]|"[^"]*")*)\}/g;
+	for (const match of code.matchAll(tokens)) {
+		const metadata = match[1];
+		if (metadata === undefined) continue;
+		// Mermaidのlexerは引用ラベル内の改行を <br/> に正規化する。
+		const normalized = metadata.replace(/"[^"]*"/g, (quoted) =>
+			quoted.replace(/\n\s*/g, '<br/>'),
+		);
+		// Mermaidと同じJSON_SCHEMAで、引用キーやエスケープも解釈する。
+		const yaml = normalized.includes('\n')
+			? `${normalized}\n`
+			: `{\n${normalized}\n}`;
+		let node: unknown;
+		try {
+			node = load(yaml, { schema: JSON_SCHEMA });
+		} catch {
+			throw new Error('拡張ノードの構文を確認してください。');
+		}
+		if (node && typeof node === 'object' && 'img' in node) {
+			throw new Error(
+				'外部リソースの取得を防ぐため、画像構文（img）は利用できません。',
+			);
+		}
+	}
+}
+
 /**
  * MermaidコードをSVG文字列としてレンダリングする
  */
@@ -156,6 +187,7 @@ export async function renderMermaidSvg(
 		);
 	}
 
+	assertMermaidNoExternalImages(code);
 	const mermaidModule = await import('mermaid');
 	const mermaid = mermaidModule.default;
 

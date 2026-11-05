@@ -1,5 +1,5 @@
 import { AlertTriangle, Info, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -126,8 +126,6 @@ export default function CronChecker() {
 	const [shareCopied, setShareCopied] = useState(false);
 	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
-	const isInitialMountRef = useRef(true);
-
 	// --- WebMCP Tool Registration ---
 	useEffect(() => {
 		return provideToolsFromFactory([cronCheckerTool]);
@@ -138,22 +136,6 @@ export default function CronChecker() {
 		const exprParam = params.get('expr');
 		if (exprParam) setInput(exprParam);
 	}, []);
-
-	useEffect(() => {
-		// 初回マウント時（URLからの復元直後を含む）はURLへ書き戻さない。
-		// ユーザーが実際に入力を編集した場合のみ ?expr= を更新する。
-		if (isInitialMountRef.current) {
-			isInitialMountRef.current = false;
-			return;
-		}
-		const url = new URL(window.location.href);
-		if (input.trim()) {
-			url.searchParams.set('expr', input.trim());
-		} else {
-			url.searchParams.delete('expr');
-		}
-		window.history.replaceState({}, '', url.toString());
-	}, [input]);
 
 	const parseResult = useMemo(():
 		| { schedule: CronSchedule }
@@ -207,15 +189,11 @@ export default function CronChecker() {
 		return generateCronFromJapanese(jaInput);
 	}, [jaInput]);
 
-	const shareUrl = useMemo(() => {
-		if (typeof window === 'undefined') return '';
-		const url = new URL(window.location.href);
-		url.searchParams.set('expr', input.trim());
-		return url.toString();
-	}, [input]);
-
 	const handleCopyShare = async () => {
-		const ok = await copyText(shareUrl);
+		if (!schedule) return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('expr', schedule.raw);
+		const ok = await copyText(url.toString());
 		if (ok) {
 			setShareCopyFailed(false);
 			setShareCopied(true);

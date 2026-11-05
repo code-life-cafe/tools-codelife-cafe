@@ -1,4 +1,54 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
+
+test('入力の編集・クリアでURLへcron本文や不正入力を保存しない', async ({
+	page,
+}) => {
+	await page.goto('/cron-checker?keep=1#result');
+	const originalUrl = page.url();
+	const input = page.getByLabel('cron式', { exact: true });
+	await input.fill(
+		'0 9 * * * curl https://example.invalid/job?token=DEMO_SECRET',
+	);
+	await expect(page.getByRole('alert')).toContainText('フィールド数が不正です');
+	expect(page.url()).toBe(originalUrl);
+	await expect(
+		page.getByRole('button', { name: '共有URLをコピー' }),
+	).toHaveCount(0);
+	await input.fill('0 18 * * *');
+	await expect(page.getByTestId('cron-description')).toContainText('18:00');
+	expect(page.url()).toBe(originalUrl);
+	await input.clear();
+	await expect(page.getByRole('alert')).toBeVisible();
+	expect(page.url()).toBe(originalUrl);
+});
+
+test('明示操作時だけ検証済みcron式の共有URLをコピーする', async ({ page }) => {
+	await page.addInitScript(() => {
+		Object.defineProperty(navigator, 'clipboard', {
+			configurable: true,
+			value: {
+				writeText: async (text: string) => {
+					document.documentElement.dataset.copiedShare = text;
+				},
+			},
+		});
+	});
+	await page.goto('/cron-checker?keep=1#result');
+	const originalUrl = page.url();
+	await page.getByLabel('cron式', { exact: true }).fill('  */5 * * * * *  ');
+	const share = page.getByRole('button', { name: '共有URLをコピー' });
+	await expect(share).toBeVisible();
+	await expect(page.locator('html')).not.toHaveAttribute('data-copied-share');
+	expect(page.url()).toBe(originalUrl);
+	await share.click();
+	const expected = new URL(originalUrl);
+	expected.searchParams.set('expr', '*/5 * * * * *');
+	await expect(page.locator('html')).toHaveAttribute(
+		'data-copied-share',
+		expected.toString(),
+	);
+	expect(page.url()).toBe(originalUrl);
+});
 
 test.describe('cron式チェッカー', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {

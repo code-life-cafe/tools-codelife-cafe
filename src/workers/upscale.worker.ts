@@ -10,7 +10,7 @@ import {
 	type QualityMode,
 	type UpscaleOptions,
 	validateResolution,
-} from '../lib/tools/upscale-core';
+} from '../lib/tools/upscale-core.ts';
 
 // onnxruntime-web の wasm 配信元（package.json の pin と同期させること）。
 // bg-remove と同様 cdn.jsdelivr.net を使用（CSP script-src/connect-src で許可済み）。
@@ -295,6 +295,13 @@ async function processImage(
 	}
 
 	const finalCtx = ctx2d(finalCanvas);
+	// RGBモデルが失ったalphaを元画像から拡大して復元する。
+	// 2xへの縮小・ノイズ除去OFFのブレンド後に適用し、透明度を上書きさせない。
+	finalCtx.globalCompositeOperation = 'destination-in';
+	finalCtx.imageSmoothingEnabled = true;
+	finalCtx.imageSmoothingQuality = 'high';
+	finalCtx.drawImage(srcCanvas, 0, 0, finalCanvas.width, finalCanvas.height);
+	finalCtx.globalCompositeOperation = 'source-over';
 	const finalImage = finalCtx.getImageData(
 		0,
 		0,
