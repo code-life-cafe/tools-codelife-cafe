@@ -625,12 +625,6 @@ export default function CsvEditor() {
 				</div>
 			</div>
 
-			{error && !pendingCsv && (
-				<p role="alert" className="text-destructive text-sm">
-					{error}
-				</p>
-			)}
-
 			<Dialog
 				open={pendingCsv !== null}
 				onOpenChange={(open) => {
@@ -722,7 +716,7 @@ export default function CsvEditor() {
 				</DialogContent>
 			</Dialog>
 
-			{error && (
+			{error && !pendingCsv && (
 				<div
 					role="alert"
 					className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
