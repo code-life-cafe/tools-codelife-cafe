@@ -252,7 +252,10 @@ export function execRegexSync(
 				});
 
 				if (match.index === regex.lastIndex) {
-					regex.lastIndex = getNextCodePointIndex(text, regex.lastIndex);
+					regex.lastIndex =
+						regex.unicode || regex.unicodeSets
+							? getNextCodePointIndex(text, regex.lastIndex)
+							: regex.lastIndex + 1;
 				}
 
 				match = regex.exec(text);
@@ -270,6 +273,8 @@ export function execRegexSync(
 
 		let replacedText: string | undefined;
 		if (replacement !== undefined) {
+			// sticky検索で進んだ位置を引き継がず、検索時と同じ初期位置から置換する。
+			regex.lastIndex = 0;
 			replacedText = text.replace(regex, replacement);
 		}
 

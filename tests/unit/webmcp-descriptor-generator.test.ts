@@ -73,6 +73,54 @@ test('buildValidator: enum に含まれない文字列を拒否する', () => {
 	assert.equal(validate({ mode: 'a' }).ok, true);
 });
 
+test('buildInputSchema: 整数・上下限・数値enumを反映する', () => {
+	const schema = buildInputSchema({
+		count: { type: 'integer', minimum: 1, maximum: 100, description: 'count' },
+		indent: { type: 'number', enum: [2, 4], description: 'indent' },
+	});
+	assert.deepEqual(schema.properties, {
+		count: { type: 'integer', minimum: 1, maximum: 100, description: 'count' },
+		indent: { type: 'number', enum: [2, 4], description: 'indent' },
+	});
+});
+
+test('buildValidator: 整数の上下限を検証し、小数・型違い・非有限値を拒否する', () => {
+	const validate = buildValidator({
+		count: { type: 'integer', minimum: 1, maximum: 100, description: 'count' },
+	});
+	for (const count of [1, 100]) assert.equal(validate({ count }).ok, true);
+	for (const count of [
+		0,
+		101,
+		1.5,
+		'1',
+		null,
+		true,
+		NaN,
+		Infinity,
+		-Infinity,
+	]) {
+		assert.equal(validate({ count }).ok, false, String(count));
+	}
+});
+
+test('buildValidator: numberの小数境界と数値enumを検証する', () => {
+	const range = buildValidator({
+		value: { type: 'number', minimum: 0.5, maximum: 1.5, description: 'value' },
+	});
+	for (const value of [0.5, 1, 1.5]) assert.equal(range({ value }).ok, true);
+	for (const value of [0.49, 1.51]) assert.equal(range({ value }).ok, false);
+	for (const type of ['number', 'integer'] as const) {
+		const validate = buildValidator({
+			indent: { type, enum: [2, 4], description: 'indent' },
+		});
+		for (const indent of [2, 4]) assert.equal(validate({ indent }).ok, true);
+		for (const indent of [3, 8, 2.5, '2', null]) {
+			assert.equal(validate({ indent }).ok, false, String(indent));
+		}
+	}
+});
+
 test('buildValidator: maxLength を超える文字列を拒否する', () => {
 	const validate = buildValidator({
 		text: { type: 'string', description: 'text', maxLength: 3 },

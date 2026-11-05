@@ -173,13 +173,19 @@ export function HashPage() {
 		setComputing(false);
 	}, []);
 
-	const handleModeChange = useCallback((mode: string) => {
-		runIdRef.current++;
-		setInputMode(mode as InputMode);
-		setResults({});
-		setError(null);
-		setComputing(false);
-	}, []);
+	const handleModeChange = useCallback(
+		(mode: string) => {
+			runIdRef.current++;
+			setInputMode(mode as InputMode);
+			setResults({});
+			setError(null);
+			setComputing(false);
+			if (mode === 'file' && file && algorithms.length > 0) {
+				startFileHash(file, algorithms);
+			}
+		},
+		[file, algorithms, startFileHash],
+	);
 
 	const fileWarnLevel =
 		file && inputMode === 'file'

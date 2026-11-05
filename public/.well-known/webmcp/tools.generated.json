@@ -739,8 +739,12 @@
             "description": "JSON text to format / 対象JSON文字列"
           },
           "indent": {
-            "type": "number",
-            "description": "Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される",
+            "type": "integer",
+            "description": "Indent width: 2 or 4 (default: 2), validated but not used when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueでも値は検証するが出力には使用しない",
+            "enum": [
+              2,
+              4
+            ],
             "default": 2
           },
           "minify": {
@@ -953,8 +957,10 @@
             ]
           },
           "count": {
-            "type": "number",
+            "type": "integer",
             "description": "Number of identifiers to generate (1-100, default: 1) / 生成件数（1〜100件、省略時: 1）",
+            "minimum": 1,
+            "maximum": 100,
             "default": 1
           }
         },
@@ -991,8 +997,10 @@
             "description": "Cron expression (5 or 6 fields) / cron式文字列（5または6フィールド）"
           },
           "count": {
-            "type": "number",
+            "type": "integer",
             "description": "Number of upcoming run times to return (1-50, default: 5) / 次回実行予定の算出件数（1〜50件、省略時: 5）",
+            "minimum": 1,
+            "maximum": 50,
             "default": 5
           }
         },

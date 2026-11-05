@@ -34,7 +34,9 @@ export const cronCheckerMcpTool = defineMcpTool<
 				'Cron expression (5 or 6 fields) / cron式文字列（5または6フィールド）',
 		},
 		count: {
-			type: 'number',
+			type: 'integer',
+			minimum: MIN_MCP_COUNT,
+			maximum: MAX_MCP_COUNT,
 			required: false,
 			default: 5,
 			description: `Number of upcoming run times to return (${MIN_MCP_COUNT}-${MAX_MCP_COUNT}, default: 5) / 次回実行予定の算出件数（${MIN_MCP_COUNT}〜${MAX_MCP_COUNT}件、省略時: 5）`,

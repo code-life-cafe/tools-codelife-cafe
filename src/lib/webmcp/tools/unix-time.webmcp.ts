@@ -106,10 +106,12 @@ export const unixTimeTool = createWebMcpTool<UnixTimeInput, UnixTimeOutput>({
 		if (!sizeChecked.ok) return sizeChecked;
 		const format = optionalEnum(input, 'format', SUPPORTED_FORMATS, 'auto');
 		if (!format.ok) return format;
-		const timeZone =
-			typeof input.timeZone === 'string' && input.timeZone.trim() !== ''
-				? input.timeZone
-				: 'UTC';
+		const timeZone = input.timeZone === undefined ? 'UTC' : input.timeZone;
+		if (typeof timeZone !== 'string') {
+			return failure(
+				'"timeZone" must be a string / "timeZone" は文字列で指定してください',
+			);
+		}
 		try {
 			Intl.DateTimeFormat(undefined, { timeZone });
 		} catch {

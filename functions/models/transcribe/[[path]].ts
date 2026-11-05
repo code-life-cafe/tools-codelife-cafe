@@ -79,7 +79,12 @@ export const onRequest = async (context: Context): Promise<Response> => {
 	}
 
 	const url = new URL(request.url);
-	const key = decodeURIComponent(url.pathname.slice(MODEL_BASE_PATH.length));
+	let key: string;
+	try {
+		key = decodeURIComponent(url.pathname.slice(MODEL_BASE_PATH.length));
+	} catch {
+		return notFound();
+	}
 
 	// マニフェストに無いパスは配信しない（暗黙のパス解決を許可しない）
 	if (!ALLOWED_KEYS.has(key)) return notFound();
