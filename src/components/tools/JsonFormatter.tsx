@@ -214,12 +214,14 @@ export default function JsonFormatter() {
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div className="flex flex-wrap items-center gap-3">
 					<div className="flex items-center gap-2">
-						<Label className="text-sm whitespace-nowrap">インデント:</Label>
+						<Label htmlFor="json-indent" className="text-sm whitespace-nowrap">
+							インデント:
+						</Label>
 						<Select
 							value={indent}
 							onValueChange={(v) => updateSettings({ indent: v as IndentType })}
 						>
-							<SelectTrigger className="w-[140px]">
+							<SelectTrigger id="json-indent" className="w-[140px]">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>

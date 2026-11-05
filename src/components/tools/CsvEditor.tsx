@@ -766,7 +766,7 @@ export default function CsvEditor() {
 																			e.stopPropagation();
 																			removeColumn(cIdx);
 																		}}
-																		className="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity"
+																		className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 p-0.5 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity"
 																		title="列を削除"
 																	>
 																		<Trash2 className="h-3 w-3" />
@@ -788,14 +788,14 @@ export default function CsvEditor() {
 													className="group hover:bg-muted/10"
 												>
 													<td className="border bg-muted/30 text-center sticky left-0 z-10 w-10 p-0">
-														<div className="flex items-center justify-center relative w-full h-full min-h-[36px]">
-															<span className="text-xs text-muted-foreground group-hover:opacity-0 transition-opacity absolute">
+														<div className="group/row-actions flex items-center justify-center relative w-full h-full min-h-[36px]">
+															<span className="text-xs text-muted-foreground group-hover:opacity-0 group-focus-within/row-actions:opacity-0 transition-opacity absolute">
 																{startIndex + relativeIndex + 1}
 															</span>
 															<button
 																type="button"
 																onClick={() => removeRow(origRowIdx)}
-																className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity absolute"
+																className="opacity-0 group-hover:opacity-100 group-focus-within/row-actions:opacity-100 p-1 hover:bg-red-100 hover:text-red-600 rounded text-muted-foreground transition-opacity absolute"
 																title="行を削除"
 															>
 																<Trash2 className="h-3 w-3" />

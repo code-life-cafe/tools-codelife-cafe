@@ -69,6 +69,29 @@ test.describe('画像圧縮・リサイズ', () => {
 		expect(download.suggestedFilename()).toBe('sample-400x300_compressed.png');
 	});
 
+	test('品質スライダーを名前で取得し、キーボード操作できる（#632）', async ({
+		page,
+	}) => {
+		await uploadAndWait(page, SAMPLE);
+		await page.getByRole('combobox', { name: '出力形式' }).click();
+		await page.getByRole('option', { name: 'JPEG', exact: true }).click();
+
+		const quality = page.getByRole('slider', { name: '品質', exact: true });
+		await expect(quality).toBeVisible();
+		await quality.focus();
+		await page.keyboard.press('Home');
+		await expect(quality).toHaveAttribute('aria-valuenow', '0.1');
+		await page.keyboard.press('ArrowRight');
+		await expect(quality).toHaveAttribute('aria-valuenow', '0.15');
+		await page.keyboard.press('End');
+		await expect(quality).toHaveAttribute('aria-valuenow', '1');
+
+		await page.getByRole('combobox', { name: '出力形式' }).click();
+		await page.getByRole('option', { name: 'PNG', exact: true }).click();
+		await expect(quality).toHaveAttribute('data-disabled', '');
+		await expect(quality).not.toHaveAttribute('tabindex', '0');
+	});
+
 	test('最大幅リサイズで出力寸法が変わる', async ({ page }) => {
 		await uploadAndWait(page, SAMPLE);
 
