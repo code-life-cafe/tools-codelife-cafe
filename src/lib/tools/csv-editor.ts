@@ -7,7 +7,7 @@ export interface CsvData {
 
 export type CsvTextEncoding = 'utf-8' | 'shift-jis' | 'utf-16le' | 'utf-16be';
 
-/** BOMを優先し、UTF-8/Shift-JISで結果が一意に決まらない場合はnullを返す。 */
+/** BOMを優先し、BOMなしでは厳密UTF-8、Shift-JISの順に試し、両方不正ならnullを返す。 */
 export function decodeCsvBytes(
 	bytes: Uint8Array,
 	encoding: CsvTextEncoding | 'auto' = 'auto',
@@ -27,15 +27,14 @@ export function decodeCsvBytes(
 	if (bytes[0] === 0xff && bytes[1] === 0xfe) return decode('utf-16le');
 	if (bytes[0] === 0xfe && bytes[1] === 0xff) return decode('utf-16be');
 
-	const candidates = new Set<string>();
 	for (const label of ['utf-8', 'shift-jis'] as const) {
 		try {
-			candidates.add(decode(label));
+			return decode(label);
 		} catch {
-			// 不正なバイトを置換文字へ変換せず、この候補を除外する。
+			// 不正なバイトを置換文字へ変換せず、次の文字コードを試す。
 		}
 	}
-	return candidates.size === 1 ? [...candidates][0] : null;
+	return null;
 }
 
 export function exportCsvJson(data: CsvData, hasHeader: boolean): string {

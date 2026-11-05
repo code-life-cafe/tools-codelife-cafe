@@ -21,7 +21,26 @@ test('Shift-JISのCSV/TSVを文字化けせず表示する（#615）', async ({
 	}
 });
 
-test('文字コード判別不能時は選択まで既存データを保ち、選択後に読み込む（#615）', async ({
+test('BOMなしUTF-8の日本語CSVは文字コード選択なしで表示する（F1）', async ({
+	page,
+	createToolPage,
+}) => {
+	await createToolPage('csv-editor').goto();
+	await page.locator('input[type="file"]').setInputFiles({
+		name: 'utf-8.csv',
+		mimeType: 'text/csv',
+		buffer: Buffer.from('名前,年齢\n田中,30', 'utf-8'),
+	});
+	await expect(page.getByRole('columnheader', { name: /名前/ })).toBeVisible();
+	await expect(page.getByRole('columnheader', { name: /年齢/ })).toBeVisible();
+	await expect(page.locator('table tbody input').nth(0)).toHaveValue('田中');
+	await expect(page.locator('table tbody input').nth(1)).toHaveValue('30');
+	await expect(
+		page.getByRole('dialog', { name: '読み込み文字コードの選択' }),
+	).toBeHidden();
+});
+
+test('両方で有効なバイト列はUTF-8を優先し、選択なしで読み込む（F1）', async ({
 	page,
 	createToolPage,
 }) => {
@@ -33,18 +52,10 @@ test('文字コード判別不能時は選択まで既存データを保ち、�
 		mimeType: 'text/csv',
 		buffer: Buffer.from([0x6e, 0x61, 0x6d, 0x65, 0x0a, 0xc2, 0xa9]),
 	});
-	const dialog = page.getByRole('dialog', { name: '読み込み文字コードの選択' });
-	await expect(dialog).toBeVisible();
-	await expect(page.locator('table tbody input').first()).toHaveValue(
-		'保持する値',
-	);
-	await dialog.getByRole('combobox', { name: '文字コード' }).click();
-	await page.getByRole('option', { name: 'Shift-JIS', exact: true }).click();
-	await dialog
-		.getByRole('button', { name: '選択した文字コードで読み込む' })
-		.click();
-	await expect(dialog).toBeHidden();
-	await expect(page.locator('table tbody input').first()).toHaveValue('ﾂｩ');
+	await expect(page.locator('table tbody input').first()).toHaveValue('©');
+	await expect(
+		page.getByRole('dialog', { name: '読み込み文字コードの選択' }),
+	).toBeHidden();
 });
 
 test('不正なバイト列は置換文字で取り込まず、エラー表示後にキャンセルできる（#615）', async ({
@@ -60,6 +71,10 @@ test('不正なバイト列は置換文字で取り込まず、エラー表示�
 		buffer: Buffer.from([0x82]),
 	});
 	const dialog = page.getByRole('dialog', { name: '読み込み文字コードの選択' });
+	await expect(dialog).toBeVisible();
+	await expect(page.locator('table tbody input').first()).toHaveValue(
+		'保持する値',
+	);
 	await dialog
 		.getByRole('button', { name: '選択した文字コードで読み込む' })
 		.click();
