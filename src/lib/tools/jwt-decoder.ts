@@ -33,7 +33,7 @@ function decodeJwtPart(segment: string): JwtDecodedPart {
 	const text = decodeBase64Url(segment);
 	const json = JSON.parse(text) as unknown;
 
-	if (typeof json !== 'object' || json === null) {
+	if (typeof json !== 'object' || json === null || Array.isArray(json)) {
 		throw new Error('JSONオブジェクトではありません。');
 	}
 

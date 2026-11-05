@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('Character Counter', () => {
 	test('loads page and shows character count UI', async ({
@@ -136,7 +136,8 @@ test.describe('Character Counter', () => {
 
 		const textbox = page.getByRole('textbox').first();
 		await textbox.fill('あ'.repeat(10));
-		await expect(xBar).toHaveAttribute('aria-valuenow', '10');
+		await expect(xBar).toHaveAttribute('aria-valuenow', '20');
+		await expect(blueskyBar).toHaveAttribute('aria-valuenow', '10');
 	});
 
 	test('expands "その他のSNS" to reveal Instagram and LinkedIn', async ({
@@ -186,7 +187,7 @@ test.describe('Character Counter', () => {
 		).toBeVisible();
 	});
 
-	test('shows an over-limit message once the X limit (280 chars) is exceeded', async ({
+	test('日本語140文字はXの上限ちょうど、141文字は2文字超過と表示する（#620）', async ({
 		page,
 		createToolPage,
 	}) => {
@@ -194,11 +195,22 @@ test.describe('Character Counter', () => {
 		await toolPage.goto();
 
 		const textbox = page.getByRole('textbox').first();
-		await textbox.fill('あ'.repeat(281));
-
 		const xBar = page.getByRole('progressbar', { name: 'X' });
+		await textbox.fill('あ'.repeat(140));
+		await expect(xBar).toHaveAttribute(
+			'aria-valuetext',
+			'280文字 / 上限280文字（残り 0文字）',
+		);
+		await textbox.fill('あ'.repeat(141));
 		await expect(xBar).toHaveAttribute('aria-valuenow', '280');
-		await expect(page.getByText('1文字オーバー')).toBeVisible();
+		await expect(xBar).toHaveAttribute(
+			'aria-valuetext',
+			'282文字 / 上限280文字（2文字オーバー）',
+		);
+		// 表示は「<sr-only>超過: </sr-only>2文字オーバー」のため末尾一致で確認する。
+		await expect(page.getByText(/^超過: 2文字オーバー$/)).toBeVisible();
+		await textbox.fill('👨‍👩‍👧‍👦 https://example.com あ');
+		await expect(xBar).toHaveAttribute('aria-valuenow', '29');
 	});
 
 	test('reveals the X URL note via keyboard focus and exposes it through aria-describedby', async ({

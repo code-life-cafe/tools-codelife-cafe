@@ -202,33 +202,52 @@ function normalizeMatchedUrl(rawMatch: string): string {
 	return normalized;
 }
 
-/**
- * Xの実効文字数（URL以外のgrapheme数 + URL件数 × 23）を算出する。
- * URL以外の文字カウント仕様・絵文字・結合文字の扱いは既存の grapheme カウントに従う。
- */
+// RGI絵文字を一まとまりで数える。VS16を省いたキーキャップもXの絵文字に含める。
+const X_EMOJI_PATTERN = /\p{RGI_Emoji}|[#*0-9]\u20e3/gv;
+
+function getXTextWeight(text: string): number {
+	// 絵文字1個を重み1の文字2個に置き換え、その他はコードポイントごとに加算する。
+	const weightedText = text.replace(X_EMOJI_PATTERN, 'aa');
+	let weight = 0;
+	for (const char of weightedText) {
+		const codePoint = char.codePointAt(0) ?? 0;
+		// https://github.com/twitter/twitter-text/blob/master/config/v3.json
+		const isSingleWeight =
+			codePoint <= 0x10ff ||
+			(codePoint >= 0x2000 && codePoint <= 0x200d) ||
+			(codePoint >= 0x2010 && codePoint <= 0x201f) ||
+			(codePoint >= 0x2032 && codePoint <= 0x2037);
+		weight += isSingleWeight ? 1 : 2;
+	}
+	return weight;
+}
+
+/** Xの実効文字数（NFC正規化後の重み付き文字数 + URL件数 × 23）を算出する。 */
 export function getXEffectiveCount(text: string): number {
 	if (!text) return 0;
+	const normalizedText = text.normalize('NFC');
 
-	const matches = [...text.matchAll(URL_PATTERN)];
+	const matches = [...normalizedText.matchAll(URL_PATTERN)];
 	if (matches.length === 0) {
-		return getGraphemeCount(text);
+		return getXTextWeight(normalizedText);
 	}
 
 	let cursor = 0;
-	let nonUrlText = '';
+	let nonUrlWeight = 0;
 	let urlCount = 0;
 
 	for (const match of matches) {
 		const start = match.index ?? 0;
 		const url = normalizeMatchedUrl(match[0]);
 		if (start < cursor) continue; // 前のURLに内包された重複マッチは無視
-		nonUrlText += text.slice(cursor, start);
+		// URLの前後を連結すると別々の絵文字・結合文字が一体化するため、区間ごとに数える。
+		nonUrlWeight += getXTextWeight(normalizedText.slice(cursor, start));
 		cursor = start + url.length;
 		urlCount++;
 	}
-	nonUrlText += text.slice(cursor);
+	nonUrlWeight += getXTextWeight(normalizedText.slice(cursor));
 
-	return getGraphemeCount(nonUrlText) + urlCount * X_URL_WEIGHT;
+	return nonUrlWeight + urlCount * X_URL_WEIGHT;
 }
 
 function countForService(

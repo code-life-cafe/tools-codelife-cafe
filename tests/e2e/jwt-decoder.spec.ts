@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 const SAMPLE_JWT =
 	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoi5bGx55Sw5aSq6YOOIiwicm9sZSI6IueuoeeQhuiAhSJ9.signature';
@@ -7,6 +7,25 @@ const UNSIGNED_JWT =
 	'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJuYW1lIjoi5bGx55Sw5aSq6YOOIiwicm9sZSI6IueuoeeQhuiAhSJ9.';
 
 test.describe('JWT Decoder Tool', () => {
+	test('headerまたはpayloadが配列のJSONなら日本語エラーを表示する（#623）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('jwt-decoder').goto();
+		for (const token of ['W10.W10.', 'W10.e30.', 'e30.W10.']) {
+			await page.getByLabel('JWT').fill(token);
+			await expect(page.getByText('デコードできません')).toBeVisible();
+			await expect(
+				page.getByText('デコードエラー: JSONオブジェクトではありません。', {
+					exact: true,
+				}),
+			).toBeVisible();
+		}
+		await page.getByLabel('JWT').fill(SAMPLE_JWT);
+		await expect(page.getByText('デコードできません')).toHaveCount(0);
+		await expect(page.getByText('"name": "山田太郎"')).toBeVisible();
+	});
+
 	test('should decode JWT header and payload locally', async ({
 		page,
 		createToolPage,

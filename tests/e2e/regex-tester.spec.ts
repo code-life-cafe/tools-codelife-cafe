@@ -1,6 +1,46 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('Regex Tester Tool', () => {
+	test('零幅一致の件数と位置がUnicodeフラグに従う（#621）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('regex-tester').goto();
+		await page.locator('input').first().fill('(?:)');
+		await page.locator('input').nth(1).fill('g');
+		await page.locator('#regex-test-string-textarea').fill('😀');
+		await expect(page.locator('.text-4xl.font-bold')).toHaveText('3');
+		await expect(page.getByText(/^Index: \d+$/)).toHaveText([
+			'Index: 0',
+			'Index: 1',
+			'Index: 2',
+		]);
+		for (const flags of ['gu', 'gv']) {
+			await page.locator('input').nth(1).fill(flags);
+			await expect(page.locator('.text-4xl.font-bold')).toHaveText('2');
+			await expect(page.getByText(/^Index: \d+$/)).toHaveText([
+				'Index: 0',
+				'Index: 2',
+			]);
+		}
+	});
+
+	test('sticky検索の一致位置と置換位置が揃う（#622）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('regex-tester').goto();
+		await page.locator('input').first().fill('a');
+		await page.locator('input').nth(1).fill('y');
+		await page.locator('#regex-test-string-textarea').fill('aa');
+		await page.getByLabel('置換モードを有効にする').click();
+		await page.getByPlaceholder('***-**** または $1 など').fill('X');
+		await expect(page.getByText(/^Index: \d+$/)).toHaveText(['Index: 0']);
+		await expect(page.locator('#regex-replace-output-textarea')).toHaveValue(
+			'Xa',
+		);
+	});
+
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('regex-tester');
 		await toolPage.goto();
