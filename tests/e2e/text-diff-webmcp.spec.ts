@@ -124,31 +124,55 @@ test('実ページ登録→実Workerで両モード実行、UI統計/断片一�
 				{ exact: true },
 			),
 		).toBeVisible();
-		const expectedRows = (
-			result.parts as Array<{ value: string; type: string }>
-		).flatMap((part) => {
-			const lines = part.value.split('\n');
-			if (part.value.endsWith('\n')) lines.pop();
-			return lines.map((content) => ({ content, type: part.type }));
-		});
-		const rows = await page
-			.getByRole('region', { name: 'ツール操作エリア' })
-			.locator('span.flex-1')
-			.evaluateAll((spans) =>
-				spans.map((span) => ({
-					content: Array.from(span.childNodes)
-						.filter((node) => node.nodeType === Node.TEXT_NODE)
-						.map((node) => node.textContent)
-						.join(''),
-					type:
-						span.querySelector('span')?.textContent?.trim() === '+'
-							? 'added'
-							: span.querySelector('span')?.textContent?.trim() === '-'
-								? 'removed'
-								: 'unchanged',
-				})),
-			);
-		expect(rows).toEqual(expectedRows);
+		if (mode === 'lines') {
+			const expectedRows = (
+				result.parts as Array<{ value: string; type: string }>
+			).flatMap((part) => {
+				const lines = part.value.split('\n');
+				if (part.value.endsWith('\n')) lines.pop();
+				return lines.map((content) => ({ content, type: part.type }));
+			});
+			const rows = await page
+				.getByRole('region', { name: 'ツール操作エリア' })
+				.locator('span.flex-1')
+				.evaluateAll((spans) =>
+					spans.map((span) => ({
+						content: Array.from(span.childNodes)
+							.filter((node) => node.nodeType === Node.TEXT_NODE)
+							.map((node) => node.textContent)
+							.join(''),
+						type:
+							span.querySelector('span')?.textContent?.trim() === '+'
+								? 'added'
+								: span.querySelector('span')?.textContent?.trim() === '-'
+									? 'removed'
+									: 'unchanged',
+					})),
+				);
+			expect(rows).toEqual(expectedRows);
+		} else {
+			// WebMCPは断片を返すが、文字単位のUIは実際の改行で行を構築する。
+			expect(result.parts).toEqual([
+				{ value: '日本語\n', type: 'unchanged' },
+				{ value: '旧', type: 'removed' },
+				{ value: '新', type: 'added' },
+				{ value: '文', type: 'unchanged' },
+				{ value: '😀', type: 'removed' },
+				{ value: '😺', type: 'added' },
+			]);
+			const unified = page.getByTestId('diff-unified');
+			await expect(unified.locator(':scope > div')).toHaveCount(3);
+			await expect(unified.getByTestId('line-a')).toHaveText(['1', '2', '']);
+			await expect(unified.getByTestId('line-b')).toHaveText(['1', '', '2']);
+			const rows = unified.getByTestId('line-content');
+			await expect(rows).toHaveText([' 日本語', '- 旧文😀', '+ 新文😺']);
+			// 共通文字を強調せず、変更文字だけを元の行内で強調する。
+			await expect(rows.nth(0).locator('del, ins')).toHaveCount(0);
+			await expect(rows.nth(1).locator('del')).toHaveText(['旧', '😀']);
+			await expect(rows.nth(1).locator('ins')).toHaveCount(0);
+			await expect(rows.nth(2).locator('ins')).toHaveText(['新', '😺']);
+			await expect(rows.nth(2).locator('del')).toHaveCount(0);
+		}
 		expect(await snapshot(page)).toEqual(before);
 		const other = await execute(page, {
 			textA: 'abc',

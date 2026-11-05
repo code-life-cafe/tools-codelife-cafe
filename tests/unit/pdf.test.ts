@@ -69,6 +69,42 @@ test('mergePdfs: PDF 2つ + PNG 1つの結合結果のページ数が合計と�
 	assert.equal(await pageCountOf(merged), 9);
 });
 
+test('mergePdfs: 入力を並べ替えた後も各PDF内のページ順を保って実バイト列へ反映する', async () => {
+	const { PDFDocument } = await import('pdf-lib');
+	const a = await PDFDocument.create();
+	a.addPage([201, 301]);
+	a.addPage([202, 302]);
+	const b = await PDFDocument.create();
+	b.addPage([401, 501]);
+	b.addPage([402, 502]);
+	const inputs = [
+		{ kind: 'pdf' as const, name: 'a.pdf', bytes: await a.save() },
+		{ kind: 'pdf' as const, name: 'b.pdf', bytes: await b.save() },
+	];
+	const original = await mergePdfs(inputs);
+	const reordered = await mergePdfs([inputs[1], inputs[0]]);
+	const originalDoc = await PDFDocument.load(original);
+	const reorderedDoc = await PDFDocument.load(reordered);
+	assert.deepEqual(
+		originalDoc.getPages().map((page) => page.getSize()),
+		[
+			{ width: 201, height: 301 },
+			{ width: 202, height: 302 },
+			{ width: 401, height: 501 },
+			{ width: 402, height: 502 },
+		],
+	);
+	assert.deepEqual(
+		reorderedDoc.getPages().map((page) => page.getSize()),
+		[
+			{ width: 401, height: 501 },
+			{ width: 402, height: 502 },
+			{ width: 201, height: 301 },
+			{ width: 202, height: 302 },
+		],
+	);
+});
+
 test('mergePdfs: 進捗コールバックがファイルごとに呼ばれる', async () => {
 	const a = await makePdf(1);
 	const calls: Array<[number, number]> = [];
