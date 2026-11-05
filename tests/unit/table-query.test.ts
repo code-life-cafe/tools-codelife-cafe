@@ -299,3 +299,86 @@ test('queryRows - 区画コード列の昇順ソートは文字列順になる',
 		['A-1', 'A-2', 'A-3', 'B-1', 'B-2'],
 	);
 });
+
+test('inferColumnType - booleanの有効値・空欄・不正値と数値優先を保持する（#574）', () => {
+	assert.equal(
+		inferColumnType(['true', 'false', '1', '0', '', 'unknown']),
+		'boolean',
+	);
+	assert.equal(
+		inferColumnType([' TRUE ', ' False ', '', 'unknown']),
+		'boolean',
+	);
+	assert.equal(inferColumnType(['1', '0', '']), 'number');
+	assert.equal(inferColumnType(['', 'unknown']), 'text');
+	assert.equal(inferColumnType(['false', 'unknown']), 'text');
+});
+
+test('applyFilter - booleanのeq/neqは有効な真偽値だけを比較する（#574）', () => {
+	const rows = [
+		'true',
+		'false',
+		'1',
+		'0',
+		'',
+		'unknown',
+		' TRUE ',
+		' False ',
+		' ',
+	].map((v) => [v]);
+	const columns: Column[] = [{ id: 'c0', name: '有効', type: 'boolean' }];
+	// 空欄・不正値は数値/日付比較と同様、eq/neqのどちらにも一致しない。
+	for (const { value, eq, neq } of [
+		{ value: 'false', eq: [1, 3, 7], neq: [0, 2, 6] },
+		{ value: 'true', eq: [0, 2, 6], neq: [1, 3, 7] },
+		{ value: 0, eq: [1, 3, 7], neq: [0, 2, 6] },
+		{ value: 1, eq: [0, 2, 6], neq: [1, 3, 7] },
+		{ value: ' FALSE ', eq: [1, 3, 7], neq: [0, 2, 6] },
+	]) {
+		for (const operator of ['eq', 'neq'] as const) {
+			assert.deepEqual(
+				applyFilter(
+					rows,
+					{
+						combinator: 'and',
+						conditions: [{ columnId: 'c0', operator, value }],
+					},
+					columns,
+				),
+				operator === 'eq' ? eq : neq,
+				`${operator}: ${value}`,
+			);
+		}
+	}
+});
+
+test('applyFilter - booleanの不正な比較値はeq/neqに一致せず、空欄条件は維持する（#574）', () => {
+	const rows = [['true'], ['false'], ['1'], ['0'], [''], ['unknown']];
+	const columns: Column[] = [{ id: 'c0', name: '有効', type: 'boolean' }];
+	for (const value of ['', ' ', 'unknown', '2', undefined]) {
+		for (const operator of ['eq', 'neq'] as const) {
+			assert.deepEqual(
+				applyFilter(
+					rows,
+					{
+						combinator: 'and',
+						conditions: [{ columnId: 'c0', operator, value }],
+					},
+					columns,
+				),
+				[],
+				`${operator}: ${value}`,
+			);
+		}
+	}
+	for (const operator of ['empty', 'notEmpty'] as const) {
+		assert.deepEqual(
+			applyFilter(
+				rows,
+				{ combinator: 'and', conditions: [{ columnId: 'c0', operator }] },
+				columns,
+			),
+			operator === 'empty' ? [4] : [0, 1, 2, 3, 5],
+		);
+	}
+});

@@ -429,6 +429,7 @@ export default function CsvEditor() {
 
 	const clearData = () => {
 		setClearConfirmOpen(false);
+		setError('');
 		setCsvData(null);
 		setSheets([]);
 		setInputText('');
@@ -622,6 +623,20 @@ export default function CsvEditor() {
 				</DialogContent>
 			</Dialog>
 
+			{error && (
+				<div
+					role="alert"
+					className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive"
+				>
+					<p>{error}</p>
+					{csvData && (
+						<p className="mt-1">
+							読み込みに失敗しました。表示中のデータは読み込み前のもので、編集内容は保持されています。
+						</p>
+					)}
+				</div>
+			)}
+
 			{/* Main Tabs */}
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
 				<TabsList className="grid w-full grid-cols-4 max-w-[600px]">
@@ -653,7 +668,6 @@ export default function CsvEditor() {
 						className="min-h-[400px] font-mono-tool text-sm leading-5 rounded-xl border"
 						spellCheck={false}
 					/>
-					{error && <p className="text-red-500 text-sm mt-2">{error}</p>}
 				</TabsContent>
 
 				{/* Table Edit Tab */}

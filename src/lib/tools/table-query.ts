@@ -294,11 +294,17 @@ function matchesCondition(
 		}
 	}
 
-	if (colType === 'boolean') {
+	if (colType === 'boolean' && (operator === 'eq' || operator === 'neq')) {
 		const lowerCell = cellValue.trim().toLowerCase();
 		const lowerTarget = String(value).trim().toLowerCase();
 		const isCellTrue = lowerCell === 'true' || lowerCell === '1';
 		const isTargetTrue = lowerTarget === 'true' || lowerTarget === '1';
+		const isCellFalse = lowerCell === 'false' || lowerCell === '0';
+		const isTargetFalse = lowerTarget === 'false' || lowerTarget === '0';
+		// 数値・日付比較と同様、空欄や不正値はeq/neqのどちらにも一致させない。
+		if ((!isCellTrue && !isCellFalse) || (!isTargetTrue && !isTargetFalse)) {
+			return false;
+		}
 
 		if (operator === 'eq') return isCellTrue === isTargetTrue;
 		if (operator === 'neq') return isCellTrue !== isTargetTrue;
