@@ -51,7 +51,8 @@ export function buildExternalScriptSnippet(url: string): string {
 }
 
 /**
- * 安全な範囲でのminify: `//`・`/* *‍/`コメントの削除と、文字列外の連続空白の単一空白化のみ行う。
+ * 安全な範囲でのminify: `//`・`/* *‍/`コメントの削除と、文字列外の水平空白の単一空白化のみ行う。
+ * ASIを保つため、コメント内も含めて改行は保持する。
  * 文字列（'・"・`）内のコメント記号や空白は変更しない。
  */
 export function minifyJs(code: string): string {
@@ -64,10 +65,13 @@ export function minifyJs(code: string): string {
 		const ch = code[i];
 		const next = code[i + 1];
 
-		if (inLineComment) {
-			if (ch === '\n') inLineComment = false;
+		// コメント中の改行もASIに影響する。文字列内は後続のquote分岐で保持する。
+		if (!quote && /[\r\n\u2028\u2029]/.test(ch)) {
+			out = out.replace(/ $/, '') + ch;
+			inLineComment = false;
 			continue;
 		}
+		if (inLineComment) continue;
 		if (inBlockComment) {
 			if (ch === '*' && next === '/') {
 				inBlockComment = false;
@@ -97,6 +101,8 @@ export function minifyJs(code: string): string {
 			continue;
 		}
 		if (ch === '/' && next === '*') {
+			// コメントを空白として扱い、前後のトークンの結合を防ぐ。
+			if (!/\s$/.test(out)) out += ' ';
 			inBlockComment = true;
 			i++;
 			continue;

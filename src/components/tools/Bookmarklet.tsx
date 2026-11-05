@@ -24,7 +24,7 @@ import {
 	decodeBookmarklet,
 	detectDirection,
 	encodeBookmarklet,
-} from '@/lib/tools/bookmarklet';
+} from '@/lib/tools/bookmarklet.ts';
 
 type DirectionMode = 'auto' | Direction;
 
@@ -224,6 +224,7 @@ export default function Bookmarklet() {
 						</div>
 					) : (
 						<Textarea
+							id="bookmarklet-output"
 							value={output}
 							readOnly
 							placeholder={`変換結果（${outputLabel}）がここに表示されます`}
@@ -261,13 +262,22 @@ export default function Bookmarklet() {
 			{effectiveDirection === 'encode' && result?.ok && (
 				<div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4">
 					<p className="text-sm text-muted-foreground mb-2">
-						下のリンクをブラウザのブックマークバーへドラッグ&ドロップすると、ブックマークレットとして登録できます。
+						下のリンクをブラウザのブックマークバーへドラッグ&ドロップすると、ブックマークレットとして登録できます。このページではクリックしても実行されません。
 					</p>
-					{/* biome-ignore lint/security/noScriptUrl: bookmarklet変換ツールの本質的な出力（javascript: URL）であり、ユーザー自身が入力したコードをそのままリンク化している */}
+					{/* biome-ignore lint/a11y/useValidAnchor: ブックマーク登録にはリンクが必要。hrefはrefで設定し、クリック実行だけを防ぐ。 */}
 					<a
-						href={result.output}
+						href="#bookmarklet-output"
+						// ReactのURL置換を避け、生成済みURLだけをDOMへ設定する。
+						ref={(link) => {
+							if (link) link.setAttribute('href', result.output);
+						}}
 						draggable
-						onClick={(e) => e.preventDefault()}
+						onDragStart={(event) => {
+							event.dataTransfer.setData('text/uri-list', result.output);
+							event.dataTransfer.setData('text/plain', result.output);
+						}}
+						onClick={(event) => event.preventDefault()}
+						onAuxClick={(event) => event.preventDefault()}
 						className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-background px-3 py-2 text-sm font-medium text-primary shadow-xs cursor-grab active:cursor-grabbing select-none"
 					>
 						<GripVertical className="h-4 w-4" aria-hidden="true" />📎
@@ -293,7 +303,7 @@ export default function Bookmarklet() {
 						・エンコード時にJavaScriptの構文チェックは行いません。事前に他のツールやブラウザのコンソールで動作確認してください。
 					</p>
 					<p>
-						・Minifyは安全な範囲（コメント削除・空白圧縮）に留めています。正規表現リテラル中の
+						・Minifyはコメント削除と改行以外の空白圧縮を行います。自動セミコロン挿入（ASI）を保つため、改行は残します。正規表現リテラル中の
 						<code className="mx-1">{'//'}</code>
 						など、複雑なコードでは意図しない結果になる場合があります。
 					</p>
