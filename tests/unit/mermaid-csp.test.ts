@@ -6,7 +6,7 @@ import { pagesHeadersForPath } from '../helpers/pages-headers.ts';
 
 const headers = readFileSync('public/_headers', 'utf8');
 const expected =
-	"default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; worker-src 'self'";
+	"default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
 
 test('ビルド成果物の_headersが公開元と一致する（build後に実行）', () => {
 	assert.equal(readFileSync('dist/_headers', 'utf8'), headers);
@@ -87,7 +87,24 @@ test('専用CSPはグローバルCSPの外部許可を増やさない', () => {
 	);
 	for (const [name, values] of directives(expected)) {
 		const allowed = global.get(name) ?? global.get('script-src') ?? [];
-		for (const value of values)
+		for (const value of values) {
+			// 'none' / 'self' は外部への許可を増やさない（制限の追加）ため照合対象外。
+			if (value === "'none'" || value === "'self'") continue;
 			assert.ok(allowed.includes(value), `${name}: ${value}`);
+		}
 	}
+});
+
+test('Mermaid専用CSPは埋め込み・base・送信先・プラグインの制限を持つ（#650）', () => {
+	const csp = expected;
+	for (const directive of [
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'self'",
+		"default-src 'self'",
+	]) {
+		assert.ok(csp.split('; ').includes(directive), directive);
+	}
+	assert.doesNotMatch(csp, /img-src[^;]*https:/);
 });
