@@ -36,7 +36,9 @@ export const uuidMcpTool = defineMcpTool<UuidInput, UuidOutput>({
 			description: 'Identifier type to generate / 生成するID種別',
 		},
 		count: {
-			type: 'number',
+			type: 'integer',
+			minimum: MIN_MCP_COUNT,
+			maximum: MAX_MCP_COUNT,
 			required: false,
 			default: 1,
 			description: `Number of identifiers to generate (${MIN_MCP_COUNT}-${MAX_MCP_COUNT}, default: 1) / 生成件数（${MIN_MCP_COUNT}〜${MAX_MCP_COUNT}件、省略時: 1）`,
