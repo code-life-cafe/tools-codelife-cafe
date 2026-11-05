@@ -1,4 +1,4 @@
-import cloud from 'd3-cloud';
+import CloudLayout from 'd3-cloud';
 import { scaleLinear, scaleLog, scaleSqrt } from 'd3-scale';
 import * as chromatic from 'd3-scale-chromatic';
 import type {
@@ -52,63 +52,59 @@ function getRotationAngle(
 	return angles[Math.floor(Math.random() * angles.length)];
 }
 
-export function computeLayout(
+export async function computeLayout(
 	words: WordFrequency[],
 	opts: WordCloudLayoutOptions,
 ): Promise<PlacedWord[]> {
-	return new Promise((resolve) => {
-		if (words.length === 0) {
-			resolve([]);
-			return;
-		}
+	if (words.length === 0) return [];
 
-		const counts = words.map((w) => w.count);
-		const minCount = Math.min(...counts);
-		const maxCount = Math.max(...counts);
-		const fontScaler = getScaleFunction(opts.scale, minCount, maxCount);
-		const palette = getColorPalette(opts.palette);
+	const counts = words.map((word) => word.count);
+	const fontScaler = getScaleFunction(
+		opts.scale,
+		Math.min(...counts),
+		Math.max(...counts),
+	);
+	const palette = getColorPalette(opts.palette);
+	// 色と回転は元の入力順に決め、配置だけを大きい順にする。
+	const prepared = words
+		.map((word, index) => ({
+			index,
+			text: word.word,
+			size: fontScaler(word.count),
+			rotate: getRotationAngle(opts.rotation),
+			color: palette[index % palette.length],
+		}))
+		.sort((a, b) => b.size - a.size || a.index - b.index);
 
-		const cloudWords = words.map((w, idx) => ({
-			text: w.word,
-			size: fontScaler(w.count),
-			color: palette[idx % palette.length],
-		}));
+	const layout = new CloudLayout()
+		.size([opts.width, opts.height])
+		.overflow(false)
+		.random(() => 0.5);
 
-		const layout = cloud()
-			.size([opts.width, opts.height])
-			.words(cloudWords)
-			.padding(4)
-			.font(opts.fontFamily || 'Noto Sans JP')
-			.fontSize((d: { size?: number }) => d.size || 14)
-			.rotate(() => getRotationAngle(opts.rotation))
-			.random(() => 0.5);
-
-		layout.on(
-			'end',
-			(
-				outputWords: Array<{
-					text?: string;
-					size?: number;
-					x?: number;
-					y?: number;
-					rotate?: number;
-					color?: string;
-				}>,
-			) => {
-				const placed: PlacedWord[] = outputWords.map((w) => ({
-					text: w.text || '',
-					size: w.size || 14,
-					x: w.x || 0,
-					y: w.y || 0,
-					rotate: w.rotate || 0,
-					color: w.color || '#333333',
-				}));
-				resolve(placed);
-			},
-		);
-
-		layout.start();
-	});
+	const placed: PlacedWord[] = [];
+	for (const word of prepared) {
+		const sprite = layout.getSprite(word.text, {
+			datum: word,
+			font: opts.fontFamily || 'Noto Sans JP',
+			// toSvgの描画と同じ太さで衝突判定する。
+			weight: 'bold',
+			size: word.size,
+			rotate: word.rotate,
+			padding: 4,
+		});
+		if (!sprite) continue;
+		const result = layout.place(sprite);
+		if (!result) continue;
+		placed.push({
+			text: result.text,
+			size: result.size,
+			x: result.x,
+			y: result.y,
+			rotate: result.rotate,
+			color: result.datum.color,
+		});
+	}
+	return placed;
 }
 
 export function toSvg(
