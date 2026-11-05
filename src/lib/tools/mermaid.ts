@@ -1,4 +1,3 @@
-import { JSON_SCHEMA, load } from 'js-yaml';
 import { exceedsMaxCharacters } from '../string-length.ts';
 /**
  * Mermaidレンダリング・エクスポート共通ロジック
@@ -138,13 +137,34 @@ export const MONO_THEME_VARIABLES = {
 } as const;
 
 /** imgを含む拡張ノードは、描画中にImage.srcへ渡されるため事前に拒否する。 */
-export function assertMermaidNoExternalImages(code: string): void {
-	// Mermaidの拡張ノードと同様、二重引用符内の } は終端にしない。
-	// コメント・通常ラベル内にある記法の説明は検査対象にしない。
-	const tokens = /%%[^\r\n]*|"[^"]*"|@\{((?:[^"}]|"[^"]*")*)\}/g;
-	for (const match of code.matchAll(tokens)) {
-		const metadata = match[1];
-		if (metadata === undefined) continue;
+export async function assertMermaidNoExternalImages(
+	code: string,
+): Promise<void> {
+	// Mermaid同様、行頭の %% だけを除去し、%%{ ディレクティブは残す。
+	// 空行をまたぐ \s* の再探索を避け、コメント除去も線形時間にする。
+	const source = code.replace(/^[^\S\r\n\u2028\u2029]*%%(?!{)[^\n]+\n?/gm, '');
+	let metadataStart = -1;
+	let quoted = false;
+	let yamlModule: typeof import('js-yaml') | undefined;
+	for (let index = 0; index < source.length; index++) {
+		const char = source[index];
+		// 通常ラベルや引用符内も含め、どの位置の @{ も検査する。
+		// 入れ子は解釈が曖昧なため拒否し、同じ末尾を繰り返し探索しない。
+		if (char === '@' && source[index + 1] === '{') {
+			if (metadataStart !== -1) {
+				throw new Error('拡張ノードの構文を確認してください。');
+			}
+			metadataStart = index + 2;
+			quoted = false;
+			index++;
+			continue;
+		}
+		if (metadataStart === -1) continue;
+		// Mermaidの拡張ノードと同様、二重引用符内の } は終端にしない。
+		if (char === '"') quoted = !quoted;
+		if (char !== '}' || quoted) continue;
+		const metadata = source.slice(metadataStart, index);
+		metadataStart = -1;
 		// Mermaidのlexerは引用ラベル内の改行を <br/> に正規化する。
 		const normalized = metadata.replace(/"[^"]*"/g, (quoted) =>
 			quoted.replace(/\n\s*/g, '<br/>'),
@@ -153,9 +173,11 @@ export function assertMermaidNoExternalImages(code: string): void {
 		const yaml = normalized.includes('\n')
 			? `${normalized}\n`
 			: `{\n${normalized}\n}`;
+		// Mermaidと同じく描画前に遅延ロードし、初期バンドルへ含めない。
+		yamlModule ??= await import('js-yaml');
 		let node: unknown;
 		try {
-			node = load(yaml, { schema: JSON_SCHEMA });
+			node = yamlModule.load(yaml, { schema: yamlModule.JSON_SCHEMA });
 		} catch {
 			throw new Error('拡張ノードの構文を確認してください。');
 		}
@@ -164,6 +186,9 @@ export function assertMermaidNoExternalImages(code: string): void {
 				'外部リソースの取得を防ぐため、画像構文（img）は利用できません。',
 			);
 		}
+	}
+	if (metadataStart !== -1) {
+		throw new Error('拡張ノードの構文を確認してください。');
 	}
 }
 
@@ -187,7 +212,7 @@ export async function renderMermaidSvg(
 		);
 	}
 
-	assertMermaidNoExternalImages(code);
+	await assertMermaidNoExternalImages(code);
 	const mermaidModule = await import('mermaid');
 	const mermaid = mermaidModule.default;
 
