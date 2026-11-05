@@ -288,3 +288,51 @@ test('formatSql: 大文字化+圧縮で整形に失敗しても文字列リテ�
 	assert.ok(result.output.includes("'a  -- b'"), result.output);
 	assert.ok(!result.output.includes('\n'), result.output);
 });
+
+test('compactSql: MySQLの実行可能コメントとヒントをそのまま保持する（#595）', () => {
+	const sql =
+		" SELECT /*! STRAIGHT_JOIN */ /*+ MAX_EXECUTION_TIME(1000) */ '値'\nFROM t /* 通常コメント */; /*!80000 SET @x = 'a  b' */";
+	assert.equal(
+		compactSql(sql, 'mysql'),
+		"SELECT /*! STRAIGHT_JOIN */ /*+ MAX_EXECUTION_TIME(1000) */ '値' FROM t ; /*!80000 SET @x = 'a  b' */",
+	);
+	assert.equal(compactSql('SELECT/*!80000 1*/', 'mysql'), 'SELECT/*!80000 1*/');
+	assert.equal(
+		compactSql('SELECT 1 /*! 未完了', 'mysql'),
+		'SELECT 1 /*! 未完了',
+	);
+	assert.equal(
+		compactSql('SELECT 1 /*+ 未完了', 'mysql'),
+		'SELECT 1 /*+ 未完了',
+	);
+	assert.equal(compactSql('SELECT 1 /* 通常コメント', 'mysql'), 'SELECT 1');
+});
+
+test('formatSql: 大文字化の有無にかかわらずMySQLの実行可能コメントとヒントを残す（#595）', () => {
+	for (const uppercase of [false, true]) {
+		const result = formatSql(
+			"select /*+ MAX_EXECUTION_TIME(1000) */ /*! STRAIGHT_JOIN */ 'a  b' from t; /*!80000 SET @x = 'c  d' */",
+			formatOpts({ dialect: 'mysql', compress: true, uppercase }),
+		);
+		assert.equal(result.error, undefined);
+		assert.ok(
+			result.output.includes('/*+ MAX_EXECUTION_TIME(1000) */'),
+			result.output,
+		);
+		assert.ok(result.output.includes('/*! STRAIGHT_JOIN */'), result.output);
+		assert.ok(
+			result.output.includes("/*!80000 SET @x = 'c  d' */"),
+			result.output,
+		);
+	}
+});
+
+test('compactSql: 引用内のMySQLコメント表記と他方言の既存動作を維持する（#595）', () => {
+	const sql =
+		"SELECT '/*!  本文  */', '/*+  本文  */' /* 通常コメント */ FROM t";
+	assert.equal(
+		compactSql(sql, 'mysql'),
+		"SELECT '/*!  本文  */', '/*+  本文  */' FROM t",
+	);
+	assert.equal(compactSql('SELECT /*! 通常コメント */ 1', 'sql'), 'SELECT 1');
+});

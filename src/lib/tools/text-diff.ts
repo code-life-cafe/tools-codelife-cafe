@@ -93,6 +93,8 @@ export interface SplitCell {
 	type: 'added' | 'removed' | 'unchanged';
 	content: string;
 	lineNum: number;
+	parts?: DiffPart[];
+	lineBreak?: boolean;
 }
 
 export interface SplitPair {
@@ -103,7 +105,11 @@ export interface SplitPair {
 // Split（左右分割）表示用の行ペアを構築する。
 // 追加・削除で片側だけ行が増える場合、反対側に null（スペーサー）を入れて
 // 同じインデックスの左右が同じ縦位置になるようにする。
-export function buildSplitPairs(parts: DiffPart[]): SplitPair[] {
+export function buildSplitPairs(
+	parts: DiffPart[],
+	mode: DiffMode = 'lines',
+): SplitPair[] {
+	if (mode === 'chars') return buildCharacterPairs(parts);
 	const pairs: SplitPair[] = [];
 	let lineA = 1;
 	let lineB = 1;
@@ -137,6 +143,129 @@ export function buildSplitPairs(parts: DiffPart[]): SplitPair[] {
 		}
 	}
 	return pairs;
+}
+
+// 文字差分は断片の境界では改行しない。左右それぞれの実改行で行を閉じ、
+// 共通の行境界までの変更ブロックを対応付ける。
+function buildCharacterPairs(parts: DiffPart[]): SplitPair[] {
+	const pairs: SplitPair[] = [];
+	const pending: { left: SplitCell[]; right: SplitCell[] } = {
+		left: [],
+		right: [],
+	};
+	const current: { left: DiffPart[]; right: DiffPart[] } = {
+		left: [],
+		right: [],
+	};
+	const lineNums = { left: 1, right: 1 };
+	const flush = () => {
+		for (
+			let i = 0;
+			i < Math.max(pending.left.length, pending.right.length);
+			i++
+		) {
+			pairs.push({
+				left: pending.left[i] ?? null,
+				right: pending.right[i] ?? null,
+			});
+		}
+		pending.left = [];
+		pending.right = [];
+	};
+	const finishLine = (side: 'left' | 'right', lineBreak: boolean) => {
+		const segments = current[side];
+		const value = segments.map((segment) => segment.value).join('');
+		pending[side].push({
+			type: segments.some((segment) => segment.type !== 'unchanged')
+				? side === 'left'
+					? 'removed'
+					: 'added'
+				: 'unchanged',
+			content: lineBreak ? value.slice(0, -1) : value,
+			lineNum: lineNums[side]++,
+			parts: segments,
+			lineBreak,
+		});
+		current[side] = [];
+	};
+	for (const part of parts) {
+		const chunks = part.value.match(/[^\n]+|\n/g) ?? [];
+		for (const value of chunks) {
+			if (
+				part.type === 'unchanged' &&
+				current.left.length === 0 &&
+				current.right.length === 0
+			)
+				flush();
+			for (const side of ['left', 'right'] as const) {
+				if (
+					(side === 'left' && part.type === 'added') ||
+					(side === 'right' && part.type === 'removed')
+				)
+					continue;
+				current[side].push({ type: part.type, value });
+				if (value === '\n') finishLine(side, true);
+			}
+			if (part.type === 'unchanged' && value === '\n') flush();
+		}
+	}
+	for (const side of ['left', 'right'] as const) {
+		if (current[side].length > 0) finishLine(side, false);
+	}
+	flush();
+	return pairs;
+}
+
+export interface UnifiedLine extends Omit<SplitCell, 'lineNum'> {
+	lineA: number | null;
+	lineB: number | null;
+}
+
+export function buildUnifiedLines(
+	parts: DiffPart[],
+	mode: DiffMode,
+): UnifiedLine[] {
+	const lines: UnifiedLine[] = [];
+	for (const { left, right } of buildSplitPairs(parts, mode)) {
+		if (
+			left &&
+			right &&
+			left.type === 'unchanged' &&
+			right.type === 'unchanged' &&
+			left.content === right.content &&
+			left.lineBreak === right.lineBreak
+		) {
+			lines.push({ ...left, lineA: left.lineNum, lineB: right.lineNum });
+		} else {
+			if (left)
+				lines.push({
+					...left,
+					type: 'removed',
+					lineA: left.lineNum,
+					lineB: null,
+				});
+			if (right)
+				lines.push({
+					...right,
+					type: 'added',
+					lineA: null,
+					lineB: right.lineNum,
+				});
+		}
+	}
+	return lines;
+}
+
+export function formatDiffText(parts: DiffPart[], mode: DiffMode): string {
+	return buildUnifiedLines(parts, mode)
+		.map((line) => {
+			const prefix =
+				line.type === 'added' ? '+ ' : line.type === 'removed' ? '- ' : '  ';
+			const noNewline =
+				mode === 'chars' && !line.lineBreak ? '\n\\ 末尾に改行なし' : '';
+			return `${prefix}${line.content}${noNewline}`;
+		})
+		.join('\n');
 }
 
 export function readFileAsText(file: File): Promise<string> {
