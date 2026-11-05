@@ -126,6 +126,7 @@ function MiniDropzone({
 // ---------------------------------------------------------------------------
 
 export function OgpGeneratorPage() {
+	const overlayLabelId = useId();
 	const { trackRun } = useToolAnalytics('ogp');
 
 	// テンプレート・背景
@@ -336,8 +337,11 @@ export function OgpGeneratorPage() {
 							)}
 							{bgImage && (
 								<div className="space-y-1.5">
-									<Label>暗幕オーバーレイ: {Math.round(overlay * 100)}%</Label>
+									<Label id={overlayLabelId}>
+										暗幕オーバーレイ: {Math.round(overlay * 100)}%
+									</Label>
 									<Slider
+										aria-labelledby={overlayLabelId}
 										value={[overlay * 100]}
 										onValueChange={(v) => setOverlay(v[0] / 100)}
 										min={0}
