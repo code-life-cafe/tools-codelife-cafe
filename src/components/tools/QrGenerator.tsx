@@ -57,6 +57,7 @@ export default function QrGenerator() {
 	const [options, setOptions] = useState<QROptions>(defaultOptions);
 	const [qrDataUrl, setQrDataUrl] = useState('');
 	const [qrSvg, setQrSvg] = useState('');
+	const [error, setError] = useState<string | null>(null);
 
 	const contrastRatio = useMemo(() => {
 		return getContrastRatio(options.foregroundColor, options.backgroundColor);
@@ -66,11 +67,11 @@ export default function QrGenerator() {
 
 	// Real-time QR generation
 	useEffect(() => {
-		if (!text.trim()) {
-			setQrDataUrl('');
-			setQrSvg('');
-			return;
-		}
+		setQrDataUrl('');
+		setQrSvg('');
+		setError(null);
+		if (!text.trim()) return;
+		let cancelled = false;
 
 		const timer = setTimeout(async () => {
 			try {
@@ -78,15 +79,22 @@ export default function QrGenerator() {
 					generateQRDataUrl(text, options),
 					generateQRSvg(text, options),
 				]);
+				if (cancelled) return;
 				setQrDataUrl(dataUrl);
 				setQrSvg(svg);
 				trackRunDebounced();
 			} catch {
-				// ignore
+				if (cancelled) return;
+				setError(
+					'QRコードを生成できませんでした。テキストを短くするか、設定を確認してください。',
+				);
 			}
 		}, 150);
 
-		return () => clearTimeout(timer);
+		return () => {
+			cancelled = true;
+			clearTimeout(timer);
+		};
 	}, [text, options, trackRunDebounced]);
 
 	const handleDownloadPng = useCallback(() => {
@@ -209,6 +217,12 @@ export default function QrGenerator() {
 						</div>
 					</div>
 				</div>
+
+				{error && (
+					<p role="alert" className="text-sm text-destructive">
+						{error}
+					</p>
+				)}
 
 				{/* Download Buttons */}
 				<div className="flex flex-wrap gap-3">
