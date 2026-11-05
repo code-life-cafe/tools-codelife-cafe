@@ -101,9 +101,6 @@ function findNullPaths(value: unknown, prefix = ''): string[] {
 	return [];
 }
 
-const YAML_INT_TOKEN =
-	/(?<![\w.])[-+]?(?:0x[0-9a-fA-F_]+|0o[0-7_]+|0b[01_]+|\d[\d_]*)(?![\w.])/g;
-
 function yamlIntTokenToBigInt(token: string): bigint | null {
 	const negative = token.startsWith('-');
 	const body = token.replace(/^[-+]/, '').replace(/_/g, '');
@@ -115,83 +112,36 @@ function yamlIntTokenToBigInt(token: string): bigint | null {
 	}
 }
 
-/**
- * 引用符で囲んだ文字列とコメントを空白に置き換える（数値の字句を探す前処理）。
- * 引用符は行頭・空白・[ { , の直後だけを開始とみなし、it's のような通常の文字列内の
- * アポストロフィは対象にしない。
- */
-function stripYamlStringsAndComments(text: string): string {
-	let out = '';
-	let i = 0;
-	const n = text.length;
-	while (i < n) {
-		const ch = text[i];
-		const prev = i === 0 ? undefined : text[i - 1];
-		const atBoundary = prev === undefined || /[\s[{,]/.test(prev);
-		if (ch === '#' && (prev === undefined || /\s/.test(prev))) {
-			let j = i;
-			while (j < n && text[j] !== '\n' && text[j] !== '\r') j++;
-			out += ' '.repeat(j - i);
-			i = j;
-			continue;
-		}
-		if ((ch === '"' || ch === "'") && atBoundary) {
-			let j = i + 1;
-			while (j < n) {
-				if (ch === '"' && text[j] === '\\') {
-					j += 2;
-					continue;
-				}
-				if (text[j] === ch) {
-					if (ch === "'" && text[j + 1] === "'") {
-						j += 2;
-						continue;
-					}
-					j++;
-					break;
-				}
-				j++;
-			}
-			j = Math.min(j, n);
-			out += ' '.repeat(j - i);
-			i = j;
-			continue;
-		}
-		out += ch;
-		i++;
-	}
-	return out;
-}
+// 既存のCOREスキーマで整数と判定されたトークンだけを検査する。
+// 丸めが生じる整数は一時的にbigintで保持する。mapTagはキーを正確な文字列に変換し、
+// 値として残ったbigintはシリアライズ前にパス付きエラーにする。
+// マージ型だけを追加し、yes/noなどを真偽値にするYAML 1.1全体は有効にしない。
+const EXACT_INTEGER_SCHEMA = yaml.CORE_SCHEMA.withTags(
+	yaml.mergeTag,
+	yaml.defineScalarTag(yaml.intCoreTag.tagName, {
+		...yaml.intCoreTag,
+		resolve(source, isExplicit, tagName) {
+			const value = yaml.intCoreTag.resolve(source, isExplicit, tagName);
+			if (typeof value !== 'number' || Number.isSafeInteger(value))
+				return value;
+			const exact = yamlIntTokenToBigInt(source);
+			return exact !== null && BigInt(value) !== exact ? exact : value;
+		},
+	}),
+);
 
 /**
- * YAMLの整数リテラルのうち、JavaScriptの数値に変換した時点で値が変わったもの（安全整数の範囲外で
- * 丸められたもの）のパスを返す。浮動小数点の表記（1.0e+20 など）や、丸めの起きない値は対象外。
+ * 型フックで保持した、丸めが生じる整数値のパスを返す。
+ * 浮動小数点の表記（1.0e+20 など）や、丸めの起きない値は対象外。
  */
-export function findLossyYamlIntegerPaths(
-	value: unknown,
-	text: string,
-	limit = 5,
-): string[] {
-	const rounded = new Map<number, boolean>();
-	for (const match of stripYamlStringsAndComments(text).matchAll(
-		YAML_INT_TOKEN,
-	)) {
-		const exact = yamlIntTokenToBigInt(match[0]);
-		if (exact === null) continue;
-		const num = Number(exact);
-		if (Number.isSafeInteger(num)) continue;
-		// 桁数が多すぎて Infinity になった値も、丸められた値として扱う
-		if (!Number.isFinite(num) || BigInt(num) !== exact) rounded.set(num, true);
-	}
-	if (rounded.size === 0) return [];
-
+export function findLossyYamlIntegerPaths(value: unknown, limit = 5): string[] {
 	const paths: string[] = [];
 	const seen = new Set<unknown>();
 	const stack: { node: unknown; path: string }[] = [{ node: value, path: '' }];
 	while (stack.length > 0 && paths.length < limit) {
 		const { node, path } = stack.pop() as { node: unknown; path: string };
-		if (typeof node === 'number') {
-			if (rounded.has(node)) paths.push(path || '(ルート)');
+		if (typeof node === 'bigint') {
+			paths.push(path || '(ルート)');
 			continue;
 		}
 		if (node === null || typeof node !== 'object' || seen.has(node)) continue;
@@ -315,13 +265,13 @@ function parseValue(
 			return {
 				ok: true,
 				value:
-					yaml.load(
-						text,
+					yaml.load(text, {
+						schema: EXACT_INTEGER_SCHEMA,
 						// safeModeではエイリアス禁止、通常UIでもAlias Bombを防ぐため100個・深さ100段で制限する
-						safeMode
+						...(safeMode
 							? { maxAliases: 0, maxDepth: 52 }
-							: { maxAliases: 100, maxDepth: 100 },
-					) ?? null,
+							: { maxAliases: 100, maxDepth: 100 }),
+					}) ?? null,
 			};
 		}
 		return { ok: true, value: normalizeTomlDates(parseToml(text)) };
@@ -344,12 +294,23 @@ function serializeValue(
 	options: ConvertOptions,
 ): SerializeValueResult {
 	if (format === 'json') {
+		let hasNonFiniteNumber = false;
+		const output = JSON.stringify(
+			value,
+			(_key, item: unknown) => {
+				if (typeof item === 'number' && !Number.isFinite(item)) {
+					hasNonFiniteNumber = true;
+				}
+				return item;
+			},
+			options.indent === 0 ? undefined : options.indent,
+		);
 		return {
 			ok: true,
-			output:
-				options.indent === 0
-					? JSON.stringify(value)
-					: JSON.stringify(value, null, options.indent),
+			output,
+			note: hasNonFiniteNumber
+				? '警告: JSONでは非有限数（.inf / -.inf / .nan など）を表現できないため、nullに変換しました。'
+				: undefined,
 		};
 	}
 	if (format === 'yaml') {
@@ -386,19 +347,12 @@ function serializeValue(
 			error: `TOMLはnull値に対応していません。次のキーにnullが含まれています: ${nullPaths.join(', ')}`,
 		};
 	}
-	try {
-		const output = stringifyToml(value);
-		const note =
-			options.indent === 0
-				? 'TOMLはコンパクト表示（1行化）に対応していないため、通常のインデント幅で出力しました。'
-				: undefined;
-		return { ok: true, output, note };
-	} catch (err) {
-		return {
-			ok: false,
-			error: `TOMLへの変換に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
-		};
-	}
+	const output = stringifyToml(value);
+	const note =
+		options.indent === 0
+			? 'TOMLはコンパクト表示（1行化）に対応していないため、通常のインデント幅で出力しました。'
+			: undefined;
+	return { ok: true, output, note };
 }
 
 // ---------------------------------------------------------------------------
@@ -540,7 +494,7 @@ export function convertFormats(
 	if (error) return { ok: false, error };
 
 	if (from === 'yaml') {
-		const lossy = findLossyYamlIntegerPaths(parsed.value, text);
+		const lossy = findLossyYamlIntegerPaths(parsed.value);
 		if (lossy.length > 0) {
 			return {
 				ok: false,
@@ -549,17 +503,24 @@ export function convertFormats(
 		}
 	}
 
-	const value = options.sortKeys ? sortKeysDeep(parsed.value) : parsed.value;
+	try {
+		const value = options.sortKeys ? sortKeysDeep(parsed.value) : parsed.value;
 
-	const serialized = serializeValue(to, value, options);
-	if (!serialized.ok) {
-		return { ok: false, error: serialized.error };
+		const serialized = serializeValue(to, value, options);
+		if (!serialized.ok) {
+			return { ok: false, error: serialized.error };
+		}
+
+		if (
+			options.safeMode &&
+			new TextEncoder().encode(serialized.output).byteLength > 4 * 1024 * 1024
+		)
+			return { ok: false, error: '出力の安全上限（4MiB）を超えています。' };
+		return { ok: true, output: serialized.output, note: serialized.note };
+	} catch (err) {
+		return {
+			ok: false,
+			error: `${FORMAT_LABEL[to]}への変換に失敗しました: ${err instanceof Error ? err.message : String(err)}`,
+		};
 	}
-
-	if (
-		options.safeMode &&
-		new TextEncoder().encode(serialized.output).byteLength > 4 * 1024 * 1024
-	)
-		return { ok: false, error: '出力の安全上限（4MiB）を超えています。' };
-	return { ok: true, output: serialized.output, note: serialized.note };
 }

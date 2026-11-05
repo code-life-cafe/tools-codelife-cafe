@@ -159,7 +159,8 @@ export function formatSql(
 
 /**
  * SQLを1行に圧縮する。文字列リテラル・引用識別子・ドル引用の中身は一切変えず、
- * それ以外の部分のコメントを除去し、連続する空白を1つの空白にまとめる。
+ * それ以外の部分の通常コメントを除去し、連続する空白を1つの空白にまとめる。
+ * MySQLの実行可能コメントとヒントは内容を保持する。
  */
 export function compactSql(sql: string, dialect: SqlDialect): string {
 	const backslashEscapes = dialect === 'mysql';
@@ -189,8 +190,13 @@ export function compactSql(sql: string, dialect: SqlDialect): string {
 		// ブロックコメント（閉じがなければ末尾まで）
 		if (ch === '/' && sql[i + 1] === '*') {
 			const close = sql.indexOf('*/', i + 2);
-			i = close === -1 ? n : close + 2;
-			pendingSpace = true;
+			const end = close === -1 ? n : close + 2;
+			if (dialect === 'mysql' && (sql[i + 2] === '!' || sql[i + 2] === '+')) {
+				emit(sql.slice(i, end));
+			} else {
+				pendingSpace = true;
+			}
+			i = end;
 			continue;
 		}
 		// PL/SQL の q'[…]' 引用（区切り文字の対応で閉じる）
