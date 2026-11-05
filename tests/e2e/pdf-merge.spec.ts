@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { PDFDocument } from 'pdf-lib';
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 const FIXTURES = path.join(process.cwd(), 'tests', 'e2e', 'fixtures');
 const PDF_3PAGES = path.join(FIXTURES, 'sample-3pages.pdf'); // 300x200pt
@@ -83,6 +83,124 @@ test.describe('PDF結合', () => {
 		const first = merged.getPage(0).getSize();
 		expect(Math.round(first.width)).toBe(400);
 		expect(Math.round(first.height)).toBe(300);
+	});
+
+	for (const method of ['矢印', 'ドラッグ']) {
+		test(`結合後の${method}による並べ替えで旧結果を無効にし、再結合した実PDFの全ページが新順序になる`, async ({
+			page,
+		}) => {
+			await uploadAndWait(page, [PDF_3PAGES, PDF_5PAGES], 2);
+			await downloadMerged(page);
+			await expect(page.getByTestId('merge-result')).toBeVisible();
+			if (method === '矢印') {
+				await page
+					.getByRole('button', { name: 'sample-5pages.pdf を上へ移動' })
+					.click();
+			} else {
+				await page
+					.getByTestId('merge-file-row')
+					.nth(1)
+					.dragTo(page.getByTestId('merge-file-row').nth(0));
+			}
+			await expect(page.getByTestId('merge-result')).toHaveCount(0);
+			await expect(mergeButton(page)).toBeEnabled();
+			await expect(page.getByTestId('merge-file-row').first()).toContainText(
+				'sample-5pages.pdf',
+			);
+			// 連続操作で元の順序に戻しても、旧結果を再利用しない。
+			await page
+				.getByRole('button', { name: 'sample-5pages.pdf を下へ移動' })
+				.click();
+			await expect(page.getByTestId('merge-result')).toHaveCount(0);
+			await page
+				.getByRole('button', { name: 'sample-5pages.pdf を上へ移動' })
+				.click();
+			await expect(page.getByTestId('merge-result')).toHaveCount(0);
+			const merged = await downloadMerged(page);
+			expect(merged.getPages().map((p) => p.getSize())).toEqual([
+				...Array.from({ length: 5 }, () => ({ width: 400, height: 300 })),
+				...Array.from({ length: 3 }, () => ({ width: 300, height: 200 })),
+			]);
+		});
+	}
+
+	test('結合後のファイル追加・削除でも旧結果を無効にする', async ({ page }) => {
+		await uploadAndWait(page, [PDF_3PAGES, PDF_5PAGES], 2);
+		await downloadMerged(page);
+		await expect(page.getByTestId('merge-result')).toBeVisible();
+		await fileInput(page).setInputFiles(PNG_SAMPLE);
+		await expect(page.getByTestId('merge-result')).toHaveCount(0);
+		await expect(page.getByTestId('merge-file-row')).toHaveCount(3);
+		const withImage = await downloadMerged(page);
+		expect(withImage.getPageCount()).toBe(9);
+		await expect(page.getByTestId('merge-result')).toBeVisible();
+		await page
+			.getByRole('button', { name: 'sample-3pages.pdf を削除' })
+			.click();
+		await expect(page.getByTestId('merge-result')).toHaveCount(0);
+		const removed = await downloadMerged(page);
+		expect(removed.getPageCount()).toBe(6);
+		expect(removed.getPage(0).getSize()).toEqual({ width: 400, height: 300 });
+	});
+
+	test('結合処理中は追加・削除・並べ替えを止め、処理前に開始したドラッグも反映しない', async ({
+		page,
+	}) => {
+		await uploadAndWait(page, [PDF_3PAGES, PDF_5PAGES], 2);
+		// 結合開始前から継続しているドラッグを再現する。
+		await page.getByTestId('merge-file-row').nth(0).dispatchEvent('dragstart');
+		await page.evaluate(() => {
+			const read = File.prototype.arrayBuffer;
+			File.prototype.arrayBuffer = async function () {
+				File.prototype.arrayBuffer = read;
+				await new Promise<void>((resolve) => {
+					window.addEventListener('resume-pdf-read', () => resolve(), {
+						once: true,
+					});
+					document.documentElement.dataset.pdfReadPaused = 'true';
+				});
+				return read.call(this);
+			};
+		});
+		const downloadPromise = page.waitForEvent('download');
+		await mergeButton(page).click();
+		await expect(page.locator('html')).toHaveAttribute(
+			'data-pdf-read-paused',
+			'true',
+		);
+		await expect(mergeButton(page)).toBeDisabled();
+		await expect(
+			page.getByRole('button', { name: 'クリア', exact: true }),
+		).toBeDisabled();
+		await expect(
+			page.getByRole('button', { name: /PDF・画像をドラッグ＆ドロップ/ }),
+		).toBeDisabled();
+		await expect(
+			page.getByRole('button', { name: 'sample-5pages.pdf を上へ移動' }),
+		).toBeDisabled();
+		await expect(
+			page.getByRole('button', { name: 'sample-3pages.pdf を削除' }),
+		).toBeDisabled();
+		await expect(page.getByTestId('merge-file-row').first()).toHaveAttribute(
+			'draggable',
+			'false',
+		);
+		await page.getByTestId('merge-file-row').nth(1).dispatchEvent('drop');
+		await expect(page.getByTestId('merge-file-row').first()).toContainText(
+			'sample-3pages.pdf',
+		);
+		await page.evaluate(() =>
+			window.dispatchEvent(new Event('resume-pdf-read')),
+		);
+		const download = await downloadPromise;
+		const merged = await PDFDocument.load(
+			fs.readFileSync(await download.path()),
+		);
+		expect(merged.getPages().map((p) => p.getSize())).toEqual([
+			...Array.from({ length: 3 }, () => ({ width: 300, height: 200 })),
+			...Array.from({ length: 5 }, () => ({ width: 400, height: 300 })),
+		]);
+		await expect(page.getByTestId('merge-result')).toBeVisible();
 	});
 
 	test('PDF + PNG の混在結合で画像が1ページとして挿入される', async ({
