@@ -1,4 +1,26 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
+
+test('自動修復OFFでも画像URLへの取得を描画前に拒否する', async ({
+	page,
+	createToolPage,
+}) => {
+	const imageUrl = 'https://example.com/pixel?customer=DEMO';
+	const requests: string[] = [];
+	// 要求を観測してから止める。遮断されただけでは成功にしない。
+	await page.route(imageUrl, (route) => {
+		requests.push(route.request().url());
+		return route.abort();
+	});
+	await createToolPage('mermaid').goto();
+	await page.getByRole('switch', { name: '日本語・AI修復' }).uncheck();
+	await page
+		.locator('textarea')
+		.fill(`flowchart TD\n A@{ img: "${imageUrl}", label: "x", h: 20 }`);
+	const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+	if (await previewTab.isVisible()) await previewTab.click();
+	await expect(page.getByText(/外部リソース/)).toBeVisible();
+	expect(requests).toEqual([]);
+});
 
 test.describe('Mermaidプレビュー・修復 Tool', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
@@ -210,6 +232,54 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svg).toBeVisible({ timeout: 10000 });
 		await expect(svg).toContainText('end');
 		await expect(svg).not.toContainText('(end)');
+	});
+
+	test('引用符内の閉じ括弧と接続記号を修復ONでも形状・本文を保って描画する（#590）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('mermaid').goto();
+		await page
+			.locator('textarea')
+			.fill(
+				[
+					'flowchart TD',
+					'A(("left ) --> right")) --> B[["left ] --> right"]]',
+					'B --> C("丸角 ) --- 本文")',
+					'C --> D["四角 ] ==> 本文"]',
+					'D --> E(["競技場 ) & 本文"])',
+					'E --> F[("円柱 ] ; 本文")]',
+				].join('\n'),
+			);
+		const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+		if (await previewTab.isVisible()) await previewTab.click();
+		const svg = page
+			.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
+			.locator('svg')
+			.first();
+		await expect(svg.locator('g.node')).toHaveCount(6, { timeout: 10000 });
+		for (const [id, label] of [
+			['A', 'left ) --> right'],
+			['B', 'left ] --> right'],
+			['C', '丸角 ) --- 本文'],
+			['D', '四角 ] ==> 本文'],
+			['E', '競技場 ) & 本文'],
+			['F', '円柱 ] ; 本文'],
+		]) {
+			// 実描画のIDは mermaid-render-...-flowchart-A-0 のように接頭辞が付く。
+			await expect(
+				svg.locator(`g.node[id*="-flowchart-${id}-"] .nodeLabel`),
+			).toHaveText(label);
+		}
+		await expect(svg.locator('g.node[id*="-flowchart-A-"] circle')).toHaveCount(
+			1,
+		);
+		await expect(
+			svg.locator('g.node[id*="-flowchart-B-"] polygon'),
+		).toHaveCount(1);
+		await expect(
+			page.getByText('AI構文・日本語全角記号エラーを自動修復しました'),
+		).toHaveCount(0);
 	});
 
 	for (const key of ['title', '"title"', '  title']) {

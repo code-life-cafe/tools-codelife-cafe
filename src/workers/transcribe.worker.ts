@@ -11,6 +11,11 @@
 // プロトコルに cancel は存在しない。
 
 import { env, pipeline, WhisperTextStreamer } from '@huggingface/transformers';
+import {
+	finalizeTranscript,
+	isSilentAudio,
+	type WhisperOutput,
+} from '../lib/tools/transcribe.ts';
 import { TARGET_SAMPLE_RATE } from '../lib/transcribe/audio-core.ts';
 import {
 	getModelArtifact,
@@ -22,10 +27,10 @@ import type {
 	ErrorCode,
 	ModelId,
 	TranscribeDevice,
-	TranscriptSegment,
 	WorkerRequest,
 	WorkerResponse,
 } from '../lib/transcribe/protocol.ts';
+import { normalizeSegments } from '../lib/transcribe/segments.ts';
 
 // --- 取得先の固定（外部フォールバック禁止） ---
 
@@ -192,14 +197,17 @@ async function ensurePipeline(
 
 // --- 推論 ---
 
-type WhisperChunk = { timestamp: [number, number | null]; text: string };
-
 async function transcribe(
 	audio: Float32Array,
 	language: 'ja' | 'auto',
 ): Promise<void> {
 	if (!transcriber) {
 		throw new Error('モデルが読み込まれていません。');
+	}
+	// 完全無音をWhisperへ渡すと反復文を生成することがある。小音量や部分的な無音はそのまま渡す。
+	if (isSilentAudio(audio)) {
+		post({ type: 'done', segments: [] });
+		return;
 	}
 
 	const startedAt = Date.now();
@@ -243,13 +251,15 @@ async function transcribe(
 			segmentStart = null;
 			buffer = '';
 			if (text.length === 0) return;
-			const segment: TranscriptSegment = {
-				id: Math.round(start * 1000),
-				start,
-				end: Math.max(start, end),
-				text,
-			};
-			post({ type: 'segment', segment });
+			const [segment] = normalizeSegments([
+				{
+					id: Math.round(start * 1000),
+					start,
+					end,
+					text,
+				},
+			]);
+			if (segment) post({ type: 'segment', segment });
 		},
 		on_finalize: () => {
 			processedChunks = Math.min(totalChunks, processedChunks + 1);
@@ -267,29 +277,11 @@ async function transcribe(
 		task: 'transcribe',
 		...(language === 'auto' ? {} : { language: 'ja' }),
 		streamer,
-	})) as { text: string; chunks?: WhisperChunk[] };
-
-	const chunks = output.chunks ?? [];
-	const segments: TranscriptSegment[] = chunks.map((chunk, index) => {
-		const start = chunk.timestamp[0] ?? 0;
-		const end = chunk.timestamp[1] ?? start;
-		return {
-			id: index + 1,
-			start,
-			end: Math.max(start, end),
-			text: chunk.text.trim(),
-		};
-	});
-
-	// タイムスタンプが1つも取れなかった場合でも全文だけは返す
-	if (segments.length === 0 && output.text.trim().length > 0) {
-		segments.push({
-			id: 1,
-			start: 0,
-			end: audio.length / TARGET_SAMPLE_RATE,
-			text: output.text.trim(),
-		});
-	}
+	})) as WhisperOutput;
+	const segments = finalizeTranscript(
+		output,
+		audio.length / TARGET_SAMPLE_RATE,
+	);
 
 	post({ type: 'done', segments });
 }

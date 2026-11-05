@@ -1,6 +1,7 @@
 // TextControls — 選択中レイヤーの編集フォーム
 // テキスト・サイズ・フォント・色・縁取り・背景ボックス・不透明度
 
+import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -28,6 +29,10 @@ type TextControlsProps = {
 };
 
 export function TextControls({ layer, onChange }: TextControlsProps) {
+	const fontSizeLabelId = useId();
+	const strokeWidthLabelId = useId();
+	const opacityLabelId = useId();
+
 	return (
 		<div className="space-y-4 rounded-xl border border-border p-4">
 			<h2 className="text-sm font-semibold">テキスト設定</h2>
@@ -45,11 +50,16 @@ export function TextControls({ layer, onChange }: TextControlsProps) {
 			</div>
 
 			<div className="space-y-1.5">
-				<Label htmlFor="layer-font-size" className="text-xs">
+				<Label
+					id={fontSizeLabelId}
+					htmlFor="layer-font-size"
+					className="text-xs"
+				>
 					フォントサイズ: {layer.fontSize}px
 				</Label>
 				<div className="flex items-center gap-3">
 					<Slider
+						aria-labelledby={fontSizeLabelId}
 						min={FONT_SIZE.min}
 						max={FONT_SIZE.max}
 						step={1}
@@ -147,8 +157,11 @@ export function TextControls({ layer, onChange }: TextControlsProps) {
 							/>
 						</div>
 						<div className="w-36 space-y-1.5">
-							<Label className="text-xs">太さ: {layer.strokeWidth}px</Label>
+							<Label id={strokeWidthLabelId} className="text-xs">
+								太さ: {layer.strokeWidth}px
+							</Label>
 							<Slider
+								aria-labelledby={strokeWidthLabelId}
 								min={STROKE_WIDTH.min}
 								max={STROKE_WIDTH.max}
 								step={1}
@@ -192,10 +205,11 @@ export function TextControls({ layer, onChange }: TextControlsProps) {
 			</div>
 
 			<div className="space-y-1.5">
-				<Label className="text-xs">
+				<Label id={opacityLabelId} className="text-xs">
 					不透明度: {Math.round(layer.opacity * 100)}%
 				</Label>
 				<Slider
+					aria-labelledby={opacityLabelId}
 					min={OPACITY.min}
 					max={OPACITY.max}
 					step={0.05}

@@ -1269,6 +1269,100 @@ describe('複合括弧の形状（円・サブルーチン等）の保持', () =
 		assert.equal(safeQuoteNodeLabels(input), input);
 	});
 
+	for (const connector of ['-->', '---', '==>', '-.->', '--', '==', '&', ';']) {
+		test(`引用符内の閉じ括弧と ${connector} はノード終端にしない`, () => {
+			for (const [open, close, innerClose] of [
+				['((', '))', ')'],
+				['[[', ']]', ']'],
+				['(', ')', ')'],
+				['[', ']', ']'],
+				['([', '])', ')'],
+				['([', '])', ']'],
+				['[(', ')]', ')'],
+				['[(', ')]', ']'],
+			]) {
+				const node = `A${open}"left ${innerClose} ${connector} right"${close}`;
+				const input = `${node} --> B[完了]`;
+				assert.equal(safeQuoteNodeLabels(input), input);
+				assert.equal(
+					repairMermaidCode(`flowchart TD\n${input}`).repairedCode,
+					`flowchart TD\n${input}`,
+				);
+			}
+		});
+	}
+
+	test('引用符が未閉じの場合は従来の終端判定を維持する', () => {
+		assert.equal(safeQuoteNodeLabels('A((a"b))'), 'A(("a\'b"))');
+		assert.equal(safeQuoteNodeLabels('B[[a"b]]'), 'B[["a\'b"]]');
+		assert.equal(
+			safeQuoteNodeLabels('A("left ) --> B[完了]'),
+			'A("left ) --> B[完了]',
+		);
+		assert.equal(
+			safeQuoteNodeLabels('A((a"b)) --> B[["ok"]]'),
+			'A(("a\'b")) --> B[["ok"]]',
+		);
+		assert.equal(
+			safeQuoteNodeLabels('A((a"b)) --> B(("ok"))'),
+			'A(("a\'b")) --> B(("ok"))',
+		);
+	});
+
+	for (const [open, close] of [
+		['[', ']'],
+		['(', ')'],
+		['[[', ']]'],
+		['((', '))'],
+		['([', '])'],
+		['[(', ')]'],
+	]) {
+		test(`偶数個の非対引用符を別ノードの引用符と組み合わせない: ${open}${close}`, () => {
+			const input = `A${open}5" disk${close} --> B${open}3.5" disk${close}`;
+			const expected = `A${open}"5' disk"${close} --> B${open}"3.5' disk"${close}`;
+			assert.equal(safeQuoteNodeLabels(input), expected);
+			assert.equal(
+				repairMermaidCode(`flowchart TD\n${input}`).repairedCode,
+				`flowchart TD\n${expected}`,
+			);
+		});
+	}
+
+	test('4ノードにある非対引用符と異なる接続記号でも従来の修復結果を維持する', () => {
+		const input = 'A[5" disk] & B[3" disk]; C(2" disk) ==> D(1" disk)';
+		const expected =
+			'A["5\' disk"] & B["3\' disk"]; C("2\' disk") ==> D("1\' disk")';
+		assert.equal(safeQuoteNodeLabels(input), expected);
+	});
+
+	test('本文先頭の未閉じ引用符を次のノードの開始引用符と組み合わせない', () => {
+		const input = 'A["left side] --> B["right side]';
+		assert.equal(
+			safeQuoteNodeLabels(input),
+			'A["\'left side"] --> B["\'right side"]',
+		);
+	});
+
+	test('他ノードに非対引用符があっても空白付きの正常な引用符内の終端を保護する', () => {
+		for (const [open, close, innerClose] of [
+			['[', ']', ']'],
+			['(', ')', ')'],
+			['[[', ']]', ']'],
+			['((', '))', ')'],
+			['([', '])', ')'],
+			['[(', ')]', ']'],
+		]) {
+			const node = `A${open}  "left ${innerClose} --> right"  ${close}`;
+			const input = `${node} --> B[5" disk]`;
+			const expected = `${node} --> B["5' disk"]`;
+			assert.equal(safeQuoteNodeLabels(input), expected);
+			assert.equal(
+				repairMermaidCode(`flowchart TD\n${input}`).repairedCode,
+				`flowchart TD\n${expected}`,
+			);
+		}
+	});
+
 	test('内部に生の引用符を含む不正な複合ラベルは引用符を正規化する', () => {
 		assert.equal(
 			safeQuoteNodeLabels('A(("He said "hello"")) --> B[["x "y" z"]]'),

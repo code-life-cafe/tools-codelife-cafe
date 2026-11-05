@@ -119,12 +119,22 @@ export function JsonCsvPage() {
 			setResult(null, source);
 			return;
 		}
-		setResult(
-			direction === 'json-to-csv'
-				? jsonToCsv(input, jsonOpts)
-				: csvToJson(input, csvOpts),
-			source,
-		);
+		try {
+			setResult(
+				direction === 'json-to-csv'
+					? jsonToCsv(input, jsonOpts)
+					: csvToJson(input, csvOpts),
+				source,
+			);
+		} catch {
+			setResult(
+				{
+					ok: false,
+					error: '変換に失敗しました。入力データや変換設定を確認してください。',
+				},
+				source,
+			);
+		}
 		trackRunDebounced();
 	}, [input, direction, jsonOpts, csvOpts, trackRunDebounced, setResult]);
 

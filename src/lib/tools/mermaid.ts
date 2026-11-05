@@ -136,6 +136,150 @@ export const MONO_THEME_VARIABLES = {
 	},
 } as const;
 
+/** Mermaid 11.17.2 の src/preprocess.ts の cleanupText と同じ順序で正規化する。 */
+function normalizeMermaidText(code: string): string {
+	return code
+		.replace(/\r\n?/g, '\n')
+		.replace(
+			/<(\w+)([^>]*)>/g,
+			(_match, tag: string, attributes: string) =>
+				`<${tag}${attributes.replace(/="([^"]*)"/g, "='$1'")}>`,
+		);
+}
+
+// Mermaid 11.17.2: chunk-DU6HZSFF.mjs の directiveRegex と同一。
+// removeDirectives は行頭に限定せず、複数行も含め global に除去する。
+const MERMAID_DIRECTIVE_REGEX =
+	/%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;
+
+function assertNoMermaidImageMetadata(node: unknown): void {
+	if (!node || typeof node !== 'object') return;
+	if ('img' in node) {
+		throw new Error(
+			'外部リソースの取得を防ぐため、画像構文（img）は利用できません。',
+		);
+	}
+	if ('icon' in node) {
+		// flowchart の icon は pack:name の識別子のみ許可する。
+		// URL・相対パス・非文字列を、取得先として解釈させない。
+		const icon = node.icon;
+		if (
+			typeof icon !== 'string' ||
+			!/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(icon) ||
+			/^(?:https?|ftp|file|data|blob|javascript):/i.test(icon)
+		) {
+			throw new Error(
+				'外部リソースの取得を防ぐため、アイコン（icon）にURLは指定できません。',
+			);
+		}
+	}
+}
+
+/** 正規化の前後それぞれに適用する、拡張ノードの画像検査。 */
+async function assertNoImagesInMermaidSource(code: string): Promise<void> {
+	// Mermaid同様、行頭の %% だけを除去し、%%{ ディレクティブは残す。
+	// 空行をまたぐ \s* の再探索を避け、コメント除去も線形時間にする。
+	const source = code.replace(/^[^\S\r\n\u2028\u2029]*%%(?!{)[^\n]+\n?/gm, '');
+	let metadataStart = -1;
+	let quoted = false;
+	let yamlModule: typeof import('js-yaml') | undefined;
+	for (let index = 0; index < source.length; index++) {
+		const char = source[index];
+		// 通常ラベルや引用符内も含め、どの位置の @{ も検査する。
+		// 入れ子は解釈が曖昧なため拒否し、同じ末尾を繰り返し探索しない。
+		if (char === '@' && source[index + 1] === '{') {
+			if (metadataStart !== -1) {
+				throw new Error('拡張ノードの構文を確認してください。');
+			}
+			metadataStart = index + 2;
+			quoted = false;
+			index++;
+			continue;
+		}
+		if (metadataStart === -1) continue;
+		// Mermaidの拡張ノードと同様、二重引用符内の } は終端にしない。
+		if (char === '"') quoted = !quoted;
+		if (char !== '}' || quoted) continue;
+		const metadata = source.slice(metadataStart, index);
+		metadataStart = -1;
+		// Mermaidのlexerは引用ラベル内の改行を <br/> に正規化する。
+		const normalized = metadata.replace(/"[^"]*"/g, (quoted) =>
+			quoted.replace(/\n\s*/g, '<br/>'),
+		);
+		// Mermaidと同じJSON_SCHEMAで、引用キーやエスケープも解釈する。
+		const yaml = normalized.includes('\n')
+			? `${normalized}\n`
+			: `{\n${normalized}\n}`;
+		// Mermaidと同じく描画前に遅延ロードし、初期バンドルへ含めない。
+		yamlModule ??= await import('js-yaml');
+		let node: unknown;
+		try {
+			node = yamlModule.load(yaml, { schema: yamlModule.JSON_SCHEMA });
+		} catch {
+			throw new Error('拡張ノードの構文を確認してください。');
+		}
+		assertNoMermaidImageMetadata(node);
+	}
+	if (metadataStart !== -1) {
+		throw new Error('拡張ノードの構文を確認してください。');
+	}
+}
+
+/** imgを含む拡張ノードは、描画中にImage.srcへ渡されるため事前に拒否する。 */
+export async function assertMermaidNoExternalImages(
+	code: string,
+): Promise<void> {
+	await assertNoImagesInMermaidSource(code);
+	// cleanupText はコメント除去・構文解析より前に適用される。
+	// 正規化で現れる画像も、逆に隠れる画像も許可しない。
+	const normalized = normalizeMermaidText(code);
+	if (normalized !== code) await assertNoImagesInMermaidSource(normalized);
+	// F10: @ と { の間などのディレクティブを除去すると画像構文が現れる。
+	// cleanupText → removeDirectives → cleanupComments の順序を守る。
+	const withoutDirectives = normalized.replace(MERMAID_DIRECTIVE_REGEX, '');
+	if (withoutDirectives !== normalized) {
+		await assertNoImagesInMermaidSource(withoutDirectives);
+	}
+}
+
+/**
+ * 主防御: 描画と同じ前処理・parser が生成した flowchart DB を検査する。
+ * 未対応の図種/API は文字列検査へ戻す。不正な構文は同検査で拒否する。
+ * flowchart と分かっているのに DB を取得できない場合は描画を許可しない。
+ */
+export async function assertMermaidDiagramNoExternalImages(
+	code: string,
+	diagram?: { type: string; db: unknown },
+): Promise<void> {
+	if (!diagram?.type.startsWith('flowchart')) {
+		await assertMermaidNoExternalImages(code);
+		return;
+	}
+	const db = diagram.db;
+	if (
+		!db ||
+		typeof db !== 'object' ||
+		!('getVertices' in db) ||
+		typeof db.getVertices !== 'function'
+	) {
+		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+	}
+	const vertices: unknown = db.getVertices();
+	if (!(vertices instanceof Map)) {
+		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+	}
+	for (const vertex of vertices.values()) {
+		if (!vertex || typeof vertex !== 'object') {
+			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+		}
+		assertNoMermaidImageMetadata(vertex);
+	}
+}
+
+// Mermaid の設定と図種ごとの DB は共有される。初期化・解析・検査・描画を
+// 一続きで直列化し、別リクエストの設定/DB で判定してしまう競合を防ぐ。
+let mermaidRenderQueue: Promise<unknown> = Promise.resolve();
+
 /**
  * MermaidコードをSVG文字列としてレンダリングする
  */
@@ -156,24 +300,39 @@ export async function renderMermaidSvg(
 		);
 	}
 
+	await assertMermaidNoExternalImages(code);
 	const mermaidModule = await import('mermaid');
 	const mermaid = mermaidModule.default;
 
-	mermaid.initialize({
-		startOnLoad: false,
-		securityLevel: 'strict',
-		theme,
-		themeVariables,
-		...renderLimits,
-		fontFamily:
-			'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+	const rendering = mermaidRenderQueue.then(async () => {
+		mermaid.initialize({
+			startOnLoad: false,
+			securityLevel: 'strict',
+			theme,
+			themeVariables,
+			...renderLimits,
+			fontFamily:
+				'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+		});
+
+		// parse と render は同じ processAndSetConfigs を通る。
+		// getDiagramFromText 単独では directive/frontmatter の設定を適用しない。
+		await mermaid.parse(code);
+		const diagram =
+			typeof mermaid.mermaidAPI?.getDiagramFromText === 'function'
+				? await mermaid.mermaidAPI.getDiagramFromText(code)
+				: undefined;
+		// 元の code を渡すことで render と同じ preprocessDiagram →
+		// Diagram.fromText（encodeEntities・parser）を通った DB を検査する。
+		await assertMermaidDiagramNoExternalImages(code, diagram);
+
+		const renderId = `mermaid-render-${containerId}-${Date.now()}`;
+		const { svg } = await mermaid.render(renderId, code);
+		return { svg };
 	});
-
-	// ユニークなIDでレンダリング
-	const renderId = `mermaid-render-${containerId}-${Date.now()}`;
-	const { svg } = await mermaid.render(renderId, code);
-
-	return { svg };
+	// 拒否された図が後続の正常な描画を止めないよう、待機列だけを回復する。
+	mermaidRenderQueue = rendering.catch(() => undefined);
+	return rendering;
 }
 
 /**
