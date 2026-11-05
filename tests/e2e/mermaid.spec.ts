@@ -212,6 +212,54 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 		await expect(svg).not.toContainText('(end)');
 	});
 
+	test('引用符内の閉じ括弧と接続記号を修復ONでも形状・本文を保って描画する（#590）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('mermaid').goto();
+		await page
+			.locator('textarea')
+			.fill(
+				[
+					'flowchart TD',
+					'A(("left ) --> right")) --> B[["left ] --> right"]]',
+					'B --> C("丸角 ) --- 本文")',
+					'C --> D["四角 ] ==> 本文"]',
+					'D --> E(["競技場 ) & 本文"])',
+					'E --> F[("円柱 ] ; 本文")]',
+				].join('\n'),
+			);
+		const previewTab = page.getByRole('tab', { name: /プレビュー/ });
+		if (await previewTab.isVisible()) await previewTab.click();
+		const svg = page
+			.getByRole('img', { name: /Mermaidダイアグラムのプレビュー/ })
+			.locator('svg')
+			.first();
+		await expect(svg.locator('g.node')).toHaveCount(6, { timeout: 10000 });
+		for (const [id, label] of [
+			['A', 'left ) --> right'],
+			['B', 'left ] --> right'],
+			['C', '丸角 ) --- 本文'],
+			['D', '四角 ] ==> 本文'],
+			['E', '競技場 ) & 本文'],
+			['F', '円柱 ] ; 本文'],
+		]) {
+			// 実描画のIDは mermaid-render-...-flowchart-A-0 のように接頭辞が付く。
+			await expect(
+				svg.locator(`g.node[id*="-flowchart-${id}-"] .nodeLabel`),
+			).toHaveText(label);
+		}
+		await expect(svg.locator('g.node[id*="-flowchart-A-"] circle')).toHaveCount(
+			1,
+		);
+		await expect(
+			svg.locator('g.node[id*="-flowchart-B-"] polygon'),
+		).toHaveCount(1);
+		await expect(
+			page.getByText('AI構文・日本語全角記号エラーを自動修復しました'),
+		).toHaveCount(0);
+	});
+
 	for (const key of ['title', '"title"', '  title']) {
 		test(`正常なYAML frontmatter(${key})の図タイトルが修復ONでも保持・描画されること`, async ({
 			page,

@@ -339,6 +339,67 @@ test('GitHub Actions形式のYAMLスニペットを生成する', () => {
 	assert.match(result.value, /schedule:\n\s+- cron: '0 9 \* \* 1'/);
 });
 
+test('GitHub Actions形式は入力と同じAsia/Tokyoを明示する', () => {
+	assert.deepEqual(toGithubActionsSchedule(parseCronExpression('0 9 * * *')), {
+		value: "schedule:\n  - cron: '0 9 * * *'\n    timezone: 'Asia/Tokyo'",
+	});
+});
+
+for (const scenario of [
+	{
+		name: '毎日JST 09:00',
+		expression: '0 9 * * *',
+		from: '2026-01-31T14:00:00Z',
+		expected: ['2026-02-01T00:00:00.000Z', '2026-02-02T00:00:00.000Z'],
+	},
+	{
+		name: '月曜JST 00:00はUTCでは日曜',
+		expression: '0 0 * * 1',
+		from: '2026-03-01T00:00:00Z',
+		expected: ['2026-03-01T15:00:00.000Z', '2026-03-08T15:00:00.000Z'],
+	},
+	{
+		name: '月初JST 00:00はUTCでは前月末',
+		expression: '0 0 1 * *',
+		from: '2026-01-30T00:00:00Z',
+		expected: [
+			'2026-01-31T15:00:00.000Z',
+			'2026-02-28T15:00:00.000Z',
+			'2026-03-31T15:00:00.000Z',
+		],
+	},
+	{
+		name: '年初JST 00:00はUTCでは前年末',
+		expression: '0 0 1 1 *',
+		from: '2026-12-30T00:00:00Z',
+		expected: ['2026-12-31T15:00:00.000Z'],
+	},
+]) {
+	test(`GitHub ActionsとJSTプレビューの実行時刻が一致する: ${scenario.name}`, () => {
+		const schedule = parseCronExpression(scenario.expression);
+		const output = toGithubActionsSchedule(schedule);
+		const cron = /^ {2}- cron: '([^']+)'$/m.exec(output.value);
+		assert.ok(cron);
+		// timezoneを省略したGitHub ActionsはUTCとして実行する。
+		const timeZone =
+			/^ {4}timezone: '([^']+)'$/m.exec(output.value)?.[1] ?? 'UTC';
+		const options = {
+			count: scenario.expected.length,
+			from: new Date(scenario.from),
+		};
+		const preview = getNextRunTimes(schedule, {
+			...options,
+			timeZone: 'Asia/Tokyo',
+		}).map((date) => date.toISOString());
+		const exported = getNextRunTimes(parseCronExpression(cron[1]), {
+			...options,
+			timeZone,
+		}).map((date) => date.toISOString());
+		assert.deepEqual(preview, scenario.expected);
+		assert.deepEqual(exported, scenario.expected);
+	});
+}
+
 test('GitHub Actions形式: 分がワイルドカードの場合も*として出力される（回帰防止）', () => {
 	const s = parseCronExpression('* 9 * * *');
 	const result = toGithubActionsSchedule(s);
@@ -350,6 +411,12 @@ test('秒付きcron式はGitHub Actions形式に非対応の警告を返す', ()
 	const result = toGithubActionsSchedule(s);
 	assert.equal(result.value, '');
 	assert.ok(result.warning);
+});
+
+test('秒が0固定でも6フィールドのGitHub Actions出力は拒否する', () => {
+	const result = toGithubActionsSchedule(parseCronExpression('0 0 9 * * *'));
+	assert.equal(result.value, '');
+	assert.match(result.warning ?? '', /秒フィールドに対応していません/);
 });
 
 test('AWS EventBridge形式のcron式を生成する（日指定優先で曜日は?）', () => {

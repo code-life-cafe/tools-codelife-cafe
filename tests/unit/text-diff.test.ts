@@ -1,7 +1,122 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { buildSplitPairs, computeDiff } from '../../src/lib/tools/text-diff.ts';
+import {
+	buildSplitPairs,
+	buildUnifiedLines,
+	computeDiff,
+	formatDiffText,
+} from '../../src/lib/tools/text-diff.ts';
+
+test('文字単位: abc / axc を双方1行にまとめ、b / x だけを変更として保持する', () => {
+	const pairs = buildSplitPairs(
+		computeDiff('abc', 'axc', 'chars').parts,
+		'chars',
+	);
+	assert.equal(pairs.length, 1);
+	assert.equal(pairs[0].left?.content, 'abc');
+	assert.equal(pairs[0].right?.content, 'axc');
+	assert.equal(pairs[0].left?.lineNum, 1);
+	assert.equal(pairs[0].right?.lineNum, 1);
+	assert.deepEqual(pairs[0].left?.parts, [
+		{ type: 'unchanged', value: 'a' },
+		{ type: 'removed', value: 'b' },
+		{ type: 'unchanged', value: 'c' },
+	]);
+	assert.deepEqual(pairs[0].right?.parts, [
+		{ type: 'unchanged', value: 'a' },
+		{ type: 'added', value: 'x' },
+		{ type: 'unchanged', value: 'c' },
+	]);
+});
+
+test('文字単位: 改行・空行・空入力・Unicodeでも元の行と文字列を復元できる', () => {
+	for (const [a, b] of [
+		['abc\ndef', 'axc\ndyf'],
+		['先頭\n末尾', '先頭\n追加\n末尾'],
+		['先頭\n削除\n末尾', '先頭\n末尾'],
+		['ab\ncd', 'abcd'],
+		['abcd', 'ab\ncd'],
+		['a\n', 'a\n\n'],
+		['a', 'a\n'],
+		['', '\n'],
+		['\n\n', ''],
+		['', ''],
+		['a\r\nb', 'a\r\nXb'],
+		['あ😀い', 'あ😃い'],
+	]) {
+		const pairs = buildSplitPairs(computeDiff(a, b, 'chars').parts, 'chars');
+		for (const [side, original] of [
+			['left', a],
+			['right', b],
+		] as const) {
+			const cells = pairs.flatMap((pair) => (pair[side] ? [pair[side]] : []));
+			const expectedLines = original === '' ? [] : original.split('\n');
+			if (original.endsWith('\n')) expectedLines.pop();
+			assert.deepEqual(
+				cells.map((cell) => cell.content),
+				expectedLines,
+				JSON.stringify([a, b, side]),
+			);
+			assert.deepEqual(
+				cells.map((cell) => cell.lineNum),
+				expectedLines.map((_, i) => i + 1),
+			);
+			assert.equal(
+				cells
+					.flatMap((cell) => cell.parts ?? [])
+					.map((part) => part.value)
+					.join(''),
+				original,
+			);
+		}
+	}
+});
+
+test('文字単位: 追加・削除行の後の共通行を同じ位置に揃える', () => {
+	for (const [a, b] of [
+		['先頭\n末尾', '先頭\n追加\n末尾'],
+		['先頭\n削除\n末尾', '先頭\n末尾'],
+	]) {
+		const pairs = buildSplitPairs(computeDiff(a, b, 'chars').parts, 'chars');
+		const last = pairs.at(-1);
+		assert.equal(last?.left?.content, '末尾');
+		assert.equal(last?.right?.content, '末尾');
+		assert.equal(pairs.length, 3);
+	}
+});
+
+test('文字単位: Unifiedの行番号とコピーは元の行全体を表す', () => {
+	const parts = computeDiff('abc\n共通\n', 'axc\n共通\n', 'chars').parts;
+	const lines = buildUnifiedLines(parts, 'chars');
+	assert.deepEqual(
+		lines.map(({ content, lineA, lineB }) => ({ content, lineA, lineB })),
+		[
+			{ content: 'abc', lineA: 1, lineB: null },
+			{ content: 'axc', lineA: null, lineB: 1 },
+			{ content: '共通', lineA: 2, lineB: 2 },
+		],
+	);
+	assert.equal(formatDiffText(parts, 'chars'), '- abc\n+ axc\n  共通');
+});
+
+test('文字単位: コピーで末尾改行の有無を区別する', () => {
+	const parts = computeDiff('a', 'a\n', 'chars').parts;
+	assert.equal(formatDiffText(parts, 'chars'), '- a\n\\ 末尾に改行なし\n+ a');
+});
+
+test('行単位: Unifiedとコピーの既存形式を維持する', () => {
+	const parts = computeDiff('共通\n旧\n', '共通\n新\n', 'lines').parts;
+	assert.equal(formatDiffText(parts, 'lines'), '  共通\n- 旧\n+ 新');
+	assert.deepEqual(
+		buildUnifiedLines(parts, 'lines').map(({ lineA, lineB }) => [lineA, lineB]),
+		[
+			[1, 1],
+			[2, null],
+			[null, 2],
+		],
+	);
+});
 
 test('computeDiff: 末尾への行追加で既存行が未変更として維持される', () => {
 	const textA = 'line1\nline2';

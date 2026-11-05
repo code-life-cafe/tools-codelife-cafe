@@ -70,10 +70,19 @@ test('normalizeSegments: 負の開始時刻は 0 にクランプする', () => {
 	assert.equal(out[0].start, 0);
 });
 
-test('normalizeSegments: 終了が開始より前なら開始に揃える（順序逆転の防止）', () => {
+test('normalizeSegments: 終了が開始より前なら除去し、0秒セグメントを作らない（#572）', () => {
 	const out = normalizeSegments([seg(1, 5, 2, 'ぎゃく')]);
-	assert.equal(out[0].start, 5);
-	assert.equal(out[0].end, 5);
+	assert.deepEqual(out, []);
+});
+
+test('normalizeSegments: 0秒セグメントを除き、短い発話と正しい反復は保持する', () => {
+	const input = [
+		seg(1, 0, 0, '架空の反復文'),
+		seg(2, 1, 1, '架空の反復文'),
+		seg(3, 1, 1.01, 'はい'),
+		seg(4, 2, 2.01, 'はい'),
+	];
+	assert.deepEqual(normalizeSegments(input), input.slice(2));
 });
 
 test('normalizeSegments: 非有限な時刻のセグメントは除去する', () => {

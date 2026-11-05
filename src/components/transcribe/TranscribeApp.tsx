@@ -603,6 +603,11 @@ export default function TranscribeApp() {
 				</Alert>
 			)}
 
+			{state.phase === 'done' && state.segments.length === 0 && (
+				<p role="status" className="text-sm text-muted-foreground">
+					発話は検出されませんでした。
+				</p>
+			)}
 			{displaySegments.length > 0 && (
 				<div className="flex flex-col gap-3">
 					<div className="flex flex-wrap items-center justify-between gap-2">

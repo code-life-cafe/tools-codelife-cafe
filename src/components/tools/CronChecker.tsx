@@ -243,6 +243,7 @@ export default function CronChecker() {
 				</Label>
 				<Input
 					id="cron-checker-input"
+					aria-describedby="cron-input-timezone"
 					value={input}
 					onChange={(e) => setInput(e.target.value)}
 					placeholder="例: 0 9 * * 1（標準5フィールド）または */5 * * * * *（秒付き6フィールド）"
@@ -250,6 +251,12 @@ export default function CronChecker() {
 					autoComplete="off"
 					spellCheck={false}
 				/>
+				<p
+					id="cron-input-timezone"
+					className="mt-2 text-xs text-muted-foreground"
+				>
+					入力タイムゾーン: Asia/Tokyo（JST）
+				</p>
 				<fieldset className="mt-2 flex flex-wrap gap-2" aria-label="プリセット">
 					{PRESETS.map((p) => (
 						<button
@@ -407,10 +414,16 @@ export default function CronChecker() {
 								</div>
 							)}
 							{githubCopy && (
-								<div className="rounded-lg border p-3">
+								<div
+									className="rounded-lg border p-3"
+									data-testid="cron-github-actions"
+								>
 									<div className="text-xs text-muted-foreground mb-1">
 										GitHub Actions
 									</div>
+									<p className="text-xs text-muted-foreground mb-1">
+										出力タイムゾーン: Asia/Tokyo（JST）
+									</p>
 									{githubCopy.warning ? (
 										<p className="text-xs text-destructive">
 											{githubCopy.warning}
