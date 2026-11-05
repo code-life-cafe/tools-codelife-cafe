@@ -147,6 +147,34 @@ function normalizeMermaidText(code: string): string {
 		);
 }
 
+// Mermaid 11.17.2: chunk-DU6HZSFF.mjs の directiveRegex と同一。
+// removeDirectives は行頭に限定せず、複数行も含め global に除去する。
+const MERMAID_DIRECTIVE_REGEX =
+	/%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;
+
+function assertNoMermaidImageMetadata(node: unknown): void {
+	if (!node || typeof node !== 'object') return;
+	if ('img' in node) {
+		throw new Error(
+			'外部リソースの取得を防ぐため、画像構文（img）は利用できません。',
+		);
+	}
+	if ('icon' in node) {
+		// flowchart の icon は pack:name の識別子のみ許可する。
+		// URL・相対パス・非文字列を、取得先として解釈させない。
+		const icon = node.icon;
+		if (
+			typeof icon !== 'string' ||
+			!/^[a-z0-9]+(?:-[a-z0-9]+)*:[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(icon) ||
+			/^(?:https?|ftp|file|data|blob|javascript):/i.test(icon)
+		) {
+			throw new Error(
+				'外部リソースの取得を防ぐため、アイコン（icon）にURLは指定できません。',
+			);
+		}
+	}
+}
+
 /** 正規化の前後それぞれに適用する、拡張ノードの画像検査。 */
 async function assertNoImagesInMermaidSource(code: string): Promise<void> {
 	// Mermaid同様、行頭の %% だけを除去し、%%{ ディレクティブは残す。
@@ -190,11 +218,7 @@ async function assertNoImagesInMermaidSource(code: string): Promise<void> {
 		} catch {
 			throw new Error('拡張ノードの構文を確認してください。');
 		}
-		if (node && typeof node === 'object' && 'img' in node) {
-			throw new Error(
-				'外部リソースの取得を防ぐため、画像構文（img）は利用できません。',
-			);
-		}
+		assertNoMermaidImageMetadata(node);
 	}
 	if (metadataStart !== -1) {
 		throw new Error('拡張ノードの構文を確認してください。');
@@ -210,7 +234,51 @@ export async function assertMermaidNoExternalImages(
 	// 正規化で現れる画像も、逆に隠れる画像も許可しない。
 	const normalized = normalizeMermaidText(code);
 	if (normalized !== code) await assertNoImagesInMermaidSource(normalized);
+	// F10: @ と { の間などのディレクティブを除去すると画像構文が現れる。
+	// cleanupText → removeDirectives → cleanupComments の順序を守る。
+	const withoutDirectives = normalized.replace(MERMAID_DIRECTIVE_REGEX, '');
+	if (withoutDirectives !== normalized) {
+		await assertNoImagesInMermaidSource(withoutDirectives);
+	}
 }
+
+/**
+ * 主防御: 描画と同じ前処理・parser が生成した flowchart DB を検査する。
+ * 未対応の図種/API は文字列検査へ戻す。不正な構文は同検査で拒否する。
+ * flowchart と分かっているのに DB を取得できない場合は描画を許可しない。
+ */
+export async function assertMermaidDiagramNoExternalImages(
+	code: string,
+	diagram?: { type: string; db: unknown },
+): Promise<void> {
+	if (!diagram?.type.startsWith('flowchart')) {
+		await assertMermaidNoExternalImages(code);
+		return;
+	}
+	const db = diagram.db;
+	if (
+		!db ||
+		typeof db !== 'object' ||
+		!('getVertices' in db) ||
+		typeof db.getVertices !== 'function'
+	) {
+		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+	}
+	const vertices: unknown = db.getVertices();
+	if (!(vertices instanceof Map)) {
+		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+	}
+	for (const vertex of vertices.values()) {
+		if (!vertex || typeof vertex !== 'object') {
+			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+		}
+		assertNoMermaidImageMetadata(vertex);
+	}
+}
+
+// Mermaid の設定と図種ごとの DB は共有される。初期化・解析・検査・描画を
+// 一続きで直列化し、別リクエストの設定/DB で判定してしまう競合を防ぐ。
+let mermaidRenderQueue: Promise<unknown> = Promise.resolve();
 
 /**
  * MermaidコードをSVG文字列としてレンダリングする
@@ -236,21 +304,35 @@ export async function renderMermaidSvg(
 	const mermaidModule = await import('mermaid');
 	const mermaid = mermaidModule.default;
 
-	mermaid.initialize({
-		startOnLoad: false,
-		securityLevel: 'strict',
-		theme,
-		themeVariables,
-		...renderLimits,
-		fontFamily:
-			'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+	const rendering = mermaidRenderQueue.then(async () => {
+		mermaid.initialize({
+			startOnLoad: false,
+			securityLevel: 'strict',
+			theme,
+			themeVariables,
+			...renderLimits,
+			fontFamily:
+				'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
+		});
+
+		// parse と render は同じ processAndSetConfigs を通る。
+		// getDiagramFromText 単独では directive/frontmatter の設定を適用しない。
+		await mermaid.parse(code);
+		const diagram =
+			typeof mermaid.mermaidAPI?.getDiagramFromText === 'function'
+				? await mermaid.mermaidAPI.getDiagramFromText(code)
+				: undefined;
+		// 元の code を渡すことで render と同じ preprocessDiagram →
+		// Diagram.fromText（encodeEntities・parser）を通った DB を検査する。
+		await assertMermaidDiagramNoExternalImages(code, diagram);
+
+		const renderId = `mermaid-render-${containerId}-${Date.now()}`;
+		const { svg } = await mermaid.render(renderId, code);
+		return { svg };
 	});
-
-	// ユニークなIDでレンダリング
-	const renderId = `mermaid-render-${containerId}-${Date.now()}`;
-	const { svg } = await mermaid.render(renderId, code);
-
-	return { svg };
+	// 拒否された図が後続の正常な描画を止めないよう、待機列だけを回復する。
+	mermaidRenderQueue = rendering.catch(() => undefined);
+	return rendering;
 }
 
 /**

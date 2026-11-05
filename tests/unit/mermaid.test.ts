@@ -1,10 +1,233 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	assertMermaidDiagramNoExternalImages,
 	assertMermaidNoExternalImages,
 	renderMermaidSvg,
 	SAMPLE_MERMAID_CODES,
 } from '../../src/lib/tools/mermaid.ts';
+
+const F10_CASES = [
+	[
+		'単一行ディレクティブ',
+		'flowchart TD\n A@%%{wrap}%%{ img: "https://example.com/pixel", label: "x", h: 20 }',
+	],
+	[
+		'複数行ディレクティブ',
+		'flowchart TD\n A@%%{wrap:\n true\n}%%{ img: "https://example.com/pixel", label: "x", h: 20 }',
+	],
+	[
+		'画像キーも分割する複数ディレクティブ',
+		'flowchart TD\n A@%%{wrap}%%{ i%%{wrap}%%mg: "/pixel" }',
+	],
+	[
+		'単独CRのコメントに続くディレクティブ',
+		'flowchart TD\n %% comment\r A@%%{wrap}%%{ img: "/pixel" }',
+	],
+] as const;
+
+for (const [name, code] of F10_CASES) {
+	test(`F10回帰: ${name}を文字列検査で拒否する`, async () => {
+		assert.ok(!code.includes('@{'));
+		await assert.rejects(assertMermaidNoExternalImages(code), /外部リソース/);
+	});
+	test(`F10回帰: ${name}をDOM描画前に拒否する`, async () => {
+		await assert.rejects(renderMermaidSvg(code, 'f10-test'), /外部リソース/);
+	});
+}
+
+test('F10回帰: Mermaid本体が解析したimgを文字列検査に依存せず拒否する', async () => {
+	const { default: mermaid } = await import('mermaid');
+	for (const [, code] of F10_CASES) {
+		mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+		await mermaid.parse(code);
+		const diagram = await mermaid.mermaidAPI.getDiagramFromText(code);
+		assert.equal(diagram.type, 'flowchart-v2');
+		assert.ok('getVertices' in diagram.db);
+		assert.ok(typeof diagram.db.getVertices === 'function');
+		const vertices: unknown = diagram.db.getVertices();
+		assert.ok(vertices instanceof Map);
+		assert.match(vertices.get('A').img, /pixel/);
+		// 安全な文字列を渡しても拒否されることにより、DB自体の検査を確認する。
+		await assert.rejects(
+			assertMermaidDiagramNoExternalImages('flowchart TD\n A --> B', diagram),
+			/外部リソース/,
+		);
+	}
+});
+
+test('描画入口は文字列検査を通った入力も実解析DBで検査し、拒否後に回復する', async (t) => {
+	const { default: mermaid } = await import('mermaid');
+	const api = mermaid.mermaidAPI;
+	t.after(() => {
+		mermaid.mermaidAPI = api;
+	});
+	// Mermaid本体で生成した危険なDBを返し、描画入口とDB検査の接続を確認する。
+	mermaid.mermaidAPI = {
+		...api,
+		getDiagramFromText: () => api.getDiagramFromText(F10_CASES[0][1]),
+	};
+	const draw = t.mock.method(mermaid, 'render', async () => ({
+		svg: '<svg/>',
+	}));
+	await assert.rejects(
+		renderMermaidSvg('flowchart TD\n A --> B', 'parsed-image'),
+		/外部リソース/,
+	);
+	assert.equal(draw.mock.callCount(), 0);
+	mermaid.mermaidAPI = api;
+	assert.deepEqual(await renderMermaidSvg('flowchart TD\n A --> B', 'safe'), {
+		svg: '<svg/>',
+	});
+	assert.equal(draw.mock.callCount(), 1);
+});
+
+test('解析APIのない図種は文字列検査へ戻し、flowchartの不明なDBは拒否する', async () => {
+	for (const diagram of [undefined, { type: 'sequence', db: {} }]) {
+		await assert.rejects(
+			assertMermaidDiagramNoExternalImages(F10_CASES[0][1], diagram),
+			/外部リソース/,
+		);
+		await assert.rejects(
+			assertMermaidDiagramNoExternalImages('flowchart TD\n A@{ img:', diagram),
+			/拡張ノードの構文/,
+		);
+		await assert.doesNotReject(
+			assertMermaidDiagramNoExternalImages(
+				'sequenceDiagram\n participant A@{ "type": "boundary" }',
+				diagram,
+			),
+		);
+	}
+	for (const db of [
+		null,
+		{},
+		{ getVertices: () => undefined },
+		{ getVertices: () => ({ A: { img: '/pixel' } }) },
+		{ getVertices: () => new Map([['A', null]]) },
+	]) {
+		await assert.rejects(
+			assertMermaidDiagramNoExternalImages('flowchart TD\n A', {
+				type: 'flowchart-v2',
+				db,
+			}),
+			/画像検査に失敗/,
+		);
+	}
+});
+
+test('画像なしの実解析・描画前検査はinit、frontmatter、edge、shape、sequenceを許可する', async (t) => {
+	const { default: mermaid } = await import('mermaid');
+	const api = mermaid.mermaidAPI;
+	t.after(() => {
+		mermaid.mermaidAPI = api;
+	});
+	let checkedType = '';
+	let checkedConfig: ReturnType<typeof api.getConfig> | undefined;
+	mermaid.mermaidAPI = {
+		...api,
+		async getDiagramFromText(code) {
+			const diagram = await api.getDiagramFromText(code);
+			checkedType = diagram.type;
+			checkedConfig = api.getConfig();
+			return diagram;
+		},
+	};
+	// DOM描画だけを置換する。initialize/parse/getDiagramFromTextはMermaid本体。
+	const draw = t.mock.method(
+		mermaid,
+		'render',
+		async (_id: string, code: string) => {
+			assert.equal(api.getConfig().securityLevel, 'strict');
+			assert.deepEqual(api.getConfig(), checkedConfig);
+			assert.ok(code.includes('A'));
+			return { svg: '<svg/>' };
+		},
+	);
+	for (const [type, code] of [
+		[
+			'flowchart',
+			'%%{init: {"flowchart":{"defaultRenderer":"dagre-d3"}, "securityLevel":"loose"}}%%\ngraph TD\n A --> B',
+		],
+		[
+			'flowchart',
+			'---\nconfig:\n  theme: dark\n  flowchart:\n    defaultRenderer: dagre-d3\n---\ngraph TD\n A --> B',
+		],
+		['flowchart-v2', 'flowchart TD\n A e1@--> B\n e1@{ animate: true }'],
+		[
+			'flowchart-v2',
+			'flowchart TD\n A@{ shape: rect, label: "通常ノード" } --> B',
+		],
+		['flowchart-v2', 'flowchart TD\n A@{ icon: "fa:house" }'],
+		[
+			'sequence',
+			'sequenceDiagram\n participant A@{ "type": "boundary" }\n A->>B: 問い合わせ',
+		],
+	]) {
+		await assert.doesNotReject(renderMermaidSvg(code, 'safe-parser'));
+		assert.equal(checkedType, type);
+	}
+	assert.equal(draw.mock.callCount(), 6);
+});
+
+test('同時描画でも初期化・解析・DB検査・描画の設定が混ざらない', async (t) => {
+	const { default: mermaid } = await import('mermaid');
+	const initialize = mermaid.initialize;
+	const events: string[] = [];
+	t.mock.method(
+		mermaid,
+		'initialize',
+		(config: Parameters<typeof initialize>[0]) => {
+			events.push(`initialize:${config.theme}`);
+			initialize(config);
+		},
+	);
+	t.mock.method(mermaid, 'render', async () => {
+		const theme = mermaid.mermaidAPI.getConfig().theme;
+		events.push(`render:${theme}`);
+		await Promise.resolve();
+		assert.equal(mermaid.mermaidAPI.getConfig().theme, theme);
+		events.push(`end:${theme}`);
+		return { svg: '<svg/>' };
+	});
+	await Promise.all([
+		renderMermaidSvg('flowchart TD\n A --> B', 'light', 'default'),
+		renderMermaidSvg('flowchart TD\n C --> D', 'dark', 'dark'),
+	]);
+	assert.deepEqual(events, [
+		'initialize:default',
+		'render:default',
+		'end:default',
+		'initialize:dark',
+		'render:dark',
+		'end:dark',
+	]);
+});
+
+test('imgとiconの外部URLは実解析DBと文字列検査の両方で拒否する', async () => {
+	const { default: mermaid } = await import('mermaid');
+	for (const key of ['img', 'icon']) {
+		for (const url of [
+			'https://example.com/pixel',
+			'//example.com/pixel',
+			'/pixel',
+			'./pixel',
+			'pixel.png',
+			'https:pixel',
+			'data:image/svg+xml,test',
+		]) {
+			const code = `flowchart TD\n A@{ ${key}: "${url}" }`;
+			await assert.rejects(assertMermaidNoExternalImages(code), /外部リソース/);
+			mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
+			await mermaid.parse(code);
+			const diagram = await mermaid.mermaidAPI.getDiagramFromText(code);
+			await assert.rejects(
+				assertMermaidDiagramNoExternalImages('flowchart TD\n A', diagram),
+				/外部リソース/,
+			);
+		}
+	}
+});
 
 for (const source of [
 	'https://example.com/pixel?customer=DEMO',
@@ -86,6 +309,10 @@ test('画像キーの引用・エスケープ・複数行でも描画前に拒�
 		'flowchart TD\n A@{ shape: rect }\n B@{ img: /pixel }',
 	]) {
 		await assert.rejects(assertMermaidNoExternalImages(code), /外部リソース/);
+		await assert.rejects(
+			renderMermaidSvg(code, 'quoted-image'),
+			/外部リソース/,
+		);
 	}
 });
 
@@ -99,6 +326,7 @@ test('引用ラベル・説明文内でも画像構文を拒否する', async ()
 		'flowchart TD\n A[100%%] --- B@{ "\\u0069mg": /pixel }',
 	]) {
 		await assert.rejects(assertMermaidNoExternalImages(code), /外部リソース/);
+		await assert.rejects(renderMermaidSvg(code, 'label-image'), /外部リソース/);
 	}
 });
 

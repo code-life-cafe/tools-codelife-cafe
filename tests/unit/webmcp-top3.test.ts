@@ -214,6 +214,17 @@ test('F6回帰: render_mermaid_svgはautoRepair:falseでも単独CRの後の画�
 	if (!result.ok) assert.match(result.error, /拡張シェイプ・画像/);
 });
 
+test('F10回帰: render_mermaid_svgはautoRepair:falseでも行途中の画像ディレクティブを拒否する', async () => {
+	for (const directive of ['%%{wrap}%%', '%%{wrap:\n true\n}%%']) {
+		const result = await generateWebMcpDescriptor(mermaidRenderMcpTool).run({
+			text: `flowchart TD\n A@${directive}{ img: "https://example.com/pixel", label: "x", h: 20 }`,
+			autoRepair: false,
+		});
+		assert.equal(result.ok, false);
+		if (!result.ok) assert.match(result.error, /ディレクティブ/);
+	}
+});
+
 test('Mermaid: フェンス除去・全角矢印修復と形状保持', async () => {
 	const result = await mermaid.run({
 		text: '```mermaid\nflowchart TD\nA((開始)) → B[[処理]]\n```',
