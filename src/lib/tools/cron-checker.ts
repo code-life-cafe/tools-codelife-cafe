@@ -868,6 +868,7 @@ export function toCrontabLine(schedule: CronSchedule): FormatCopyResult {
 	return { value: schedule.raw };
 }
 
+/** 入力をJSTとして解釈し、プレビューと同じタイムゾーンで出力する。 */
 export function toGithubActionsSchedule(
 	schedule: CronSchedule,
 ): FormatCopyResult {
@@ -883,7 +884,9 @@ export function toGithubActionsSchedule(
 	} ${schedule.daysOfMonth.isWildcard ? '*' : schedule.daysOfMonth.values.join(',')} ${
 		schedule.months.isWildcard ? '*' : schedule.months.values.join(',')
 	} ${schedule.daysOfWeek.isWildcard ? '*' : schedule.daysOfWeek.values.join(',')}`;
-	return { value: `schedule:\n  - cron: '${line}'` };
+	return {
+		value: `schedule:\n  - cron: '${line}'\n    timezone: 'Asia/Tokyo'`,
+	};
 }
 
 export function toAwsEventBridgeCron(schedule: CronSchedule): FormatCopyResult {

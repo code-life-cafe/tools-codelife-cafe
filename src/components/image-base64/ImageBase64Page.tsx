@@ -5,7 +5,7 @@ import {
 	ImageIcon,
 	Loader2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,7 @@ import {
 	formatBytes,
 	type SnippetKind,
 	validateImageFile,
-} from '@/lib/tools/image-base64';
+} from '@/lib/tools/image-base64.ts';
 import { downloadBlob } from '@/lib/tools/image-common';
 
 type Mode = 'encode' | 'decode';
@@ -57,8 +57,6 @@ export function ImageBase64Page() {
 	const [decodedExt, setDecodedExt] = useState<string | null>(null);
 	const [decodedBlob, setDecodedBlob] = useState<Blob | null>(null);
 	const [decodeError, setDecodeError] = useState<string | null>(null);
-
-	const decodedUrlRef = useRef<string | null>(null);
 
 	const handleModeChange = useCallback((v: string) => {
 		setMode(v as Mode);
@@ -117,27 +115,33 @@ export function ImageBase64Page() {
 	// --- Decode ---
 
 	useEffect(() => {
+		setDecodedUrl(null);
+		setDecodedMime(null);
+		setDecodedExt(null);
+		setDecodedBlob(null);
+		setDecodeError(null);
 		if (mode !== 'decode' || decodeInput.trim() === '') {
-			if (decodedUrlRef.current) {
-				URL.revokeObjectURL(decodedUrlRef.current);
-				decodedUrlRef.current = null;
-			}
-			setDecodedUrl(null);
-			setDecodedMime(null);
-			setDecodedExt(null);
-			setDecodedBlob(null);
-			setDecodeError(null);
 			return;
 		}
 
-		const timer = setTimeout(() => {
+		let cancelled = false;
+		let url: string | null = null;
+		const timer = setTimeout(async () => {
 			try {
 				const { blob, mime, ext } = dataUriToBlob(decodeInput);
-				if (decodedUrlRef.current) {
-					URL.revokeObjectURL(decodedUrlRef.current);
+				url = URL.createObjectURL(blob);
+				// MIMEやBase64の構文だけでは画像の破損を判定できない。
+				// ローカルBlobを画像として読み込めた場合だけ結果を公開する。
+				const image = new Image();
+				image.src = url;
+				try {
+					await image.decode();
+				} catch {
+					throw new Error(
+						'画像を読み込めません。画像ではないデータ、または破損した画像です。',
+					);
 				}
-				const url = URL.createObjectURL(blob);
-				decodedUrlRef.current = url;
+				if (cancelled) return;
 				setDecodedUrl(url);
 				setDecodedMime(mime);
 				setDecodedExt(ext);
@@ -146,30 +150,23 @@ export function ImageBase64Page() {
 				// Base64→画像 デコード成功の分析計測
 				trackRunDebounced();
 			} catch (err) {
-				if (decodedUrlRef.current) {
-					URL.revokeObjectURL(decodedUrlRef.current);
-					decodedUrlRef.current = null;
+				if (url) {
+					URL.revokeObjectURL(url);
+					url = null;
 				}
-				setDecodedUrl(null);
-				setDecodedMime(null);
-				setDecodedExt(null);
-				setDecodedBlob(null);
+				if (cancelled) return;
 				setDecodeError(
 					err instanceof Error ? err.message : 'デコードに失敗しました。',
 				);
 			}
 		}, 300);
 
-		return () => clearTimeout(timer);
-	}, [mode, decodeInput, trackRunDebounced]);
-
-	useEffect(() => {
 		return () => {
-			if (decodedUrlRef.current) {
-				URL.revokeObjectURL(decodedUrlRef.current);
-			}
+			cancelled = true;
+			clearTimeout(timer);
+			if (url) URL.revokeObjectURL(url);
 		};
-	}, []);
+	}, [mode, decodeInput, trackRunDebounced]);
 
 	const handleDownload = useCallback(() => {
 		if (decodedBlob && decodedExt) {

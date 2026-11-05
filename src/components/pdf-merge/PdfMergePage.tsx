@@ -141,25 +141,35 @@ export function PdfMergePage() {
 		[updateItem, setError, clearResult],
 	);
 
-	const handleMove = useCallback((id: string, direction: -1 | 1) => {
-		setItems((prev) => {
-			const index = prev.findIndex((it) => it.id === id);
-			const target = index + direction;
-			if (index < 0 || target < 0 || target >= prev.length) return prev;
-			const next = [...prev];
-			[next[index], next[target]] = [next[target], next[index]];
-			return next;
-		});
-	}, []);
+	const handleMove = useCallback(
+		(id: string, direction: -1 | 1) => {
+			if (processing) return;
+			clearResult();
+			setItems((prev) => {
+				const index = prev.findIndex((it) => it.id === id);
+				const target = index + direction;
+				if (index < 0 || target < 0 || target >= prev.length) return prev;
+				const next = [...prev];
+				[next[index], next[target]] = [next[target], next[index]];
+				return next;
+			});
+		},
+		[processing, clearResult],
+	);
 
-	const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
-		setItems((prev) => {
-			const next = [...prev];
-			const [moved] = next.splice(fromIndex, 1);
-			next.splice(toIndex, 0, moved);
-			return next;
-		});
-	}, []);
+	const handleReorder = useCallback(
+		(fromIndex: number, toIndex: number) => {
+			if (processing) return;
+			clearResult();
+			setItems((prev) => {
+				const next = [...prev];
+				const [moved] = next.splice(fromIndex, 1);
+				next.splice(toIndex, 0, moved);
+				return next;
+			});
+		},
+		[processing, clearResult],
+	);
 
 	const handleRemove = useCallback(
 		(id: string) => {

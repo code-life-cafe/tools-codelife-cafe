@@ -21,6 +21,10 @@ function paramToJsonSchema(def: McpParamDef): Record<string, unknown> {
 		description: def.description,
 	};
 	if (def.enum) schema.enum = def.enum;
+	if (def.type === 'number' || def.type === 'integer') {
+		if (def.minimum !== undefined) schema.minimum = def.minimum;
+		if (def.maximum !== undefined) schema.maximum = def.maximum;
+	}
 	if (def.type === 'string' && def.maxLength !== undefined)
 		schema.maxLength = def.maxLength;
 	if (def.required === false && def.default !== undefined)
@@ -83,10 +87,30 @@ function validateOneParam(
 		}
 		return { ok: true, value: raw };
 	}
-	if (def.type === 'number') {
+	if (def.type === 'number' || def.type === 'integer') {
 		if (typeof raw !== 'number' || !Number.isFinite(raw)) {
 			return failure(
 				`"${key}" must be a finite number / "${key}" は有限の数値で指定してください`,
+			);
+		}
+		if (def.type === 'integer' && !Number.isInteger(raw)) {
+			return failure(
+				`"${key}" must be an integer / "${key}" は整数で指定してください`,
+			);
+		}
+		if (def.minimum !== undefined && raw < def.minimum) {
+			return failure(
+				`"${key}" must be >= ${def.minimum} / "${key}" は${def.minimum}以上で指定してください`,
+			);
+		}
+		if (def.maximum !== undefined && raw > def.maximum) {
+			return failure(
+				`"${key}" must be <= ${def.maximum} / "${key}" は${def.maximum}以下で指定してください`,
+			);
+		}
+		if (def.enum && !def.enum.includes(raw)) {
+			return failure(
+				`"${key}" must be one of: ${def.enum.join(', ')} / "${key}" は次のいずれかを指定してください: ${def.enum.join(', ')}`,
 			);
 		}
 		return { ok: true, value: raw };

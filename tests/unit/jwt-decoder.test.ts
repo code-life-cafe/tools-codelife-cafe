@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { jwtDecoderMcpTool } from '../../src/lib/tools/jwt-decoder.mcp.ts';
 import { decodeJwt } from '../../src/lib/tools/jwt-decoder.ts';
+import { generateWebMcpDescriptor } from '../../src/lib/webmcp/descriptor-generator.ts';
 
 test('decodeJwt: 正常なJWTのデコード', () => {
 	// {"alg":"HS256","typ":"JWT"}.{"sub":"1234567890","name":"山田太郎","iat":1516239022}
@@ -43,6 +45,52 @@ function b64url(obj: unknown): string {
 function makeToken(payload: Record<string, unknown>): string {
 	return `${b64url({ alg: 'HS256', typ: 'JWT' })}.${b64url(payload)}.sig`;
 }
+
+test('decodeJwt: header/payloadが配列のJWTを拒否する（#623）', () => {
+	for (const token of [
+		'W10.W10.',
+		'W10.e30.',
+		'e30.W10.',
+		`${b64url([1])}.e30.`,
+		`e30.${b64url([{}])}.`,
+	]) {
+		const result = decodeJwt(token);
+		assert.strictEqual(result.valid, false, token);
+		assert.strictEqual(
+			result.error,
+			'デコードエラー: JSONオブジェクトではありません。',
+		);
+		assert.strictEqual(result.header, null);
+		assert.strictEqual(result.payload, null);
+	}
+});
+
+test('decodeJwt: nullとプリミティブを拒否し、空objectと配列を含むobjectを受理する（#623）', () => {
+	for (const value of [null, true, 123, '文字列']) {
+		assert.strictEqual(decodeJwt(`${b64url(value)}.e30.`).valid, false);
+		assert.strictEqual(decodeJwt(`e30.${b64url(value)}.`).valid, false);
+	}
+	assert.strictEqual(decodeJwt('e30.e30.').valid, true);
+	const payload = { roles: ['user', 'admin'], nested: { values: [] } };
+	const result = decodeJwt(makeToken(payload));
+	assert.strictEqual(result.valid, true);
+	assert.deepStrictEqual(result.payload?.json, payload);
+});
+
+test('JWT WebMCP: 配列JSONは成功出力にせず、objectだけを返す（#623）', async () => {
+	const tool = generateWebMcpDescriptor(jwtDecoderMcpTool);
+	for (const jwt of ['W10.W10.', 'W10.e30.', 'e30.W10.']) {
+		const result = await tool.run({ jwt });
+		assert.strictEqual(result.ok, false, jwt);
+	}
+	const result = await tool.run({ jwt: 'e30.e30.' });
+	assert.ok(result.ok);
+	assert.deepStrictEqual(result.value, {
+		header: {},
+		payload: {},
+		warnings: [],
+	});
+});
 
 const NOW_MS = Date.UTC(2026, 8, 30, 0, 0, 0);
 const NOW_SEC = NOW_MS / 1000;
