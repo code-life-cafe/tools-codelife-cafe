@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('UNIXタイムスタンプ⇔日時変換ツール', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
@@ -145,6 +145,77 @@ test.describe('UNIXタイムスタンプ⇔日時変換ツール', () => {
 		await expect(table.getByText('エラー')).toBeVisible();
 
 		expect(errors).toEqual([]);
+	});
+
+	test('DSTの欠落時刻は結果を消してエラー表示し、有効な時刻で復帰する（#582）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('unix-time').goto();
+		await page.getByLabel('タイムゾーン').click();
+		await page
+			.getByRole('option', { name: 'America/New_York', exact: true })
+			.click();
+
+		const input = page.getByLabel('タイムスタンプまたは日時');
+		const result = page.getByTestId('unix-time-result');
+		await input.fill('2024-03-10 01:30:00');
+		await expect(result).toContainText('2024-03-10T01:30:00-05:00');
+
+		for (const value of ['2024-03-10 02:30:00', '2024/03/10 02:30:00']) {
+			await input.fill(value);
+			await expect(
+				page.getByText('解釈できません', { exact: true }),
+			).toBeVisible();
+			await expect(result).toHaveCount(0);
+		}
+
+		await input.fill('2024-03-10 03:30:00');
+		await expect(result).toContainText('2024-03-10T03:30:00-04:00');
+		await expect(page.getByText('解釈できません', { exact: true })).toHaveCount(
+			0,
+		);
+
+		for (const [value, isoUtc] of [
+			['2024-11-03T01:30:00-04:00', '2024-11-03T05:30:00Z'],
+			['2024-11-03T01:30:00-05:00', '2024-11-03T06:30:00Z'],
+		]) {
+			await input.fill(value);
+			await expect(result).toContainText(isoUtc);
+		}
+	});
+
+	test('一括変換ではDSTの欠落時刻の行だけエラーになる（#582）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('unix-time').goto();
+		await page.getByLabel('タイムゾーン').click();
+		await page
+			.getByRole('option', { name: 'America/New_York', exact: true })
+			.click();
+		await page.getByRole('tab', { name: '一括変換' }).click();
+		await page
+			.getByLabel('一括入力（1行1値）')
+			.fill(
+				[
+					'2024-03-10 01:30:00',
+					'2024-03-10 02:30:00',
+					'2024/03/10 02:30:00',
+					'2024-03-10 03:30:00',
+				].join('\n'),
+			);
+		const rows = page.getByTestId('unix-time-batch-result').locator('tbody tr');
+		await expect(rows).toHaveCount(4);
+		await expect(rows.nth(0)).toContainText('2024-03-10T06:30:00Z');
+		await expect(rows.nth(3)).toContainText('2024-03-10T07:30:00Z');
+		for (const index of [1, 2]) {
+			await expect(
+				rows.nth(index).getByText('エラー', { exact: true }),
+			).toBeVisible();
+			await expect(rows.nth(index)).toContainText('解釈できません');
+			await expect(rows.nth(index).getByRole('cell').nth(3)).toHaveText('-');
+		}
 	});
 
 	test('現在時刻ボタンで入力欄に値が入り結果が表示されること', async ({

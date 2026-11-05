@@ -260,6 +260,143 @@ test('逆変換: 存在しない日時コンポーネントは拒否される', 
 	assert.equal(parseDateTimeString('2026/13/01 00:00:00', 'UTC'), null);
 });
 
+test('逆変換: DST開始で存在しない現地時刻は拒否される（#582）', () => {
+	for (const input of [
+		'2024-03-10T02:00:00',
+		'2024-03-10 02:30:00',
+		'2024-03-10T02:59:59.999999999',
+		'2024/03/10 02:30:00',
+	]) {
+		assert.equal(parseDateTimeString(input, 'America/New_York'), null, input);
+	}
+});
+
+test('逆変換: DST開始の前後に実在する現地時刻と端数を保持する（#582）', () => {
+	const cases = [
+		[
+			'2024-03-10 01:30:00',
+			'2024-03-10T06:30:00Z',
+			'2024-03-10T01:30:00-05:00',
+		],
+		[
+			'2024-03-10T01:59:59.999999999',
+			'2024-03-10T06:59:59.999999999Z',
+			'2024-03-10T01:59:59.999999999-05:00',
+		],
+		[
+			'2024-03-10T03:00:00',
+			'2024-03-10T07:00:00Z',
+			'2024-03-10T03:00:00-04:00',
+		],
+		[
+			'2024-03-10 03:30:00',
+			'2024-03-10T07:30:00Z',
+			'2024-03-10T03:30:00-04:00',
+		],
+		[
+			'2024/03/10 01:30:00',
+			'2024-03-10T06:30:00Z',
+			'2024-03-10T01:30:00-05:00',
+		],
+		[
+			'2024/03/10 03:30:00',
+			'2024-03-10T07:30:00Z',
+			'2024-03-10T03:30:00-04:00',
+		],
+	];
+	for (const [input, isoUtc, isoLocal] of cases) {
+		const parsed = parseDateTimeString(input, 'America/New_York');
+		assert.ok(parsed, input);
+		assert.equal(parsed.hasExplicitOffset, false);
+		const outputs = formatTimestamp(parsed.instantNanos, 'America/New_York');
+		assert.equal(outputs.isoUtc, isoUtc, input);
+		assert.equal(outputs.isoLocal, isoLocal, input);
+	}
+});
+
+test('逆変換: DST終了の重複時刻は明示オフセットで区別する（#582）', () => {
+	for (const [input, isoUtc] of [
+		['2024-11-03T01:30:00-04:00', '2024-11-03T05:30:00Z'],
+		['2024-11-03T01:30:00-05:00', '2024-11-03T06:30:00Z'],
+	]) {
+		const parsed = parseDateTimeString(input, 'America/New_York');
+		assert.ok(parsed, input);
+		assert.equal(parsed.hasExplicitOffset, true);
+		const outputs = formatTimestamp(parsed.instantNanos, 'America/New_York');
+		assert.equal(outputs.isoUtc, isoUtc, input);
+		assert.equal(outputs.isoLocal, input);
+	}
+});
+
+test('逆変換: DST欠落時間帯でも明示オフセットを優先する（#582）', () => {
+	const parsed = parseDateTimeString(
+		'2024-03-10T02:30:00-05:00',
+		'America/New_York',
+	);
+	assert.ok(parsed);
+	assert.equal(parsed.hasExplicitOffset, true);
+	assert.equal(
+		formatTimestamp(parsed.instantNanos, 'UTC').isoUtc,
+		'2024-03-10T07:30:00Z',
+	);
+});
+
+test('逆変換・一括変換: UTCと東京では同じ日時を有効な時刻として扱う（#582）', () => {
+	const inputs = ['2024-03-10 02:30:00', '2024/03/10 02:30:00'];
+	for (const [timeZone, isoUtc] of [
+		['UTC', '2024-03-10T02:30:00Z'],
+		['Asia/Tokyo', '2024-03-09T17:30:00Z'],
+	]) {
+		for (const input of inputs) {
+			const parsed = parseDateTimeString(input, timeZone);
+			assert.ok(parsed, `${timeZone}: ${input}`);
+			assert.equal(
+				formatTimestamp(parsed.instantNanos, timeZone).isoUtc,
+				isoUtc,
+			);
+		}
+		const rows = convertBatch(inputs.join('\n'), timeZone);
+		assert.equal(rows.length, inputs.length);
+		for (const row of rows) {
+			assert.equal(row.ok, true);
+			assert.equal(row.isoUtc, isoUtc);
+		}
+	}
+});
+
+test('一括変換: DSTの欠落時刻だけエラーにして前後・重複時刻を保持する（#582）', () => {
+	const inputs = [
+		'2024-03-10 01:30:00',
+		'2024-03-10 02:30:00',
+		'2024/03/10 02:30:00',
+		'2024-03-10 03:30:00',
+		'2024-11-03T01:30:00-04:00',
+		'2024-11-03T01:30:00-05:00',
+	];
+	const rows = convertBatch(inputs.join('\n'), 'America/New_York');
+	assert.equal(rows.length, inputs.length);
+	for (const index of [1, 2]) {
+		assert.deepEqual(rows[index], {
+			input: inputs[index],
+			ok: false,
+			formatLabel: '',
+			isoUtc: '',
+			unixSeconds: '',
+			unixMilliseconds: '',
+			error: '解釈できません',
+		});
+	}
+	for (const [index, isoUtc] of [
+		[0, '2024-03-10T06:30:00Z'],
+		[3, '2024-03-10T07:30:00Z'],
+		[4, '2024-11-03T05:30:00Z'],
+		[5, '2024-11-03T06:30:00Z'],
+	] as const) {
+		assert.equal(rows[index].ok, true);
+		assert.equal(rows[index].isoUtc, isoUtc);
+	}
+});
+
 test('isValidTimeZone: 有効・無効なタイムゾーン判定とformatTimestampでの安全なフォールバック', () => {
 	assert.equal(isValidTimeZone('Asia/Tokyo'), true);
 	assert.equal(isValidTimeZone('UTC'), true);
@@ -382,4 +519,125 @@ test('WebMCP明示形式: Dateで表示できない範囲外の値はnullを返�
 		null,
 	);
 	assert.notEqual(instantFromExplicitFormat('1700000000123', 'unix-ms'), null);
+});
+
+test('紀元前の小数秒は候補なしにする（#606）', () => {
+	for (const input of [
+		'-62135596800.000000001', // 0001-01-01T00:00:00Z の1ナノ秒前
+		'-62167219200.0', // 0000-01-01T00:00:00Z
+		'-62200000000.5', // 負の年
+	]) {
+		assert.deepEqual(detectTimestampCandidates(input), [], input);
+	}
+});
+
+test('整数フォールバックでも紀元前の候補を返さない（#606）', () => {
+	// 最小単位のナノ秒でも1年より前なので、他の単位にも有効候補はない。
+	for (const input of ['-62135596800000000001', '-62167219200000000000']) {
+		assert.deepEqual(detectTimestampCandidates(input), [], input);
+	}
+});
+
+test('WebMCP明示形式でも紀元前はnullにする（#606）', () => {
+	for (const [input, format] of [
+		['-62135596801', 'unix-s'],
+		['-62135596800001', 'unix-ms'],
+		['-62135596800000001', 'unix-us'],
+		['-62135596800000000001', 'unix-ns'],
+		['-62135596800.000000001', 'unix-s'],
+		['-62135596800.000000001', 'slack-ts'],
+	] as const) {
+		assert.equal(instantFromExplicitFormat(input, format), null, format);
+	}
+});
+
+test('年の下限ちょうどは数値入力の有効候補として保持する（#606）', () => {
+	const startOfYearOne = -62_135_596_800_000_000_000n;
+	assert.equal(
+		detectTimestampCandidates('-62135596800.0')[0]?.instantNanos,
+		startOfYearOne,
+	);
+	assert.equal(
+		detectTimestampCandidates(startOfYearOne.toString())[0]?.instantNanos,
+		startOfYearOne,
+	);
+	assert.equal(
+		instantFromExplicitFormat('-62135596800', 'unix-s'),
+		startOfYearOne,
+	);
+});
+
+test('一括変換: 紀元前の入力は既存エラーにし、正常行は保持する（#606）', () => {
+	const inputs = [
+		'1700000000',
+		'-62135596800.000000001',
+		'-62135596800000000001',
+		'0000-01-01T00:00:00Z',
+		'0000/01/01 00:00:00',
+		'2023-11-15T07:13:20+09:00',
+	];
+	const rows = convertBatch(inputs.join('\n'), 'Asia/Tokyo');
+	assert.equal(rows.length, inputs.length);
+	for (const index of [1, 2, 3, 4]) {
+		assert.deepEqual(rows[index], {
+			input: inputs[index],
+			ok: false,
+			formatLabel: '',
+			isoUtc: '',
+			unixSeconds: '',
+			unixMilliseconds: '',
+			error: '解釈できません',
+		});
+	}
+	for (const index of [0, 5]) {
+		assert.equal(rows[index].ok, true);
+		assert.equal(rows[index].isoUtc, '2023-11-14T22:13:20Z');
+	}
+});
+
+for (const [timeZone, utc, local, offset] of [
+	['Asia/Kolkata', '1890-01-01T00:00:00', '1890-01-01T05:21:10', '+05:21:10'],
+	['Asia/Tokyo', '1696-01-01T00:00:00', '1696-01-01T09:18:59', '+09:18:59'],
+	[
+		'America/New_York',
+		'1880-01-01T00:00:00',
+		'1879-12-31T19:03:58',
+		'-04:56:02',
+	],
+]) {
+	test(`LMTのオフセット秒と小数秒を丸めず保持する: ${timeZone} ${utc}（#606）`, () => {
+		const instant = BigInt(Date.parse(`${utc}Z`)) * 1_000_000n;
+		for (const [nanos, fractional] of [
+			[0n, ''],
+			[123_000_000n, '.123'],
+			[123_456_789n, '.123456789'],
+		] as const) {
+			const outputs = formatTimestamp(instant + nanos, timeZone);
+			assert.equal(outputs.isoUtc, `${utc}${fractional}Z`);
+			assert.equal(outputs.isoLocal, `${local}${fractional}${offset}`);
+			assert.equal(outputs.rfc3339, `${local}${fractional}${offset}`);
+			// オフセットを省略した壁時計入力でも、LMTの秒差を保持する。
+			const parsed = parseDateTimeString(`${local}${fractional}`, timeZone);
+			assert.equal(parsed?.instantNanos, instant + nanos);
+		}
+	});
+}
+
+test('現行標準時は秒0を省略して従来のオフセット表示を保つ（#606）', () => {
+	const instant = 1_700_000_000_123_456_789n;
+	for (const [timeZone, local, offset] of [
+		['Asia/Tokyo', '2023-11-15T07:13:20.123456789', '+09:00'],
+		['Asia/Kolkata', '2023-11-15T03:43:20.123456789', '+05:30'],
+		['Asia/Kathmandu', '2023-11-15T03:58:20.123456789', '+05:45'],
+		['America/New_York', '2023-11-14T17:13:20.123456789', '-05:00'],
+		['UTC', '2023-11-14T22:13:20.123456789', '+00:00'],
+	]) {
+		const outputs = formatTimestamp(instant, timeZone);
+		assert.equal(outputs.isoUtc, '2023-11-14T22:13:20.123456789Z');
+		assert.equal(
+			outputs.isoLocal,
+			`${local}${timeZone === 'UTC' ? 'Z' : offset}`,
+		);
+		assert.equal(outputs.rfc3339, `${local}${offset}`);
+	}
 });
