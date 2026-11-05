@@ -575,6 +575,31 @@ export function jsonToCsv(
 // CSV → JSON
 // ---------------------------------------------------------------------------
 
+// ドット記法で作られた各配列の長さ（添字0〜99999）だけを制限する。
+// CSVの実データ行数・セル値の長さ・出力全体のバイト数は制限しない。
+const MAX_UNFLATTENED_ARRAY_LENGTH = 100000;
+
+/**
+ * JSONのシリアライズ前に、復元された配列の長さを検査する。
+ * CSVの行を束ねる配列は対象外。疎配列の空きスロットは走査しない。
+ */
+function exceedsUnflattenedArrayLength(
+	records: Record<string, unknown>[],
+): boolean {
+	const stack: unknown[] = [...records];
+	while (stack.length > 0) {
+		const value = stack.pop();
+		if (value === null || typeof value !== 'object') continue;
+		if (Array.isArray(value) && value.length > MAX_UNFLATTENED_ARRAY_LENGTH) {
+			return true;
+		}
+		for (const child of Object.values(value)) {
+			stack.push(child);
+		}
+	}
+	return false;
+}
+
 export function csvToJson(
 	csvText: string,
 	options: CsvToJsonOptions,
@@ -661,6 +686,13 @@ export function csvToJson(
 		}
 		return options.unflattenDotKeys ? unflattenObject(record) : record;
 	});
+
+	if (options.unflattenDotKeys && exceedsUnflattenedArrayLength(objects)) {
+		return {
+			ok: false,
+			error: `復元後の配列長が上限（${MAX_UNFLATTENED_ARRAY_LENGTH}要素）を超えます。`,
+		};
+	}
 
 	return {
 		ok: true,

@@ -352,6 +352,163 @@ test('csvToJson: unflattenDotKeys ON でネスト復元', () => {
 	]);
 });
 
+test('csvToJson: 巨大な配列添字はJSONのシリアライズ前に拒否する', (t) => {
+	const stringify = JSON.stringify;
+	let serializedArray = false;
+	// 修正前にも43億要素を走査しないよう、危険なシリアライズへの到達だけを観測する。
+	t.mock.method(
+		JSON,
+		'stringify',
+		(
+			value: unknown,
+			replacer?: (number | string)[] | null,
+			space?: number | string,
+		) => {
+			if (Array.isArray(value)) {
+				serializedArray = true;
+				return '[]';
+			}
+			return stringify(value, replacer, space);
+		},
+	);
+	for (const key of [
+		'a.4294967294',
+		'a.4294967294.b',
+		'a.0.b.4294967294',
+		'a.0004294967294',
+	]) {
+		const result = csvToJson(`${key}\nx`, {
+			...CSV_OPTS,
+			unflattenDotKeys: true,
+		});
+		assert.equal(result.ok, false);
+		if (!result.ok) {
+			assert.equal(
+				result.error,
+				'復元後の配列長が上限（100000要素）を超えます。',
+			);
+		}
+	}
+	assert.equal(serializedArray, false);
+});
+
+test('csvToJson: 復元後の配列長100000を受理し100001を拒否する', () => {
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	for (const prefix of ['a', 'a.0.b']) {
+		const accepted = expectOk(csvToJson(`${prefix}.99999\nx`, options));
+		const [record] = JSON.parse(accepted.output);
+		const array = prefix === 'a' ? record.a : record.a[0].b;
+		assert.equal(array.length, 100000);
+		assert.ok(array.slice(0, -1).every((value: unknown) => value === null));
+		assert.equal(array[99999], 'x');
+		const rejected = expectError(csvToJson(`${prefix}.100000\nx`, options));
+		assert.equal(
+			rejected.error,
+			'復元後の配列長が上限（100000要素）を超えます。',
+		);
+	}
+});
+
+test('csvToJson: 複数行・複数配列の合計出力が1MiBを超えても成功する', () => {
+	for (const input of [
+		`a.1000\n${Array(100).fill('x').join('\n')}`,
+		'a.50000,b.50000\nx,y',
+	]) {
+		const result = expectOk(
+			csvToJson(input, { ...CSV_OPTS, unflattenDotKeys: true }),
+		);
+		assert.ok(Buffer.byteLength(result.output) > 1024 * 1024);
+		const records = JSON.parse(result.output);
+		assert.equal(result.rowCount, input.split('\n').length - 1);
+		for (const record of records) {
+			assert.equal(record.a.at(-1), 'x');
+			assert.equal(record.a.length, record.b ? 50001 : 1001);
+			if (record.b) {
+				assert.equal(record.b.length, 50001);
+				assert.equal(record.b.at(-1), 'y');
+			}
+		}
+	}
+});
+
+test('csvToJson: 1万行×3列の正常なCSVは復元ONでも出力1MiB超を許容する', () => {
+	const records = Array.from({ length: 10000 }, (_, id) => ({
+		id,
+		name: `利用者${id}`,
+		note: '正常な大きいCSVの変換確認'.repeat(5),
+	}));
+	const rows = records
+		.map(({ id, name, note }) => `${id},${name},${note}`)
+		.join('\n');
+	for (const headers of ['id,name,note', 'id,user.name,items.0']) {
+		const result = expectOk(
+			csvToJson(`${headers}\n${rows}`, {
+				...CSV_OPTS,
+				unflattenDotKeys: true,
+			}),
+		);
+		assert.equal(result.rowCount, 10000);
+		assert.ok(Buffer.byteLength(result.output) > 1024 * 1024);
+		assert.deepEqual(
+			JSON.parse(result.output),
+			headers === 'id,name,note'
+				? records
+				: records.map(({ id, name, note }) => ({
+						id,
+						user: { name },
+						items: [note],
+					})),
+		);
+	}
+});
+
+test('csvToJson: CSVの実データ行数には復元配列長の上限を適用しない', () => {
+	const result = expectOk(
+		csvToJson(`a\n${'x\n'.repeat(100001)}`, {
+			...CSV_OPTS,
+			unflattenDotKeys: true,
+		}),
+	);
+	assert.equal(result.rowCount, 100001);
+	const records = JSON.parse(result.output);
+	assert.equal(records.length, 100001);
+	assert.deepEqual(records[0], { a: 'x' });
+	assert.deepEqual(records.at(-1), { a: 'x' });
+});
+
+test('csvToJson: セル値により復元後UTF-8 1MiBを超えても成功する', () => {
+	const limit = 1024 * 1024;
+	const overhead = Buffer.byteLength(JSON.stringify([{ a: [''] }], null, 2));
+	const value = `あ${'x'.repeat(limit - overhead - 3)}`;
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	const accepted = expectOk(csvToJson(`a.0\n${value}`, options));
+	assert.equal(Buffer.byteLength(accepted.output), limit);
+	const over = expectOk(csvToJson(`a.0\n${value}x`, options));
+	assert.equal(Buffer.byteLength(over.output), limit + 1);
+	assert.deepEqual(JSON.parse(over.output), [{ a: [`${value}x`] }]);
+});
+
+test('csvToJson: 復元OFF・オブジェクトの数値キー・小さな疎配列は維持する', () => {
+	const flat = expectOk(csvToJson('a.4294967294\nx', CSV_OPTS));
+	assert.deepEqual(JSON.parse(flat.output), [{ 'a.4294967294': 'x' }]);
+	const object = expectOk(
+		csvToJson('a.b,a.4294967294\nx,y', {
+			...CSV_OPTS,
+			unflattenDotKeys: true,
+		}),
+	);
+	assert.deepEqual(JSON.parse(object.output), [
+		{ a: { b: 'x', 4294967294: 'y' } },
+	]);
+	const sparse = expectOk(
+		csvToJson('a.2\nx', {
+			...CSV_OPTS,
+			unflattenDotKeys: true,
+		}),
+	);
+	assert.deepEqual(JSON.parse(sparse.output), [{ a: [null, null, 'x'] }]);
+});
+
 test('csvToJson: unflattenDotKeys ON でも prototype pollution しない', () => {
 	const result = expectOk(
 		csvToJson('__proto__.polluted,constructor.prototype.x\r\nyes,no', {

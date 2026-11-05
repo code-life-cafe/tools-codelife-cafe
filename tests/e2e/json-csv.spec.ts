@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 // JsonCsvPage.tsx の SAMPLE_JSON をデフォルトオプションで変換した期待CSV。
 // 実際の出力（ダウンロード）は CRLF だが、textarea の value は DOM 仕様で LF に正規化される
@@ -12,6 +12,31 @@ const SAMPLE_EXPECTED_CSV = [
 ].join('\n');
 
 test.describe('JSON-CSV Converter Tool', () => {
+	test('巨大な配列添字を拒否し、入力を修正すると復帰すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('json-csv').goto();
+		await page.getByRole('tab', { name: 'CSV → JSON' }).click();
+		await page
+			.getByRole('switch', { name: 'ドット記法キーをネスト復元' })
+			.click();
+		for (const key of ['a.4294967294', 'a.100000']) {
+			await page.getByLabel('CSV入力').fill(`${key}\nx`);
+			await expect(page.getByTestId('json-csv-error')).toContainText(
+				'復元後の配列長が上限（100000要素）を超えます。',
+			);
+			await expect(
+				page.getByRole('button', { name: 'ダウンロード' }),
+			).toHaveCount(0);
+		}
+		await page.getByLabel('CSV入力').fill('a.2\nx');
+		await expect(page.getByLabel('JSON出力')).toHaveValue(
+			JSON.stringify([{ a: [null, null, 'x'] }], null, 2),
+		);
+		await expect(page.getByTestId('json-csv-error')).toHaveCount(0);
+	});
+
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
 		const toolPage = createToolPage('json-csv');
 		await toolPage.goto();
