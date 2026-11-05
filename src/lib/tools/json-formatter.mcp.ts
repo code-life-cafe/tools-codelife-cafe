@@ -4,7 +4,7 @@ import { formatJson, minifyJson } from './json-formatter.ts';
 
 interface JsonFormatterInput {
 	json: string;
-	indent: number;
+	indent: 2 | 4;
 	minify: boolean;
 }
 
@@ -26,11 +26,12 @@ export const jsonFormatterMcpTool = defineMcpTool<
 			description: 'JSON text to format / 対象JSON文字列',
 		},
 		indent: {
-			type: 'number',
+			type: 'integer',
+			enum: [2, 4],
 			required: false,
 			default: 2,
 			description:
-				'Indent width: 2 or 4 (default: 2), ignored when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueの場合は無視される',
+				'Indent width: 2 or 4 (default: 2), validated but not used when minify is true / インデント幅（2 または 4、省略時: 2）。minify=trueでも値は検証するが出力には使用しない',
 		},
 		minify: {
 			type: 'boolean',
@@ -49,7 +50,7 @@ export const jsonFormatterMcpTool = defineMcpTool<
 	},
 	annotations: { readOnlyHint: true },
 	handler(input) {
-		const indentType: IndentType = input.indent === 4 ? '4' : '2';
+		const indentType: IndentType = `${input.indent}`;
 		const result = input.minify
 			? minifyJson(input.json)
 			: formatJson(input.json, indentType);

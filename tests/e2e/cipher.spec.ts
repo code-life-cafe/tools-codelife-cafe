@@ -30,6 +30,12 @@ test.describe('Cipher Tool', () => {
 		await expect(caesarTabBtn).toHaveAttribute('aria-selected', 'true');
 	});
 
+	test('シフトスライダーを可視ラベルの名前で取得できる', async ({ page }) => {
+		await expect(
+			page.getByRole('slider', { name: 'シフト数:', exact: true }),
+		).toBeVisible();
+	});
+
 	test('Tab switching resets state and changes UI', async ({ page }) => {
 		const inputArea = page.getByPlaceholder(
 			/「こんにちは」や「Hello World」を入力.../,
@@ -62,7 +68,7 @@ test.describe('Cipher Tool', () => {
 		await inputArea.fill('あいう');
 		// Set shift to 1 (need to interact with slider or input)
 		// There are visually two parts but the number input is easier to target
-		const shiftInput = page.getByLabel('シフト数:');
+		const shiftInput = page.getByRole('spinbutton', { name: 'シフト数:' });
 		await shiftInput.fill('1');
 		await shiftInput.press('Enter');
 
@@ -204,7 +210,7 @@ test.describe('Cipher Tool', () => {
 			.click();
 
 		// The shift slider input should now be 5
-		const shiftInput = page.getByLabel('シフト数:');
+		const shiftInput = page.getByRole('spinbutton', { name: 'シフト数:' });
 		await expect(shiftInput).toHaveValue('5');
 	});
 
@@ -249,13 +255,17 @@ test.describe('Cipher Tool', () => {
 		});
 		await first.focus();
 		await first.press('Enter');
-		await expect(page.getByLabel('シフト数:')).toHaveValue('1');
+		await expect(
+			page.getByRole('spinbutton', { name: 'シフト数:' }),
+		).toHaveValue('1');
 		await expect(input).toHaveValue('いうえ');
 		await expect(output).toHaveValue('あいう');
 		await page.getByRole('button', { name: 'エンコード（暗号化）' }).click();
 		await expect(output).toHaveValue('うえお');
 		await input.fill('abc 漢字ゃーｶﾞ😀');
-		await expect(page.getByLabel('シフト数:')).toHaveAttribute('max', '25');
+		await expect(
+			page.getByRole('spinbutton', { name: 'シフト数:' }),
+		).toHaveAttribute('max', '25');
 		await expect(candidates).toHaveCount(25);
 		await input.fill('んンZz がぱゃー漢字ｶﾞ😀Ａ１');
 		await expect(output).toHaveValue('あアAa ぎぴゃー漢字ｶﾞ😀Ａ１');

@@ -69,6 +69,29 @@ test.describe('画像モザイク・ぼかし', () => {
 		expect(size).toEqual([400, 300]);
 	});
 
+	test('強度スライダーの名前がモードに追従し、キーボード操作できる（#632）', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		const mosaic = page.getByRole('slider', { name: /^粗さ:/ });
+		await expect(mosaic).toBeVisible();
+		const strength = Number(await mosaic.getAttribute('aria-valuenow'));
+		await mosaic.focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(mosaic).toHaveAttribute('aria-valuenow', String(strength + 1));
+		await expect(mosaic).toHaveAccessibleName(`粗さ: ${strength + 1}`);
+
+		await page.getByRole('tab', { name: 'ぼかし', exact: true }).click();
+		const blur = page.getByRole('slider', { name: /^強さ:/ });
+		await expect(blur).toBeVisible();
+		await expect(mosaic).toHaveCount(0);
+		const radius = Number(await blur.getAttribute('aria-valuenow'));
+		await blur.focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(blur).toHaveAttribute('aria-valuenow', String(radius + 1));
+		await expect(blur).toHaveAccessibleName(`強さ: ${radius + 1}`);
+	});
+
 	test('ドラッグ選択でモザイクが領域内のみに適用される', async ({ page }) => {
 		await uploadSample(page);
 		const canvas = page.getByTestId('editor-canvas');

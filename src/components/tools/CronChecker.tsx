@@ -1,5 +1,5 @@
 import { AlertTriangle, Info, Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -126,8 +126,6 @@ export default function CronChecker() {
 	const [shareCopied, setShareCopied] = useState(false);
 	const [shareCopyFailed, setShareCopyFailed] = useState(false);
 
-	const isInitialMountRef = useRef(true);
-
 	// --- WebMCP Tool Registration ---
 	useEffect(() => {
 		return provideToolsFromFactory([cronCheckerTool]);
@@ -138,22 +136,6 @@ export default function CronChecker() {
 		const exprParam = params.get('expr');
 		if (exprParam) setInput(exprParam);
 	}, []);
-
-	useEffect(() => {
-		// 初回マウント時（URLからの復元直後を含む）はURLへ書き戻さない。
-		// ユーザーが実際に入力を編集した場合のみ ?expr= を更新する。
-		if (isInitialMountRef.current) {
-			isInitialMountRef.current = false;
-			return;
-		}
-		const url = new URL(window.location.href);
-		if (input.trim()) {
-			url.searchParams.set('expr', input.trim());
-		} else {
-			url.searchParams.delete('expr');
-		}
-		window.history.replaceState({}, '', url.toString());
-	}, [input]);
 
 	const parseResult = useMemo(():
 		| { schedule: CronSchedule }
@@ -207,15 +189,11 @@ export default function CronChecker() {
 		return generateCronFromJapanese(jaInput);
 	}, [jaInput]);
 
-	const shareUrl = useMemo(() => {
-		if (typeof window === 'undefined') return '';
-		const url = new URL(window.location.href);
-		url.searchParams.set('expr', input.trim());
-		return url.toString();
-	}, [input]);
-
 	const handleCopyShare = async () => {
-		const ok = await copyText(shareUrl);
+		if (!schedule) return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('expr', schedule.raw);
+		const ok = await copyText(url.toString());
 		if (ok) {
 			setShareCopyFailed(false);
 			setShareCopied(true);
@@ -243,6 +221,7 @@ export default function CronChecker() {
 				</Label>
 				<Input
 					id="cron-checker-input"
+					aria-describedby="cron-input-timezone"
 					value={input}
 					onChange={(e) => setInput(e.target.value)}
 					placeholder="例: 0 9 * * 1（標準5フィールド）または */5 * * * * *（秒付き6フィールド）"
@@ -250,6 +229,12 @@ export default function CronChecker() {
 					autoComplete="off"
 					spellCheck={false}
 				/>
+				<p
+					id="cron-input-timezone"
+					className="mt-2 text-xs text-muted-foreground"
+				>
+					入力タイムゾーン: Asia/Tokyo（JST）
+				</p>
 				<fieldset className="mt-2 flex flex-wrap gap-2" aria-label="プリセット">
 					{PRESETS.map((p) => (
 						<button
@@ -407,10 +392,16 @@ export default function CronChecker() {
 								</div>
 							)}
 							{githubCopy && (
-								<div className="rounded-lg border p-3">
+								<div
+									className="rounded-lg border p-3"
+									data-testid="cron-github-actions"
+								>
 									<div className="text-xs text-muted-foreground mb-1">
 										GitHub Actions
 									</div>
+									<p className="text-xs text-muted-foreground mb-1">
+										出力タイムゾーン: Asia/Tokyo（JST）
+									</p>
 									{githubCopy.warning ? (
 										<p className="text-xs text-destructive">
 											{githubCopy.warning}

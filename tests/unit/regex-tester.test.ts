@@ -43,6 +43,56 @@ const FLAG_DEFAULTS = {
 	replacement: '',
 };
 
+test('execRegexSync: u/vなしの零幅一致はUTF-16単位で列挙する（#621）', () => {
+	const result = execRegexSync('(?:)', 'g', '😀');
+	assert.deepStrictEqual(
+		result.matches.map((match) => match.index),
+		[0, 1, 2],
+	);
+	assert.strictEqual(result.error, undefined);
+});
+
+test('execRegexSync: 零幅一致の位置はg/gu/gvで標準matchAllと一致する（#621）', () => {
+	for (const flags of ['g', 'gu', 'gv', 'gy', 'guy', 'gvy']) {
+		for (const text of ['', 'ab', 'A😀B', '\ud83d', '\ude00']) {
+			const expected = [...text.matchAll(new RegExp('(?:)', flags))].map(
+				(match) => match.index,
+			);
+			const result = execRegexSync('(?:)', flags, text);
+			assert.strictEqual(result.error, undefined);
+			assert.deepStrictEqual(
+				result.matches.map((match) => match.index),
+				expected,
+				`${flags}: ${JSON.stringify(text)}`,
+			);
+		}
+	}
+});
+
+test('execRegexSync: sticky置換は検索結果と同じ先頭位置から始める（#622）', () => {
+	const result = execRegexSync('a', 'y', 'aa', 'X');
+	assert.deepStrictEqual(result.matches, [
+		{ value: 'a', index: 0, groups: [] },
+	]);
+	assert.strictEqual(result.replacedText, 'Xa');
+});
+
+test('execRegexSync: 置換はフラグ・不一致・空置換・キャプチャでも初期RegExpと一致する（#622）', () => {
+	for (const flags of ['', 'g', 'y', 'gy', 'uy', 'vy']) {
+		for (const text of ['', 'aa', 'ba', 'aba']) {
+			for (const replacement of ['X', '', '[$1]']) {
+				const result = execRegexSync('(a)', flags, text, replacement);
+				assert.strictEqual(result.error, undefined);
+				assert.strictEqual(
+					result.replacedText,
+					text.replace(new RegExp('(a)', flags), replacement),
+					`${flags}: ${text}: ${replacement}`,
+				);
+			}
+		}
+	}
+});
+
 test('sanitizeRegexTesterSettings: 有効な7フラグ(dgimsuy)を保持する', () => {
 	const r = sanitizeRegexTesterSettings(
 		{ ...FLAG_DEFAULTS, flags: 'dgimsuy' },

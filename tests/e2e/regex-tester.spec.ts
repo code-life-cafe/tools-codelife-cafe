@@ -1,6 +1,67 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('Regex Tester Tool', () => {
+	test('テスト文字列と置換結果を可視ラベルで取得できる（#634）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('regex-tester').goto();
+		const input = page.getByLabel('テスト文字列', { exact: true });
+		await expect(input).toHaveRole('textbox');
+		await input.fill('郵便番号: 100-0001');
+		await page.getByText('テスト文字列', { exact: true }).click();
+		await expect(input).toBeFocused();
+
+		await page.getByLabel('置換モードを有効にする').click();
+		await page.getByPlaceholder('***-**** または $1 など').fill('***-****');
+		const output = page.getByLabel('置換結果', { exact: true });
+		await expect(output).toHaveRole('textbox');
+		await expect(output).toHaveValue('郵便番号: ***-****');
+		await expect(output).toHaveAttribute('readonly', '');
+		await page.getByText('置換結果', { exact: true }).click();
+		await expect(output).toBeFocused();
+	});
+
+	test('零幅一致の件数と位置がUnicodeフラグに従う（#621）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('regex-tester').goto();
+		await page.locator('input').first().fill('(?:)');
+		await page.locator('input').nth(1).fill('g');
+		await page.locator('#regex-test-string-textarea').fill('😀');
+		await expect(page.locator('.text-4xl.font-bold')).toHaveText('3');
+		await expect(page.getByText(/^Index: \d+$/)).toHaveText([
+			'Index: 0',
+			'Index: 1',
+			'Index: 2',
+		]);
+		for (const flags of ['gu', 'gv']) {
+			await page.locator('input').nth(1).fill(flags);
+			await expect(page.locator('.text-4xl.font-bold')).toHaveText('2');
+			await expect(page.getByText(/^Index: \d+$/)).toHaveText([
+				'Index: 0',
+				'Index: 2',
+			]);
+		}
+	});
+
+	test('sticky検索の一致位置と置換位置が揃う（#622）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('regex-tester').goto();
+		await page.locator('input').first().fill('a');
+		await page.locator('input').nth(1).fill('y');
+		await page.locator('#regex-test-string-textarea').fill('aa');
+		await page.getByLabel('置換モードを有効にする').click();
+		await page.getByPlaceholder('***-**** または $1 など').fill('X');
+		await expect(page.getByText(/^Index: \d+$/)).toHaveText(['Index: 0']);
+		await expect(page.locator('#regex-replace-output-textarea')).toHaveValue(
+			'Xa',
+		);
+	});
+
 	test('should load the page correctly', async ({ createToolPage }) => {
 		const toolPage = createToolPage('regex-tester');
 		await toolPage.goto();

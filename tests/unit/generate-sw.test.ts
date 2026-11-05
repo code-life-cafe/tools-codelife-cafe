@@ -100,3 +100,73 @@ test('SWページ一覧は実在するindex.htmlのみを含み、資産と親�
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+test('#631: 全地域の郵便番号チャンクを保存対象に含め、データ更新でキャッシュを更新する', async () => {
+	const root = await mkdtemp(join(tmpdir(), 'generate-sw-zipcode-'));
+	try {
+		await mkdir(join(root, 'public'), { recursive: true });
+		await mkdir(join(root, 'dist/data/zipcode/nested.json'), {
+			recursive: true,
+		});
+		await mkdir(join(root, 'dist/data/zipcode/20.json'));
+		await mkdir(join(root, 'dist/models'), { recursive: true });
+		await writeFile(join(root, 'dist/index.html'), '<html>fixture</html>');
+		for (const name of [
+			'00.json',
+			'10.json',
+			'99.json',
+			'metadata.json',
+			'notes.txt',
+		]) {
+			await writeFile(join(root, 'dist/data/zipcode', name), '[]');
+		}
+		await writeFile(join(root, 'dist/data/other.json'), '[]');
+		await writeFile(join(root, 'dist/models/model.onnx'), 'model');
+		await writeFile(
+			join(root, 'public/sw.js'),
+			await readFile(new URL('../../public/sw.js', import.meta.url)),
+		);
+		const generate = async () => {
+			const result = spawnSync(
+				process.execPath,
+				[
+					fileURLToPath(
+						new URL('../../scripts/generate-sw.mjs', import.meta.url),
+					),
+				],
+				{ cwd: root, encoding: 'utf8' },
+			);
+			assert.equal(result.status, 0, result.stderr);
+			return readFile(join(root, 'dist/sw.js'), 'utf8');
+		};
+		const output = await generate();
+		const match = /const ALL_ASSETS = (\[[\s\S]*?\]);/.exec(output);
+		assert.ok(match);
+		const assets: string[] = JSON.parse(match[1]);
+		assert.deepEqual(
+			assets.filter((url) => url.startsWith('/data/')),
+			[
+				'/data/zipcode/00.json',
+				'/data/zipcode/10.json',
+				'/data/zipcode/99.json',
+			],
+		);
+		assert.equal(
+			assets.some((url) => url.startsWith('/models/')),
+			false,
+		);
+		assert.equal(new Set(assets).size, assets.length);
+		await writeFile(
+			join(root, 'dist/data/zipcode/10.json'),
+			JSON.stringify([['1000001', '東京都', '千代田区', '千代田']]),
+		);
+		const updated = await generate();
+		assert.notEqual(
+			updated.match(/const CACHE_NAME = '([^']+)'/)?.[1],
+			output.match(/const CACHE_NAME = '([^']+)'/)?.[1],
+		);
+	} finally {
+		assert.equal(dirname(resolve(root)), resolve(tmpdir()));
+		await rm(root, { recursive: true, force: true });
+	}
+});

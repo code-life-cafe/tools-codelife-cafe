@@ -13,15 +13,53 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
+import { textDiffMcpTool } from '@/lib/tools/text-diff.mcp';
 import {
 	buildSplitPairs,
+	buildUnifiedLines,
 	computeDiff,
 	type DiffMode,
+	type DiffPart,
+	formatDiffText,
 	readFileAsText,
-} from '@/lib/tools/text-diff';
-import { textDiffMcpTool } from '@/lib/tools/text-diff.mcp';
+} from '@/lib/tools/text-diff.ts';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { generateWebMcpDescriptor } from '@/lib/webmcp/descriptor-generator';
+
+function DiffContent({
+	content,
+	parts,
+}: {
+	content: string;
+	parts?: DiffPart[];
+}) {
+	if (!parts) return content;
+	let offset = 0;
+	return parts.map((part) => {
+		const key = offset;
+		offset += part.value.length;
+		const value =
+			part.value === '\n' ? (part.type === 'unchanged' ? '' : '↵') : part.value;
+		if (part.type === 'removed') {
+			return (
+				<del key={key} className="bg-red-500/20 text-red-700 dark:text-red-300">
+					{value}
+				</del>
+			);
+		}
+		if (part.type === 'added') {
+			return (
+				<ins
+					key={key}
+					className="bg-green-500/20 text-green-700 dark:text-green-300"
+				>
+					{value}
+				</ins>
+			);
+		}
+		return <span key={key}>{value}</span>;
+	});
+}
 
 export default function TextDiff() {
 	useEffect(
@@ -68,58 +106,20 @@ export default function TextDiff() {
 
 	const diffText = useMemo(() => {
 		if (!result) return '';
-		return result.parts
-			.map((p) => {
-				const prefix =
-					p.type === 'added' ? '+ ' : p.type === 'removed' ? '- ' : '  ';
-				const partLines = p.value.split('\n');
-				if (p.value.endsWith('\n')) {
-					partLines.pop();
-				}
-				return partLines.map((line) => `${prefix}${line}`).join('\n');
-			})
-			.join('\n');
-	}, [result]);
+		return formatDiffText(result.parts, mode);
+	}, [result, mode]);
 
 	// unified ビュー用の行番号付きパート計算
 	const unifiedLines = useMemo(() => {
 		if (!result) return [];
-		const lines: Array<{
-			type: 'added' | 'removed' | 'unchanged';
-			content: string;
-			lineA: number | null;
-			lineB: number | null;
-		}> = [];
-		let lineA = 1;
-		let lineB = 1;
-
-		for (const part of result.parts) {
-			const partLines = part.value.split('\n');
-			if (part.value.endsWith('\n')) {
-				partLines.pop();
-			}
-			for (const line of partLines) {
-				if (part.type === 'removed') {
-					lines.push({ type: 'removed', content: line, lineA, lineB: null });
-					lineA++;
-				} else if (part.type === 'added') {
-					lines.push({ type: 'added', content: line, lineA: null, lineB });
-					lineB++;
-				} else {
-					lines.push({ type: 'unchanged', content: line, lineA, lineB });
-					lineA++;
-					lineB++;
-				}
-			}
-		}
-		return lines;
-	}, [result]);
+		return buildUnifiedLines(result.parts, mode);
+	}, [result, mode]);
 
 	// split ビュー用の行ペア計算（左右の縦位置を揃えるためスペーサーを含む）
 	const splitPairs = useMemo(() => {
 		if (!result) return [];
-		return buildSplitPairs(result.parts);
-	}, [result]);
+		return buildSplitPairs(result.parts, mode);
+	}, [result, mode]);
 
 	return (
 		<div className="space-y-6">
@@ -253,22 +253,25 @@ export default function TextDiff() {
 								<div className="bg-muted px-4 py-1.5 border-b border-border text-xs font-bold text-muted-foreground sticky top-0">
 									テキストA（変更前）
 								</div>
-								<div className="w-full min-w-max">
+								<div className="w-full min-w-max" data-testid="diff-left">
 									{splitPairs.map((pair, i) => (
 										<div
 											key={`l-${i}`}
 											className={`flex min-w-max ${
 												pair.left === null
 													? 'bg-muted/20'
-													: pair.left.type === 'removed'
+													: mode === 'lines' && pair.left.type === 'removed'
 														? 'bg-red-500/10 text-red-700 dark:text-red-300'
 														: ''
 											}`}
 										>
-											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
+											<span
+												data-testid="line-a"
+												className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30"
+											>
 												{pair.left?.lineNum ?? ''}
 											</span>
-											<span className="px-2 py-0.5">
+											<span className="px-2 py-0.5" data-testid="line-content">
 												{pair.left === null ? (
 													' '
 												) : (
@@ -279,7 +282,10 @@ export default function TextDiff() {
 														{pair.left.type === 'unchanged' && (
 															<span className="select-none opacity-30"> </span>
 														)}
-														{pair.left.content}
+														<DiffContent
+															content={pair.left.content}
+															parts={pair.left.parts}
+														/>
 													</>
 												)}
 											</span>
@@ -291,22 +297,25 @@ export default function TextDiff() {
 								<div className="bg-muted px-4 py-1.5 border-b border-border text-xs font-bold text-muted-foreground sticky top-0">
 									テキストB（変更後）
 								</div>
-								<div className="w-full min-w-max">
+								<div className="w-full min-w-max" data-testid="diff-right">
 									{splitPairs.map((pair, i) => (
 										<div
 											key={`r-${i}`}
 											className={`flex min-w-max ${
 												pair.right === null
 													? 'bg-muted/20'
-													: pair.right.type === 'added'
+													: mode === 'lines' && pair.right.type === 'added'
 														? 'bg-green-500/10 text-green-700 dark:text-green-300'
 														: ''
 											}`}
 										>
-											<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
+											<span
+												data-testid="line-b"
+												className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30"
+											>
 												{pair.right?.lineNum ?? ''}
 											</span>
-											<span className="px-2 py-0.5">
+											<span className="px-2 py-0.5" data-testid="line-content">
 												{pair.right === null ? (
 													' '
 												) : (
@@ -317,7 +326,10 @@ export default function TextDiff() {
 														{pair.right.type === 'unchanged' && (
 															<span className="select-none opacity-30"> </span>
 														)}
-														{pair.right.content}
+														<DiffContent
+															content={pair.right.content}
+															parts={pair.right.parts}
+														/>
 													</>
 												)}
 											</span>
@@ -327,30 +339,42 @@ export default function TextDiff() {
 							</div>
 						</div>
 					) : (
-						<div className="rounded-xl border border-border bg-card overflow-hidden font-mono-tool text-sm">
+						<div
+							data-testid="diff-unified"
+							className="rounded-xl border border-border bg-card overflow-hidden font-mono-tool text-sm"
+						>
 							{unifiedLines.map((line) => (
 								<div
 									key={
 										line.lineA !== null ? `a-${line.lineA}` : `b-${line.lineB}`
 									}
 									className={`flex whitespace-pre-wrap break-all ${
-										line.type === 'added'
+										mode === 'lines' && line.type === 'added'
 											? 'bg-green-500/10 text-green-700 dark:text-green-300'
-											: line.type === 'removed'
+											: mode === 'lines' && line.type === 'removed'
 												? 'bg-red-500/10 text-red-700 dark:text-red-300'
 												: ''
 									}`}
 								>
 									{/* 行番号A */}
-									<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
+									<span
+										data-testid="line-a"
+										className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30"
+									>
 										{line.lineA ?? ''}
 									</span>
 									{/* 行番号B */}
-									<span className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30">
+									<span
+										data-testid="line-b"
+										className="inline-block w-10 shrink-0 text-right pr-2 text-xs text-muted-foreground select-none border-r border-border/50 py-0.5 bg-muted/30"
+									>
 										{line.lineB ?? ''}
 									</span>
 									{/* コンテンツ */}
-									<span className="px-2 py-0.5 flex-1">
+									<span
+										className="px-2 py-0.5 flex-1"
+										data-testid="line-content"
+									>
 										{line.type === 'added' && (
 											<span className="select-none opacity-50">+ </span>
 										)}
@@ -360,7 +384,7 @@ export default function TextDiff() {
 										{line.type === 'unchanged' && (
 											<span className="select-none opacity-30"> </span>
 										)}
-										{line.content}
+										<DiffContent content={line.content} parts={line.parts} />
 									</span>
 								</div>
 							))}

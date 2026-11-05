@@ -1,6 +1,7 @@
 // ConvertOptionsPanel — 出力形式 / 品質 / EXIF / 背景色の設定UI
 
 import { AlertTriangle } from 'lucide-react';
+import { useId } from 'react';
 import { Label } from '@/components/ui/label';
 import {
 	Select,
@@ -46,6 +47,7 @@ export function ConvertOptionsPanel({
 	disabled = false,
 	onChange,
 }: ConvertOptionsPanelProps) {
+	const qualityLabelId = useId();
 	const update = (patch: Partial<ConvertUiOptions>) =>
 		onChange({ ...options, ...patch });
 
@@ -106,6 +108,7 @@ export function ConvertOptionsPanel({
 			{showQuality ? (
 				<div className="flex items-center gap-3">
 					<Label
+						id={qualityLabelId}
 						htmlFor="quality-slider"
 						className="shrink-0 text-sm text-muted-foreground w-28"
 					>
@@ -113,6 +116,7 @@ export function ConvertOptionsPanel({
 					</Label>
 					<Slider
 						id="quality-slider"
+						aria-labelledby={qualityLabelId}
 						min={10}
 						max={100}
 						step={5}

@@ -55,8 +55,10 @@ function splitFlowchartStatements(code: string): string[] {
 		if (depth === 0 && !pipe && char === '%' && code[index + 1] === '%') {
 			const statement = code.slice(start, index).trim();
 			if (statement) statements.push(statement);
-			const newline = code.indexOf('\n', index);
-			if (newline === -1) return statements;
+			// MermaidのcleanupTextは単独CRもLFへ変換してからコメントを除去する。
+			let newline = index + 2;
+			while (newline < code.length && !/[\r\n]/.test(code[newline])) newline++;
+			if (newline === code.length) return statements;
 			index = newline;
 			start = newline + 1;
 			continue;

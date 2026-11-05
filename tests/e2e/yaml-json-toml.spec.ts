@@ -119,6 +119,60 @@ test.describe('YAML ⇔ JSON ⇔ TOML 変換ツール', () => {
 		await expect(error).toContainText('TOML');
 	});
 
+	for (const format of ['JSON', 'YAML', 'TOML']) {
+		for (const sortKeys of [false, true]) {
+			test(`循環エイリアスで古い${format}とコピーを消し、正常アンカーで復帰する（ソート${sortKeys ? 'ON' : 'OFF'}、#577）`, async ({
+				page,
+				createToolPage,
+			}) => {
+				await createToolPage('yaml-json-toml').goto();
+				await page.getByRole('combobox', { name: '変換先の形式' }).click();
+				await page.getByRole('option', { name: format, exact: true }).click();
+				if (sortKeys) {
+					await page.getByRole('switch', { name: 'キーソート' }).click();
+				}
+
+				const input = page.getByLabel('YAML入力');
+				const output = page.getByLabel(`${format}出力`);
+				const copy = page.getByRole('button', { name: 'コピー', exact: true });
+				const error = page.getByTestId('yaml-json-toml-error');
+				await input.fill('base: &base {name: 変更前}\ncopy: *base');
+				await expect(output).toHaveValue(/変更前/);
+				await expect(copy).toBeEnabled();
+
+				await input.fill('root: &root {self: *root}');
+				await expect(error).toContainText('循環参照');
+				await expect(output).toHaveCount(0);
+				await expect(copy).toHaveCount(0);
+
+				await input.fill('base: &base {name: 復帰後}\ncopy: *base');
+				await expect(error).toHaveCount(0);
+				await expect(output).toHaveValue(/復帰後/);
+				await expect(output).not.toHaveValue(/変更前/);
+				await expect(copy).toBeEnabled();
+			});
+		}
+	}
+
+	test('非有限数をJSONのnullへ変換すると警告を表示し、変換とコピーは継続する（#575）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('yaml-json-toml').goto();
+		const input = page.getByLabel('YAML入力');
+		const output = page.getByLabel('JSON出力');
+		const warning = page.getByText(/^警告: JSONでは非有限数/);
+		await input.fill('value: .inf\nother: .nan');
+		await expect(output).toHaveValue('{\n  "value": null,\n  "other": null\n}');
+		await expect(warning).toBeVisible();
+		await expect(
+			page.getByRole('button', { name: 'コピー', exact: true }),
+		).toBeEnabled();
+		await input.fill('value: 1');
+		await expect(output).toHaveValue('{\n  "value": 1\n}');
+		await expect(warning).toHaveCount(0);
+	});
+
 	test('JSONルート配列 → TOML は専用エラーになること', async ({
 		page,
 		createToolPage,
