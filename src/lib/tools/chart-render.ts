@@ -240,6 +240,9 @@ export function buildChartSvg(
 		const cx = margin.left + w / 2;
 		const cy = margin.top + h / 2;
 
+		const positiveItemCount = items.filter(
+			(item) => (item.values[0] ?? 0) > 0,
+		).length;
 		const total = items.reduce(
 			(sum, item) => sum + Math.max(0, item.values[0] ?? 0),
 			0,
@@ -262,7 +265,12 @@ export function buildChartSvg(
 			const largeArc = sliceAngle > Math.PI ? 1 : 0;
 			const color = palette[idx % palette.length];
 
-			if (total > 0 && val > 0) {
+			if (total > 0 && val > 0 && positiveItemCount === 1) {
+				// 360度の円弧は始点と終点が重なって描画されないため、円で描く。
+				slices.push(
+					`<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${color}" stroke="${opts.dark ? '#0f172a' : '#ffffff'}" stroke-width="1.5"/>`,
+				);
+			} else if (total > 0 && val > 0) {
 				slices.push(
 					`<path d="M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z" fill="${color}" stroke="${opts.dark ? '#0f172a' : '#ffffff'}" stroke-width="1.5"/>`,
 				);
