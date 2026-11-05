@@ -409,6 +409,84 @@ test('csvToJson: 復元後の配列長100000を受理し100001を拒否する', 
 	}
 });
 
+test('csvToJson: 多行・多列・ネストの配列スロット合計超過をシリアライズ前に拒否する', (t) => {
+	// 修正前にも巨大な出力を作らず、シリアライズへの到達を検出する。
+	const stringify = t.mock.method(JSON, 'stringify', () => '[]');
+	const wideHeaders = Array.from({ length: 100 }, (_, i) => `a${i}.99999`);
+	for (const input of [
+		`a.99999\n${'x\n'.repeat(500)}`,
+		`${wideHeaders.join(',')}\n${wideHeaders.map(() => 'x').join(',')}`,
+		`a.99999,b.99999\n${'x,y\n'.repeat(6)}`,
+		`a.0.b.99999\n${'x\n'.repeat(10)}`,
+	]) {
+		const result = csvToJson(input, { ...CSV_OPTS, unflattenDotKeys: true });
+		assert.ok(!result.ok);
+		assert.equal(
+			result.error,
+			'復元後の配列スロット合計が上限（1000000要素）を超えます。',
+		);
+	}
+	assert.equal(stringify.mock.callCount(), 0);
+});
+
+test('csvToJson: 配列スロット合計1000000を受理し、行追加・1スロット超過を拒否する', () => {
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	// 同じ配列の複数列・先頭ゼロ付き添字は、最大添字+1を一度だけ数える。
+	const rows = 'first,last\n'.repeat(10);
+	const accepted = expectOk(csvToJson(`a.0,a.00099999\n${rows}`, options));
+	assert.equal(accepted.rowCount, 10);
+	for (const record of JSON.parse(accepted.output)) {
+		assert.equal(record.a.length, 100000);
+		assert.equal(record.a[0], 'first');
+		assert.equal(record.a[99999], 'last');
+	}
+	const headers = Array.from({ length: 10 }, (_, i) => `a${i}.99999`);
+	const values = headers.map(() => 'x');
+	const wide = expectOk(
+		csvToJson(`${headers.join(',')}\n${values.join(',')}`, options),
+	);
+	const [record] = JSON.parse(wide.output);
+	assert.equal(Object.keys(record).length, 10);
+	for (const array of Object.values(record) as unknown[][]) {
+		assert.equal(array.length, 100000);
+		assert.equal(array[99999], 'x');
+	}
+	for (const input of [
+		`a.99999\n${'x\n'.repeat(11)}`,
+		`${headers.join(',')},b.0\n${values.join(',')},y`,
+	]) {
+		assert.equal(
+			expectError(csvToJson(input, options)).error,
+			'復元後の配列スロット合計が上限（1000000要素）を超えます。',
+		);
+	}
+});
+
+test('csvToJson: 形状判定はキーの上書き・列挙順・重複ヘッダーに従う', () => {
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	for (const input of ['a.99999,a\nx,y', 'a.0.b.99999,a.0\nx,y']) {
+		const rows = `${input.split('\n')[0]}\n${'x,y\n'.repeat(11)}`;
+		const result = expectOk(csvToJson(rows, options));
+		assert.deepEqual(
+			JSON.parse(result.output),
+			Array.from({ length: 11 }, () =>
+				input.startsWith('a.0') ? { a: ['y'] } : { a: 'y' },
+			),
+		);
+	}
+	// 整数キー「1」は先に列挙されるため、後続のドット記法で配列が作られる。
+	assert.equal(
+		expectError(csvToJson(`1.a.99999,1\n${'x,y\n'.repeat(11)}`, options)).error,
+		'復元後の配列スロット合計が上限（1000000要素）を超えます。',
+	);
+	const duplicate = expectOk(csvToJson('a.2,a.2\nx,y', options));
+	assert.deepEqual(JSON.parse(duplicate.output), [{ a: [null, null, 'x'] }]);
+	const nested = expectOk(csvToJson('a.2.b.3,c.1\nx,y', options));
+	assert.deepEqual(JSON.parse(nested.output), [
+		{ a: [null, null, { b: [null, null, null, 'x'] }], c: [null, 'y'] },
+	]);
+});
+
 test('csvToJson: 複数行・複数配列の合計出力が1MiBを超えても成功する', () => {
 	for (const input of [
 		`a.1000\n${Array(100).fill('x').join('\n')}`,

@@ -575,29 +575,83 @@ export function jsonToCsv(
 // CSV → JSON
 // ---------------------------------------------------------------------------
 
-// ドット記法で作られた各配列の長さ（添字0〜99999）だけを制限する。
+// ドット記法で合成する配列の長さと、全データ行の配列スロット合計を制限する。
 // CSVの実データ行数・セル値の長さ・出力全体のバイト数は制限しない。
 const MAX_UNFLATTENED_ARRAY_LENGTH = 100000;
+const MAX_UNFLATTENED_ARRAY_SLOTS = 1000000;
+
+interface UnflattenedShape {
+	// nullはオブジェクト。配列は空きスロットを実体化せず長さだけ保持する。
+	arrayLength: number | null;
+	children: Map<string, UnflattenedShape | null>;
+}
 
 /**
- * JSONのシリアライズ前に、復元された配列の長さを検査する。
- * CSVの行を束ねる配列は対象外。疎配列の空きスロットは走査しない。
+ * 復元前にヘッダーだけで構造を再現し、各配列の最大添字+1を合計する。
+ * unflattenObjectと同じ列挙順・コンテナ種別・上書き規則に従う。
+ * セルは常にスカラーなので値は不要。追加列extra_Nも配列を生成しない。
  */
-function exceedsUnflattenedArrayLength(
-	records: Record<string, unknown>[],
-): boolean {
-	const stack: unknown[] = [...records];
-	while (stack.length > 0) {
-		const value = stack.pop();
-		if (value === null || typeof value !== 'object') continue;
-		if (Array.isArray(value) && value.length > MAX_UNFLATTENED_ARRAY_LENGTH) {
-			return true;
+function unflattenedArrayBudgetError(
+	headers: readonly string[],
+	rowCount: number,
+): string | null {
+	const flat: Record<string, unknown> = {};
+	for (const key of headers) setOwnValue(flat, key, null);
+	const root: UnflattenedShape = { arrayLength: null, children: new Map() };
+	const slotKey = (node: UnflattenedShape, segment: string): string =>
+		node.arrayLength === null ? segment : String(Number(segment));
+	const setChild = (
+		node: UnflattenedShape,
+		slot: string,
+		child: UnflattenedShape | null,
+	): void => {
+		node.children.set(slot, child);
+		const index = Number(slot);
+		if (
+			node.arrayLength !== null &&
+			Number.isInteger(index) &&
+			index >= 0 &&
+			index < 4294967295
+		) {
+			node.arrayLength = Math.max(node.arrayLength, index + 1);
 		}
-		for (const child of Object.values(value)) {
-			stack.push(child);
+	};
+	for (const key of Object.keys(flat)) {
+		const segments = key.split('.');
+		let current = root;
+		for (let i = 0; i < segments.length - 1; i++) {
+			const slot = slotKey(current, segments[i]);
+			let child = current.children.get(slot);
+			if (child == null) {
+				child = {
+					arrayLength: /^\d+$/.test(segments[i + 1]) ? 0 : null,
+					children: new Map(),
+				};
+				setChild(current, slot, child);
+			}
+			current = child;
+		}
+		setChild(current, slotKey(current, segments[segments.length - 1]), null);
+	}
+
+	let slots = 0;
+	const stack = [root];
+	while (stack.length > 0) {
+		const node = stack.pop();
+		if (!node) continue;
+		if (node.arrayLength !== null) {
+			if (node.arrayLength > MAX_UNFLATTENED_ARRAY_LENGTH) {
+				return `復元後の配列長が上限（${MAX_UNFLATTENED_ARRAY_LENGTH}要素）を超えます。`;
+			}
+			slots += node.arrayLength;
+		}
+		for (const child of node.children.values()) {
+			if (child) stack.push(child);
 		}
 	}
-	return false;
+	return slots * rowCount > MAX_UNFLATTENED_ARRAY_SLOTS
+		? `復元後の配列スロット合計が上限（${MAX_UNFLATTENED_ARRAY_SLOTS}要素）を超えます。`
+		: null;
 }
 
 export function csvToJson(
@@ -662,6 +716,10 @@ export function csvToJson(
 	}
 
 	const headerSet = new Set(headers);
+	if (options.unflattenDotKeys) {
+		const error = unflattenedArrayBudgetError(headers, dataRows.length);
+		if (error) return { ok: false, error };
+	}
 
 	const objects = dataRows.map((row) => {
 		const record: Record<string, unknown> = {};
@@ -686,13 +744,6 @@ export function csvToJson(
 		}
 		return options.unflattenDotKeys ? unflattenObject(record) : record;
 	});
-
-	if (options.unflattenDotKeys && exceedsUnflattenedArrayLength(objects)) {
-		return {
-			ok: false,
-			error: `復元後の配列長が上限（${MAX_UNFLATTENED_ARRAY_LENGTH}要素）を超えます。`,
-		};
-	}
 
 	return {
 		ok: true,
