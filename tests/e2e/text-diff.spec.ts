@@ -1,9 +1,61 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('Text Diff', () => {
 	test.beforeEach(async ({ createToolPage }) => {
 		const page = createToolPage('text-diff');
 		await page.goto();
+	});
+
+	test('文字単位の1行をUnified / Splitで維持し、変更文字だけ強調する', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 1280, height: 900 });
+		await page.locator('#text-diff-textarea-a').fill('abc');
+		await page.locator('#text-diff-textarea-b').fill('axc');
+		await page.getByRole('tab', { name: '文字単位', exact: true }).click();
+		const unified = page.getByTestId('diff-unified');
+		await expect(unified.locator(':scope > div')).toHaveCount(2);
+		await expect(unified.getByTestId('line-a')).toHaveText(['1', '']);
+		await expect(unified.getByTestId('line-b')).toHaveText(['', '1']);
+		await expect(unified.locator('del')).toHaveText('b');
+		await expect(unified.locator('ins')).toHaveText('x');
+		await expect(unified.getByTestId('line-content')).toHaveText([
+			'- abc',
+			'+ axc',
+		]);
+
+		await page.getByRole('tab', { name: 'Split', exact: true }).click();
+		const left = page.getByTestId('diff-left');
+		const right = page.getByTestId('diff-right');
+		await expect(left.locator(':scope > div')).toHaveCount(1);
+		await expect(right.locator(':scope > div')).toHaveCount(1);
+		await expect(left.getByTestId('line-a')).toHaveText('1');
+		await expect(right.getByTestId('line-b')).toHaveText('1');
+		await expect(left.locator('del')).toHaveText('b');
+		await expect(right.locator('ins')).toHaveText('x');
+		await expect(left.getByTestId('line-content')).toHaveText('- abc');
+		await expect(right.getByTestId('line-content')).toHaveText('+ axc');
+	});
+
+	test('文字単位のコピーは断片でなく元の行を出力する', async ({ page }) => {
+		await page.evaluate(() => {
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						document.documentElement.dataset.copiedDiff = text;
+					},
+				},
+			});
+		});
+		await page.locator('#text-diff-textarea-a').fill('abc\n共通\n');
+		await page.locator('#text-diff-textarea-b').fill('axc\n共通\n');
+		await page.getByRole('tab', { name: '文字単位', exact: true }).click();
+		await page.getByRole('button', { name: 'コピー', exact: true }).click();
+		await expect(page.locator('html')).toHaveAttribute(
+			'data-copied-diff',
+			'- abc\n+ axc\n  共通',
+		);
 	});
 
 	test('computes diff correctly', async ({ page }) => {
