@@ -47,7 +47,10 @@ import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { loadSettings, saveSettings } from '@/lib/settings/storage';
 import type { UserSettings } from '@/lib/settings/types';
 import { cn } from '@/lib/utils';
-import { validateFile } from '@/lib/validation/fileValidator';
+import {
+	getMaxFileSize,
+	validateFile,
+} from '@/lib/validation/fileValidator.ts';
 
 // --- Interfaces ---
 
@@ -139,7 +142,7 @@ function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 				triggerError('CSV、TSV、TXTファイルのみ対応しています。');
 			} else if (validation.error === 'FILE_TOO_LARGE') {
 				triggerError(
-					`ファイルサイズが大きすぎます（上限: ${Math.round(validation.maxSize / 1024 / 1024)}MB）。`,
+					`ファイルサイズが大きすぎます（上限: ${validation.maxSize / 1024 / 1024}MiB）。ファイルを分割してお試しください。`,
 				);
 			} else if (validation.error === 'EMPTY_FILE') {
 				triggerError('ファイルが空です。');
@@ -226,7 +229,11 @@ function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 				<h3 className="text-lg font-medium tracking-tight">
 					CSVファイルをドラッグ＆ドロップ
 				</h3>
-
+				<p className="mt-2 text-sm text-muted-foreground">
+					上限{getMaxFileSize() / 1024 / 1024}MiB（
+					{getMaxFileSize().toLocaleString('ja-JP')}
+					バイト）。大きなファイルは分割してから選択してください。
+				</p>
 				<div className="mt-4 flex items-center justify-center w-full max-w-xs opacity-50">
 					<div className="h-px bg-border flex-1"></div>
 					<span className="px-3 text-xs uppercase tracking-wider">or</span>
@@ -259,6 +266,12 @@ function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 					/>
 				)}
 			</div>
+
+			{isProcessing && (
+				<p role="status" className="mt-2 text-sm text-center">
+					1/2 読み込み・文字コード判定中...
+				</p>
+			)}
 
 			{error && (
 				<div
@@ -402,7 +415,9 @@ function CsvPreview({ preview, isLoading }: CsvPreviewProps) {
 			<Card className="w-full">
 				<CardContent className="h-64 flex flex-col items-center justify-center text-muted-foreground gap-4">
 					<Loader2 className="w-8 h-8 animate-spin" />
-					<p className="text-sm">プレビューを作成中...</p>
+					<p role="status" className="text-sm">
+						2/2 プレビューを解析中...
+					</p>
 				</CardContent>
 			</Card>
 		);
@@ -432,6 +447,12 @@ function CsvPreview({ preview, isLoading }: CsvPreviewProps) {
 			<CardHeader className="pb-3 border-b bg-muted/20 shrink-0">
 				<CardTitle className="text-sm font-medium flex items-center justify-between">
 					<span>プレビュー</span>
+					<span
+						role="status"
+						className="text-xs font-normal text-muted-foreground"
+					>
+						解析完了
+					</span>
 					<span className="text-xs font-normal text-muted-foreground">
 						{isTruncated
 							? `先頭 ${headers ? rows.length + 1 : rows.length}行を表示中（全 ${totalRowEstimate} 行）`
@@ -764,7 +785,11 @@ export default function CsvFixer() {
 	const analyzeBuffer = useCallback((buf: ArrayBuffer, enc: EncodingType) => {
 		setIsPreviewLoading(true);
 
-		requestAnimationFrame(() => {
+		requestAnimationFrame(async () => {
+			// 同期解析の前に、処理段階の表示を1フレーム描画する。
+			await new Promise<void>((resolve) =>
+				requestAnimationFrame(() => resolve()),
+			);
 			try {
 				const bytes = new Uint8Array(buf);
 

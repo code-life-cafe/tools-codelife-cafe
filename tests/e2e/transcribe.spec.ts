@@ -267,7 +267,9 @@ test('モデル取得先は同一オリジンかつ revision 付きのパスに�
 		return { revisioned: revisioned.status, legacy: legacy.status };
 	}, tiny.repositoryPath);
 
-	// ローカル未取得なら 404、取得済みなら 200。いずれにせよ外部へは出ない
+	// Astro の静的プレビューでは Pages Function / R2 を実行しないため、
+	// ローカル未取得なら 404、取得済みなら 200 になる。
+	// 正規 GET/HEAD の 200・本文・R2 キーは transcribe-model-delivery.test.ts で検証する。
 	expect([200, 404]).toContain(status.revisioned);
 	// revision なしの旧パスは配信対象ではない
 	expect(status.legacy).toBe(404);
