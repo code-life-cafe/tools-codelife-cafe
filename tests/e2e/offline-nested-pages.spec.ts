@@ -1,10 +1,10 @@
 import { readFile, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { extname, resolve, sep } from 'node:path';
-import { listAllowedRuntimePaths } from '../../src/lib/transcribe/model-manifest';
-import { expect, test } from './fixtures/base';
+import { listAllowedRuntimePaths } from '../../src/lib/transcribe/model-manifest.ts';
+import { expect, test } from './fixtures/base.ts';
 
-test('一括保存後、未訪問の階層下ページと既存ページをオフラインで利用できる', async ({
+test('一括保存後、未訪問の階層下ページ・郵便番号検索をオフラインで利用できる', async ({
 	browser,
 }, testInfo) => {
 	const nested = '/cipher/caesar-hiragana/';
@@ -85,6 +85,8 @@ test('一括保存後、未訪問の階層下ページと既存ページをオ�
 				});
 		});
 		expect(requests).not.toContain(nested);
+		expect(requests).not.toContain('/zipcode/');
+		expect(requests).not.toContain('/data/zipcode/10.json');
 		expect(
 			await page.evaluate((url) => caches.match(url).then(Boolean), nested),
 		).toBe(false);
@@ -151,6 +153,27 @@ test('一括保存後、未訪問の階層下ページと既存ページをオ�
 			contentType: 'application/json',
 		});
 		await context.setOffline(true);
+		await test.step('#631: 初めて検索する地域も保存済みチャンクで住所を表示できる', async () => {
+			expect(cached).toContainEqual({
+				path: '/data/zipcode/10.json',
+				redirected: false,
+			});
+			await page.goto('/zipcode/');
+			await expect(
+				page.locator('astro-island[ssr][client="load"]'),
+			).toHaveCount(0);
+			const chunkResponse = page.waitForResponse(
+				(response) =>
+					new URL(response.url()).pathname === '/data/zipcode/10.json',
+			);
+			await page
+				.getByRole('textbox', { name: '検索する郵便番号' })
+				.fill('1000001');
+			expect((await chunkResponse).fromServiceWorker()).toBe(true);
+			await expect(
+				page.getByText('東京都千代田区千代田', { exact: true }),
+			).toBeVisible();
+		});
 		await page.goto(nested);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
 			'ひらがなのシーザー暗号：日本語の変換・解読',
