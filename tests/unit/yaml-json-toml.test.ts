@@ -478,3 +478,295 @@ test('YAMLの整数: 引用符の文字列・コメント内の長い数字で�
 		if (result.ok) assert.equal(result.output, expected, input);
 	}
 });
+
+test('YAMLの整数: 非数値スカラー内の数字を別の値のエラーにしない（#595）', () => {
+	for (const text of [
+		'description: 番号 9007199254740993\nexact: 9007199254740992',
+		'description: |\n  9007199254740993\nexact: 9007199254740992',
+		'description: >\n  番号 9007199254740993\nexact: 9007199254740992',
+		'description: !!str 9007199254740993\nexact: 9007199254740992',
+	]) {
+		const result = expectOk(convertFormats('yaml', 'json', text, DEFAULT_OPTS));
+		assert.equal(JSON.parse(result.output).exact, 9007199254740992);
+	}
+});
+
+test('YAMLの整数: 丸め後に同じ数値になる別のキーをエラーパスに含めない（#595）', () => {
+	for (const to of ['json', 'yaml', 'toml'] as const) {
+		for (const sortKeys of [false, true]) {
+			const result = expectError(
+				convertFormats(
+					'yaml',
+					to,
+					'exact: 9007199254740992\nitems: [{id: 9007199254740993}]',
+					{ ...DEFAULT_OPTS, sortKeys },
+				),
+			);
+			assert.match(result.error, /items\[0\]\.id/);
+			assert.doesNotMatch(result.error, /exact/);
+		}
+	}
+});
+
+test('YAMLの整数: 明示的な整数タグの引用値でも正しいパスを報告する（#595）', () => {
+	for (const token of ['!!int "9007199254740993"', '!!int 0x20000000000001']) {
+		const result = expectError(
+			convertFormats('yaml', 'json', `items: [{id: ${token}}]`, DEFAULT_OPTS),
+		);
+		assert.match(result.error, /items\[0\]\.id/);
+	}
+});
+
+test('YAMLの整数キー: 丸めず正確な文字列キーとして全形式に保持する（#595）', () => {
+	const text = [
+		'outer:',
+		'  9007199254740992: 境界',
+		'  9007199254740993: 正の整数',
+		'  -9007199254740993: 負の整数',
+		'  0x20000000000003: 十六進数',
+	].join('\n');
+	const expected = {
+		outer: {
+			'9007199254740992': '境界',
+			'9007199254740993': '正の整数',
+			'-9007199254740993': '負の整数',
+			'9007199254740995': '十六進数',
+		},
+	};
+	for (const to of ['json', 'yaml', 'toml'] as const) {
+		for (const sortKeys of [false, true]) {
+			const converted = expectOk(
+				convertFormats('yaml', to, text, { ...DEFAULT_OPTS, sortKeys }),
+			);
+			const back = expectOk(
+				convertFormats(to, 'json', converted.output, DEFAULT_OPTS),
+			);
+			assert.deepEqual(JSON.parse(back.output), expected);
+		}
+	}
+});
+
+test('YAMLの整数キー: キーの元の整数をエラーのパスにも保持する（#595）', () => {
+	const result = expectError(
+		convertFormats(
+			'yaml',
+			'json',
+			'outer: {9007199254740993: {id: 9007199254740995}}',
+			DEFAULT_OPTS,
+		),
+	);
+	assert.match(result.error, /outer\.9007199254740993\.id/);
+});
+
+test('YAMLのマージ: 単一アンカーを展開し、明示キーを記述順によらず優先する（#575）', () => {
+	for (const entries of [
+		'<<: *base, port: 8080, nested: {local: true}',
+		'port: 8080, nested: {local: true}, <<: *base',
+	]) {
+		const text = [
+			'base: &base {host: localhost, port: 80, nested: {shared: true}}',
+			`app: {${entries}}`,
+		].join('\n');
+		for (const to of ['json', 'yaml', 'toml'] as const) {
+			for (const sortKeys of [false, true]) {
+				const converted = expectOk(
+					convertFormats('yaml', to, text, { ...DEFAULT_OPTS, sortKeys }),
+				);
+				const back = expectOk(
+					convertFormats(to, 'json', converted.output, DEFAULT_OPTS),
+				);
+				assert.deepEqual(JSON.parse(back.output), {
+					base: { host: 'localhost', port: 80, nested: { shared: true } },
+					app: { host: 'localhost', port: 8080, nested: { local: true } },
+				});
+				assert.equal(converted.note, undefined);
+			}
+		}
+	}
+});
+
+test('YAMLのマージ: 配列は先頭のマップを優先し、明示キーがさらに優先する（#575）', () => {
+	for (const [aliases, expectedPort] of [
+		['*first, *second', 80],
+		['*second, *first', 443],
+	] as const) {
+		for (const sortKeys of [false, true]) {
+			const text = [
+				'first: &first {port: 80, host: localhost}',
+				'second: &second {port: 443, tls: true}',
+				`merged: {<<: [${aliases}]}`,
+				`overridden: {port: 8080, <<: [${aliases}]}`,
+			].join('\n');
+			const result = expectOk(
+				convertFormats('yaml', 'json', text, { ...DEFAULT_OPTS, sortKeys }),
+			);
+			const parsed = JSON.parse(result.output);
+			assert.deepEqual(parsed.merged, {
+				port: expectedPort,
+				host: 'localhost',
+				tls: true,
+			});
+			assert.deepEqual(parsed.overridden, {
+				port: 8080,
+				host: 'localhost',
+				tls: true,
+			});
+		}
+	}
+});
+
+test('YAMLのマージ以外はCOREスキーマを維持し、引用した << は通常のキーにする（#575）', () => {
+	const result = expectOk(
+		convertFormats(
+			'yaml',
+			'json',
+			'values: [yes, no, on, off, 2026-11-05, true, false]\n"<<": 文字列キー',
+			DEFAULT_OPTS,
+		),
+	);
+	assert.deepEqual(JSON.parse(result.output), {
+		values: ['yes', 'no', 'on', 'off', '2026-11-05', true, false],
+		'<<': '文字列キー',
+	});
+});
+
+test('YAMLの !!binary / !!set は従来どおり構文エラーになる（#575）', () => {
+	for (const text of ['a: !!binary SGVsbG8=', 'a: !!set {x: null}']) {
+		for (const to of ['json', 'yaml', 'toml'] as const) {
+			for (const sortKeys of [false, true]) {
+				const result = expectError(
+					convertFormats('yaml', to, text, { ...DEFAULT_OPTS, sortKeys }),
+				);
+				assert.equal(result.error, 'YAMLの構文エラーです。');
+				assert.equal(result.row, 1);
+				assert.equal(result.col, 4);
+				assert.equal('output' in result, false);
+			}
+		}
+	}
+});
+
+test('YAMLの .inf / .nan はJSONのnullへ変換し、日本語の警告を返す（#575）', () => {
+	for (const token of ['.inf', '-.inf', '.nan']) {
+		for (const sortKeys of [false, true]) {
+			for (const indent of [0, 2, 4] as const) {
+				for (const [text, expected] of [
+					[token, null],
+					[`items: [{value: ${token}}]`, { items: [{ value: null }] }],
+				] as const) {
+					const result = expectOk(
+						convertFormats('yaml', 'json', text, { indent, sortKeys }),
+					);
+					assert.deepEqual(JSON.parse(result.output), expected);
+					assert.match(result.note ?? '', /警告.*null.*変換/);
+				}
+			}
+		}
+	}
+});
+
+test('引用した .inf / .nan と通常値にはJSONの警告を出さない（#575）', () => {
+	const result = expectOk(
+		convertFormats(
+			'yaml',
+			'json',
+			'values: [".inf", ".nan", null, 1.5, true]',
+			DEFAULT_OPTS,
+		),
+	);
+	assert.deepEqual(JSON.parse(result.output), {
+		values: ['.inf', '.nan', null, 1.5, true],
+	});
+	assert.equal(result.note, undefined);
+});
+
+test('非有限数を保持できるYAML/TOML出力ではnullへの変換警告を出さない（#575）', () => {
+	for (const to of ['yaml', 'toml'] as const) {
+		const result = expectOk(
+			convertFormats('yaml', to, 'values: [.inf, -.inf, .nan]', DEFAULT_OPTS),
+		);
+		assert.equal(result.note, undefined);
+		const back = expectOk(
+			convertFormats(to, 'json', result.output, DEFAULT_OPTS),
+		);
+		assert.deepEqual(JSON.parse(back.output), { values: [null, null, null] });
+		assert.match(back.note ?? '', /警告.*null.*変換/);
+	}
+});
+
+test('循環エイリアスは全出力形式・ソートON/OFFで日本語エラーになり、出力を持たない（#577）', () => {
+	for (const text of ['root: &root {self: *root}', 'root: &root [*root]']) {
+		for (const to of ['json', 'yaml', 'toml'] as const) {
+			for (const sortKeys of [false, true]) {
+				const result = expectError(
+					convertFormats('yaml', to, text, { ...DEFAULT_OPTS, sortKeys }),
+				);
+				assert.match(result.error, /循環参照/);
+				assert.equal('output' in result, false);
+			}
+		}
+	}
+});
+
+test('正常アンカーは全出力形式・ソートON/OFFで展開され、循環エラーの後も復帰する（#577）', () => {
+	for (const to of ['json', 'yaml', 'toml'] as const) {
+		for (const sortKeys of [false, true]) {
+			const options = { ...DEFAULT_OPTS, sortKeys };
+			for (const port of [80, 8080]) {
+				const result = expectOk(
+					convertFormats(
+						'yaml',
+						to,
+						`base: &base {port: ${port}, host: localhost}\ncopy: *base`,
+						options,
+					),
+				);
+				const back = expectOk(
+					convertFormats(to, 'json', result.output, DEFAULT_OPTS),
+				);
+				assert.deepEqual(JSON.parse(back.output), {
+					base: { port, host: 'localhost' },
+					copy: { port, host: 'localhost' },
+				});
+				assert.equal(result.note, undefined);
+				if (port === 80) {
+					expectError(
+						convertFormats('yaml', to, 'root: &root [*root]', options),
+					);
+				}
+			}
+		}
+	}
+});
+
+test('シリアライズ例外は全出力形式・ソートON/OFFで捕捉し、次の変換で復帰する（#577）', (t) => {
+	for (const to of ['json', 'yaml', 'toml'] as const) {
+		for (const sortKeys of [false, true]) {
+			const options = { ...DEFAULT_OPTS, sortKeys };
+			// パーサーが未対応の値を返した場合を注入し、各実シリアライザーの例外を起こす。
+			const parser = t.mock.method(JSON, 'parse', () => ({
+				value: to === 'toml' ? Symbol('unsupported') : 1n,
+			}));
+			let result: ConvertResult;
+			try {
+				result = convertFormats('json', to, '{"value":1}', options);
+			} finally {
+				parser.mock.restore();
+			}
+			assert.equal(
+				expectError(result).error.startsWith(
+					`${to.toUpperCase()}への変換に失敗しました:`,
+				),
+				true,
+			);
+			assert.equal('output' in result, false);
+			const recovered = expectOk(
+				convertFormats('json', to, '{"value":2}', options),
+			);
+			const back = expectOk(
+				convertFormats(to, 'json', recovered.output, DEFAULT_OPTS),
+			);
+			assert.deepEqual(JSON.parse(back.output), { value: 2 });
+		}
+	}
+});

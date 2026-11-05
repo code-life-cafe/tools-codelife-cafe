@@ -195,3 +195,15 @@ test('validateFile: 対応拡張子かつサイズ内は valid: true', () => {
 test('getMaxFileSize: 正の数を返す', () => {
 	assert.ok(getMaxFileSize() > 0);
 });
+
+test('validateFile: 同期解析の上限10MiBを超えるCSVは読み込み前に拒否する', () => {
+	const limit = 10 * 1024 * 1024;
+	assert.equal(validateFile(fakeFile('data.csv', limit)).valid, true);
+	for (const size of [limit + 1, 30 * limit, 50 * limit]) {
+		assert.deepEqual(validateFile(fakeFile('data.csv', size)), {
+			valid: false,
+			error: 'FILE_TOO_LARGE',
+			maxSize: limit,
+		});
+	}
+});
