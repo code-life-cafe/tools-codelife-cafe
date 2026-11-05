@@ -26,7 +26,7 @@ export function normalizeText(text: string): string {
 /**
  * セグメント列を表示・書き出し用に整える。
  * - 非有限な時刻のセグメントを除去する
- * - 負の開始時刻を 0 にクランプし、終了が開始より前なら開始に揃える（順序逆転の防止）
+ * - 負の開始時刻を 0 にクランプし、終了が開始以下のセグメントは除去する
  * - 本文を正規化し、空になったセグメントを除去する
  * - 開始時刻（同値なら終了時刻）の昇順に並べ替える
  * - (start, end, text) が完全に一致する重複を除去する
@@ -44,10 +44,11 @@ export function normalizeSegments(
 		const text = normalizeText(segment.text ?? '');
 		if (text.length === 0) continue;
 		const start = Math.max(0, segment.start);
+		if (segment.end <= start) continue;
 		cleaned.push({
 			id: segment.id,
 			start,
-			end: Math.max(start, segment.end),
+			end: segment.end,
 			text,
 		});
 	}

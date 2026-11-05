@@ -54,6 +54,10 @@ window.__TRANSCRIBE_WORKER_FACTORY__ = () => {
 				return;
 			}
 			if (request.type === 'transcribe') {
+				if (mode === 'no-speech') {
+					later(20, () => emit({ type: 'done', segments: [] }));
+					return;
+				}
 				if (mode === 'infer-error') {
 					later(30, () => emit({ type: 'error', code: 'oom', message: 'mock oom' }));
 					return;
@@ -158,6 +162,7 @@ export function delayFirstAudioSrc(ms: number): string {
 
 export type MockMode =
 	| 'ok'
+	| 'no-speech'
 	| 'stall'
 	| 'load-error'
 	| 'load-error-once'
