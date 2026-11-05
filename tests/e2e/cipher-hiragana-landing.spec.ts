@@ -73,7 +73,9 @@ test('例文で暗号化・復号し、全45候補を推測順で選択する', 
 		})
 		.click();
 	await expect(input).toHaveValue('こんにちは');
-	await expect(page.getByLabel('シフト数:')).toHaveValue('3');
+	await expect(page.getByRole('spinbutton', { name: 'シフト数:' })).toHaveValue(
+		'3',
+	);
 	await expect(output).toHaveValue('すうのとへ');
 	await input.fill('すうのとへ');
 	await page
@@ -104,7 +106,9 @@ test('例文で暗号化・復号し、全45候補を推測順で選択する', 
 	await candidates.first().press('Enter');
 	await expect(output).toHaveValue('こんにちは');
 	await expect(input).toHaveValue('すうのとへ');
-	await expect(page.getByLabel('シフト数:')).toHaveValue('3');
+	await expect(page.getByRole('spinbutton', { name: 'シフト数:' })).toHaveValue(
+		'3',
+	);
 	await page.getByLabel('候補の並べ替え').selectOption('shift');
 	await expect(candidates.first()).toContainText('シフト 1:');
 	await input.fill('Khoor zruog');

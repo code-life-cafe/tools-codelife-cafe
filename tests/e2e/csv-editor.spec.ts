@@ -153,6 +153,61 @@ test('JSON保存は特殊キーを保持し、重複ヘッダーでは警告し�
 });
 
 test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
+	for (const target of ['列', '行'] as const) {
+		test(`${target}削除ボタンがTabフォーカス時に表示され、削除とUndoができる（#635）`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('csv-editor').goto();
+			await page.getByRole('textbox').first().fill('名前,年齢\n田中,25');
+			await page.getByRole('button', { name: 'パースして編集へ' }).click();
+			await expect(page.locator('table tbody tr')).toHaveCount(1);
+			await page.mouse.move(0, 0);
+
+			const button = page
+				.getByRole('button', { name: `${target}を削除`, exact: true })
+				.first();
+			await expect(button).toHaveCSS('opacity', '0');
+			// 一度隣へTab移動し、Shift+Tabで削除ボタンへキーボードフォーカスする。
+			await button.focus();
+			await page.keyboard.press('Tab');
+			await page.keyboard.press('Shift+Tab');
+			await expect(button).toBeFocused();
+			// toBeVisibleだけではopacity: 0を検出できないため、実際の透明度を見る。
+			await expect(button).toHaveCSS('opacity', '1');
+			if (target === '行') {
+				await expect(
+					page
+						.locator('table tbody tr')
+						.first()
+						.locator('td')
+						.first()
+						.locator('span'),
+				).toHaveCSS('opacity', '0');
+			}
+
+			await page.keyboard.press('Enter');
+			if (target === '列') {
+				await expect(
+					page.locator('table tbody input[type="text"]'),
+				).toHaveCount(1);
+				await expect(
+					page.locator('table tbody input[type="text"]'),
+				).toHaveValue('25');
+			} else {
+				await expect(page.locator('table tbody tr')).toHaveCount(0);
+			}
+			await page.getByRole('button', { name: '元に戻す (Undo)' }).click();
+			await expect(page.locator('table tbody tr')).toHaveCount(1);
+			await expect(page.locator('table tbody input[type="text"]')).toHaveCount(
+				2,
+			);
+			await expect(
+				page.locator('table tbody input[type="text"]').first(),
+			).toHaveValue('田中');
+		});
+	}
+
 	test('should load the page correctly and show initial UI', async ({
 		page,
 		createToolPage,

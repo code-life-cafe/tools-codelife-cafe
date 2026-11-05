@@ -84,7 +84,7 @@ export function MaskToolbar({
 			{isMaskMode && (
 				<div className="flex min-w-44 flex-1 items-center gap-3">
 					<Label
-						htmlFor="mask-strength"
+						id="mask-strength-label"
 						className="shrink-0 text-xs text-muted-foreground"
 					>
 						{strengthLabel}: {strength}
@@ -92,6 +92,7 @@ export function MaskToolbar({
 					</Label>
 					<Slider
 						id="mask-strength"
+						aria-labelledby="mask-strength-label"
 						min={range.min}
 						max={range.max}
 						step={1}
