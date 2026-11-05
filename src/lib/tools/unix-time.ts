@@ -353,6 +353,7 @@ function getTimeZoneOffsetSeconds(timeZone: string, epochMs: number): number {
 	const dtf = new Intl.DateTimeFormat('en-US', {
 		timeZone: safeTz,
 		hourCycle: 'h23',
+		era: 'short',
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -366,15 +367,16 @@ function getTimeZoneOffsetSeconds(timeZone: string, epochMs: number): number {
 	const parts = dtf.formatToParts(new Date(epochSecondMs));
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
-	const asUtc = Date.UTC(
-		Number(map.year),
-		Number(map.month) - 1,
-		Number(map.day),
+	// Intl の紀元年を天文学的な年へ戻し、Date.UTC の年0〜99の読み替えを避ける。
+	const year = map.era === 'BC' ? 1 - Number(map.year) : Number(map.year);
+	const asUtc = new Date(0);
+	asUtc.setUTCFullYear(year, Number(map.month) - 1, Number(map.day));
+	asUtc.setUTCHours(
 		Number(map.hour === '24' ? '0' : map.hour),
 		Number(map.minute),
 		Number(map.second),
 	);
-	return (asUtc - epochSecondMs) / 1000;
+	return (asUtc.getTime() - epochSecondMs) / 1000;
 }
 
 /** 壁時計時刻をUTCへ変換し、DSTなどで実在しない時刻はNaNを返す。 */
@@ -502,8 +504,11 @@ export interface DiscordTags {
 
 export interface TimestampOutputs {
 	isoUtc: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	isoLocal: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	rfc3339: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	wareki: string;
 	unixSeconds: string;
 	unixMilliseconds: string;
@@ -552,6 +557,7 @@ function formatInTimeZone(
 	const dtf = new Intl.DateTimeFormat('en-US', {
 		timeZone: safeTz,
 		hourCycle: 'h23',
+		era: 'short',
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -562,10 +568,13 @@ function formatInTimeZone(
 	const parts = dtf.formatToParts(new Date(epochMs));
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
+	// UTCでは1年でも、負オフセットの現地は紀元前になり得る。紀元年を誤表示しない。
+	if (map.era === 'BC') return '';
 	const hour = map.hour === '24' ? '00' : map.hour;
 	const offsetSeconds = getTimeZoneOffsetSeconds(safeTz, epochMs);
 	const offsetStr = safeTz === 'UTC' ? 'Z' : formatOffset(offsetSeconds);
-	return `${map.year}-${map.month}-${map.day}T${hour}:${map.minute}:${map.second}${fractional}${offsetStr}`;
+	const year = map.year.padStart(4, '0');
+	return `${year}-${map.month}-${map.day}T${hour}:${map.minute}:${map.second}${fractional}${offsetStr}`;
 }
 
 function formatWareki(epochMs: number, timeZone: string): string {
@@ -654,7 +663,7 @@ export function formatTimestamp(
 		isoUtc,
 		isoLocal,
 		rfc3339,
-		wareki: formatWareki(epochMs, timeZone),
+		wareki: isoLocal === '' ? '' : formatWareki(epochMs, timeZone),
 		unixSeconds,
 		unixMilliseconds: epochMs.toString(),
 		discord: {

@@ -9,6 +9,7 @@ import {
 	isValidTimeZone,
 	parseDateTimeString,
 } from '../../src/lib/tools/unix-time.ts';
+import { unixTimeTool } from '../../src/lib/webmcp/tools/unix-time.webmcp.ts';
 
 test('桁数境界: 10桁は秒、13桁はミリ秒、16桁はマイクロ秒、19桁はナノ秒が最上位候補になる', () => {
 	const cases: [string, string][] = [
@@ -565,6 +566,107 @@ test('年の下限ちょうどは数値入力の有効候補として保持す�
 		instantFromExplicitFormat('-62135596800', 'unix-s'),
 		startOfYearOne,
 	);
+});
+
+for (const [timeZone, local, isoOffset, rfcOffset] of [
+	['Asia/Tokyo', '0001-01-01T09:18:59', '+09:18:59', '+09:18:59'],
+	['America/New_York', '', '', ''],
+	['UTC', '0001-01-01T00:00:00', 'Z', '+00:00'],
+]) {
+	test(`下限の表示: ${timeZone} で紀元前の現地日時は出力しない（F1）`, () => {
+		const startOfYearOne = -62_135_596_800_000_000_000n;
+		for (const [nanos, fractional] of [
+			[0n, ''],
+			[1n, '.000000001'],
+		] as const) {
+			const outputs = formatTimestamp(startOfYearOne + nanos, timeZone);
+			assert.equal(
+				outputs.isoLocal,
+				local ? `${local}${fractional}${isoOffset}` : '',
+			);
+			assert.equal(
+				outputs.rfc3339,
+				local ? `${local}${fractional}${rfcOffset}` : '',
+			);
+			assert.equal(outputs.isoUtc, `0001-01-01T00:00:00${fractional}Z`);
+			if (!local) assert.equal(outputs.wareki, '');
+		}
+	});
+}
+
+for (const [timeZone, localTime, isoOffset, rfcOffset] of [
+	['Asia/Tokyo', '21:53:55', '+09:18:59', '+09:18:59'],
+	['America/New_York', '07:38:54', '-04:56:02', '-04:56:02'],
+	['UTC', '12:34:56', 'Z', '+00:00'],
+]) {
+	test(`年1〜99と100年の表示: ${timeZone} の年・オフセット・小数秒を保つ（F1）`, () => {
+		for (const year of [
+			'0001',
+			'0004',
+			'0009',
+			'0010',
+			'0050',
+			'0099',
+			'0100',
+		]) {
+			const instant =
+				BigInt(Date.parse(`${year}-06-15T12:34:56Z`)) * 1_000_000n;
+			const outputs = formatTimestamp(instant + 123_456_789n, timeZone);
+			assert.equal(
+				outputs.isoLocal,
+				`${year}-06-15T${localTime}.123456789${isoOffset}`,
+				year,
+			);
+			assert.equal(
+				outputs.rfc3339,
+				`${year}-06-15T${localTime}.123456789${rfcOffset}`,
+				year,
+			);
+			assert.equal(outputs.isoUtc, `${year}-06-15T12:34:56.123456789Z`, year);
+		}
+	});
+}
+
+test('現地年の下限の1ナノ秒前は非表示にし、下限ちょうどから表示する（F1）', () => {
+	// New York の LMT は -04:56:02。UTCでは既に1年でも、現地はまだ紀元前になる。
+	const localYearOne = BigInt(Date.parse('0001-01-01T04:56:02Z')) * 1_000_000n;
+	const before = formatTimestamp(localYearOne - 1n, 'America/New_York');
+	assert.equal(before.isoLocal, '');
+	assert.equal(before.rfc3339, '');
+	assert.equal(before.wareki, '');
+	assert.equal(before.isoUtc, '0001-01-01T04:56:01.999999999Z');
+	for (const [nanos, fractional] of [
+		[0n, ''],
+		[1n, '.000000001'],
+	] as const) {
+		const outputs = formatTimestamp(localYearOne + nanos, 'America/New_York');
+		assert.equal(outputs.isoLocal, `0001-01-01T00:00:00${fractional}-04:56:02`);
+		assert.equal(outputs.rfc3339, `0001-01-01T00:00:00${fractional}-04:56:02`);
+	}
+});
+
+test('WebMCP実行経路: 明示UNIX秒の下限を安全に表示する（F1）', async () => {
+	for (const [timeZone, isoLocal, rfc3339] of [
+		[
+			'Asia/Tokyo',
+			'0001-01-01T09:18:59+09:18:59',
+			'0001-01-01T09:18:59+09:18:59',
+		],
+		['America/New_York', '', ''],
+		['UTC', '0001-01-01T00:00:00Z', '0001-01-01T00:00:00+00:00'],
+	]) {
+		const result = await unixTimeTool.run({
+			value: '-62135596800',
+			format: 'unix-s',
+			timeZone,
+		});
+		assert.ok(result.ok, timeZone);
+		assert.equal(result.value.resolvedFormat, 'unix-s');
+		assert.equal(result.value.isoLocal, isoLocal, timeZone);
+		assert.equal(result.value.rfc3339, rfc3339, timeZone);
+		assert.equal(result.value.isoUtc, '0001-01-01T00:00:00Z');
+		assert.equal(result.value.unixSeconds, '-62135596800');
+	}
 });
 
 test('一括変換: 紀元前の入力は既存エラーにし、正常行は保持する（#606）', () => {

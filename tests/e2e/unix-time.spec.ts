@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base.ts';
+import { expect, test } from './fixtures/base';
 
 test.describe('UNIXタイムスタンプ⇔日時変換ツール', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
