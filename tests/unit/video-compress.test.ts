@@ -136,7 +136,10 @@ test('本番は動画圧縮ページだけ共通CSPを解除しmetaで制限', a
 	);
 	const headers = await readFile('public/_headers', 'utf8');
 	const detachedPaths = [
-		...headers.matchAll(/^([^#\s][^\n]*)\n[ \t]+! Content-Security-Policy$/gm),
+		// 解除のみのルールを確認する。Mermaidの解除→専用CSP設定は含めない。
+		...headers.matchAll(
+			/^([^#\s][^\n]*)\n[ \t]+! Content-Security-Policy\r?\n(?=\r?\n|$)/gm,
+		),
 	].map((match) => match[1]);
 	assert.deepEqual(detachedPaths, ['/video-compress', '/video-compress/']);
 	for (const path of ['/video-compress', '/video-compress/']) {

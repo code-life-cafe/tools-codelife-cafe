@@ -16,6 +16,17 @@
 /transcribe/*
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; base-uri 'self'; form-action 'self'
 
+# Mermaid は HTML ラベル・CSS url() を含め、外部画像を CSP で遮断する（#650）。
+# 複数ルールの同名ヘッダーは連結されるため、共通 CSP を解除してから設定する。
+# JS/CSS/フォント/修復 Worker は同一オリジン。外部許可は既存の匿名計測のみ。
+/mermaid
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; worker-src 'self'
+
+/mermaid/*
+  ! Content-Security-Policy
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://cloudflareinsights.com; font-src 'self'; worker-src 'self'
+
 # モデルと ONNX Runtime WASM は、**URL 自体にバージョン識別子を含む**ため長期キャッシュ可能。
 #   /models/transcribe/<name>/<revision>/...
 #   /vendor/onnx-wasm/<onnxruntime-web のバージョン>/...
