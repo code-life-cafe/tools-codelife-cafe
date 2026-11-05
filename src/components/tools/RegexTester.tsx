@@ -358,7 +358,12 @@ export default function RegexTester() {
 			{/* Test String Area */}
 			<div className="space-y-4">
 				<div className="flex items-center justify-between">
-					<Label className="text-sm font-medium">テスト文字列</Label>
+					<Label
+						htmlFor="regex-test-string-textarea"
+						className="text-sm font-medium"
+					>
+						テスト文字列
+					</Label>
 					<Button
 						variant="outline"
 						size="sm"
@@ -465,7 +470,12 @@ export default function RegexTester() {
 					</div>
 					<div>
 						<div className="flex items-center justify-between mb-2">
-							<Label className="text-sm font-medium">置換結果</Label>
+							<Label
+								htmlFor="regex-replace-output-textarea"
+								className="text-sm font-medium"
+							>
+								置換結果
+							</Label>
 							<CopyButton text={result.replacedText || ''} />
 						</div>
 						<Textarea

@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -9,6 +10,7 @@ interface ShiftSliderProps {
 }
 
 export function ShiftSlider({ shift, maxShift, onChange }: ShiftSliderProps) {
+	const shiftLabelId = useId();
 	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		let value = parseInt(e.target.value, 10);
 		if (Number.isNaN(value)) return;
@@ -24,6 +26,7 @@ export function ShiftSlider({ shift, maxShift, onChange }: ShiftSliderProps) {
 		<div className="flex flex-col gap-3">
 			<div className="flex items-center justify-between">
 				<Label
+					id={shiftLabelId}
 					htmlFor="shift-input"
 					className="font-medium whitespace-nowrap mr-4"
 				>
@@ -40,6 +43,7 @@ export function ShiftSlider({ shift, maxShift, onChange }: ShiftSliderProps) {
 				/>
 			</div>
 			<Slider
+				aria-labelledby={shiftLabelId}
 				min={1}
 				max={maxShift}
 				step={1}

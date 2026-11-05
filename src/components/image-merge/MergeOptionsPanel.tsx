@@ -1,5 +1,6 @@
 // MergeOptionsPanel — 結合モード / 列数 / 余白 / 背景色 / セルサイズ方針 / 揃え / 出力形式・品質の設定UI
 
+import { useId } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -53,6 +54,7 @@ export function MergeOptionsPanel({
 	disabled = false,
 	onChange,
 }: MergeOptionsPanelProps) {
+	const qualityLabelId = useId();
 	const update = (patch: Partial<MergeOptions>) =>
 		onChange({ ...options, ...patch });
 
@@ -294,6 +296,7 @@ export function MergeOptionsPanel({
 				</div>
 				<div className="flex items-center gap-3">
 					<Label
+						id={qualityLabelId}
 						htmlFor="quality-slider"
 						className="shrink-0 text-sm text-muted-foreground w-24"
 					>
@@ -301,6 +304,7 @@ export function MergeOptionsPanel({
 					</Label>
 					<Slider
 						id="quality-slider"
+						aria-labelledby={qualityLabelId}
 						min={10}
 						max={100}
 						step={5}

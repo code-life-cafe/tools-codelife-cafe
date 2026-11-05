@@ -1,6 +1,23 @@
 import { expect, test } from './fixtures/base';
 
 test.describe('JSON Formatter', () => {
+	test('インデントを可視ラベルで取得し、整形に反映できる（#634）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('json-formatter').goto();
+		await page.locator('#json-input-textarea').fill('{"a":1}');
+		const indent = page.getByLabel('インデント:', { exact: true });
+		await expect(indent).toHaveRole('combobox');
+		await indent.click();
+		await page.getByRole('option', { name: '4スペース', exact: true }).click();
+		await expect(indent).toHaveText('4スペース');
+		await page.getByRole('button', { name: '整形', exact: true }).click();
+		await expect
+			.poll(() => page.locator('pre').textContent())
+			.toBe('{\n    "a": 1\n}');
+	});
+
 	test('loads page and shows format UI', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('json-formatter');
 		await toolPage.goto();

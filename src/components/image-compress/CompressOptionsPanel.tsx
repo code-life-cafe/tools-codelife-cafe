@@ -178,6 +178,7 @@ export function CompressOptionsPanel({
 				</Label>
 				<Slider
 					id="quality-slider"
+					aria-label="品質"
 					min={0.1}
 					max={1}
 					step={0.05}

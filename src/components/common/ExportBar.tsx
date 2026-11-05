@@ -4,7 +4,7 @@
 // 「プレビュー＝エクスポート」の単一ソースを保証する
 
 import { Download } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -32,6 +32,7 @@ type ExportBarProps = {
 };
 
 export function ExportBar({ getCanvas, baseName, disabled }: ExportBarProps) {
+	const qualityLabelId = useId();
 	const [format, setFormat] = useState<ExportFormat>('png');
 	const [quality, setQuality] = useState(DEFAULT_JPEG_QUALITY);
 	const [error, setError] = useState<string | null>(null);
@@ -71,11 +72,16 @@ export function ExportBar({ getCanvas, baseName, disabled }: ExportBarProps) {
 			</div>
 			{format === 'jpeg' && (
 				<div className="flex w-44 flex-col gap-1.5">
-					<Label htmlFor="export-quality" className="text-xs">
+					<Label
+						id={qualityLabelId}
+						htmlFor="export-quality"
+						className="text-xs"
+					>
 						品質: {Math.round(quality * 100)}%
 					</Label>
 					<Slider
 						id="export-quality"
+						aria-labelledby={qualityLabelId}
 						min={0.1}
 						max={1}
 						step={0.01}

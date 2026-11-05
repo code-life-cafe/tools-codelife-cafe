@@ -49,8 +49,14 @@ const jaCollator = new Intl.Collator('ja', {
 /**
  * 全角数字・全角小数点・全角符号を半角化し、カンマ・通貨記号を除去して数値化する。
  * 10進の整数・小数のみ受け付け、0x1F・0b101・Infinity・指数表記（1E5）は数値としない。
+ * 安全整数範囲を超える値も、丸めによる誤比較を避けるため数値としない。
  */
 export function parseNumber(val: string | number | undefined): number | null {
+	const num = parseDecimalNumber(val);
+	return num !== null && Math.abs(num) <= Number.MAX_SAFE_INTEGER ? num : null;
+}
+
+function parseDecimalNumber(val: string | number | undefined): number | null {
 	if (val === undefined || val === null) return null;
 	if (typeof val === 'number') return Number.isFinite(val) ? val : null;
 	let str = String(val).trim();
@@ -66,8 +72,8 @@ export function parseNumber(val: string | number | undefined): number | null {
 	str = str.replace(/[¥￥$,]/g, '').trim();
 
 	if (!/^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(str)) return null;
-	const num = Number(str);
-	return Number.isFinite(num) ? num : null;
+	// オーバーフローも型推定側で安全整数範囲外として扱う。
+	return Number(str);
 }
 
 /**
@@ -165,7 +171,10 @@ export function inferColumnType(columnValues: string[]): ColumnType {
 	let boolCount = 0;
 
 	for (const val of nonEmp) {
-		if (parseNumber(val) !== null) numCount++;
+		const num = parseDecimalNumber(val);
+		// 80%判定より先に保護し、少数の大整数も数値列へ混入させない。
+		if (num !== null && Math.abs(num) > Number.MAX_SAFE_INTEGER) return 'text';
+		if (num !== null) numCount++;
 		if (parseDate(val) !== null) dateCount++;
 		const lower = val.toLowerCase();
 		if (
@@ -294,11 +303,17 @@ function matchesCondition(
 		}
 	}
 
-	if (colType === 'boolean') {
+	if (colType === 'boolean' && (operator === 'eq' || operator === 'neq')) {
 		const lowerCell = cellValue.trim().toLowerCase();
 		const lowerTarget = String(value).trim().toLowerCase();
 		const isCellTrue = lowerCell === 'true' || lowerCell === '1';
 		const isTargetTrue = lowerTarget === 'true' || lowerTarget === '1';
+		const isCellFalse = lowerCell === 'false' || lowerCell === '0';
+		const isTargetFalse = lowerTarget === 'false' || lowerTarget === '0';
+		// 数値・日付比較と同様、空欄や不正値はeq/neqのどちらにも一致させない。
+		if ((!isCellTrue && !isCellFalse) || (!isTargetTrue && !isTargetFalse)) {
+			return false;
+		}
 
 		if (operator === 'eq') return isCellTrue === isTargetTrue;
 		if (operator === 'neq') return isCellTrue !== isTargetTrue;

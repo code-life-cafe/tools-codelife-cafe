@@ -1,5 +1,5 @@
 import { CheckCircle2, Download, Loader2, Trash2 } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useId, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +55,7 @@ function formatBytes(bytes: number): string {
 }
 
 export function ImageMetadataPage() {
+	const qualityLabelId = useId();
 	const { trackRun } = useToolAnalytics('image-metadata');
 	const [options, setOptions] = useState<StripMetadataOptions>(DEFAULT_OPTIONS);
 
@@ -168,8 +169,11 @@ export function ImageMetadataPage() {
 						</Select>
 					</div>
 					<div className="space-y-2">
-						<Label>品質: {Math.round(options.quality * 100)}%</Label>
+						<Label id={qualityLabelId}>
+							品質: {Math.round(options.quality * 100)}%
+						</Label>
 						<Slider
+							aria-labelledby={qualityLabelId}
 							value={[Math.round(options.quality * 100)]}
 							min={40}
 							max={100}
