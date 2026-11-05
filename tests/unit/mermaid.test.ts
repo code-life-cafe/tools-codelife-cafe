@@ -82,8 +82,12 @@ test('描画入口は文字列検査を通った入力も実解析DBで検査し
 	assert.equal(draw.mock.callCount(), 1);
 });
 
-test('解析APIのない図種は文字列検査へ戻し、flowchartの不明なDBは拒否する', async () => {
-	for (const diagram of [undefined, { type: 'sequence', db: {} }]) {
+test('FlowDBのない図種は文字列検査へ戻し、flowchartの不明なDBは拒否する', async () => {
+	for (const diagram of [
+		undefined,
+		{ type: 'class', db: {} },
+		{ type: 'sequence', db: { getActors: () => new Map() } },
+	]) {
 		await assert.rejects(
 			assertMermaidDiagramNoExternalImages(F10_CASES[0][1], diagram),
 			/外部リソース/,

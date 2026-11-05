@@ -151,6 +151,9 @@ function normalizeMermaidText(code: string): string {
 // removeDirectives は行頭に限定せず、複数行も含め global に除去する。
 const MERMAID_DIRECTIVE_REGEX =
 	/%{2}{\s*(?:(\w+)\s*:|(\w+))\s*(?:(\w+)|((?:(?!}%{2}).|\r?\n)*))?\s*(?:}%{2})?/gi;
+// 同版のfrontMatterRegex。ディレクティブより先に除去する。
+const MERMAID_FRONTMATTER_REGEX =
+	/^([^\S\n\r]*)-{3}\s*[\n\r](.*?)[\n\r]\1-{3}\s*[\n\r]+/s;
 
 function assertNoMermaidImageMetadata(node: unknown): void {
 	if (!node || typeof node !== 'object') return;
@@ -235,44 +238,78 @@ export async function assertMermaidNoExternalImages(
 	const normalized = normalizeMermaidText(code);
 	if (normalized !== code) await assertNoImagesInMermaidSource(normalized);
 	// F10: @ と { の間などのディレクティブを除去すると画像構文が現れる。
-	// cleanupText → removeDirectives → cleanupComments の順序を守る。
-	const withoutDirectives = normalized.replace(MERMAID_DIRECTIVE_REGEX, '');
+	// cleanupText → frontmatter除去 → directive除去 → コメント除去の順序を守る。
+	// title内の未閉鎖 %%{ により本文の検査が消えることを防ぐ（F11）。
+	const withoutDirectives = normalized
+		.replace(MERMAID_FRONTMATTER_REGEX, '')
+		.replace(MERMAID_DIRECTIVE_REGEX, '');
 	if (withoutDirectives !== normalized) {
 		await assertNoImagesInMermaidSource(withoutDirectives);
 	}
 }
 
 /**
- * 主防御: 描画と同じ前処理・parser が生成した flowchart DB を検査する。
+ * CSPに加え、描画と同じ前処理・parser が生成したDBで画像を事前拒否する。
  * 未対応の図種/API は文字列検査へ戻す。不正な構文は同検査で拒否する。
- * flowchart と分かっているのに DB を取得できない場合は描画を許可しない。
+ * flowchart / sequence の必要なDBを取得できない場合は描画を許可しない。
  */
 export async function assertMermaidDiagramNoExternalImages(
 	code: string,
 	diagram?: { type: string; db: unknown },
 ): Promise<void> {
-	if (!diagram?.type.startsWith('flowchart')) {
-		await assertMermaidNoExternalImages(code);
-		return;
-	}
-	const db = diagram.db;
-	if (
-		!db ||
-		typeof db !== 'object' ||
-		!('getVertices' in db) ||
-		typeof db.getVertices !== 'function'
-	) {
-		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
-	}
-	const vertices: unknown = db.getVertices();
-	if (!(vertices instanceof Map)) {
-		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
-	}
-	for (const vertex of vertices.values()) {
-		if (!vertex || typeof vertex !== 'object') {
+	const db = diagram?.db;
+	if (db && typeof db === 'object' && 'getVertices' in db) {
+		// swimlaneもFlowDBを使う。図種名で対象を限定しない（F11）。
+		if (typeof db.getVertices !== 'function') {
 			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
 		}
-		assertNoMermaidImageMetadata(vertex);
+		const vertices: unknown = db.getVertices();
+		if (!(vertices instanceof Map)) {
+			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+		}
+		for (const vertex of vertices.values()) {
+			if (!vertex || typeof vertex !== 'object') {
+				throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+			}
+			assertNoMermaidImageMetadata(vertex);
+		}
+	} else if (diagram?.type.startsWith('flowchart')) {
+		throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+	} else {
+		await assertMermaidNoExternalImages(code);
+	}
+
+	if (diagram?.type === 'sequence') {
+		if (
+			!db ||
+			typeof db !== 'object' ||
+			!('getActors' in db) ||
+			typeof db.getActors !== 'function'
+		) {
+			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+		}
+		const actors: unknown = db.getActors();
+		if (!(actors instanceof Map)) {
+			throw new Error('図の画像検査に失敗したため、描画を中止しました。');
+		}
+		for (const actor of actors.values()) {
+			const properties: unknown = actor?.properties;
+			if (
+				!properties ||
+				typeof properties !== 'object' ||
+				!('icon' in properties)
+			)
+				continue;
+			// Mermaidはtrim後の先頭@だけを埋め込み画像として扱い、他はdrawImageへ渡す（F12）。
+			if (
+				typeof properties.icon !== 'string' ||
+				!properties.icon.trim().startsWith('@')
+			) {
+				throw new Error(
+					'外部リソースの取得を防ぐため、シーケンス図のアイコン（icon）には@で始まる埋め込み識別子だけを指定してください。',
+				);
+			}
+		}
 	}
 }
 
