@@ -136,10 +136,19 @@ export const MONO_THEME_VARIABLES = {
 	},
 } as const;
 
-/** imgを含む拡張ノードは、描画中にImage.srcへ渡されるため事前に拒否する。 */
-export async function assertMermaidNoExternalImages(
-	code: string,
-): Promise<void> {
+/** Mermaid 11.17.2 の src/preprocess.ts の cleanupText と同じ順序で正規化する。 */
+function normalizeMermaidText(code: string): string {
+	return code
+		.replace(/\r\n?/g, '\n')
+		.replace(
+			/<(\w+)([^>]*)>/g,
+			(_match, tag: string, attributes: string) =>
+				`<${tag}${attributes.replace(/="([^"]*)"/g, "='$1'")}>`,
+		);
+}
+
+/** 正規化の前後それぞれに適用する、拡張ノードの画像検査。 */
+async function assertNoImagesInMermaidSource(code: string): Promise<void> {
 	// Mermaid同様、行頭の %% だけを除去し、%%{ ディレクティブは残す。
 	// 空行をまたぐ \s* の再探索を避け、コメント除去も線形時間にする。
 	const source = code.replace(/^[^\S\r\n\u2028\u2029]*%%(?!{)[^\n]+\n?/gm, '');
@@ -190,6 +199,17 @@ export async function assertMermaidNoExternalImages(
 	if (metadataStart !== -1) {
 		throw new Error('拡張ノードの構文を確認してください。');
 	}
+}
+
+/** imgを含む拡張ノードは、描画中にImage.srcへ渡されるため事前に拒否する。 */
+export async function assertMermaidNoExternalImages(
+	code: string,
+): Promise<void> {
+	await assertNoImagesInMermaidSource(code);
+	// cleanupText はコメント除去・構文解析より前に適用される。
+	// 正規化で現れる画像も、逆に隠れる画像も許可しない。
+	const normalized = normalizeMermaidText(code);
+	if (normalized !== code) await assertNoImagesInMermaidSource(normalized);
 }
 
 /**

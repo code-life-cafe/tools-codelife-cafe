@@ -39,6 +39,40 @@ for (const [name, code] of [
 	});
 }
 
+for (const [name, code] of [
+	[
+		'単独CRでコメント行の後に現れる画像',
+		'flowchart TD\n %% c\r A@{ img: "https://example.com/p" }',
+	],
+	[
+		'タグ属性の引用符変換で現れる画像',
+		'flowchart TD\n A@{ label: \'x <a b=", img: /pixel, z: "> \' }',
+	],
+	[
+		'正規化後はラベルに隠れる生コードの画像',
+		'flowchart TD\n A@{ label: "x <a b=", img: /pixel, z: "> " }',
+	],
+]) {
+	test(`F6回帰: 事前検査で${name}を拒否する`, async () => {
+		await assert.rejects(assertMermaidNoExternalImages(code), /外部リソース/);
+	});
+	test(`F6回帰: 描画経路で${name}をDOM処理前に拒否する`, async () => {
+		await assert.rejects(renderMermaidSvg(code, 'f6-test'), /外部リソース/);
+	});
+}
+
+test('F6回帰: 画像のない各図種のメタデータとCRLFコメントを許可する', async () => {
+	for (const code of [
+		"kanban\n todo[未着手]\n  task[作業]@{ ticket: MC-2037, assigned: 'knsv' }",
+		'sequenceDiagram\n participant A@{ "type": "boundary" }\n A->>B: 問い合わせ',
+		'flowchart TD\n A e1@--> B\n e1@{ animate: true }',
+		'flowchart TD\r\n %% A@{ img: /pixel }\r\n A --> B',
+		'flowchart TD\n A@{ shape: rect, label: "通常ノード" } --> B',
+	]) {
+		await assert.doesNotReject(assertMermaidNoExternalImages(code));
+	}
+});
+
 test('画像キーの引用・エスケープ・複数行でも描画前に拒否する', async () => {
 	for (const code of [
 		'flowchart TD\n A@{ "img": "https://example.com/pixel" }',
