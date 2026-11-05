@@ -42,14 +42,16 @@ import { CSV_EDITOR_ROWS_PER_PAGE } from '@/lib/constants';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
+import { csvEditorMcpTool } from '@/lib/tools/csv-editor.mcp';
 import {
 	type CsvData,
+	decodeCsvBytes,
 	exportCsv,
+	exportCsvJson,
 	getColumnLabel,
 	parseCsv,
 	sanitizeCsvEditorSettings,
-} from '@/lib/tools/csv-editor';
-import { csvEditorMcpTool } from '@/lib/tools/csv-editor.mcp';
+} from '@/lib/tools/csv-editor.ts';
 import {
 	type Column,
 	type FilterGroup,
@@ -108,6 +110,14 @@ export default function CsvEditor() {
 	// Source of truth table data
 	const [csvData, setCsvData] = useState<CsvData | null>(null);
 	const [error, setError] = useState<string>('');
+	const [pendingCsv, setPendingCsv] = useState<{
+		bytes: Uint8Array;
+		name: string;
+		delimiter: string;
+	} | null>(null);
+	const [fileEncoding, setFileEncoding] = useState<'utf-8' | 'shift-jis'>(
+		'utf-8',
+	);
 	const [currentPage, setCurrentPage] = useState(1);
 
 	// Query pipeline states
@@ -127,6 +137,7 @@ export default function CsvEditor() {
 	const clearButtonRef = useRef<HTMLButtonElement>(null);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const fileUploadButtonRef = useRef<HTMLButtonElement>(null);
 
 	// Columns definition with type inference
 	const columns: Column[] = useMemo(() => {
@@ -225,8 +236,29 @@ export default function CsvEditor() {
 	};
 
 	// File Upload Handler (.csv, .tsv, .xlsx)
+	const loadCsvText = (text: string, name: string, mappedDelim: string) => {
+		const { data, error: err } = parseCsv(text, mappedDelim);
+		if (err) {
+			setError(err);
+			return;
+		}
+		if (mappedDelim !== delimiter) updateSettings({ delimiter: mappedDelim });
+		setInputText(text);
+		setCsvData(data);
+		setSheets([{ name, rows: data.rows }]);
+		setActiveSheetIdx(0);
+		setError('');
+		setPendingCsv(null);
+		setActiveTab('edit');
+		setCurrentPage(1);
+		setUndoStack([]);
+		resetQueryState();
+		trackRun('file-input');
+	};
+
 	const processFile = async (file: File) => {
 		setError('');
+		setPendingCsv(null);
 		const fileNameLower = file.name.toLowerCase();
 		const isXlsx = fileNameLower.endsWith('.xlsx');
 		const isTsv = fileNameLower.endsWith('.tsv');
@@ -263,28 +295,37 @@ export default function CsvEditor() {
 		} else {
 			// CSV / TSV
 			const mappedDelim = isTsv ? '\t' : delimiter;
-			if (isTsv) updateSettings({ delimiter: '\t' });
-
-			const reader = new FileReader();
-			reader.onload = (evt) => {
-				const text = evt.target?.result as string;
-				setInputText(text);
-				const { data, error: err } = parseCsv(text, mappedDelim);
-				if (err) {
-					setError(err);
-				} else {
-					setCsvData(data);
-					setSheets([{ name: file.name, rows: data.rows }]);
-					setActiveSheetIdx(0);
-					setError('');
-					setActiveTab('edit');
-					setCurrentPage(1);
-					setUndoStack([]);
-					resetQueryState();
-					trackRun('file-input'); // CSV/TSV解析成功を計測
+			try {
+				const bytes = new Uint8Array(await file.arrayBuffer());
+				const text = decodeCsvBytes(bytes);
+				if (text === null) {
+					setFileEncoding('utf-8');
+					setPendingCsv({ bytes, name: file.name, delimiter: mappedDelim });
+					return;
 				}
-			};
-			reader.readAsText(file);
+				loadCsvText(text, file.name, mappedDelim);
+			} catch (err) {
+				setError(
+					err instanceof Error
+						? err.message
+						: 'ファイルの読み込みに失敗しました。',
+				);
+			}
+		}
+	};
+
+	const handleEncodingSelection = () => {
+		if (!pendingCsv) return;
+		try {
+			const text = decodeCsvBytes(pendingCsv.bytes, fileEncoding);
+			if (text !== null)
+				loadCsvText(text, pendingCsv.name, pendingCsv.delimiter);
+		} catch (err) {
+			setError(
+				err instanceof Error
+					? err.message
+					: 'ファイルの読み込みに失敗しました。',
+			);
 		}
 	};
 
@@ -323,25 +364,18 @@ export default function CsvEditor() {
 
 	const handleDownloadJson = () => {
 		if (!csvData) return;
-		let resultStr = '';
-		if (hasHeader && csvData.rows.length > 1) {
-			const headers = csvData.rows[0];
-			const jsonArray = csvData.rows.slice(1).map((row) => {
-				const obj: Record<string, string> = {};
-				headers.forEach((h, i) => {
-					obj[h || `Column${i + 1}`] = row[i];
-				});
-				return obj;
+		try {
+			const resultStr = exportCsvJson(csvData, hasHeader);
+			const blob = new Blob([resultStr], {
+				type: 'application/json;charset=utf-8',
 			});
-			resultStr = JSON.stringify(jsonArray, null, 2);
-		} else {
-			resultStr = JSON.stringify(csvData.rows, null, 2);
+			downloadBlob(blob, 'exported.json');
+			setError('');
+		} catch (err) {
+			setError(
+				err instanceof Error ? err.message : 'JSONの保存に失敗しました。',
+			);
 		}
-
-		const blob = new Blob([resultStr], {
-			type: 'application/json;charset=utf-8',
-		});
-		downloadBlob(blob, 'exported.json');
 	};
 
 	const csvResultText = useMemo(
@@ -501,6 +535,7 @@ export default function CsvEditor() {
 							onChange={handleFileUpload}
 						/>
 						<Button
+							ref={fileUploadButtonRef}
 							variant="outline"
 							size="sm"
 							onClick={() => fileInputRef.current?.click()}
@@ -589,6 +624,70 @@ export default function CsvEditor() {
 					</Button>
 				</div>
 			</div>
+
+			{error && !pendingCsv && (
+				<p role="alert" className="text-destructive text-sm">
+					{error}
+				</p>
+			)}
+
+			<Dialog
+				open={pendingCsv !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPendingCsv(null);
+						setError('');
+					}
+				}}
+			>
+				<DialogContent
+					onCloseAutoFocus={(event) => {
+						event.preventDefault();
+						fileUploadButtonRef.current?.focus();
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>読み込み文字コードの選択</DialogTitle>
+						<DialogDescription>
+							文字コードを自動判別できませんでした。ファイルの文字コードを選択してください。読み込みが完了するまで既存のデータは保持されます。
+						</DialogDescription>
+					</DialogHeader>
+					<Label htmlFor="csv-file-encoding">文字コード</Label>
+					<Select
+						value={fileEncoding}
+						onValueChange={(value: 'utf-8' | 'shift-jis') =>
+							setFileEncoding(value)
+						}
+					>
+						<SelectTrigger id="csv-file-encoding">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="utf-8">UTF-8</SelectItem>
+							<SelectItem value="shift-jis">Shift-JIS</SelectItem>
+						</SelectContent>
+					</Select>
+					{error && (
+						<p role="alert" className="text-destructive text-sm">
+							{error}
+						</p>
+					)}
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => {
+								setPendingCsv(null);
+								setError('');
+							}}
+						>
+							キャンセル
+						</Button>
+						<Button onClick={handleEncodingSelection}>
+							選択した文字コードで読み込む
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
 				<DialogContent

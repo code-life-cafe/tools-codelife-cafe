@@ -18,6 +18,27 @@ function opts(overrides: Partial<QROptions> = {}): QROptions {
 	return { ...defaultOptions, ...overrides };
 }
 
+for (const generate of [generateQRDataUrl, generateQRSvg]) {
+	test(`${generate.name}: 容量超過は拒否し、その後の短い入力は生成できる`, async () => {
+		await assert.rejects(generate('x'.repeat(5000), opts()), /too big/i);
+		assert.ok((await generate('復帰後の入力', opts())).length > 0);
+	});
+
+	test(`${generate.name}: 1500バイトはMで生成でき、Hでは容量超過になる`, async () => {
+		const text = 'x'.repeat(1500);
+		assert.ok(
+			(await generate(text, opts({ errorCorrection: 'M' }))).length > 0,
+		);
+		await assert.rejects(
+			generate(text, opts({ errorCorrection: 'H' })),
+			/too big/i,
+		);
+		assert.ok(
+			(await generate(text, opts({ errorCorrection: 'M' }))).length > 0,
+		);
+	});
+}
+
 test('defaultOptions: 想定通りの初期値を持つ', () => {
 	assert.equal(defaultOptions.size, 400);
 	assert.equal(defaultOptions.errorCorrection, 'M');

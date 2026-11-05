@@ -57,6 +57,70 @@ test.describe('CSV文字化け修復ツール', () => {
 		).toBeVisible();
 	});
 
+	test('上限10MiBの案内があり、超過ファイルを読まずに拒否して再選択できる（#592）', async ({
+		page,
+	}) => {
+		await expect(page.getByText('上限10MiB（10,485,760バイト）')).toBeVisible();
+		// arrayBufferを呼べば失敗させる。サイズ検証がファイル読込より先であることも確認する。
+		await page.evaluate(() => {
+			const original = File.prototype.arrayBuffer;
+			File.prototype.arrayBuffer = function () {
+				if (this.name === 'large.csv')
+					throw new Error('超過ファイルを読んではいけません');
+				return original.call(this);
+			};
+		});
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'large.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.alloc(10 * 1024 * 1024 + 1, 65),
+		});
+		await expect(page.getByRole('alert')).toContainText('上限: 10MiB');
+		await expect(
+			page.getByRole('button', { name: 'ファイルを選択', exact: true }),
+		).toBeEnabled();
+		await page
+			.locator('input[type="file"]')
+			.setInputFiles(
+				path.join(process.cwd(), 'tests/e2e/fixtures/shift_jis.csv'),
+			);
+		await expect(page.getByRole('cell', { name: '山田太郎' })).toBeVisible();
+	});
+
+	test('読み込み中の段階を表示し、解析完了まで進む（#592）', async ({
+		page,
+	}) => {
+		await page.evaluate(() => {
+			const original = File.prototype.arrayBuffer;
+			File.prototype.arrayBuffer = async function () {
+				await new Promise<void>((resolve) => {
+					document.addEventListener('csv-test-read', () => resolve(), {
+						once: true,
+					});
+				});
+				return original.call(this);
+			};
+		});
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'small.csv',
+			mimeType: 'text/csv',
+			buffer: Buffer.from('名前,値\n試験,1'),
+		});
+		await expect(page.getByRole('status')).toContainText(
+			'1/2 読み込み・文字コード判定中',
+		);
+		await expect(
+			page.getByRole('button', { name: '読み込み中...' }),
+		).toBeDisabled();
+		await page.evaluate(() =>
+			document.dispatchEvent(new Event('csv-test-read')),
+		);
+		await expect(
+			page.getByRole('cell', { name: '試験', exact: true }),
+		).toBeVisible();
+		await expect(page.getByRole('status')).toHaveText('解析完了');
+	});
+
 	test('即時変換モードが動作すること', async ({ page, context: _context }) => {
 		// Enable instant mode
 		await page.getByRole('switch', { name: '即時変換モード' }).click();

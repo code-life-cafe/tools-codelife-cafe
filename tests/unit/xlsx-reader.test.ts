@@ -89,6 +89,75 @@ function buildWorkbook(
 	]);
 }
 
+function buildFormattedWorkbook(
+	formatCode: string,
+	numFmtId = 164,
+): ArrayBuffer {
+	const encoder = new TextEncoder();
+	const escaped = formatCode
+		.replace(/&/g, '&amp;')
+		.replace(/"/g, '&quot;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;');
+	return buildWorkbook(
+		[],
+		[
+			{
+				name: 'xl/styles.xml',
+				data: encoder.encode(
+					`<styleSheet><numFmts><numFmt numFmtId="${numFmtId}" formatCode="${escaped}"/></numFmts><cellXfs><xf numFmtId="${numFmtId}"/></cellXfs></styleSheet>`,
+				),
+			},
+			{
+				name: 'xl/worksheets/sheet1.xml',
+				data: encoder.encode(
+					'<worksheet><sheetData><row><c r="A1" s="0"><v>100</v></c></row></sheetData></worksheet>',
+				),
+			},
+		],
+	);
+}
+
+for (const format of [
+	'0 "USD"',
+	'0.00;[Red]-0.00',
+	'0 \\d',
+	'0_d',
+	'0*m',
+	'[Color10]0',
+	'[$USD-409]0',
+	'[>=100]0;[Red]0',
+	'0 "年月日"',
+]) {
+	test(`parseXlsx - 数値書式 ${format} の100を日付に変えない（#618）`, async () => {
+		const result = await parseXlsx(buildFormattedWorkbook(format));
+		assert.deepEqual(result.sheets[0].rows, [['100']]);
+	});
+}
+
+for (const format of [
+	'yyyy-mm-dd',
+	'yyyy"年"m"月"d"日"',
+	'[Red]yyyy/mm/dd',
+	'[h]:mm:ss',
+	'[mm]',
+	'[ss]',
+	'hh:mm:ss',
+	'[$-409]m/d/yy',
+]) {
+	test(`parseXlsx - 実際の日付・時刻書式 ${format} の変換を維持する`, async () => {
+		const result = await parseXlsx(buildFormattedWorkbook(format));
+		assert.deepEqual(result.sheets[0].rows, [['1900-04-09']]);
+	});
+}
+
+test('parseXlsx - 組込み日付書式14の変換を維持する', async () => {
+	assert.deepEqual(
+		(await parseXlsx(buildFormattedWorkbook('', 14))).sheets[0].rows,
+		[['1900-04-09']],
+	);
+});
+
 test('isDecompressionStreamSupported - 環境チェック', () => {
 	const supported = isDecompressionStreamSupported();
 	assert.equal(typeof supported, 'boolean');
@@ -138,6 +207,15 @@ test('parseXmlString - 特殊文字を含む属性やセレクタでも安全に
 	const node = doc.querySelector('custom[tag]');
 	assert.ok(node, 'custom[tag] が見つかること');
 	assert.equal(node.getAttribute('attr(1)'), 'value[test]');
+});
+
+test('parseXmlString - 数値書式の引用符・文字参照を一度だけ復元する', () => {
+	for (const quote of ['&quot;', '&#34;', '&#x22;']) {
+		const doc = parseXmlString(`<numFmt formatCode="0 ${quote}USD${quote}"/>`);
+		assert.equal(doc.getAttribute('formatCode'), '0 "USD"');
+	}
+	const doc = parseXmlString('<numFmt formatCode="0 &quot;&amp;quot;&quot;"/>');
+	assert.equal(doc.getAttribute('formatCode'), '0 "&quot;"');
 });
 
 test('parseXlsx - 最小ブックを解析できる（テスト用ZIPの健全性確認）', async () => {

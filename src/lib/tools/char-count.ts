@@ -202,33 +202,84 @@ function normalizeMatchedUrl(rawMatch: string): string {
 	return normalized;
 }
 
-/**
- * Xの実効文字数（URL以外のgrapheme数 + URL件数 × 23）を算出する。
- * URL以外の文字カウント仕様・絵文字・結合文字の扱いは既存の grapheme カウントに従う。
- */
-export function getXEffectiveCount(text: string): number {
-	if (!text) return 0;
+let xEmojiPattern: RegExp | undefined;
+let xEmojiFallbackPattern: RegExp | undefined;
 
-	const matches = [...text.matchAll(URL_PATTERN)];
+function getXEmojiPattern(forceFallback = false): RegExp {
+	if (forceFallback) {
+		if (!xEmojiFallbackPattern) {
+			// u版では修飾子・VS16・ZWJ列・国旗・キーキャップ・タグ列をまとめる。
+			const pictograph = String.raw`\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?`;
+			// VS16のない©/®は従来どおり通常文字（重み1）として残す。
+			xEmojiFallbackPattern = new RegExp(
+				String.raw`\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|(?![©®](?!\uFE0F))${pictograph}(?:\u200D${pictograph})*(?:[\u{E0020}-\u{E007E}]+\u{E007F})?`,
+				'gu',
+			);
+		}
+		return xEmojiFallbackPattern;
+	}
+	if (!xEmojiPattern) {
+		try {
+			// 構文解析時に失敗しないよう、RGI絵文字のv版は初回利用時に生成する。
+			// biome-ignore lint/complexity/useRegexLiterals: v非対応環境のSyntaxErrorをcatchするため動的生成が必要。
+			xEmojiPattern = new RegExp(String.raw`\p{RGI_Emoji}|[#*0-9]\u20e3`, 'gv');
+		} catch {
+			xEmojiPattern = getXEmojiPattern(true);
+		}
+	}
+	return xEmojiPattern;
+}
+
+function getXTextWeight(text: string, emojiPattern: RegExp): number {
+	// 絵文字1個を重み1の文字2個に置き換え、その他はコードポイントごとに加算する。
+	const weightedText = text.replace(emojiPattern, 'aa');
+	let weight = 0;
+	for (const char of weightedText) {
+		const codePoint = char.codePointAt(0) ?? 0;
+		// https://github.com/twitter/twitter-text/blob/master/config/v3.json
+		const isSingleWeight =
+			codePoint <= 0x10ff ||
+			(codePoint >= 0x2000 && codePoint <= 0x200d) ||
+			(codePoint >= 0x2010 && codePoint <= 0x201f) ||
+			(codePoint >= 0x2032 && codePoint <= 0x2037);
+		weight += isSingleWeight ? 1 : 2;
+	}
+	return weight;
+}
+
+/** Xの実効文字数（NFC正規化後の重み付き文字数 + URL件数 × 23）を算出する。 */
+export function getXEffectiveCount(
+	text: string,
+	options: { forceEmojiFallback?: boolean } = {},
+): number {
+	if (!text) return 0;
+	const normalizedText = text.normalize('NFC');
+	const emojiPattern = getXEmojiPattern(options.forceEmojiFallback);
+
+	const matches = [...normalizedText.matchAll(URL_PATTERN)];
 	if (matches.length === 0) {
-		return getGraphemeCount(text);
+		return getXTextWeight(normalizedText, emojiPattern);
 	}
 
 	let cursor = 0;
-	let nonUrlText = '';
+	let nonUrlWeight = 0;
 	let urlCount = 0;
 
 	for (const match of matches) {
 		const start = match.index ?? 0;
 		const url = normalizeMatchedUrl(match[0]);
 		if (start < cursor) continue; // 前のURLに内包された重複マッチは無視
-		nonUrlText += text.slice(cursor, start);
+		// URLの前後を連結すると別々の絵文字・結合文字が一体化するため、区間ごとに数える。
+		nonUrlWeight += getXTextWeight(
+			normalizedText.slice(cursor, start),
+			emojiPattern,
+		);
 		cursor = start + url.length;
 		urlCount++;
 	}
-	nonUrlText += text.slice(cursor);
+	nonUrlWeight += getXTextWeight(normalizedText.slice(cursor), emojiPattern);
 
-	return getGraphemeCount(nonUrlText) + urlCount * X_URL_WEIGHT;
+	return nonUrlWeight + urlCount * X_URL_WEIGHT;
 }
 
 function countForService(

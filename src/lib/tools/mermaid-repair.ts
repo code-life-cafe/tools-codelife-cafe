@@ -855,6 +855,8 @@ export function replaceSyntaxZenkaku(
  *     （語連続の途中や短いIDは必ず失敗するため試さない）。
  *   - 閉じ括弧の候補（後続lookahead成立）を位置ごとに1回だけ求め、
  *     各開き括弧は「本文開始以降で最初の候補」を事前計算から引く。
+ *   - 本文先頭（空白・複合形状の内側括弧を除く）の二重引用符がノード終端で
+ *     閉じている場合だけ、その区間内の閉じ括弧を飛ばす。それ以外は従来の判定を使う。
  */
 function replaceBracketedNodes(
 	s: string,
@@ -878,9 +880,11 @@ function replaceBracketedNodes(
 	wsEnd[n] = wsEnd[n + 1] = n;
 	const idEnd = new Int32Array(n + 2);
 	idEnd[n] = idEnd[n + 1] = n;
+	const nextQuote = new Int32Array(n + 2).fill(-1);
 	for (let i = n - 1; i >= 0; i--) {
 		wsEnd[i] = wsTest.test(s[i]) ? wsEnd[i + 1] : i;
 		idEnd[i] = isWord(i) ? idEnd[i + 1] : i;
+		nextQuote[i] = s[i] === '"' ? i : nextQuote[i + 1];
 	}
 	// \s*(?:--|==|-\.->|&|;|$) （-->, ---, ==> は -- / == に含まれる）
 	const followOk = (x: number): boolean => {
@@ -909,7 +913,24 @@ function replaceBracketedNodes(
 		}
 		const re = idEnd[p];
 		if (s[re] === open && re + 1 <= n && nextClose[re + 1] !== -1) {
-			const e = nextClose[re + 1];
+			let e = nextClose[re + 1];
+			let bodyStart = wsEnd[re + 1];
+			const innerClose =
+				s[bodyStart] === '[' ? ']' : s[bodyStart] === '(' ? ')' : '';
+			if (innerClose) bodyStart = wsEnd[bodyStart + 1];
+			const quoteEnd = s[bodyStart] === '"' ? nextQuote[bodyStart + 1] : -1;
+			if (quoteEnd !== -1) {
+				const afterQuote = wsEnd[quoteEnd + 1];
+				const end = innerClose ? afterQuote + 1 : afterQuote;
+				// 別ノードの開始引用符や本文途中の生の引用符を閉じ引用符にしない。
+				if (
+					(!innerClose || s[afterQuote] === innerClose) &&
+					s[end] === close &&
+					followOk(end + 1)
+				) {
+					e = end;
+				}
+			}
 			out += s.slice(last, p) + fn(s.slice(p, re), s.slice(re + 1, e));
 			last = e + 1;
 			p = last;

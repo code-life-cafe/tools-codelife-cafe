@@ -45,7 +45,9 @@ export function GeneratePanel({ onGenerated }: GeneratePanelProps) {
 	);
 	const { kind, count, uppercase, hyphens } = settings;
 
-	const [rawResults, setRawResults] = useState<string[]>([]);
+	const [result, setResult] = useState<{ kind: IdKind; ids: string[] } | null>(
+		null,
+	);
 	const [generating, setGenerating] = useState(false);
 	const [progress, setProgress] = useState(0);
 	const runIdRef = useRef(0);
@@ -64,7 +66,7 @@ export function GeneratePanel({ onGenerated }: GeneratePanelProps) {
 				}
 			});
 			if (runIdRef.current === runId) {
-				setRawResults(ids);
+				setResult({ kind, ids });
 				onGenerated();
 			}
 		} finally {
@@ -78,9 +80,11 @@ export function GeneratePanel({ onGenerated }: GeneratePanelProps) {
 		handleGenerate();
 	}, []);
 
-	const displayedResults = rawResults.map((id) =>
-		isUuidKind(kind) ? formatUuid(id, { uppercase, hyphens }) : id,
-	);
+	const displayedResults = result
+		? result.ids.map((id) =>
+				isUuidKind(result.kind) ? formatUuid(id, { uppercase, hyphens }) : id,
+			)
+		: [];
 	const copyAllText = joinIdsForCopy(displayedResults);
 
 	return (
@@ -217,7 +221,7 @@ export function GeneratePanel({ onGenerated }: GeneratePanelProps) {
 				</div>
 			)}
 
-			{!generating && rawResults.length > 0 && (
+			{!generating && displayedResults.length > 0 && (
 				<div className="space-y-3">
 					<div className="flex items-center justify-between">
 						<p className="text-sm font-semibold" aria-live="polite">

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('cron式チェッカー', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
@@ -37,6 +37,77 @@ test.describe('cron式チェッカー', () => {
 		await expect(page.getByRole('alert')).toContainText(
 			'フィールド数が不正です',
 		);
+	});
+
+	test('JST入力・既存の日時表示・GitHub Actionsのコピーが一致すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.clock.setFixedTime(new Date('2026-01-31T14:00:00Z'));
+		await page.addInitScript(() => {
+			let copied = '';
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						copied = text;
+					},
+					readText: async () => copied,
+				},
+			});
+		});
+		await createToolPage('cron-checker').goto();
+		await page.getByLabel('cron式', { exact: true }).fill('0 9 * * *');
+		await expect(
+			page.getByText('入力タイムゾーン: Asia/Tokyo（JST）'),
+		).toBeVisible();
+		await expect(page.getByTestId('cron-description')).toHaveText('毎日 9:00');
+		const table = page.getByTestId('cron-next-runs');
+		await expect(
+			table.getByRole('columnheader', { name: 'JST', exact: true }),
+		).toBeVisible();
+		await expect(
+			table.getByRole('columnheader', { name: 'UTC', exact: true }),
+		).toBeVisible();
+		const cells = table.locator('tbody tr').first().getByRole('cell');
+		await expect(cells.nth(1)).toContainText(/2026\/02\/01.*09:00:00/);
+		await expect(cells.nth(2)).toContainText(/2026\/02\/01.*00:00:00/);
+		const github = page.getByTestId('cron-github-actions');
+		const expected =
+			"schedule:\n  - cron: '0 9 * * *'\n    timezone: 'Asia/Tokyo'";
+		await expect(github).toContainText('出力タイムゾーン: Asia/Tokyo（JST）');
+		await expect(github.locator('pre')).toHaveText(expected);
+		await github.getByRole('button', { name: 'コピー', exact: true }).click();
+		await expect
+			.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+			.toBe(expected);
+
+		// 追加タイムゾーンは表示列だけを変え、入力や出力の解釈は変えない。
+		await page.getByLabel('次回実行日時（10件）').click();
+		await page
+			.getByRole('option', { name: 'America/New_York', exact: true })
+			.click();
+		await expect(
+			table.getByRole('columnheader', { name: 'America/New_York' }),
+		).toBeVisible();
+		await expect(cells.nth(1)).toContainText(/2026\/02\/01.*09:00:00/);
+		await expect(github.locator('pre')).toHaveText(expected);
+	});
+
+	test('秒付きcron式ではGitHub Actionsの警告を表示しコピーを出さない', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		for (const expression of ['*/5 * * * * *', '0 0 9 * * *']) {
+			await page.getByLabel('cron式', { exact: true }).fill(expression);
+			const github = page.getByTestId('cron-github-actions');
+			await expect(github).toContainText('秒フィールドに対応していません');
+			await expect(github.getByRole('button')).toHaveCount(0);
+			await expect(
+				page.getByTestId('cron-next-runs').locator('tbody tr'),
+			).toHaveCount(10);
+		}
 	});
 
 	test('毎分実行は危険パターンとして警告されること', async ({
