@@ -85,6 +85,54 @@ function escapeRegExp(str: string): string {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** DOMParserと同様に、属性中の引用符などの文字参照を1回だけ復元する。 */
+function decodeXmlAttribute(value: string): string {
+	const entities: Record<string, string> = {
+		quot: '"',
+		apos: "'",
+		amp: '&',
+		lt: '<',
+		gt: '>',
+	};
+	return value.replace(
+		/&(#x[0-9a-f]+|#\d+|quot|apos|amp|lt|gt);/gi,
+		(match, entity: string) => {
+			if (!entity.startsWith('#')) return entities[entity] ?? match;
+			const codePoint =
+				entity[1].toLowerCase() === 'x'
+					? Number.parseInt(entity.slice(2), 16)
+					: Number.parseInt(entity.slice(1), 10);
+			return codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match;
+		},
+	);
+}
+
+/** 表示用リテラル、色・条件・ロケールを除き、日付/時刻トークンを検出する。 */
+function isDateFormat(code: string): boolean {
+	let quoted = false;
+	for (let i = 0; i < code.length; i++) {
+		const char = code[i];
+		if (char === '\\') {
+			i++;
+		} else if (char === '"') {
+			quoted = !quoted;
+		} else if (quoted) {
+			// 引用された文字列は日付・時刻トークンとして扱わない。
+		} else if (char === '_' || char === '*') {
+			i++;
+		} else if (char === '[') {
+			const end = code.indexOf(']', i + 1);
+			if (end === -1) return false;
+			// [h]/[mm]/[ss]は経過時間なので、他の角括弧指定と区別する。
+			if (/^(h+|m+|s+)$/i.test(code.slice(i + 1, end))) return true;
+			i = end;
+		} else if (/[ymdhs]/i.test(char)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function createFallbackXmlTree(xml: string): SimpleXmlNode {
 	// タグを洗出し、簡易なノード木を構築する
 	function parseElement(str: string): SimpleXmlNode {
@@ -95,7 +143,7 @@ function createFallbackXmlTree(xml: string): SimpleXmlNode {
 			const escapedName = escapeRegExp(name);
 			const attrRegex = new RegExp(`${escapedName}=(?:"([^"]*)"|'([^']*)')`);
 			const m = str.match(attrRegex);
-			if (m) return m[1] ?? m[2] ?? '';
+			if (m) return decodeXmlAttribute(m[1] ?? m[2] ?? '');
 			return null;
 		};
 
@@ -365,8 +413,8 @@ export async function parseXlsx(
 		const numFmtNodes = stylesDoc.querySelectorAll('numFmt');
 		for (const nf of numFmtNodes) {
 			const id = Number(nf.getAttribute('numFmtId'));
-			const code = (nf.getAttribute('formatCode') ?? '').toLowerCase();
-			if (code && /[ymdhs年日月]/.test(code)) {
+			const code = nf.getAttribute('formatCode') ?? '';
+			if (isDateFormat(code)) {
 				customDateFmts.add(id);
 			}
 		}

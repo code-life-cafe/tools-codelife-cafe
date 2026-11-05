@@ -98,7 +98,9 @@ function instantToYear(instantNanos: bigint): number | null {
 	}
 	const date = new Date(Number(epochMs));
 	if (Number.isNaN(date.getTime())) return null;
-	return date.getUTCFullYear();
+	const year = date.getUTCFullYear();
+	// 紀元前は表示対象外。小数・明示形式・整数フォールバックも同じ下限に揃える。
+	return year < ACCEPTABLE_YEAR_MIN ? null : year;
 }
 
 function confidenceForYear(year: number | null): Confidence | null {
@@ -158,8 +160,8 @@ function detectFromInteger(sign: -1 | 1, digits: string): TimestampCandidate[] {
 	if (candidates.length === 0) {
 		// どの単位でも妥当な年代に収まらない場合は、桁数が最も近い形式を
 		// フォールバックとして1件だけ提示する（候補ゼロを避ける）。
-		// ただし Date/Intl で表示不能な（year 1〜9999 の範囲外になる）
-		// 巨大な値はフォールバック対象から除外し、解釈不能として空配列を返す。
+		// ただし紀元前と Date/Intl で表示不能な巨大な値は除外し、
+		// 解釈不能として空配列を返す。
 		const formattable = FORMAT_REGISTRY.map((def) => ({
 			def,
 			instantNanos: magnitude * def.nanosPerUnit,
@@ -201,7 +203,7 @@ function detectFromDecimal(
 	const nanos = BigInt(fracNanos);
 	const instantNanos = (seconds * 1_000_000_000n + nanos) * BigInt(sign);
 
-	// Date/Intl で表示できない範囲外の値は、例外を起こさないよう解釈不能（空配列）にする。
+	// 紀元前と Date/Intl で表示できない範囲外の値は解釈不能（空配列）にする。
 	const year = instantToYear(instantNanos);
 	if (year === null) return [];
 
@@ -223,7 +225,7 @@ const DECIMAL_PATTERN = /^(-)?(\d+)\.(\d+)$/;
 
 /**
  * 形式を明示指定して数値文字列をInstantへ変換する（WebMCP等の決定的変換用）。
- * 候補の年代フィルタは適用せず、指定形式でそのまま解釈する。
+ * 候補の確度判定は適用せず、指定形式で解釈する。紀元前・表示不能な値は拒否する。
  */
 export function instantFromExplicitFormat(
 	rawInput: string,
@@ -345,12 +347,13 @@ export function isValidTimeZone(timeZone: string): boolean {
 	}
 }
 
-/** 指定タイムゾーンにおける、あるUTC時刻でのオフセット(分)を求める */
-function getTimeZoneOffsetMinutes(timeZone: string, epochMs: number): number {
+/** 指定タイムゾーンにおける、あるUTC時刻でのオフセットを整数秒で求める */
+function getTimeZoneOffsetSeconds(timeZone: string, epochMs: number): number {
 	const safeTz = isValidTimeZone(timeZone) ? timeZone : 'Asia/Tokyo';
 	const dtf = new Intl.DateTimeFormat('en-US', {
 		timeZone: safeTz,
 		hourCycle: 'h23',
+		era: 'short',
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -364,18 +367,19 @@ function getTimeZoneOffsetMinutes(timeZone: string, epochMs: number): number {
 	const parts = dtf.formatToParts(new Date(epochSecondMs));
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
-	const asUtc = Date.UTC(
-		Number(map.year),
-		Number(map.month) - 1,
-		Number(map.day),
+	// Intl の紀元年を天文学的な年へ戻し、Date.UTC の年0〜99の読み替えを避ける。
+	const year = map.era === 'BC' ? 1 - Number(map.year) : Number(map.year);
+	const asUtc = new Date(0);
+	asUtc.setUTCFullYear(year, Number(map.month) - 1, Number(map.day));
+	asUtc.setUTCHours(
 		Number(map.hour === '24' ? '0' : map.hour),
 		Number(map.minute),
 		Number(map.second),
 	);
-	return (asUtc - epochSecondMs) / 60000;
+	return (asUtc.getTime() - epochSecondMs) / 1000;
 }
 
-/** 指定タイムゾーンでの壁時計時刻をUTCエポックミリ秒に変換する（DST収束2回） */
+/** 壁時計時刻をUTCへ変換し、DSTなどで実在しない時刻はNaNを返す。 */
 function zonedWallTimeToEpochMs(
 	y: number,
 	mo: number,
@@ -389,9 +393,13 @@ function zonedWallTimeToEpochMs(
 	const base = Date.UTC(y, mo - 1, d, h, mi, s, ms);
 	let guess = base;
 	for (let i = 0; i < 2; i++) {
-		const offsetMin = getTimeZoneOffsetMinutes(timeZone, guess);
-		guess = base - offsetMin * 60000;
+		const offsetSeconds = getTimeZoneOffsetSeconds(timeZone, guess);
+		guess = base - offsetSeconds * 1000;
 	}
+	// DSTの欠落時間帯では推定値が前後を往復するため、元の壁時計時刻に
+	// 戻ることを確認する。不一致は既存のパースエラー経路で扱う。
+	const roundTrip = guess + getTimeZoneOffsetSeconds(timeZone, guess) * 1000;
+	if (roundTrip !== base) return Number.NaN;
 	return guess;
 }
 
@@ -496,8 +504,11 @@ export interface DiscordTags {
 
 export interface TimestampOutputs {
 	isoUtc: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	isoLocal: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	rfc3339: string;
+	/** 表示タイムゾーンの現地日時が紀元前の場合は空文字。 */
 	wareki: string;
 	unixSeconds: string;
 	unixMilliseconds: string;
@@ -526,12 +537,15 @@ function formatFractional(remainderNanos: bigint): string {
 	return `.${padded}`;
 }
 
-function formatOffset(offsetMinutes: number): string {
-	const sign = offsetMinutes < 0 ? '-' : '+';
-	const abs = Math.abs(offsetMinutes);
-	const hh = String(Math.floor(abs / 60)).padStart(2, '0');
-	const mm = String(abs % 60).padStart(2, '0');
-	return `${sign}${hh}:${mm}`;
+function formatOffset(offsetSeconds: number): string {
+	const sign = offsetSeconds < 0 ? '-' : '+';
+	const abs = Math.abs(offsetSeconds);
+	const hh = String(Math.floor(abs / 3600)).padStart(2, '0');
+	const mm = String(Math.floor((abs % 3600) / 60)).padStart(2, '0');
+	const seconds = abs % 60;
+	// LMTなどの秒差を丸めず残す。秒0なら従来の ±HH:MM を維持する。
+	const ss = seconds === 0 ? '' : `:${String(seconds).padStart(2, '0')}`;
+	return `${sign}${hh}:${mm}${ss}`;
 }
 
 function formatInTimeZone(
@@ -543,6 +557,7 @@ function formatInTimeZone(
 	const dtf = new Intl.DateTimeFormat('en-US', {
 		timeZone: safeTz,
 		hourCycle: 'h23',
+		era: 'short',
 		year: 'numeric',
 		month: '2-digit',
 		day: '2-digit',
@@ -553,10 +568,13 @@ function formatInTimeZone(
 	const parts = dtf.formatToParts(new Date(epochMs));
 	const map: Record<string, string> = {};
 	for (const p of parts) map[p.type] = p.value;
+	// UTCでは1年でも、負オフセットの現地は紀元前になり得る。紀元年を誤表示しない。
+	if (map.era === 'BC') return '';
 	const hour = map.hour === '24' ? '00' : map.hour;
-	const offsetMinutes = getTimeZoneOffsetMinutes(safeTz, epochMs);
-	const offsetStr = safeTz === 'UTC' ? 'Z' : formatOffset(offsetMinutes);
-	return `${map.year}-${map.month}-${map.day}T${hour}:${map.minute}:${map.second}${fractional}${offsetStr}`;
+	const offsetSeconds = getTimeZoneOffsetSeconds(safeTz, epochMs);
+	const offsetStr = safeTz === 'UTC' ? 'Z' : formatOffset(offsetSeconds);
+	const year = map.year.padStart(4, '0');
+	return `${year}-${map.month}-${map.day}T${hour}:${map.minute}:${map.second}${fractional}${offsetStr}`;
 }
 
 function formatWareki(epochMs: number, timeZone: string): string {
@@ -645,7 +663,7 @@ export function formatTimestamp(
 		isoUtc,
 		isoLocal,
 		rfc3339,
-		wareki: formatWareki(epochMs, timeZone),
+		wareki: isoLocal === '' ? '' : formatWareki(epochMs, timeZone),
 		unixSeconds,
 		unixMilliseconds: epochMs.toString(),
 		discord: {

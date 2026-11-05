@@ -2,6 +2,7 @@
 // 単体実行: node --test tests/unit/bookmarklet.test.ts
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
 import {
 	beautifyJs,
 	buildExternalScriptSnippet,
@@ -98,19 +99,20 @@ test('buildExternalScriptSnippet: script要素生成コードを安全にエス�
 test('minifyJs: 行コメントを削除する', () => {
 	assert.equal(
 		minifyJs('alert(1); // コメント\nalert(2);'),
-		'alert(1); alert(2);',
+		'alert(1);\nalert(2);',
 	);
 });
 
 test('minifyJs: ブロックコメントを削除する', () => {
 	assert.equal(
 		minifyJs('alert(1); /* コメント\n複数行 */ alert(2);'),
-		'alert(1); alert(2);',
+		'alert(1);\nalert(2);',
 	);
 });
 
-test('minifyJs: 連続空白を単一空白に圧縮する', () => {
-	assert.equal(minifyJs('alert(1);\n\n   alert(2);'), 'alert(1); alert(2);');
+test('minifyJs: 水平空白は圧縮し、改行は保持する', () => {
+	assert.equal(minifyJs('alert(1);\n\n   alert(2);'), 'alert(1);\n\nalert(2);');
+	assert.equal(minifyJs('alert(1); \t  alert(2);'), 'alert(1); alert(2);');
 });
 
 test('minifyJs: 文字列内のコメント記号・空白は保持する', () => {
@@ -123,6 +125,88 @@ test('minifyJs: 文字列内のコメント記号・空白は保持する', () =
 		'alert("a /* not a comment */ b");',
 	);
 });
+
+// #589: 改行はASIの一部なので、構文だけでなく実行結果も確認する。
+// 実行するのはこのテスト内の固定コードのみ（製品側では入力を実行しない）。
+for (const lineBreak of ['\n', '\r\n', '\r', '\u2028', '\u2029']) {
+	test(`minifyJs: ASIの改行を保持する ${JSON.stringify(lineBreak)}`, () => {
+		const declarations = [
+			'const first = 1',
+			'const second = 2',
+			'first + second',
+		].join(lineBreak);
+		assert.equal(runInNewContext(minifyJs(declarations)), 3);
+
+		const returnCode = ['function value() { return', '42', '}', 'value()'].join(
+			lineBreak,
+		);
+		assert.equal(runInNewContext(minifyJs(returnCode)), undefined);
+
+		const lineComment = [
+			'const first = 1 // コメント',
+			'const second = 2',
+			'first + second',
+		].join(lineBreak);
+		assert.equal(runInNewContext(minifyJs(lineComment)), 3);
+		assert.ok(!minifyJs(lineComment).includes('コメント'));
+
+		const blockComment = [
+			'function value() { return /* コメント',
+			'*/ 42; } value()',
+		].join(lineBreak);
+		assert.equal(runInNewContext(minifyJs(blockComment)), undefined);
+	});
+}
+
+test('minifyJs: 改行の前後のインクリメントを別の文として保持する', () => {
+	assert.equal(
+		runInNewContext(
+			minifyJs('let first = 1\nlet second = 2\nfirst\n++second\nsecond'),
+		),
+		3,
+	);
+});
+
+test('minifyJs: コメント削除で隣接するトークンを結合しない', () => {
+	assert.equal(
+		runInNewContext(minifyJs('const/* コメント */value = 3; value')),
+		3,
+	);
+});
+
+for (const minify of [false, true]) {
+	for (const iife of [false, true]) {
+		test(`encodeBookmarklet: ASIと末尾行コメントを保持する minify=${minify} iife=${iife}`, () => {
+			const source =
+				'const first = 1 // コメント\nconst second = 2\nglobalThis.answer = first + second // 末尾';
+			const result = expectEncodeOk(
+				encodeBookmarklet(source, { minify, iife }),
+			);
+			const decoded = decodeURIComponent(
+				result.output.slice('javascript:'.length),
+			);
+			const context = { answer: '未実行' };
+			runInNewContext(decoded, context);
+			assert.equal(context.answer, 3);
+			if (!minify && !iife) assert.equal(decoded, source);
+			if (minify) assert.ok(!decoded.includes('コメント'));
+		});
+
+		test(`encodeBookmarklet: return直後の改行を保持する minify=${minify} iife=${iife}`, () => {
+			const source =
+				'function value() { return\n42\n}\nglobalThis.answer = value()';
+			const result = expectEncodeOk(
+				encodeBookmarklet(source, { minify, iife }),
+			);
+			const decoded = decodeURIComponent(
+				result.output.slice('javascript:'.length),
+			);
+			const context = { answer: '未実行' };
+			runInNewContext(decoded, context);
+			assert.equal(context.answer, undefined);
+		});
+	}
+}
 
 // ---------------------------------------------------------------------------
 // beautifyJs
@@ -184,7 +268,7 @@ test('encodeBookmarklet: minify=trueでコメント・空白が圧縮される',
 		}),
 	);
 	const decoded = decodeURIComponent(result.output.replace('javascript:', ''));
-	assert.equal(decoded, 'alert(1); alert(2);');
+	assert.equal(decoded, 'alert(1);\nalert(2);');
 });
 
 test('encodeBookmarklet: minify=falseでは元の書式のまま', () => {

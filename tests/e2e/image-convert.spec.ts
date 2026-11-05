@@ -66,6 +66,12 @@ test.describe('画像形式変換', () => {
 		).toBeVisible();
 	});
 
+	test('品質スライダーを可視ラベルの名前で取得できる', async ({ page }) => {
+		await input(page).setInputFiles(PNG);
+		await waitConverted(page);
+		await expect(page.getByRole('slider', { name: /^品質:/ })).toBeVisible();
+	});
+
 	test('PNG→JPEG が成功しダウンロードできる', async ({ page }) => {
 		await input(page).setInputFiles(PNG);
 		await waitConverted(page);

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 test.describe('ブックマークレット変換ツール（JS ⇔ Bookmarklet）', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
@@ -110,19 +110,107 @@ test.describe('ブックマークレット変換ツール（JS ⇔ Bookmarklet�
 		expect(decoded).toContain('s.src="https://example.com/a.js"');
 	});
 
-	test('ドラッグ&ドロップ用のブックマークリンクが表示されること', async ({
+	test('ドラッグ用リンクのhrefと転送内容が最新の出力と一致すること（#588）', async ({
 		page,
 		createToolPage,
 	}) => {
-		const toolPage = createToolPage('bookmarklet');
-		await toolPage.goto();
-
-		await page.getByLabel('JavaScript 入力').fill("alert('hello')");
-
+		await createToolPage('bookmarklet').goto();
+		const output = page.getByLabel('Bookmarklet 出力');
 		const dragLink = page.getByRole('link', { name: /ブックマークに追加/ });
-		await expect(dragLink).toBeVisible();
-		await expect(dragLink).toHaveAttribute('href', /^javascript:/);
-		await expect(dragLink).toHaveAttribute('draggable', 'true');
+
+		for (const source of ["alert('最初')", "alert('更新後')"]) {
+			await page.getByLabel('JavaScript 入力').fill(source);
+			const expected = `javascript:${encodeURIComponent(`(() => {\n${source}\n})();`)}`;
+			await expect(output).toHaveValue(expected);
+			await expect(dragLink).toBeVisible();
+			await expect(dragLink).toHaveAttribute('href', expected);
+			expect(
+				await dragLink.evaluate((link) => (link as HTMLAnchorElement).href),
+			).toBe(expected);
+			await expect(dragLink).toHaveAttribute('draggable', 'true');
+
+			const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+			try {
+				await dragLink.dispatchEvent('dragstart', { dataTransfer });
+				expect(
+					await dataTransfer.evaluate((data) => ({
+						uri: data.getData('text/uri-list'),
+						text: data.getData('text/plain'),
+					})),
+				).toEqual({ uri: expected, text: expected });
+			} finally {
+				await dataTransfer.dispose();
+			}
+		}
+
+		await page.getByRole('button', { name: 'クリア', exact: true }).click();
+		await expect(dragLink).toHaveCount(0);
+	});
+
+	test('生成・ドラッグ・クリック・Enterで利用者コードを実行しないこと（#588）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('bookmarklet').goto();
+		const source =
+			'document.documentElement.dataset.bookmarkletExecuted = "yes";';
+		await page.getByLabel('JavaScript 入力').fill(source);
+		const expected = `javascript:${encodeURIComponent(`(() => {\n${source}\n})();`)}`;
+		await expect(page.getByLabel('Bookmarklet 出力')).toHaveValue(expected);
+		const dragLink = page.getByRole('link', { name: /ブックマークに追加/ });
+		const root = page.locator('html');
+		await expect(root).not.toHaveAttribute('data-bookmarklet-executed', 'yes');
+
+		const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+		try {
+			await dragLink.dispatchEvent('dragstart', { dataTransfer });
+		} finally {
+			await dataTransfer.dispose();
+		}
+		await dragLink.click();
+		await dragLink.focus();
+		await dragLink.press('Enter');
+		await dragLink.click({ button: 'middle' });
+
+		// CSPによるブロックだけで成功しないよう、イベントの既定動作防止も検証する。
+		expect(
+			await dragLink.evaluate((link) =>
+				['click', 'auxclick'].map((type) => {
+					const event = new MouseEvent(type, {
+						bubbles: true,
+						cancelable: true,
+						button: type === 'auxclick' ? 1 : 0,
+					});
+					link.dispatchEvent(event);
+					return event.defaultPrevented;
+				}),
+			),
+		).toEqual([true, true]);
+		await expect(root).not.toHaveAttribute('data-bookmarklet-executed', 'yes');
+	});
+
+	test('MinifyのON/OFFでASIの改行と行コメント境界を保持すること（#589）', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('bookmarklet').goto();
+		const source =
+			'const first = 1 // コメント\nconst second = 2\nalert(first + second)';
+		await page.getByLabel('JavaScript 入力').fill(source);
+		const output = page.getByLabel('Bookmarklet 出力');
+		await expect(output).toHaveValue(/%E3%82%B3/);
+		const original = await output.inputValue();
+
+		await page.getByRole('switch', { name: 'Minify' }).click();
+		await expect(output).not.toHaveValue(original);
+		const decoded = decodeURIComponent(
+			(await output.inputValue()).slice('javascript:'.length),
+		);
+		expect(decoded).toContain('const first = 1\nconst second = 2\nalert');
+		expect(decoded).not.toContain('コメント');
+
+		await page.getByRole('switch', { name: 'Minify' }).click();
+		await expect(output).toHaveValue(original);
 	});
 
 	test('不正なURIエンコードでエラーが表示されること', async ({

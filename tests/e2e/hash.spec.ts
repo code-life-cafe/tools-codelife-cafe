@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 // tests/e2e/fixtures/hash-sample.txt（scripts/generate-fixtures.ts で生成）の既知ハッシュ値
 const FIXTURE = {
@@ -15,7 +15,149 @@ const ABC_SHA256 =
 const KONNICHIWA_SHA256 =
 	'125aeadf27b0459b8760c13a3d80912dfa8a81a68261906f60d87f4a0268646c';
 
+/** 計算自体は本物を使い、次のSHA-256の完了だけを明示的に保留する。 */
+async function pauseNextSha256(page: import('@playwright/test').Page) {
+	await page.evaluate(() => {
+		const digest = crypto.subtle.digest.bind(crypto.subtle);
+		crypto.subtle.digest = async (algorithm, data) => {
+			const result = await digest(algorithm, data);
+			if (algorithm === 'SHA-256') {
+				crypto.subtle.digest = digest;
+				document.documentElement.dataset.hashPaused = 'true';
+				await new Promise<void>((resolve) => {
+					window.addEventListener('resume-hash', () => resolve(), {
+						once: true,
+					});
+				});
+			}
+			return result;
+		};
+	});
+}
+
+async function resumeHash(page: import('@playwright/test').Page) {
+	await page.evaluate(async () => {
+		window.dispatchEvent(new Event('resume-hash'));
+		// Promiseの継続とReactの描画が済んでから、古い結果の混入を確認する。
+		await new Promise<void>((resolve) => {
+			requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+		});
+	});
+}
+
 test.describe('Hash Generator Tool', () => {
+	for (const text of ['', 'abc']) {
+		test(`ファイル→テキスト（${text || '空欄'}）→ファイルで結果と照合が復帰する`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			await page.getByRole('tab', { name: 'ファイル' }).click();
+			await page.getByTestId('hash-file-input').setInputFiles(FIXTURE.path);
+			const result = page.getByTestId('hash-result-sha256');
+			const verdict = page.getByTestId('hash-verify-result');
+			await expect(result).toContainText(FIXTURE.sha256);
+			await page
+				.getByLabel('期待値との照合', { exact: false })
+				.fill(FIXTURE.sha256);
+			await expect(verdict).toHaveText('一致（SHA-256）');
+
+			await page.getByRole('tab', { name: 'テキスト' }).click();
+			await page.getByLabel('ハッシュ計算するテキスト').fill(text);
+			if (text) {
+				await expect(result).toContainText(ABC_SHA256);
+				await expect(verdict).toHaveText('不一致（SHA-256）');
+			} else {
+				await expect(result).not.toContainText(FIXTURE.sha256);
+				await expect(verdict).toContainText('計算結果を待っています');
+			}
+
+			await page.getByRole('tab', { name: 'ファイル' }).click();
+			await expect(
+				page.getByTitle('hash-sample.txt', { exact: true }),
+			).toBeVisible();
+			await expect(result).toContainText(FIXTURE.sha256);
+			await expect(verdict).toHaveText('一致（SHA-256）');
+			await page.getByRole('button', { name: '選択をクリア' }).click();
+			await expect(result).not.toContainText(FIXTURE.sha256);
+			await expect(verdict).toContainText('計算結果を待っています');
+			await page.getByRole('tab', { name: 'テキスト' }).click();
+			await page.getByRole('tab', { name: 'ファイル' }).click();
+			await expect(
+				page.getByTitle('hash-sample.txt', { exact: true }),
+			).toHaveCount(0);
+			await expect(result).toContainText('—');
+		});
+	}
+
+	test('計算中のファイルからテキストへ切り替えても古い結果が混ざらず、ファイルへ復帰できる', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('hash').goto();
+		await pauseNextSha256(page);
+		await page.getByRole('tab', { name: 'ファイル' }).click();
+		await page.getByTestId('hash-file-input').setInputFiles(FIXTURE.path);
+		await expect(page.locator('html')).toHaveAttribute(
+			'data-hash-paused',
+			'true',
+		);
+		await page.getByRole('tab', { name: 'テキスト' }).click();
+		await page.getByLabel('ハッシュ計算するテキスト').fill('abc');
+		const result = page.getByTestId('hash-result-sha256');
+		await expect(result).toContainText(ABC_SHA256);
+		await resumeHash(page);
+		await expect(result).toContainText(ABC_SHA256);
+		await page.getByRole('tab', { name: 'ファイル' }).click();
+		await expect(result).toContainText(FIXTURE.sha256);
+	});
+
+	test('テキスト計算中にファイルへ戻っても、遅れて完了したテキスト結果が混ざらない', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('hash').goto();
+		await page.getByRole('tab', { name: 'ファイル' }).click();
+		await page.getByTestId('hash-file-input').setInputFiles(FIXTURE.path);
+		const result = page.getByTestId('hash-result-sha256');
+		await expect(result).toContainText(FIXTURE.sha256);
+		await pauseNextSha256(page);
+		await page.getByRole('tab', { name: 'テキスト' }).click();
+		await page.getByLabel('ハッシュ計算するテキスト').fill('abc');
+		await expect(page.locator('html')).toHaveAttribute(
+			'data-hash-paused',
+			'true',
+		);
+		await page.getByRole('tab', { name: 'ファイル' }).click();
+		await expect(result).toContainText(FIXTURE.sha256);
+		await resumeHash(page);
+		await expect(result).toContainText(FIXTURE.sha256);
+	});
+
+	test('計算中のファイルを解除すると、完了後も結果と照合は復活しない', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('hash').goto();
+		await pauseNextSha256(page);
+		await page.getByRole('tab', { name: 'ファイル' }).click();
+		await page.getByTestId('hash-file-input').setInputFiles(FIXTURE.path);
+		await page
+			.getByLabel('期待値との照合', { exact: false })
+			.fill(FIXTURE.sha256);
+		await expect(page.locator('html')).toHaveAttribute(
+			'data-hash-paused',
+			'true',
+		);
+		await page.getByRole('button', { name: '選択をクリア' }).click();
+		await resumeHash(page);
+		await expect(page.getByTestId('hash-result-sha256')).toContainText('—');
+		await expect(page.getByTestId('hash-verify-result')).toContainText(
+			'計算結果を待っています',
+		);
+		await expect(page.getByRole('progressbar')).toHaveCount(0);
+	});
+
 	test('ページが正しく表示されること', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('hash');
 		await toolPage.goto();

@@ -53,6 +53,16 @@ test.describe('画像テキスト挿入', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
+	test('フォントサイズスライダーを可視ラベルの名前で取得できる', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		await addLayer(page);
+		await expect(
+			page.getByRole('slider', { name: /^フォントサイズ:/ }),
+		).toBeVisible();
+	});
+
 	test('レイヤー追加でテキストが描画される', async ({ page }) => {
 		await uploadSample(page);
 		await addLayer(page);

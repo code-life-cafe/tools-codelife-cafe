@@ -130,6 +130,7 @@ const GPS_TAGS: Record<number, TagDef> = {
 
 const EXIF_ID = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
 const XMP_ID_STR = 'http://ns.adobe.com/xap/1.0/\0';
+const EXTENDED_XMP_ID_STR = 'http://ns.adobe.com/xmp/extension/\0';
 const IPTC_ID_STR = 'Photoshop 3.0\0';
 
 function matchBytes(
@@ -687,7 +688,10 @@ function isExifApp1(data: Uint8Array, payloadStart: number): boolean {
 }
 
 function isXmpApp1(data: Uint8Array, payloadStart: number): boolean {
-	return matchAscii(data, payloadStart, XMP_ID_STR);
+	return (
+		matchAscii(data, payloadStart, XMP_ID_STR) ||
+		matchAscii(data, payloadStart, EXTENDED_XMP_ID_STR)
+	);
 }
 
 function isIptcApp13(data: Uint8Array, payloadStart: number): boolean {

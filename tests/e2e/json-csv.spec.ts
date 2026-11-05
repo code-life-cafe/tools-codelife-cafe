@@ -12,6 +12,121 @@ const SAMPLE_EXPECTED_CSV = [
 ].join('\n');
 
 test.describe('JSON-CSV Converter Tool', () => {
+	test('巨大な配列添字を拒否し、入力を修正すると復帰すること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('json-csv').goto();
+		await page.getByRole('tab', { name: 'CSV → JSON' }).click();
+		await page
+			.getByRole('switch', { name: 'ドット記法キーをネスト復元' })
+			.click();
+		for (const key of ['a.4294967294', 'a.100000']) {
+			await page.getByLabel('CSV入力').fill(`${key}\nx`);
+			await expect(page.getByTestId('json-csv-error')).toContainText(
+				'復元後の配列長が上限（100000要素）を超えます。',
+			);
+			await expect(
+				page.getByRole('button', { name: 'ダウンロード' }),
+			).toHaveCount(0);
+		}
+		await page.getByLabel('CSV入力').fill('a.2\nx');
+		await expect(page.getByLabel('JSON出力')).toHaveValue(
+			JSON.stringify([{ a: [null, null, 'x'] }], null, 2),
+		);
+		await expect(page.getByTestId('json-csv-error')).toHaveCount(0);
+	});
+
+	test('配列スロット合計を超えるCSVでエラー表示・出力破棄・復帰ができること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const pageErrors: string[] = [];
+		page.on('pageerror', (error) => pageErrors.push(error.message));
+		await createToolPage('json-csv').goto();
+		await page.getByRole('tab', { name: 'CSV → JSON' }).click();
+		await page
+			.getByRole('switch', { name: 'ドット記法キーをネスト復元' })
+			.click();
+		const input = page.getByLabel('CSV入力');
+		const output = page.getByLabel('JSON出力');
+		await input.fill('a.0\n以前の結果');
+		await expect(output).toHaveValue(/以前の結果/);
+
+		await input.fill(`a.99999\n${'x\n'.repeat(500)}`);
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'復元後の配列スロット合計が上限（1000000要素）を超えます。',
+		);
+		// エラー時は出力欄がエラー表示に置き換わる（既存設計）ため、古い出力が残らないことを要素の不在で確認する。
+		await expect(output).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'コピー', exact: true }),
+		).toHaveCount(0);
+
+		await input.fill('a.2\n復帰後の結果');
+		await expect(output).toHaveValue(
+			JSON.stringify([{ a: [null, null, '復帰後の結果'] }], null, 2),
+		);
+		await expect(page.getByTestId('json-csv-error')).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toBeVisible();
+		expect(pageErrors).toEqual([]);
+	});
+
+	test('変換中の例外を日本語で表示し、古い出力を破棄して復帰できること', async ({
+		page,
+		createToolPage,
+	}) => {
+		const pageErrors: string[] = [];
+		page.on('pageerror', (error) => pageErrors.push(error.message));
+		await createToolPage('json-csv').goto();
+		await page.getByRole('tab', { name: 'CSV → JSON' }).click();
+		const input = page.getByLabel('CSV入力');
+		const output = page.getByLabel('JSON出力');
+		await input.fill('a\n以前の結果');
+		await expect(output).toHaveValue(/以前の結果/);
+
+		// 実際に巨大文字列を生成せず、変換結果のシリアライズだけを一度失敗させる。
+		await page.evaluate(() => {
+			const stringify = JSON.stringify;
+			JSON.stringify = (value, replacer, space) => {
+				if (
+					space === 2 &&
+					Array.isArray(value) &&
+					value[0]?.a === '例外テスト'
+				) {
+					JSON.stringify = stringify;
+					throw new RangeError('Invalid string length');
+				}
+				if (typeof replacer === 'function') {
+					return stringify(value, replacer, space);
+				}
+				return stringify(value, replacer, space);
+			};
+		});
+		await input.fill('a\n例外テスト');
+		await expect(page.getByTestId('json-csv-error')).toContainText(
+			'変換に失敗しました。入力データや変換設定を確認してください。',
+		);
+		// エラー時は出力欄がエラー表示に置き換わる（既存設計）ため、古い出力が残らないことを要素の不在で確認する。
+		await expect(output).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'ダウンロード' }),
+		).toHaveCount(0);
+		await expect(
+			page.getByRole('button', { name: 'コピー', exact: true }),
+		).toHaveCount(0);
+
+		await input.fill('a\n復帰後の結果');
+		await expect(output).toHaveValue(/復帰後の結果/);
+		await expect(page.getByTestId('json-csv-error')).toHaveCount(0);
+		expect(pageErrors).toEqual([]);
+	});
+
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
 		const toolPage = createToolPage('json-csv');
 		await toolPage.goto();

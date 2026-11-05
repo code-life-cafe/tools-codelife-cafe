@@ -1,7 +1,7 @@
 import type { WebMcpToolAnnotations } from './tool-factory.ts';
 
 /** 宣言的パラメータ定義でサポートするプリミティブ型 */
-export type McpParamType = 'string' | 'number' | 'boolean';
+export type McpParamType = 'string' | 'number' | 'integer' | 'boolean';
 
 export interface McpParamDef {
 	type: McpParamType;
@@ -9,8 +9,12 @@ export interface McpParamDef {
 	description: string;
 	/** 省略時は true（必須項目） */
 	required?: boolean;
-	/** type: 'string' の場合のみ有効な列挙候補 */
-	enum?: readonly string[];
+	/** 文字列または数値の列挙候補 */
+	enum?: readonly (string | number)[];
+	/** type: 'number' / 'integer' の場合のみ有効な下限（含む） */
+	minimum?: number;
+	/** type: 'number' / 'integer' の場合のみ有効な上限（含む） */
+	maximum?: number;
 	/** required: false のとき、値省略時に補完するデフォルト値 */
 	default?: string | number | boolean;
 	/** type: 'string' の場合のみ有効な最大文字数 */
