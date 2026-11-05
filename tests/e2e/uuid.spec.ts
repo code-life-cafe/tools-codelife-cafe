@@ -1,7 +1,130 @@
-import { expect, test } from './fixtures/base';
+import { expect, test } from './fixtures/base.ts';
 
 const UUID_RE =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+test.describe('生成済みIDの種類と表示・コピー', () => {
+	test.beforeEach(async ({ page }) => {
+		await page.addInitScript(() => {
+			let copied = '';
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						copied = text;
+					},
+					readText: async () => copied,
+				},
+			});
+			// 大小文字とハイフンを必ず含むnanoidに固定し、乱数による見逃しを防ぐ。
+			const original = crypto.getRandomValues.bind(crypto);
+			let sequence = 0;
+			Object.defineProperty(crypto, 'getRandomValues', {
+				configurable: true,
+				value: (bytes: Uint8Array<ArrayBuffer>) => {
+					if (!(bytes instanceof Uint8Array) || bytes.length !== 21) {
+						return original(bytes);
+					}
+					const pattern = [10, 36, 62, 63, 0]; // Aa-_0
+					for (let i = 0; i < bytes.length; i++) {
+						bytes[i] = pattern[i % pattern.length];
+					}
+					bytes[20] = sequence++ % 10;
+					return bytes;
+				},
+			});
+		});
+	});
+
+	for (const uuidKind of ['UUID v4', 'UUID v7']) {
+		test(`nanoidから${uuidKind}へ切り替えても保存済みオプションで変換されない`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.addInitScript(() => {
+				localStorage.setItem(
+					'tool_settings_uuid',
+					JSON.stringify({
+						kind: 'nanoid',
+						count: 2,
+						uppercase: true,
+						hyphens: false,
+					}),
+				);
+			});
+			await createToolPage('uuid').goto();
+			const results = page.getByTestId('id-result-list').locator('li > span');
+			const expected = ['Aa-_0Aa-_0Aa-_0Aa-_00', 'Aa-_0Aa-_0Aa-_0Aa-_01'];
+			await expect(results).toHaveText(expected);
+			await expect(page.getByLabel(/生成件数/)).toHaveValue('2');
+			await page.getByLabel('種類', { exact: true }).click();
+			await page.getByRole('option', { name: uuidKind, exact: true }).click();
+			await expect(
+				page.getByRole('switch', { name: '大文字で表示' }),
+			).toBeChecked();
+			await expect(
+				page.getByRole('switch', { name: 'ハイフンあり' }),
+			).not.toBeChecked();
+			await expect(results).toHaveText(expected);
+			await page
+				.getByTestId('id-result-list')
+				.locator('li')
+				.first()
+				.getByRole('button')
+				.click();
+			await expect
+				.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+				.toBe(expected[0]);
+			await page.getByTestId('id-copy-all').getByRole('button').click();
+			await expect
+				.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+				.toBe(expected.join('\n'));
+			await page.getByRole('switch', { name: '大文字で表示' }).click();
+			await expect(results).toHaveText(expected);
+			await page.getByRole('switch', { name: 'ハイフンあり' }).click();
+			await expect(results).toHaveText(expected);
+			await page.getByLabel('種類', { exact: true }).click();
+			await page.getByRole('option', { name: 'nanoid', exact: true }).click();
+			await expect(results).toHaveText(expected);
+		});
+	}
+
+	test('UUID結果は種類切替で表示・コピーが変わらず、再生成時に結果の種類が更新される', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('uuid').goto();
+		const list = page.getByTestId('id-result-list');
+		const results = list.locator('li > span');
+		await expect(results).toHaveCount(10);
+		await page.getByRole('switch', { name: '大文字で表示' }).click();
+		await page.getByRole('switch', { name: 'ハイフンあり' }).click();
+		await expect(results.first()).toHaveText(/^[0-9A-F]{32}$/);
+		const expected = await results.allTextContents();
+		await page.getByLabel('種類', { exact: true }).click();
+		await page.getByRole('option', { name: 'nanoid', exact: true }).click();
+		await expect(results).toHaveText(expected);
+		await list.locator('li').first().getByRole('button').click();
+		await expect
+			.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+			.toBe(expected[0]);
+		await page.getByTestId('id-copy-all').getByRole('button').click();
+		await expect
+			.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+			.toBe(expected.join('\n'));
+		await page.getByLabel(/生成件数/).fill('2');
+		await page.getByRole('button', { name: '生成する' }).click();
+		await expect(results).toHaveText([
+			'Aa-_0Aa-_0Aa-_0Aa-_00',
+			'Aa-_0Aa-_0Aa-_0Aa-_01',
+		]);
+		await page.getByLabel('種類', { exact: true }).click();
+		await page.getByRole('option', { name: 'UUID v4', exact: true }).click();
+		await page.getByRole('button', { name: '生成する' }).click();
+		await expect(results).toHaveCount(2);
+		await expect(results.first()).toHaveText(/^[0-9A-F]{32}$/);
+	});
+});
 
 test.describe('UUID / ULID 生成ツール', () => {
 	test('ページが正しく表示されること', async ({ createToolPage }) => {
