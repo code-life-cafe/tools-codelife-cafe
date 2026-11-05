@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base.ts';
+import { expect, test } from './fixtures/base';
 
 test.describe('Character Counter', () => {
 	test('loads page and shows character count UI', async ({

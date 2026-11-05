@@ -186,6 +186,107 @@ test('getXEffectiveCount: 空文字は0字として扱う', () => {
 	assert.strictEqual(getXEffectiveCount(''), 0);
 });
 
+test('getXEffectiveCount: 強制u版でも日本語・絵文字140/141文字の境界がv版と一致する（F1）', () => {
+	for (const char of ['あ', '👨‍👩‍👧‍👦', '🇯🇵', '1️⃣', '🙋🏽']) {
+		for (const [length, count, remaining, status] of [
+			[140, 280, 0, 'warning'],
+			[141, 282, -2, 'over'],
+		] as const) {
+			const text = char.repeat(length);
+			const fallbackCount = getXEffectiveCount(text, {
+				forceEmojiFallback: true,
+			});
+			assert.strictEqual(fallbackCount, count, `${char} × ${length}`);
+			assert.strictEqual(fallbackCount, getXEffectiveCount(text));
+			const progress = getServiceProgress(fallbackCount, 280);
+			assert.strictEqual(progress.remaining, remaining);
+			assert.strictEqual(progress.status, status);
+		}
+	}
+});
+
+test('getXEffectiveCount: 強制u版のZWJ・国旗・キーキャップ・修飾子・VS16・タグ列は重み2（F1）', () => {
+	for (const emoji of [
+		'😀',
+		'🙋🏽',
+		'👩🏽‍💻',
+		'👨‍🎤',
+		'👨‍👩‍👧‍👦',
+		'🇯🇵',
+		'🇺🇸',
+		...Array.from('#*0123456789').flatMap((char) => [
+			`${char}\uFE0F\u20E3`,
+			`${char}\u20E3`,
+		]),
+		'©️',
+		'®️',
+		'❤️',
+		'🏳️‍🌈',
+		'🏴\u{e0067}\u{e0062}\u{e0065}\u{e006e}\u{e0067}\u{e007f}',
+	]) {
+		for (const length of [1, 2]) {
+			const text = emoji.repeat(length);
+			const fallbackCount = getXEffectiveCount(text, {
+				forceEmojiFallback: true,
+			});
+			assert.strictEqual(fallbackCount, 2 * length, text);
+			assert.strictEqual(fallbackCount, getXEffectiveCount(text), text);
+		}
+	}
+});
+
+test('getXEffectiveCount: 強制u版でも通常文字・NFC・URL前後の分離を維持する（F1）', () => {
+	for (const [text, expected] of [
+		['', 0],
+		['©® #*0123456789\n', 16],
+		['cafe\u0301', 4],
+		['か\u3099', 2],
+		['a\u200db', 3],
+		['👨‍👩‍👧‍👦 https://example.com あ', 29],
+		['👨https://example.com\u200d👩', 28],
+	] as const) {
+		const fallbackCount = getXEffectiveCount(text, {
+			forceEmojiFallback: true,
+		});
+		assert.strictEqual(fallbackCount, expected, text);
+		assert.strictEqual(fallbackCount, getXEffectiveCount(text), text);
+	}
+});
+
+test('getXEffectiveCount: v非対応時も遅延生成したu版を再利用して計算できる（F1）', async (t) => {
+	const constructedFlags: string[] = [];
+	t.mock.method(
+		globalThis,
+		'RegExp',
+		new Proxy(RegExp, {
+			construct(target, args) {
+				const flags = args[1] ?? '';
+				constructedFlags.push(flags);
+				if (flags.includes('v')) {
+					throw new SyntaxError('vフラグ非対応');
+				}
+				return Reflect.construct(target, args);
+			},
+		}),
+	);
+	const isolated = await import(
+		new URL('../../src/lib/tools/char-count.ts?unsupported-v', import.meta.url)
+			.href
+	);
+	assert.deepStrictEqual(constructedFlags, []);
+	assert.strictEqual(isolated.countChars('あいう').charsWithSpaces, 3);
+	assert.strictEqual(isolated.getXEffectiveCount('👨‍👩‍👧‍👦'), 2);
+	assert.strictEqual(isolated.getXEffectiveCount('🇯🇵1️⃣🙋🏽'), 6);
+	for (const length of [140, 141]) {
+		const text = 'あ'.repeat(length);
+		assert.deepStrictEqual(
+			isolated.getServiceCounts(text),
+			getServiceCounts(text),
+		);
+	}
+	assert.deepStrictEqual(constructedFlags, ['gv', 'gu']);
+});
+
 test('getServiceCounts: XのURL換算は他サービスのgraphemeカウントに影響しない', () => {
 	const text = 'https://example.com/path を共有';
 	const services = getServiceCounts(text);

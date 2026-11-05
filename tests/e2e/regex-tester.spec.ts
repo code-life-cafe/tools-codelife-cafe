@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base.ts';
+import { expect, test } from './fixtures/base';
 
 test.describe('Regex Tester Tool', () => {
 	test('零幅一致の件数と位置がUnicodeフラグに従う（#621）', async ({

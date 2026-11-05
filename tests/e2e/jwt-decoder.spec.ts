@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures/base.ts';
+import { expect, test } from './fixtures/base';
 
 const SAMPLE_JWT =
 	'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoi5bGx55Sw5aSq6YOOIiwicm9sZSI6IueuoeeQhuiAhSJ9.signature';
