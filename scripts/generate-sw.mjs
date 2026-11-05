@@ -52,6 +52,19 @@ try {
 } catch {
 	// _astro/ が存在しない場合は空配列のまま続行
 }
+// 未訪問の地域もオフラインで検索できるよう、配信済みの上2桁チャンクを保存する。
+// 他の静的データやモデルは一括保存の対象に広げない。
+let zipcodeFiles = [];
+try {
+	zipcodeFiles = (
+		await readdir(join(DIST, 'data/zipcode'), { withFileTypes: true })
+	)
+		.filter((entry) => entry.isFile() && /^\d{2}\.json$/.test(entry.name))
+		.map((entry) => entry.name)
+		.sort();
+} catch (error) {
+	if (error.code !== 'ENOENT') throw error;
+}
 // zxing-wasm（QRコード読み取り、/qr-reader 専用）の WASM チャンクも、AVIF/HEICと同様に
 // precache 対象に含める。OfflineBadge の「全ツールをオフラインで利用可能にする」という
 // 前提に合わせ、オフライン化前に一度も /qr-reader を開いていなくても初回デコードが
@@ -59,9 +72,17 @@ try {
 const assetURLs = [
 	...assetFiles.map((f) => `/_astro/${f}`),
 	...listAllowedRuntimePaths(),
+	...zipcodeFiles.map((f) => `/data/zipcode/${f}`),
 ];
 
-// ページHTML内容 + アセットURLからキャッシュバージョンハッシュを計算（内容変更時に自動失効）
+// 固定URLの郵便番号データも、内容変更時に古いキャッシュが失効するようハッシュに含める。
+const zipcodeContents = await Promise.all(
+	zipcodeFiles.map(
+		async (file) =>
+			`${file}\n${await readFile(join(DIST, 'data/zipcode', file), 'utf8')}`,
+	),
+);
+// ページHTML・郵便番号データ内容 + アセットURLからキャッシュバージョンハッシュを計算
 const pageContents = await Promise.all(
 	pageURLs.map(async (url) => {
 		const filePath =
@@ -76,7 +97,7 @@ const pageContents = await Promise.all(
 	}),
 );
 const hash = createHash('md5')
-	.update([...pageContents, ...assetURLs].sort().join('\n'))
+	.update([...pageContents, ...zipcodeContents, ...assetURLs].sort().join('\n'))
 	.digest('hex')
 	.slice(0, 8);
 

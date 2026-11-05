@@ -51,7 +51,9 @@ self.addEventListener('install', (event) => {
 			caches
 				.open(CACHE_NAME)
 				.then((cache) =>
-					Promise.allSettled(MIN_ASSETS.map((url) => fetchAndCache(cache, url))),
+					Promise.allSettled(
+						MIN_ASSETS.map((url) => fetchAndCache(cache, url)),
+					),
 				),
 		]),
 	);
@@ -63,7 +65,10 @@ self.addEventListener('activate', (event) => {
 			.keys()
 			.then((names) =>
 				Promise.all(
-					names.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n)),
+					// OCR・文字起こしなど、別用途のキャッシュは保持する。
+					names
+						.filter((n) => n.startsWith('cl-tools-') && n !== CACHE_NAME)
+						.map((n) => caches.delete(n)),
 				),
 			)
 			.then(() => self.clients.claim()),
@@ -204,14 +209,22 @@ self.addEventListener('fetch', (event) => {
 				})
 				.catch(async () => {
 					const cache = await caches.open(CACHE_NAME);
-					// trailing slash の有無を両方試みる
-					const withSlash = reqUrl.endsWith('/') ? reqUrl : reqUrl + '/';
-					const withoutSlash = reqUrl.endsWith('/')
-						? reqUrl.slice(0, -1)
-						: reqUrl;
+					// スラッシュはpathnameだけで正規化し、クエリ値には触れない。
+					const withSlash = url.pathname.endsWith('/')
+						? url.pathname
+						: `${url.pathname}/`;
+					const withoutSlash = withSlash.slice(0, -1) || '/';
 					const matched =
-						(await cache.match(withSlash, { ignoreVary: true })) ||
-						(await cache.match(withoutSlash, { ignoreVary: true })) ||
+						(await cache.match(reqUrl, { ignoreVary: true })) ||
+						(await cache.match(withSlash + url.search, { ignoreVary: true })) ||
+						(await cache.match(withoutSlash + url.search, {
+							ignoreVary: true,
+						})) ||
+						// ナビゲーションだけ、クエリなしのプリキャッシュHTMLも使う。
+						// Responseを直接返すため、アドレスバーの設定クエリは保持される。
+						(event.request.mode === 'navigate' &&
+							((await cache.match(withSlash, { ignoreVary: true })) ||
+								(await cache.match(withoutSlash, { ignoreVary: true })))) ||
 						(await cache.match('/offline/', { ignoreVary: true }));
 					return stripRedirect(matched);
 				}),
