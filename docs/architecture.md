@@ -104,13 +104,13 @@ Service Worker（`sw.js`）はビルド時に自動生成されます。
    - プレースホルダー（`__HASH__`, `/* __ALL_PAGES__ */`, `/* __ALL_ASSETS__ */`）を含んだ Service Worker テンプレートとして管理されます。
 2. **ビルドフェーズ (`npm run build`):**
    - `astro build` 実行後、ポストビルドスクリプト `scripts/generate-sw.mjs` が自動起動します。
-   - `dist/` ディレクトリを走査し、全ページ（`/` およびツール個別ページ）と、`dist/_astro/` 配下の全静的アセット（JS, CSS, 画像など）、および文字起こしマニフェストに基づく ONNX Runtime の配信パス（`listAllowedRuntimePaths()`）のURL一覧を収集します。
+   - `dist/` ディレクトリを走査し、全ページ（`/` およびツール個別ページ）と、`dist/_astro/` 配下の全静的アセット（JS, CSS, 画像など）、文字起こしマニフェストに基づく ONNX Runtime の配信パス（`listAllowedRuntimePaths()`）、および郵便番号検索のチャンク（`dist/data/zipcode/NN.json`）のURL一覧を収集します。郵便番号チャンクはURLが固定のため、内容も `CACHE_NAME` のハッシュに含めます。
    - 収集したコンテンツのハッシュ値を計算して `CACHE_NAME`（`cl-tools-[hash]`）を作成します。
    - プレースホルダーを置換し、最終的な `dist/sw.js` を生成します。
 
 ### 4.2 キャッシュ更新ポリシー
 - 配信されたアセットファイルにはビルド時に一意のハッシュが含まれており、新しいデプロイが行われると、`generate-sw.mjs` が計算する `CACHE_NAME` のハッシュも変化します。
-- Service Worker の `activate` イベント時に、古いハッシュのキャッシュはすべて自動削除され、古いキャッシュの滞留を防止します。
+- Service Worker の `activate` イベント時に、`cl-tools-` で始まる古いハッシュのキャッシュを自動削除し、古いキャッシュの滞留を防止します。OCR言語データ（`ocr-models-v1`）など別用途のキャッシュは削除しません。
 - Service Worker のインストール（install）時は最小限のアセット（`MIN_ASSETS`）のみをキャッシュし、全ページ・全静的アセット（`ALL_PAGES` / `ALL_ASSETS`）の完全なプリキャッシュはページ側から `PRECACHE_ALL` メッセージを受信した際に実行されます。
 - 静的アセット（`/_astro/`、`/vendor/onnx-wasm/`、画像・フォント・CSS・JS・JSON・webmanifest等の拡張子）は **Cache First** でキャッシュから即座に応答します。
 - ページ要求（ブラウザナビゲーションや拡張子のないパス）は **Network First** で処理され、成功したナビゲーションをキャッシュし、オフライン時はキャッシュ、さらに `/offline/` フォールバックページへと順に解決します（その他のリクエストも Network First でキャッシュへフォールバック）。
