@@ -86,6 +86,7 @@ test('一括保存後、未訪問の階層下ページ・郵便番号検索を�
 		});
 		expect(requests).not.toContain(nested);
 		expect(requests).not.toContain('/zipcode/');
+		expect(requests).not.toContain('/json-formatter/');
 		expect(requests).not.toContain('/data/zipcode/10.json');
 		expect(
 			await page.evaluate((url) => caches.match(url).then(Boolean), nested),
@@ -173,6 +174,29 @@ test('一括保存後、未訪問の階層下ページ・郵便番号検索を�
 			await expect(
 				page.getByText('東京都千代田区千代田', { exact: true }),
 			).toBeVisible();
+		});
+		await test.step('#630: 設定共有URLも保存済みページで開き、設定クエリを保持する', async () => {
+			const settings = encodeURIComponent(
+				Buffer.from(JSON.stringify({ indent: '4' })).toString('base64'),
+			);
+			const shared = `/json-formatter/?settings=${settings}`;
+			expect(cached).toContainEqual({
+				path: '/json-formatter/',
+				redirected: false,
+			});
+			await page.goto(shared);
+			await expect(page).toHaveURL(`${origin}${shared}`);
+			await expect(
+				page.locator('astro-island[ssr][client="load"]'),
+			).toHaveCount(0);
+			const indent = page.getByLabel('インデント:', { exact: true });
+			await expect(indent).toHaveText('4スペース');
+			await page.locator('#json-input-textarea').fill('{"a":1}');
+			await page.getByRole('button', { name: '整形', exact: true }).click();
+			await expect
+				.poll(() => page.locator('pre').textContent())
+				.toBe('{\n    "a": 1\n}');
+			await expect(page).toHaveURL(`${origin}${shared}`);
 		});
 		await page.goto(nested);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
