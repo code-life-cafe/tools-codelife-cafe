@@ -331,6 +331,32 @@ test.describe('画像モザイク・ぼかし', () => {
 			.toBe(0);
 	});
 
+	test('一覧の削除ボタンをキーボードで押して範囲を削除できる（#633）', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		const summary = page.locator('summary', {
+			hasText: 'キーボードで範囲を指定・選択する',
+		});
+		await summary.focus();
+		await page.keyboard.press('Enter');
+		// 初期値（画像中央・縦横半分）のまま追加する
+		await page.getByRole('button', { name: '範囲を追加' }).focus();
+		await page.keyboard.press('Enter');
+		await expect
+			.poll(() => countDiffFromFixture(page, 'editor-canvas'))
+			.toBeGreaterThan(0);
+
+		const remove = page.getByRole('button', { name: '範囲1を削除' });
+		await remove.focus();
+		await page.keyboard.press('Enter');
+		await expect(remove).toHaveCount(0);
+		await expect(page.getByText('まだ範囲はありません。')).toBeVisible();
+		await expect
+			.poll(() => countDiffFromFixture(page, 'editor-canvas'))
+			.toBe(0);
+	});
+
 	test('キーボード入力の範囲が不正なら日本語エラーで追加しない（#633）', async ({
 		page,
 	}) => {
