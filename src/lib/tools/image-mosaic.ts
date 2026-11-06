@@ -66,6 +66,109 @@ export function clampRect(
 	return { x, y, width: right - x, height: bottom - y };
 }
 
+/** 追加を受け付ける最小領域サイズ（元画像 px） */
+export const MIN_REGION_SIZE = 3;
+
+/** キーボード入力欄の値（元画像 px、文字列のまま受け取る） */
+export type RegionInput = {
+	x: string;
+	y: string;
+	width: string;
+	height: string;
+};
+
+export type RegionInputResult =
+	| { ok: true; rect: Rect }
+	| { ok: false; message: string };
+
+/** キーボードで範囲を追加するときの初期値: 画像中央に縦横半分の範囲 */
+export function defaultRegionInput(
+	imageWidth: number,
+	imageHeight: number,
+): RegionInput {
+	const width = Math.max(MIN_REGION_SIZE, Math.round(imageWidth / 2));
+	const height = Math.max(MIN_REGION_SIZE, Math.round(imageHeight / 2));
+	return {
+		x: String(Math.max(0, Math.round((imageWidth - width) / 2))),
+		y: String(Math.max(0, Math.round((imageHeight - height) / 2))),
+		width: String(width),
+		height: String(height),
+	};
+}
+
+const REGION_INPUT_LABELS: Record<keyof RegionInput, string> = {
+	x: 'X（左端）',
+	y: 'Y（上端）',
+	width: '幅',
+	height: '高さ',
+};
+
+/**
+ * キーボード入力欄の値を検証し、画像内にクリップした範囲を返す。
+ * 数値でない・負・サイズ0以下・画像外・最小サイズ未満はエラー（日本語メッセージ）。
+ */
+export function parseRegionInput(
+	input: RegionInput,
+	imageWidth: number,
+	imageHeight: number,
+): RegionInputResult {
+	const values = {} as Record<keyof RegionInput, number>;
+	for (const key of ['x', 'y', 'width', 'height'] as const) {
+		const raw = input[key].trim();
+		const value = raw === '' ? Number.NaN : Number(raw);
+		if (!Number.isFinite(value)) {
+			return {
+				ok: false,
+				message: `${REGION_INPUT_LABELS[key]}には数値（px）を入力してください`,
+			};
+		}
+		if (value < 0) {
+			return {
+				ok: false,
+				message: `${REGION_INPUT_LABELS[key]}には0以上の値を入力してください`,
+			};
+		}
+		values[key] = value;
+	}
+	if (values.width < MIN_REGION_SIZE || values.height < MIN_REGION_SIZE) {
+		return {
+			ok: false,
+			message: `幅・高さは${MIN_REGION_SIZE}px以上にしてください`,
+		};
+	}
+	const clipped = clampRect(values, imageWidth, imageHeight);
+	if (!clipped) {
+		return {
+			ok: false,
+			message: `範囲が画像（${imageWidth}×${imageHeight}px）の外にあります`,
+		};
+	}
+	if (clipped.width < MIN_REGION_SIZE || clipped.height < MIN_REGION_SIZE) {
+		return {
+			ok: false,
+			message: `範囲は画像内で幅・高さとも${MIN_REGION_SIZE}px以上にしてください`,
+		};
+	}
+	return { ok: true, rect: clipped };
+}
+
+const MODE_LABELS: Record<MaskMode, string> = {
+	mosaic: 'モザイク',
+	blur: 'ぼかし',
+	emoji: '絵文字',
+	image: '画像スタンプ',
+};
+
+/** 範囲一覧に表示する説明（例: 「範囲1: モザイク・四角形（X 100, Y 75, 200×150px）」） */
+export function describeRegion(region: MaskRegion, index: number): string {
+	const kind = isMaskEffectRegion(region)
+		? `${MODE_LABELS[region.mode]}・${region.shape === 'ellipse' ? '円形' : '四角形'}`
+		: MODE_LABELS[region.mode];
+	const { x, y, width, height } = region.rect;
+	const r = Math.round;
+	return `範囲${index + 1}: ${kind}（X ${r(x)}, Y ${r(y)}, ${r(width)}×${r(height)}px）`;
+}
+
 function clipRegionPath(
 	ctx: CanvasRenderingContext2D,
 	rect: Rect,
