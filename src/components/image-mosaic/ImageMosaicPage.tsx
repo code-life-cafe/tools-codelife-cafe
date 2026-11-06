@@ -31,6 +31,13 @@ import {
 } from '@/lib/tools/image-mosaic';
 import { CanvasEditor } from './CanvasEditor';
 import { MaskToolbar } from './MaskToolbar';
+import { RegionKeyboardPanel } from './RegionKeyboardPanel';
+
+function sourceSize(source: HTMLImageElement | HTMLCanvasElement) {
+	return source instanceof HTMLImageElement
+		? { width: source.naturalWidth, height: source.naturalHeight }
+		: { width: source.width, height: source.height };
+}
 
 type Phase =
 	| { kind: 'empty' }
@@ -96,6 +103,11 @@ export default function ImageMosaicPage() {
 		[startEditing],
 	);
 
+	const editingSize =
+		phase.kind === 'editing'
+			? sourceSize(phase.source)
+			: { width: 0, height: 0 };
+
 	const selectedRegion =
 		selectedId !== null
 			? (regions.state.find((r) => r.id === selectedId) ?? null)
@@ -119,7 +131,7 @@ export default function ImageMosaicPage() {
 			: stampImageName;
 
 	const handleAddRegion = useCallback(
-		(rect: Rect) => {
+		(rect: Rect): string | null => {
 			let region: MaskRegion;
 			if (isMaskEffectMode(activeMode)) {
 				region = {
@@ -148,9 +160,10 @@ export default function ImageMosaicPage() {
 				setError(
 					'画像スタンプを使うには、先に任意画像ファイルを選択してください',
 				);
-				return;
+				return null;
 			}
 			regions.set([...regions.state, region]);
+			return region.id;
 		},
 		[
 			activeMode,
@@ -447,7 +460,7 @@ export default function ImageMosaicPage() {
 						editingRegion={selectedRegion !== null}
 					/>
 					<p className="text-xs text-muted-foreground">
-						キャンバス上をドラッグして、モザイク・ぼかし範囲またはスタンプ配置範囲を選択してください。モザイク・ぼかしは四角形/円形を切り替えられます。領域をクリックすると選択でき、Deleteキーまたは✕ボタンで削除できます。
+						キャンバス上をドラッグして、モザイク・ぼかし範囲またはスタンプ配置範囲を選択してください。モザイク・ぼかしは四角形/円形を切り替えられます。領域をクリックすると選択でき、Deleteキーまたは✕ボタンで削除できます。キーボードでは、下の「キーボードで範囲を指定・選択する」から位置とサイズを入力して追加・選択できます。
 					</p>
 					<div>
 						<CanvasEditor
@@ -462,6 +475,17 @@ export default function ImageMosaicPage() {
 							fullSize={isExpanded}
 						/>
 					</div>
+					<RegionKeyboardPanel
+						key={`${phase.fileName}-${editingSize.width}x${editingSize.height}`}
+						imageWidth={editingSize.width}
+						imageHeight={editingSize.height}
+						regions={regions.state}
+						selectedId={selectedId}
+						onAddRegion={handleAddRegion}
+						onSelectRegion={setSelectedId}
+						onDeleteRegion={handleDeleteRegion}
+						onError={setError}
+					/>
 					<div className="flex flex-wrap items-center justify-between gap-3">
 						<Button variant="outline" size="sm" onClick={handleClear}>
 							<ImagePlus className="h-4 w-4" />

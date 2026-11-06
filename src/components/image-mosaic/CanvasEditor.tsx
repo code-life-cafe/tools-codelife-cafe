@@ -18,6 +18,7 @@ import {
 	type MaskMode,
 	type MaskRegion,
 	type MaskShape,
+	MIN_REGION_SIZE,
 	type Rect,
 	renderMasked,
 } from '@/lib/tools/image-mosaic';
@@ -25,9 +26,6 @@ import { computePinchZoom } from '@/lib/tools/zoom-pan';
 
 /** これ未満のドラッグ距離（CSS px）はクリック＝領域選択として扱う */
 const CLICK_THRESHOLD_PX = 4;
-
-/** 追加を受け付ける最小領域サイズ（元画像 px） */
-const MIN_REGION_SIZE = 3;
 
 type CanvasEditorProps = {
 	source: HTMLImageElement | HTMLCanvasElement;

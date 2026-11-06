@@ -274,6 +274,86 @@ test.describe('画像モザイク・ぼかし', () => {
 		await expect(page.getByRole('alert')).toContainText('20MB');
 	});
 
+	test('キーボードだけで範囲を追加・選択・削除できる（#633）', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+
+		const summary = page.locator('summary', {
+			hasText: 'キーボードで範囲を指定・選択する',
+		});
+		await summary.focus();
+		await page.keyboard.press('Enter');
+
+		const fill = async (label: string, value: string) => {
+			await page.getByLabel(label).focus();
+			await page.keyboard.press('ControlOrMeta+A');
+			await page.keyboard.type(value);
+		};
+		// 赤/白の境界(x=100)をまたぐ範囲
+		await fill('X（左端）（px）', '80');
+		await fill('Y（上端）（px）', '60');
+		await fill('幅（px）', '100');
+		await fill('高さ（px）', '80');
+		await page.keyboard.press('Enter');
+
+		await expect
+			.poll(() => getCanvasPixel(page, 'editor-canvas', 96, 100))
+			.not.toEqual(WHITE);
+		expect(await getCanvasPixel(page, 'editor-canvas', 96, 100)).not.toEqual(
+			RED,
+		);
+		// 範囲外は不変
+		expect(await getCanvasPixel(page, 'editor-canvas', 300, 200)).toEqual(
+			WHITE,
+		);
+
+		// 追加した範囲は一覧に出て、選択状態になる
+		const item = page.getByRole('button', {
+			name: '範囲1: モザイク・四角形（X 80, Y 60, 100×80px）',
+		});
+		await expect(item).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.getByText('粗さ: 12（選択領域）')).toBeVisible();
+
+		// Space で選択解除・再選択
+		await item.focus();
+		await page.keyboard.press('Space');
+		await expect(item).toHaveAttribute('aria-pressed', 'false');
+		await page.keyboard.press('Space');
+		await expect(item).toHaveAttribute('aria-pressed', 'true');
+
+		// 選択中に Delete キーで削除できる
+		await page.keyboard.press('Delete');
+		await expect(item).toHaveCount(0);
+		await expect(page.getByText('まだ範囲はありません。')).toBeVisible();
+		await expect
+			.poll(() => countDiffFromFixture(page, 'editor-canvas'))
+			.toBe(0);
+	});
+
+	test('キーボード入力の範囲が不正なら日本語エラーで追加しない（#633）', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		await page
+			.locator('summary', { hasText: 'キーボードで範囲を指定・選択する' })
+			.click();
+
+		await page.getByLabel('幅（px）').fill('2');
+		await page.getByRole('button', { name: '範囲を追加' }).click();
+		await expect(page.getByRole('alert')).toContainText('3px以上');
+
+		await page.getByLabel('幅（px）').fill('100');
+		await page.getByLabel('X（左端）（px）').fill('400');
+		await page.getByRole('button', { name: '範囲を追加' }).click();
+		await expect(page.getByRole('alert')).toContainText(
+			'画像（400×300px）の外',
+		);
+
+		await expect(page.getByText('まだ範囲はありません。')).toBeVisible();
+		expect(await countDiffFromFixture(page, 'editor-canvas')).toBe(0);
+	});
+
 	test('375px / 1440px でレスポンシブ表示される', async ({ page }) => {
 		await uploadSample(page);
 
