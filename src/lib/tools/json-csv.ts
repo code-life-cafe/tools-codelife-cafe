@@ -576,9 +576,13 @@ export function jsonToCsv(
 // ---------------------------------------------------------------------------
 
 // ドット記法で合成する配列の長さと、全データ行の配列スロット合計を制限する。
+// 深いネストではインデントで出力が増幅するため、列名の階層数と、
+// 配列要素の行に付くインデント文字数の見積もり合計も制限する（#659）。
 // CSVの実データ行数・セル値の長さ・出力全体のバイト数は制限しない。
 const MAX_UNFLATTENED_ARRAY_LENGTH = 100000;
 const MAX_UNFLATTENED_ARRAY_SLOTS = 1000000;
+const MAX_UNFLATTENED_KEY_DEPTH = 64;
+const MAX_UNFLATTENED_ARRAY_INDENT_CHARS = 20000000;
 
 interface UnflattenedShape {
 	// nullはオブジェクト。配列は空きスロットを実体化せず長さだけ保持する。
@@ -618,6 +622,9 @@ function unflattenedArrayBudgetError(
 	};
 	for (const key of Object.keys(flat)) {
 		const segments = key.split('.');
+		if (segments.length > MAX_UNFLATTENED_KEY_DEPTH) {
+			return `列名のドット区切りの階層が上限（${MAX_UNFLATTENED_KEY_DEPTH}段）を超えます。`;
+		}
 		let current = root;
 		for (let i = 0; i < segments.length - 1; i++) {
 			const slot = slotKey(current, segments[i]);
@@ -635,22 +642,33 @@ function unflattenedArrayBudgetError(
 	}
 
 	let slots = 0;
-	const stack = [root];
+	// 出力は行オブジェクトの配列で、JSON.stringify(_, null, 2) は1段あたり2文字字下げする。
+	// 行オブジェクト自体は2文字、その直下（d=1）の値は4文字字下げされるため、
+	// 深さdの配列ノードの要素行は 2*(d+2) 文字字下げされる。
+	let indentChars = 0;
+	const stack: { node: UnflattenedShape; depth: number }[] = [
+		{ node: root, depth: 0 },
+	];
 	while (stack.length > 0) {
-		const node = stack.pop();
-		if (!node) continue;
+		const entry = stack.pop();
+		if (!entry) continue;
+		const { node, depth } = entry;
 		if (node.arrayLength !== null) {
 			if (node.arrayLength > MAX_UNFLATTENED_ARRAY_LENGTH) {
 				return `復元後の配列長が上限（${MAX_UNFLATTENED_ARRAY_LENGTH}要素）を超えます。`;
 			}
 			slots += node.arrayLength;
+			indentChars += node.arrayLength * 2 * (depth + 2);
 		}
 		for (const child of node.children.values()) {
-			if (child) stack.push(child);
+			if (child) stack.push({ node: child, depth: depth + 1 });
 		}
 	}
-	return slots * rowCount > MAX_UNFLATTENED_ARRAY_SLOTS
-		? `復元後の配列スロット合計が上限（${MAX_UNFLATTENED_ARRAY_SLOTS}要素）を超えます。`
+	if (slots * rowCount > MAX_UNFLATTENED_ARRAY_SLOTS) {
+		return `復元後の配列スロット合計が上限（${MAX_UNFLATTENED_ARRAY_SLOTS}要素）を超えます。`;
+	}
+	return indentChars * rowCount > MAX_UNFLATTENED_ARRAY_INDENT_CHARS
+		? `復元後の配列のネストが深く、出力のインデント見積もりが上限（${MAX_UNFLATTENED_ARRAY_INDENT_CHARS}文字）を超えます。`
 		: null;
 }
 

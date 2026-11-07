@@ -462,6 +462,72 @@ test('csvToJson: 配列スロット合計1000000を受理し、行追加・1ス�
 	}
 });
 
+const deepKey = (depth: number, leaf: string): string =>
+	[...Array.from({ length: depth - 1 }, (_, i) => `k${i}`), leaf].join('.');
+
+test('csvToJson: 深いネストの配列ヘッダー（#659）をシリアライズ前に拒否する', (t) => {
+	// 修正前は予算内として JSON.stringify に到達し、約2億文字の出力を作ろうとしていた。
+	const stringify = t.mock.method(JSON, 'stringify', () => '[]');
+	const header = `a${'.0'.repeat(1000)}.99999`;
+	const result = csvToJson(`${header}\nx`, {
+		...CSV_OPTS,
+		unflattenDotKeys: true,
+	});
+	assert.ok(!result.ok);
+	assert.equal(
+		result.error,
+		'列名のドット区切りの階層が上限（64段）を超えます。',
+	);
+	assert.equal(stringify.mock.callCount(), 0);
+});
+
+test('csvToJson: 列名の階層64段を受理し65段を拒否する（ドット記法の復元時のみ）', () => {
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	const accepted = expectOk(csvToJson(`${deepKey(64, 'leaf')}\nx`, options));
+	let node = JSON.parse(accepted.output)[0];
+	for (let i = 0; i < 63; i++) node = node[`k${i}`];
+	assert.deepEqual(node, { leaf: 'x' });
+
+	const tooDeep = deepKey(65, 'leaf');
+	assert.equal(
+		expectError(csvToJson(`ok,${tooDeep}\nx,y`, options)).error,
+		'列名のドット区切りの階層が上限（64段）を超えます。',
+	);
+	// 復元しない場合は列名をそのままキーにするため階層を数えない。
+	const flat = expectOk(csvToJson(`${tooDeep}\nx`, CSV_OPTS));
+	assert.deepEqual(JSON.parse(flat.output), [{ [tooDeep]: 'x' }]);
+});
+
+test('csvToJson: 配列要素のインデント見積もり2000万文字を受理し超過を拒否する', () => {
+	const options = { ...CSV_OPTS, unflattenDotKeys: true };
+	const indentError =
+		'復元後の配列のネストが深く、出力のインデント見積もりが上限（20000000文字）を超えます。';
+	// 深さ60の配列（要素の字下げ124文字）×1000要素 = 1行あたり124000文字。
+	const deep = deepKey(61, '999');
+	const accepted = expectOk(
+		csvToJson(`${deep}\n${'x\n'.repeat(161)}`, options),
+	);
+	assert.equal(accepted.rowCount, 161);
+	assert.equal(
+		expectError(csvToJson(`${deep}\n${'x\n'.repeat(162)}`, options)).error,
+		indentError,
+	);
+	// 深さ9の配列（字下げ22文字）×100000要素は、スロット合計の上限（10行）以内でも拒否する。
+	const nine = deepKey(10, '99999');
+	expectOk(csvToJson(`${nine}\n${'x\n'.repeat(9)}`, options));
+	assert.equal(
+		expectError(csvToJson(`${nine}\n${'x\n'.repeat(10)}`, options)).error,
+		indentError,
+	);
+	// 深さ8（字下げ20文字）なら、スロット合計の上限ちょうどまで受理する（既存の上限が先に効く）。
+	const eight = deepKey(9, '99999');
+	expectOk(csvToJson(`${eight}\n${'x\n'.repeat(10)}`, options));
+	assert.equal(
+		expectError(csvToJson(`${eight}\n${'x\n'.repeat(11)}`, options)).error,
+		'復元後の配列スロット合計が上限（1000000要素）を超えます。',
+	);
+});
+
 test('csvToJson: 形状判定はキーの上書き・列挙順・重複ヘッダーに従う', () => {
 	const options = { ...CSV_OPTS, unflattenDotKeys: true };
 	for (const input of ['a.99999,a\nx,y', 'a.0.b.99999,a.0\nx,y']) {
