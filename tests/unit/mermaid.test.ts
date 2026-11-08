@@ -143,18 +143,22 @@ test('画像なしの実解析・描画前検査はinit、frontmatter、edge、s
 		'render',
 		async (_id: string, code: string) => {
 			assert.equal(api.getConfig().securityLevel, 'strict');
+			// v12 の既定（ELK・neo）ではなく、v11 と同じ dagre・classic で描画する。
+			assert.equal(api.getConfig().layout, 'dagre');
+			assert.equal(api.getConfig().look, 'classic');
 			assert.deepEqual(api.getConfig(), checkedConfig);
 			assert.ok(code.includes('A'));
 			return { svg: '<svg/>' };
 		},
 	);
+	// Mermaid v12 は defaultRenderer を廃止し、graph / flowchart をどちらも flowchart-v2 として解析する。
 	for (const [type, code] of [
 		[
-			'flowchart',
+			'flowchart-v2',
 			'%%{init: {"flowchart":{"defaultRenderer":"dagre-d3"}, "securityLevel":"loose"}}%%\ngraph TD\n A --> B',
 		],
 		[
-			'flowchart',
+			'flowchart-v2',
 			'---\nconfig:\n  theme: dark\n  flowchart:\n    defaultRenderer: dagre-d3\n---\ngraph TD\n A --> B',
 		],
 		['flowchart-v2', 'flowchart TD\n A e1@--> B\n e1@{ animate: true }'],
