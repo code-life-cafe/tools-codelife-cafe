@@ -11,11 +11,7 @@ import {
 	type UpscaleOptions,
 	validateResolution,
 } from '../lib/tools/upscale-core.ts';
-
-// onnxruntime-web の wasm 配信元（package.json の pin と同期させること）。
-// bg-remove と同様 cdn.jsdelivr.net を使用（CSP script-src/connect-src で許可済み）。
-const ORT_VERSION = '1.27.0';
-const ORT_WASM_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+import { UPSCALE_ORT_WASM_BASE } from '../lib/tools/upscale-ort.ts';
 
 // --- メッセージ型 ---
 export interface UpscaleWorkerRequest {
@@ -60,7 +56,7 @@ type OrtRuntime = 'wasm' | 'webgpu';
 const ortPromises = new Map<OrtRuntime, Promise<Ort>>();
 
 function configureOrt(ort: Ort): Ort {
-	ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+	ort.env.wasm.wasmPaths = UPSCALE_ORT_WASM_BASE;
 	ort.env.wasm.numThreads = 1; // SharedArrayBuffer 不要（COOP/COEP 変更なし）
 	ort.env.wasm.simd = true;
 	ort.env.wasm.proxy = false;
