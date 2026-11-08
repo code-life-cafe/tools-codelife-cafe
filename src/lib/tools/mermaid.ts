@@ -345,6 +345,11 @@ export async function renderMermaidSvg(
 		mermaid.initialize({
 			startOnLoad: false,
 			securityLevel: 'strict',
+			// Mermaid v12 は既定を ELK レイアウト・neo 外観に変えた。
+			// 既存の図の見た目と初回描画の転送量（ELK chunk）を保つため、v11 と同じ既定を明示する。
+			// 図ごとの frontmatter / init で layout・look を指定した場合はそちらが優先される。
+			layout: 'dagre',
+			look: 'classic',
 			theme,
 			themeVariables,
 			...renderLimits,
