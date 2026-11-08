@@ -235,72 +235,88 @@ export function ImageMergePage() {
 				</div>
 			)}
 
-			{items.length > 0 && (
-				<>
-					<div className="space-y-2">
-						<div className="flex items-center justify-between">
-							<p className="text-sm font-semibold">
-								画像一覧（{items.length}枚 / ドラッグまたは矢印で並び替え）
-							</p>
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={handleClear}
-								disabled={busy}
-							>
-								<Trash2 className="mr-1 h-4 w-4" />
-								すべてクリア
-							</Button>
-						</div>
+			{/*
+				一覧・オプション・プレビューは画像の有無に関係なく常に表示し、高さを先に確保する。
+				ファイル選択ダイアログやドロップの後は「直前の操作」と見なされないため、
+				初回追加でこの領域が挿入されると下の本文が押し下げられてCLSになる（#517）。
+			*/}
+			<div className="space-y-2">
+				<div className="flex items-center justify-between">
+					<p className="text-sm font-semibold">
+						画像一覧（{items.length}枚 / ドラッグまたは矢印で並び替え）
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleClear}
+						disabled={busy || items.length === 0}
+					>
+						<Trash2 className="mr-1 h-4 w-4" />
+						すべてクリア
+					</Button>
+				</div>
+				{/* 画像カード1段分（約171px）を空の状態でも確保する */}
+				<div className="min-h-[172px]" data-testid="merge-image-list-area">
+					{items.length > 0 ? (
 						<SortableImageList
 							items={items}
 							disabled={busy}
 							onReorder={handleReorder}
 							onRemove={handleRemove}
 						/>
-					</div>
+					) : (
+						<p className="flex h-[172px] items-center justify-center rounded-lg border border-dashed border-border px-4 text-center text-sm text-muted-foreground">
+							まだ画像がありません。上の枠から画像を追加してください。
+						</p>
+					)}
+				</div>
+			</div>
 
-					<MergeOptionsPanel
-						options={options}
-						disabled={busy}
-						onChange={setOptions}
+			<MergeOptionsPanel
+				options={options}
+				disabled={busy}
+				onChange={setOptions}
+			/>
+
+			<div className="space-y-2">
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<p className="text-sm font-semibold">プレビュー</p>
+					<Button
+						type="button"
+						onClick={() => void handleDownload()}
+						disabled={busy || items.length === 0 || !outputSize}
+					>
+						{busy ? (
+							<Loader2 className="mr-1 h-4 w-4 animate-spin" />
+						) : (
+							<Download className="mr-1 h-4 w-4" />
+						)}
+						結合画像をダウンロード
+					</Button>
+				</div>
+				{/* 出力サイズは別の行に置き、表示の有無で見出しの折り返しが変わらないようにする */}
+				<p className="min-h-5 text-sm text-muted-foreground">
+					{outputSize
+						? `出力サイズ: ${outputSize.width}×${outputSize.height}px`
+						: '画像を追加すると出力サイズを表示します'}
+				</p>
+				<div className="min-h-[200px] overflow-auto rounded-lg border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4">
+					{!outputSize && (
+						<p className="flex h-[166px] items-center justify-center text-center text-sm text-muted-foreground">
+							結合結果のプレビューがここに表示されます
+						</p>
+					)}
+					<canvas
+						ref={canvasRef}
+						data-testid="merge-preview-canvas"
+						aria-label="結合プレビュー"
+						className={
+							outputSize ? 'mx-auto block h-auto max-w-full' : 'hidden'
+						}
 					/>
-
-					<div className="space-y-2">
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<p className="text-sm font-semibold">
-								プレビュー
-								{outputSize && (
-									<span className="ml-2 font-normal text-muted-foreground">
-										（出力サイズ: {outputSize.width}×{outputSize.height}px）
-									</span>
-								)}
-							</p>
-							<Button
-								type="button"
-								onClick={() => void handleDownload()}
-								disabled={busy || items.length === 0 || !outputSize}
-							>
-								{busy ? (
-									<Loader2 className="mr-1 h-4 w-4 animate-spin" />
-								) : (
-									<Download className="mr-1 h-4 w-4" />
-								)}
-								結合画像をダウンロード
-							</Button>
-						</div>
-						<div className="overflow-auto rounded-lg border border-border bg-[repeating-conic-gradient(#0001_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-4">
-							<canvas
-								ref={canvasRef}
-								data-testid="merge-preview-canvas"
-								aria-label="結合プレビュー"
-								className="mx-auto block h-auto max-w-full"
-							/>
-						</div>
-					</div>
-				</>
-			)}
+				</div>
+			</div>
 		</div>
 	);
 }
