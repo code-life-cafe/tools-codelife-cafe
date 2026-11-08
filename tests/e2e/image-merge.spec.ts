@@ -209,3 +209,57 @@ test.describe('画像連結・コンタクトシート', () => {
 		});
 	});
 });
+
+// #517: ファイル選択ダイアログやドロップの後は「直前の操作」と見なされず、
+// 初回の画像追加で作業領域が挿入されると下の本文が押し下げられてCLSになっていた。
+for (const { width, height } of [
+	{ width: 375, height: 812 },
+	{ width: 1440, height: 900 },
+]) {
+	test(`画像を初めて追加してもCLSが0.1以下で、作業領域の高さが変わらない (${width}px)`, async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.setViewportSize({ width, height });
+		await page.addInitScript(() => {
+			const shifts: number[] = [];
+			Object.assign(window, { __mergeShifts: shifts });
+			new PerformanceObserver((list) => {
+				for (const entry of list.getEntries()) {
+					const shift = entry as PerformanceEntry & {
+						value: number;
+						hadRecentInput: boolean;
+					};
+					if (!shift.hadRecentInput) shifts.push(shift.value);
+				}
+			}).observe({ type: 'layout-shift', buffered: true });
+		});
+		await createToolPage('image-merge').goto();
+		await page.evaluate(() => document.fonts.ready);
+		await expect(page.getByText('画像をドラッグ＆ドロップ')).toBeVisible();
+		const listArea = page.getByTestId('merge-image-list-area');
+		const emptyListBox =
+			(await listArea.count()) > 0 ? await listArea.boundingBox() : null;
+		// 初期表示のシフトは対象外にし、画像追加で起きるシフトだけを測る
+		await page.evaluate(() => {
+			(window as unknown as { __mergeShifts: number[] }).__mergeShifts.length =
+				0;
+		});
+
+		await fileInput(page).setInputFiles([RED_PAYLOAD, BLUE_PAYLOAD]);
+		await expect.poll(async () => canvasSize(page)).toEqual([120, 170]);
+		await expect(page.getByText('出力サイズ: 120×170px')).toBeVisible();
+		await page.waitForTimeout(750);
+
+		const cls = await page.evaluate(() =>
+			(window as unknown as { __mergeShifts: number[] }).__mergeShifts.reduce(
+				(sum, value) => sum + value,
+				0,
+			),
+		);
+		expect(cls).toBeLessThanOrEqual(0.1);
+		// 一覧の領域は空の状態から確保されており、画像追加の前後で位置も高さも変わらない
+		expect(emptyListBox).not.toBeNull();
+		expect(await listArea.boundingBox()).toEqual(emptyListBox);
+	});
+}
