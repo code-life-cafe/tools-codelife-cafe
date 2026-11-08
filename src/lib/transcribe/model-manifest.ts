@@ -61,7 +61,7 @@ export type RuntimeArtifact = {
 export const MODEL_BASE_PATH = '/models/transcribe/';
 
 export const RUNTIME_ARTIFACT: RuntimeArtifact = {
-	transformersVersion: '4.3.0',
+	transformersVersion: '4.3.2',
 	onnxRuntimeVersion: '1.31.0-dev.20260914-8d85527a0',
 	files: [
 		{
