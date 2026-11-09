@@ -136,7 +136,7 @@ test.describe('Mermaidプレビュー・修復 Tool', () => {
 			await createToolPage('mermaid').goto();
 			await page
 				.locator('textarea')
-				.fill('```mermaid\nsequenceDiagram\n' + message + '\n```');
+				.fill(`\`\`\`mermaid\nsequenceDiagram\n${message}\n\`\`\``);
 			const previewTab = page.getByRole('tab', { name: /プレビュー/ });
 			if (await previewTab.isVisible()) await previewTab.click();
 			const svg = page

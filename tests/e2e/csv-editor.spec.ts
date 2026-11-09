@@ -507,6 +507,7 @@ test.describe('CSV/TSV/Excel Viewer & Editor (Phase 3 Enhancements)', () => {
 					await expect(button).toHaveAccessibleName(name);
 					// 表示中のテキストのみ（hiddenのspanは除外）を完全一致で検証する
 					await expect
+						// biome-ignore lint/performance/useDomNodeTextContent: textContentは非表示のspanも含むため、表示中の文字だけを返すinnerTextを使う
 						.poll(async () => (await button.innerText()).trim())
 						.toBe(text);
 				}
