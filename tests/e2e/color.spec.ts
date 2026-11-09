@@ -158,7 +158,7 @@ test.describe('カラーコード変換ツール', () => {
 		await input.fill('rgba(255, 0, 0, 0.5)');
 
 		const rgbText = (
-			await page.getByTestId('color-result-rgb-value').innerText()
+			(await page.getByTestId('color-result-rgb-value').textContent()) ?? ''
 		).trim();
 		expect(rgbText).toContain('0.5');
 

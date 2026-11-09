@@ -148,8 +148,9 @@ test.describe('WebMCP Tool Registration — /hash', () => {
 			(t: WebMcpMockTool) => t.name === 'generate_hash',
 		);
 		expect(hashTool).toBeDefined();
-		expect(hashTool!.inputSchema.required).toContain('text');
-		expect(hashTool!.inputSchema.required).toContain('algorithm');
+		if (!hashTool) throw new Error('generate_hash tool is missing');
+		expect(hashTool.inputSchema.required).toContain('text');
+		expect(hashTool.inputSchema.required).toContain('algorithm');
 	});
 
 	test('generate_hash execute returns correct hash for valid input', async ({
@@ -240,9 +241,10 @@ test.describe('WebMCP Tool Registration — /tax', () => {
 			(t: WebMcpMockTool) => t.name === 'calc_tax',
 		);
 		expect(taxTool).toBeDefined();
-		expect(taxTool!.inputSchema.required).toContain('amount');
-		expect(taxTool!.inputSchema.required).toContain('taxRate');
-		expect(taxTool!.inputSchema.required).toContain('mode');
+		if (!taxTool) throw new Error('calc_tax tool is missing');
+		expect(taxTool.inputSchema.required).toContain('amount');
+		expect(taxTool.inputSchema.required).toContain('taxRate');
+		expect(taxTool.inputSchema.required).toContain('mode');
 	});
 
 	test('calc_tax execute returns correct result for valid input', async ({

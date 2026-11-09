@@ -131,6 +131,7 @@ async function snapshot(page: Page) {
 			errorShown: document.querySelector('[data-testid="json-csv-error"]')
 				? document.querySelector('[data-testid="json-csv-error"]')?.textContent
 				: null,
+			// biome-ignore lint/performance/useDomNodeTextContent: 画面に表示中のバッジだけを数えるため、非表示要素やscriptを含むtextContentではなくinnerTextを使う
 			badge: document.body.innerText.match(/\d+行を変換しました/)?.[0] ?? null,
 			href: location.href,
 			local: read(localStorage),
