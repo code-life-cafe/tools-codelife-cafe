@@ -43,6 +43,7 @@ pdf-lib は暗号化PDFを生成できないため、`scripts/generate-fixtures.
 ## 動画圧縮用フィクスチャ
 
 外部の動画は使用せず、FFmpegの`testsrc2`と`sine`で生成した合成動画。CIではコミットしたファイルを使い、FFmpegは不要。
+
 - `video-compress.mp4`: 960×540、24fps、4秒、H.264 + AAC（48kHz）。音声保持・トリミング・オフライン検証。
 - `video-compress-portrait.mp4`: 360×640、24fps、3秒、H.264、音声なし。縦動画・目標容量。
 - `video-compress-opus.webm`: 320×180、24fps、2秒、VP9 + Opus。AACエンコード非対応時の停止・音声削除。
