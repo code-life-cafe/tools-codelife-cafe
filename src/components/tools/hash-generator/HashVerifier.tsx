@@ -45,7 +45,7 @@ export function HashVerifier({
 		return compareHash(computed, hash)
 			? { kind: 'match', algorithm, fileName }
 			: { kind: 'mismatch', algorithm, fileName };
-	}, [expected, results, selectedAlgorithms]);
+	}, [parsed, results, selectedAlgorithms]);
 
 	return (
 		<div className="rounded-lg border border-border p-4 space-y-3">

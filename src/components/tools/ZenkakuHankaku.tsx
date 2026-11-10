@@ -56,6 +56,7 @@ export default function ZenkakuHankaku() {
 	const output = input ? convert(input, direction, options) : '';
 
 	// 非空の入力から変換結果が生成された時点で実行を計測（空入力・マウント時は発火しない）
+	// biome-ignore lint/correctness/useExhaustiveDependencies: direction・options の変更でも変換結果が変わるため、再計測のトリガーとして依存に含める
 	useEffect(() => {
 		if (input) {
 			trackRunDebounced();

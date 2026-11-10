@@ -480,7 +480,7 @@ export default function CronChecker() {
 						autoComplete="off"
 					/>
 				</div>
-				{reverseResult && reverseResult.success && (
+				{reverseResult?.success && (
 					<div
 						className="flex items-center justify-between gap-2 rounded-lg border bg-card px-3 py-2"
 						data-testid="cron-reverse-result"

@@ -85,7 +85,7 @@ export default function BulkInput({ onBulkResult }: BulkInputProps) {
 			const autoDetectedIndex = headers.findIndex((h) =>
 				/電話|tel|phone|番号/i.test(h),
 			);
-			setSelectedColumn(autoDetectedIndex >= 0 ? autoDetectedIndex : 0);
+			setSelectedColumn(Math.max(autoDetectedIndex, 0));
 		};
 
 		reader.onerror = () => {
