@@ -202,8 +202,9 @@ export default function CameraScanner({
 		return () => {
 			stopCamera();
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+		// startCamera / stopCamera は useCallback で生成され、マウント中は参照が変わらない。
+		// 依存に含めてもマウント時1回・アンマウント時1回の実行タイミングは変わらない
+	}, [startCamera, stopCamera]);
 
 	// --- タブが非表示になったらカメラを停止（再表示時は再開しない: 明示的な再開が必要）---
 	useEffect(() => {
@@ -218,8 +219,7 @@ export default function CameraScanner({
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 		return () =>
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [status]);
+	}, [status, startCamera, stopCamera]);
 
 	if (status === 'denied') {
 		return (
