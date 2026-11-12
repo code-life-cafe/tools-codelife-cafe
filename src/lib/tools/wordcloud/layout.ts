@@ -1,5 +1,10 @@
 import CloudLayout from 'd3-cloud';
-import { scaleLinear, scaleLog, scaleSqrt } from 'd3-scale';
+import {
+	type ScaleContinuousNumeric,
+	scaleLinear,
+	scaleLog,
+	scaleSqrt,
+} from 'd3-scale';
 import * as chromatic from 'd3-scale-chromatic';
 import type {
 	PlacedWord,
@@ -15,8 +20,7 @@ function getScaleFunction(
 	const minSize = 14;
 	const maxSize = 72;
 
-	// biome-ignore lint/suspicious/noExplicitAny: d3-scale type flexibility
-	let scaleFn: any;
+	let scaleFn: ScaleContinuousNumeric<number, number>;
 	if (scaleType === 'log') {
 		scaleFn = scaleLog().domain([Math.max(1, minCount), Math.max(1, maxCount)]);
 	} else if (scaleType === 'sqrt') {

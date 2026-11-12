@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
+import { getSupportedTimeZones } from '@/lib/time-zones';
 import {
 	batchRowsToDelimitedText,
 	convertBatch,
@@ -37,11 +38,7 @@ import {
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { unixTimeTool } from '@/lib/webmcp/tools/unix-time.webmcp';
 
-const TIMEZONES: string[] =
-	typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
-		? // biome-ignore lint/suspicious/noExplicitAny: supportedValuesOf は型定義が古い環境向けに未対応の場合がある
-			(Intl as any).supportedValuesOf('timeZone')
-		: ['UTC', 'Asia/Tokyo', 'America/New_York', 'Europe/London'];
+const TIMEZONES: string[] = getSupportedTimeZones();
 
 const DISCORD_STYLES: {
 	key: 't' | 'T' | 'd' | 'D' | 'f' | 'F' | 'R';
