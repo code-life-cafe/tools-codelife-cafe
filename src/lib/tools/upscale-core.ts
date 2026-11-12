@@ -219,8 +219,11 @@ export function planTiles(
 /** WebGPU が利用可能かを判定する（max 品質モードの実用性判定に使用）。 */
 export async function isWebGPUAvailable(): Promise<boolean> {
 	try {
-		// biome-ignore lint/suspicious/noExplicitAny: navigator.gpu may be absent from lib target
-		const gpu = (globalThis.navigator as any)?.gpu;
+		// navigator.gpu は lib の型定義に無い場合があるため、使う範囲だけ構造的に型付けする
+		const nav = globalThis.navigator as
+			| { gpu?: { requestAdapter(): Promise<unknown> } }
+			| undefined;
+		const gpu = nav?.gpu;
 		if (!gpu) return false;
 		const adapter = await gpu.requestAdapter();
 		return !!adapter;

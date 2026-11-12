@@ -1,6 +1,8 @@
 // image-mosaic.ts — モザイク・ぼかしのコアロジック
 // すべて純粋関数。プレビューとエクスポートは renderMasked を単一ソースとして共用する
 
+import { sourceSize } from './image-common.ts';
+
 /** 元画像座標系の矩形（width/height > 0 に正規化済みであること） */
 export type Rect = { x: number; y: number; width: number; height: number };
 
@@ -501,10 +503,7 @@ export function applyImageStamp(
 ): void {
 	const clipped = clampRect(rect, ctx.canvas.width, ctx.canvas.height);
 	if (!clipped) return;
-	const sourceWidth =
-		image instanceof HTMLImageElement ? image.naturalWidth : image.width;
-	const sourceHeight =
-		image instanceof HTMLImageElement ? image.naturalHeight : image.height;
+	const { width: sourceWidth, height: sourceHeight } = sourceSize(image);
 	if (sourceWidth < 1 || sourceHeight < 1) return;
 
 	const scale = Math.min(
@@ -527,10 +526,7 @@ export function renderMasked(
 	source: HTMLImageElement | HTMLCanvasElement,
 	regions: MaskRegion[],
 ): HTMLCanvasElement {
-	const width =
-		source instanceof HTMLImageElement ? source.naturalWidth : source.width;
-	const height =
-		source instanceof HTMLImageElement ? source.naturalHeight : source.height;
+	const { width, height } = sourceSize(source);
 
 	const canvas = document.createElement('canvas');
 	canvas.width = width;

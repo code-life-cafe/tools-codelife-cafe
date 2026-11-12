@@ -24,6 +24,7 @@ import {
 import { copyText } from '@/lib/clipboard';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
+import { getSupportedTimeZones } from '@/lib/time-zones';
 import {
 	CronParseError,
 	type CronSchedule,
@@ -49,11 +50,7 @@ const PRESETS: { label: string; expr: string }[] = [
 	{ label: '5秒おき', expr: '*/5 * * * * *' },
 ];
 
-const TIMEZONES: string[] =
-	typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
-		? // biome-ignore lint/suspicious/noExplicitAny: supportedValuesOf は型定義が古い環境向けに未対応の場合がある
-			(Intl as any).supportedValuesOf('timeZone')
-		: ['UTC', 'Asia/Tokyo', 'America/New_York', 'Europe/London'];
+const TIMEZONES: string[] = getSupportedTimeZones();
 
 interface Settings {
 	extraTimeZone: string;
