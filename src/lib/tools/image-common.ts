@@ -104,6 +104,16 @@ export function needsDownscale(img: HTMLImageElement): boolean {
 	return Math.max(img.naturalWidth, img.naturalHeight) > DOWNSCALE_EDGE;
 }
 
+/** 編集元（読み込んだ画像、または縮小後の Canvas）のピクセル寸法を返す */
+export function sourceSize(source: HTMLImageElement | HTMLCanvasElement): {
+	width: number;
+	height: number;
+} {
+	return source instanceof HTMLImageElement
+		? { width: source.naturalWidth, height: source.naturalHeight }
+		: { width: source.width, height: source.height };
+}
+
 /**
  * 長辺が maxEdge に収まるよう縮小した Canvas を返す。
  * 以後の編集はこの Canvas を source として扱う。

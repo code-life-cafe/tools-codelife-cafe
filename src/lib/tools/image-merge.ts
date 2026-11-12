@@ -7,6 +7,9 @@ import {
 	BYTES_PER_MB,
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
+import { mimeForFormat } from '../image-canvas.ts';
+
+export { mimeForFormat };
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -412,17 +415,6 @@ function computeGridLayout(
 // ---------------------------------------------------------------------------
 // 出力ファイル名・MIMEタイプ
 // ---------------------------------------------------------------------------
-
-export function mimeForFormat(format: OutputFormat): string {
-	switch (format) {
-		case 'jpeg':
-			return 'image/jpeg';
-		case 'webp':
-			return 'image/webp';
-		case 'png':
-			return 'image/png';
-	}
-}
 
 export function buildMergedFilename(format: OutputFormat): string {
 	const ext = format === 'jpeg' ? 'jpg' : format;
