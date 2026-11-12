@@ -32,7 +32,7 @@ export const LINE_HEIGHT = 1.4;
 /** 背景ボックスのパディング(px) */
 export const BG_PADDING = 4;
 
-import { createId } from './image-common.ts';
+import { createId, sourceSize } from './image-common.ts';
 
 export const FONT_FAMILIES: readonly { value: FontFamily; label: string }[] = [
 	{ value: 'sans-serif', label: 'ゴシック体' },
@@ -150,10 +150,7 @@ export function renderTextLayers(
 	source: HTMLImageElement | HTMLCanvasElement,
 	layers: TextLayer[],
 ): HTMLCanvasElement {
-	const width =
-		source instanceof HTMLImageElement ? source.naturalWidth : source.width;
-	const height =
-		source instanceof HTMLImageElement ? source.naturalHeight : source.height;
+	const { width, height } = sourceSize(source);
 
 	const canvas = document.createElement('canvas');
 	canvas.width = width;
