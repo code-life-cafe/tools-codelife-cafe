@@ -9,12 +9,11 @@ import {
 	BYTES_PER_MB,
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
+import { downloadBlob } from '../download.ts';
 import { mimeForFormat } from '../image-canvas.ts';
+import { buildZip, dedupeZipNames } from './zip.ts';
 
 export { mimeForFormat };
-
-import { downloadBlob } from '../download.ts';
-import { buildZip, dedupeZipNames } from './zip.ts';
 
 // ---------------------------------------------------------------------------
 // 型定義
