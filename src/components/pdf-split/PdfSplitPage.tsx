@@ -8,9 +8,10 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
-import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
 	loadPdfInfo,
@@ -20,7 +21,6 @@ import {
 	validatePdfFile,
 } from '@/lib/tools/pdf';
 import { buildZip, dedupeZipNames } from '@/lib/tools/zip';
-import { formatBytes } from '../pdf-merge/MergeFileList';
 
 type SplitMode = 'range' | 'extract' | 'single';
 

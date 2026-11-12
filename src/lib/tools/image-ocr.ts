@@ -2,6 +2,12 @@
 // 入力の検査（形式・寸法・アニメーション）、認識結果とTXT出力の処理、設定の検証を担う。
 // Worker・CacheStorage・Canvas などのブラウザ依存は src/lib/ocr/ 側に置く。
 
+export {
+	buildTxtBlob,
+	countCharacters,
+	normalizeNewlines,
+} from '../text-output.ts';
+
 /** 入力ファイルの上限（20MiB） */
 export const MAX_OCR_FILE_BYTES = 20 * 1024 * 1024;
 /** 1辺の上限（px） */
@@ -288,18 +294,6 @@ export const EMPTY_RESULT_MESSAGE =
 	'文字を読み取れませんでした。文字が小さい・薄い、または文字のない画像の可能性があります。切り抜いたり、解像度の高い画像でお試しください。';
 export const TEXT_TOO_LONG_MESSAGE = `認識結果が長すぎます（上限は${MAX_OCR_TEXT_UNITS.toLocaleString('ja-JP')}文字相当）。画像を切り抜いて分けてお試しください。`;
 
-/** 改行コードだけをLFへ統一する。文字の内容は変更しない */
-export function normalizeNewlines(text: string): string {
-	return text.replace(/\r\n?/g, '\n');
-}
-
-/** 文字数（コードポイント数）。サロゲートペアを1文字として数える */
-export function countCharacters(text: string): number {
-	let count = 0;
-	for (const _ of text) count++;
-	return count;
-}
-
 export function isBlankText(text: string): boolean {
 	return text.trim() === '';
 }
@@ -311,13 +305,6 @@ export function isBlankText(text: string): boolean {
 export function validateOutputText(text: string): string | null {
 	if (text.length > MAX_OCR_TEXT_UNITS) return TEXT_TOO_LONG_MESSAGE;
 	return null;
-}
-
-/** 保存用のUTF-8（BOMなし）Blob。改行はLFに統一する */
-export function buildTxtBlob(text: string): Blob {
-	return new Blob([normalizeNewlines(text)], {
-		type: 'text/plain;charset=utf-8',
-	});
 }
 
 /** 画像のファイル名（拡張子を除く）。空なら既定名 */

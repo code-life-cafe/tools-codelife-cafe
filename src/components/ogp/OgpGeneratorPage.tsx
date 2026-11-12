@@ -13,8 +13,9 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
-import { downloadBlob, exportCanvas } from '@/lib/tools/image-common';
+import { exportCanvas } from '@/lib/tools/image-common';
 import {
 	type BgKind,
 	FONT_FAMILIES,

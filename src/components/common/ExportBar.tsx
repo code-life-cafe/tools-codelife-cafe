@@ -15,10 +15,10 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { downloadBlob } from '@/lib/download';
 import {
 	buildExportFilename,
 	DEFAULT_JPEG_QUALITY,
-	downloadBlob,
 	type ExportFormat,
 	exportCanvas,
 } from '@/lib/tools/image-common';

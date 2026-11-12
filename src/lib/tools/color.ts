@@ -4,6 +4,8 @@
 // CMYKはICCプロファイルを使用しない単純変換（naive conversion）であり、
 // 印刷用途の正確な色再現を保証するものではない。
 
+import { clamp } from '../math.ts';
+
 export type Rgb = { r: number; g: number; b: number; alpha?: number }; // 0-255, alpha 0-1
 export type Hsl = { h: number; s: number; l: number; alpha?: number }; // h 0-360, s/l 0-100
 export type Cmyk = { c: number; m: number; y: number; k: number }; // 0-100
@@ -20,10 +22,6 @@ function normalizeInput(input: string): string {
 		.replace(/[！-～]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xfee0)) // 全角英数記号 → 半角
 		.replace(/　/g, ' ') // 全角スペース → 半角スペース
 		.replace(/＃/g, '#'); // 念のため（上の範囲で変換されない場合）
-}
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.min(Math.max(value, min), max);
 }
 
 function roundTo(value: number, digits: number): number {

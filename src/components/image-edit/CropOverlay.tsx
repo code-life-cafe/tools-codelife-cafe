@@ -3,6 +3,7 @@
 // 座標系は bitmap（画像）空間。CSSスケーリングは自動補正。
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { clamp } from '@/lib/math';
 import type { CropRect } from '@/lib/tools/image-edit';
 
 const MIN_CROP_SIZE = 10; // 画像座標での最小クロップサイズ
@@ -16,10 +17,6 @@ interface CropOverlayProps {
 	imageHeight: number;
 	aspectRatio: number | null;
 	onChange: (crop: CropRect) => void;
-}
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.min(max, Math.max(min, value));
 }
 
 function clientToImageCoords(

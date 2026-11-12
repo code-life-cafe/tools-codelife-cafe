@@ -11,6 +11,7 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildSnippet,
@@ -21,7 +22,6 @@ import {
 	type SnippetKind,
 	validateImageFile,
 } from '@/lib/tools/image-base64.ts';
-import { downloadBlob } from '@/lib/tools/image-common';
 
 type Mode = 'encode' | 'decode';
 

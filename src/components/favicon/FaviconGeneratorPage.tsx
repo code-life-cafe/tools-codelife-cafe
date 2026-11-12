@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildHtmlSnippet,
@@ -21,7 +22,6 @@ import {
 	type RasterSource,
 	validateImageFile,
 } from '@/lib/tools/favicon';
-import { downloadBlob } from '@/lib/tools/image-common';
 import { buildZip, type ZipEntry } from '@/lib/tools/zip';
 import {
 	DEFAULT_FAVICON_OPTIONS,

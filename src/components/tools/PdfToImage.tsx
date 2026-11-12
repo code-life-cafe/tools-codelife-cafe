@@ -15,6 +15,8 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -31,7 +33,6 @@ import {
 	validatePdfInput,
 } from '@/lib/pdf/common';
 import { openPdfRenderSession, type PdfRenderSession } from '@/lib/pdf/render';
-import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	allPagesInput,
 	type ConvertResult,
@@ -43,7 +44,6 @@ import {
 	resolvePageSelection,
 	sanitizePdfToImageSettings,
 } from '@/lib/tools/pdf-to-image';
-import { formatBytes } from '../pdf-merge/MergeFileList';
 
 type LoadedPdf = {
 	file: File;

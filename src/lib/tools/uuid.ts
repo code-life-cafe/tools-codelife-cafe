@@ -1,6 +1,9 @@
 // UUID v4 / v7・ULID・nanoid の生成、判定、時刻抽出を行う純粋ロジック。
 // 乱数源は crypto.getRandomValues() のみを使用し、Math.random() は使用しない。
 
+import { yieldToEventLoop } from '../async.ts';
+import { toHex } from '../hex.ts';
+
 export type IdKind = 'uuid-v4' | 'uuid-v7' | 'ulid' | 'nanoid';
 
 export const ID_KIND_LABELS: Record<IdKind, string> = {
@@ -69,14 +72,6 @@ function getRandomBytes(length: number): Uint8Array {
 	const bytes = new Uint8Array(length);
 	crypto.getRandomValues(bytes);
 	return bytes;
-}
-
-function toHex(bytes: Uint8Array): string {
-	let hex = '';
-	for (let i = 0; i < bytes.length; i++) {
-		hex += bytes[i].toString(16).padStart(2, '0');
-	}
-	return hex;
 }
 
 function bytesToUuidString(bytes: Uint8Array): string {
@@ -451,10 +446,6 @@ export function generateIds(
 // 一括生成（非同期・チャンク分割版）: UI からの大量生成時にメインスレッドを長時間占有しないよう、
 // CHUNK_SIZE 件ごとにイベントループへ制御を戻す。
 // ---------------------------------------------------------------------------
-
-function yieldToEventLoop(): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, 0));
-}
 
 export async function generateIdsChunked(
 	kind: IdKind,

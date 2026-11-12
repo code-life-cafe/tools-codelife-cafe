@@ -13,7 +13,7 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { downloadBlob } from '@/lib/tools/image-common';
+import { downloadBlob } from '@/lib/download';
 import { buildCsvBlob } from '@/lib/tools/json-csv';
 import {
 	type BulkResult,

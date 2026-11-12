@@ -2,11 +2,8 @@
 // 読み込み・バリデーション・縮小・エクスポート・座標変換を提供する純粋関数群
 // （image-mosaic / image-text で共用）
 
-import {
-	BYTES_PER_MB,
-	FILE_SIZE_LIMITS_MB,
-	OBJECT_URL_REVOKE_DELAY_MS,
-} from '../constants.ts';
+import { BYTES_PER_MB, FILE_SIZE_LIMITS_MB } from '../constants.ts';
+import { clamp } from '../math.ts';
 
 export const SUPPORTED_IMAGE_TYPES = [
 	'image/png',
@@ -197,19 +194,6 @@ export function buildExportFilename(
 	return `${base}_edited.${ext}`;
 }
 
-/** Blob をファイルとしてダウンロードさせる */
-export function downloadBlob(blob: Blob, filename: string): void {
-	const url = URL.createObjectURL(blob);
-	const link = document.createElement('a');
-	link.href = url;
-	link.download = filename;
-	document.body.appendChild(link);
-	link.click();
-	document.body.removeChild(link);
-	// click 直後の revoke はダウンロード失敗の原因になるため遅延させる
-	setTimeout(() => URL.revokeObjectURL(url), OBJECT_URL_REVOKE_DELAY_MS);
-}
-
 /**
  * レイヤー・領域用のID生成。
  * crypto.randomUUID は Safari 15.4 未満に存在しないためフォールバックを持つ
@@ -220,10 +204,6 @@ export function createId(): string {
 		return crypto.randomUUID();
 	}
 	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function clamp(value: number, min: number, max: number): number {
-	return Math.min(max, Math.max(min, value));
 }
 
 /**
