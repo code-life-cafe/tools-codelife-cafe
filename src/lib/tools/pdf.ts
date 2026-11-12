@@ -179,7 +179,6 @@ export async function loadPdfInfo(bytes: Uint8Array): Promise<PdfInfo> {
 	}
 }
 
-/** マイクロタスク連投によるUIフリーズを避けるため、イベントループへ一度返す */
 /**
  * 複数のPDF・画像（JPEG / PNG）を1つのPDFへ結合する。
  * 画像は画像ピクセル寸法を 96dpi 換算した pt サイズの単一ページとして挿入する。

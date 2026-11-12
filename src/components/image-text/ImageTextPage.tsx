@@ -14,6 +14,7 @@ import {
 	downscaleImage,
 	loadImageFile,
 	needsDownscale,
+	sourceSize,
 	validateImageFile,
 } from '@/lib/tools/image-common';
 import {
@@ -33,12 +34,6 @@ type Phase =
 			source: HTMLImageElement | HTMLCanvasElement;
 			fileName: string;
 	  };
-
-function sourceSize(source: HTMLImageElement | HTMLCanvasElement) {
-	return source instanceof HTMLImageElement
-		? { width: source.naturalWidth, height: source.naturalHeight }
-		: { width: source.width, height: source.height };
-}
 
 export default function ImageTextPage() {
 	const { trackRun } = useToolAnalytics('image-text');

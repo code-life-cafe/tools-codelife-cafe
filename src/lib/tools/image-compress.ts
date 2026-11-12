@@ -10,6 +10,7 @@ import {
 	BYTES_PER_MB,
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
+import { type AnyCanvas, canvasToBlob, createCanvas } from '../image-canvas.ts';
 
 export type ResizeMode =
 	| { type: 'none' }
@@ -225,31 +226,6 @@ export async function searchQualityForTargetSize(
 // ---------------------------------------------------------------------------
 // canvas 依存（ブラウザ専用）
 // ---------------------------------------------------------------------------
-
-type AnyCanvas = OffscreenCanvas | HTMLCanvasElement;
-
-function createCanvas(width: number, height: number): AnyCanvas {
-	if (typeof OffscreenCanvas !== 'undefined') {
-		return new OffscreenCanvas(width, height);
-	}
-	const canvas = document.createElement('canvas');
-	canvas.width = width;
-	canvas.height = height;
-	return canvas;
-}
-
-function canvasToBlob(
-	canvas: AnyCanvas,
-	mime: string,
-	quality: number,
-): Promise<Blob | null> {
-	if ('convertToBlob' in canvas) {
-		return canvas.convertToBlob({ type: mime, quality }).catch(() => null);
-	}
-	return new Promise((resolve) => {
-		canvas.toBlob((blob) => resolve(blob), mime, quality);
-	});
-}
 
 /** ビットマップを目標寸法の canvas に描画する（透過非対応形式は背景色で塗る） */
 function drawBitmap(

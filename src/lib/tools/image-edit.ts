@@ -10,7 +10,10 @@ import {
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
 import { downloadBlob } from '../download.ts';
+import { mimeForFormat } from '../image-canvas.ts';
 import { buildZip, dedupeZipNames } from './zip.ts';
+
+export { mimeForFormat };
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -169,18 +172,6 @@ export function buildEditedFilename(
 	const base = originalName.replace(/\.[^.]+$/, '') || 'image';
 	const ext = output === 'jpeg' ? 'jpg' : output;
 	return `${base}_edited.${ext}`;
-}
-
-/** 出力形式の MIME タイプを返す */
-export function mimeForFormat(format: OutputFormat): string {
-	switch (format) {
-		case 'jpeg':
-			return 'image/jpeg';
-		case 'webp':
-			return 'image/webp';
-		case 'png':
-			return 'image/png';
-	}
 }
 
 /** JPEG 出力時は透過を背景色で合成する必要がある */

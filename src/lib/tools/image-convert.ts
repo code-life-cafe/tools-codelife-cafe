@@ -14,6 +14,7 @@ import {
 	BYTES_PER_MB,
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
+import { type AnyCanvas, canvasToBlob, createCanvas } from '../image-canvas.ts';
 
 export type SourceFormat = 'png' | 'jpeg' | 'webp' | 'avif' | 'heic';
 export type TargetFormat = 'jpeg' | 'png' | 'webp' | 'avif';
@@ -339,18 +340,6 @@ export function injectExif(
 // canvas / WASM 依存（ブラウザ専用）
 // ---------------------------------------------------------------------------
 
-type AnyCanvas = OffscreenCanvas | HTMLCanvasElement;
-
-function createCanvas(width: number, height: number): AnyCanvas {
-	if (typeof OffscreenCanvas !== 'undefined') {
-		return new OffscreenCanvas(width, height);
-	}
-	const canvas = document.createElement('canvas');
-	canvas.width = width;
-	canvas.height = height;
-	return canvas;
-}
-
 function get2dContext(
 	canvas: AnyCanvas,
 ): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D {
@@ -362,19 +351,6 @@ function get2dContext(
 		throw new Error('Canvas 2D コンテキストの取得に失敗しました。');
 	}
 	return ctx;
-}
-
-function canvasToBlob(
-	canvas: AnyCanvas,
-	mime: string,
-	quality: number,
-): Promise<Blob | null> {
-	if ('convertToBlob' in canvas) {
-		return canvas.convertToBlob({ type: mime, quality }).catch(() => null);
-	}
-	return new Promise((resolve) => {
-		canvas.toBlob((blob) => resolve(blob), mime, quality);
-	});
 }
 
 /** HEIC を libheif-js（遅延ロード）でデコードし ImageData を得る */
