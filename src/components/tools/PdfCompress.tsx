@@ -15,6 +15,8 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -34,7 +36,6 @@ import {
 	type PdfRenderSession,
 	renderPreviewBlob,
 } from '@/lib/pdf/render';
-import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	assertCompressibleFlags,
 	type CompressMode,
@@ -46,7 +47,6 @@ import {
 	inspectPdfForCompress,
 	sanitizePdfCompressSettings,
 } from '@/lib/tools/pdf-compress';
-import { formatBytes } from '../pdf-merge/MergeFileList';
 
 const PREVIEW_WIDTH_PX = 320;
 

@@ -4,6 +4,7 @@
 // 用途は merge / split / image embed / page count detection に限定する
 // （署名保持・暗号化処理・フォーム完全保持などの高度なPDF処理は対象外）。
 
+import { yieldToEventLoop } from '../async.ts';
 import {
 	BATCH_TOTAL_SIZE_LIMIT_BYTES,
 	BYTES_PER_MB,
@@ -179,10 +180,6 @@ export async function loadPdfInfo(bytes: Uint8Array): Promise<PdfInfo> {
 }
 
 /** マイクロタスク連投によるUIフリーズを避けるため、イベントループへ一度返す */
-function yieldToEventLoop(): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 /**
  * 複数のPDF・画像（JPEG / PNG）を1つのPDFへ結合する。
  * 画像は画像ピクセル寸法を 96dpi 換算した pt サイズの単一ページとして挿入する。

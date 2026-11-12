@@ -6,9 +6,10 @@ import { Download, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { downloadBlob } from '@/lib/download';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
-import { createId, downloadBlob } from '@/lib/tools/image-common';
+import { createId } from '@/lib/tools/image-common';
 import {
 	buildMergedFilename,
 	computeLayout,

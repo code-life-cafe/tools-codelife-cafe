@@ -18,6 +18,7 @@ import { FileDropzone } from '@/components/common/FileDropzone';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { downloadBlob } from '@/lib/download';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -29,7 +30,7 @@ import {
 	validateBatch,
 	validateImageFile,
 } from '@/lib/tools/exif';
-import { createId, downloadBlob } from '@/lib/tools/image-common';
+import { createId } from '@/lib/tools/image-common';
 import { buildZip, dedupeZipNames } from '@/lib/tools/zip';
 
 const ACCEPT = 'image/jpeg,image/tiff,image/webp';

@@ -6,9 +6,11 @@ import { Download, FileStack, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing.ts';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
-import { createId, downloadBlob } from '@/lib/tools/image-common';
+import { createId } from '@/lib/tools/image-common';
 import {
 	ENCRYPTED_PDF_MESSAGE,
 	loadPdfInfo,
@@ -19,7 +21,7 @@ import {
 	validatePdfFile,
 	validateTotalInputSize,
 } from '@/lib/tools/pdf';
-import { formatBytes, MergeFileList, type MergeItem } from './MergeFileList';
+import { MergeFileList, type MergeItem } from './MergeFileList';
 
 // MIMEが空/octet-streamのPDF（OS・ブラウザ依存）も選択できるよう拡張子も併記する
 const ACCEPT = 'application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png';

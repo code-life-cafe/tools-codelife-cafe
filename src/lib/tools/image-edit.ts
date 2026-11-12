@@ -9,7 +9,7 @@ import {
 	BYTES_PER_MB,
 	FILE_SIZE_LIMITS_MB,
 } from '../constants.ts';
-import { downloadBlob } from './image-common.ts';
+import { downloadBlob } from '../download.ts';
 import { buildZip, dedupeZipNames } from './zip.ts';
 
 // ---------------------------------------------------------------------------

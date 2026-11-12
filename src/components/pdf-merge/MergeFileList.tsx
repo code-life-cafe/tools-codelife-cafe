@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { formatBytes } from '@/lib/format-bytes';
 
 export type MergeItem = {
 	id: string;
@@ -23,12 +24,6 @@ export type MergeItem = {
 	pageCount?: number; // PDFのみ（読み込み後に表示）
 	error?: string;
 };
-
-export function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
 
 type Props = {
 	items: MergeItem[];

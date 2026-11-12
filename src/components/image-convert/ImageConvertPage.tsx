@@ -12,10 +12,11 @@ import {
 import { useCallback, useEffect, useState } from 'react';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { downloadBlob } from '@/lib/download';
 import { useBatchProcessing } from '@/lib/hooks/useBatchProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
-import { createId, downloadBlob } from '@/lib/tools/image-common';
+import { createId } from '@/lib/tools/image-common';
 import {
 	convertOne,
 	MAX_BATCH_FILES,

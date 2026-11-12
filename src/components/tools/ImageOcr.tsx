@@ -18,6 +18,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { copyText } from '@/lib/clipboard';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -27,7 +29,6 @@ import {
 	type OcrPhase,
 	recognizeImage,
 } from '@/lib/ocr/client';
-import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	buildTxtBlob,
 	checkOcrFileSize,
@@ -47,7 +48,6 @@ import {
 	txtFileName,
 	validateOutputText,
 } from '@/lib/tools/image-ocr';
-import { formatBytes } from '../pdf-merge/MergeFileList';
 
 type LoadedImage = {
 	file: File;

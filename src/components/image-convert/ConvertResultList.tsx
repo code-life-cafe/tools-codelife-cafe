@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatBytes } from '@/lib/format-bytes';
 import type { SourceFormat, TargetFormat } from '@/lib/tools/image-convert';
 
 export type ConvertItem = {
@@ -40,12 +41,6 @@ const TARGET_LABELS: Record<TargetFormat, string> = {
 	webp: 'WebP',
 	avif: 'AVIF',
 };
-
-export function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
 
 interface ConvertResultListProps {
 	items: ConvertItem[];

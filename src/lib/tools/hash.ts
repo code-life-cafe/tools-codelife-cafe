@@ -4,6 +4,7 @@ import {
 	HASH_HUGE_FILE_THRESHOLD_BYTES,
 	HASH_LARGE_FILE_THRESHOLD_BYTES,
 } from '../constants.ts';
+import { toHex } from '../hex.ts';
 
 export type HashAlgorithm = 'md5' | 'sha1' | 'sha256' | 'sha512' | 'crc32';
 
@@ -221,14 +222,6 @@ export function createCrc32(): IncrementalHasher {
 // ---------------------------------------------------------------------------
 // 公開API
 // ---------------------------------------------------------------------------
-
-function toHex(bytes: Uint8Array): string {
-	let hex = '';
-	for (let i = 0; i < bytes.length; i++) {
-		hex += bytes[i].toString(16).padStart(2, '0');
-	}
-	return hex;
-}
 
 function createIncrementalHasher(
 	algorithm: 'md5' | 'crc32',

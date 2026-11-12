@@ -8,9 +8,11 @@ import {
 	throwIfAborted,
 	validatePageCount,
 } from '../pdf/common.ts';
+import { normalizeNewlines } from '../text-output.ts';
 
 import { inspectPdfForCompress } from './pdf-compress.ts';
 
+export { buildTxtBlob, countCharacters } from '../text-output.ts';
 export { allPagesInput, resolvePageSelection } from './pdf-to-image.ts';
 
 /** 抽出後テキストの上限（UTF-16コード単位の累計。ページ見出しは含まない） */
@@ -128,10 +130,6 @@ function lastChar(text: string): string {
 
 function firstChar(text: string): string {
 	return text === '' ? '' : (Array.from(text.slice(0, 2))[0] ?? '');
-}
-
-function normalizeNewlines(text: string): string {
-	return text.replace(/\r\n?/g, '\n');
 }
 
 function endTrim(text: string): string {
@@ -366,13 +364,6 @@ export function summarizePages(pages: readonly PageText[]): TextSummary {
 	};
 }
 
-/** 文字数（コードポイント数）。サロゲートペアを1文字として数える */
-export function countCharacters(text: string): number {
-	let count = 0;
-	for (const _ of text) count++;
-	return count;
-}
-
 export function utf8ByteLength(text: string): number {
 	return new TextEncoder().encode(text).length;
 }
@@ -397,13 +388,6 @@ export function validateOutputText(
 		return 'TXTのサイズが8MBを超えるため、コピー・保存できません。不要な部分を削除してください。';
 	}
 	return null;
-}
-
-/** 保存用のUTF-8（BOMなし）Blob。改行はLFに統一する */
-export function buildTxtBlob(text: string): Blob {
-	return new Blob([normalizeNewlines(text)], {
-		type: 'text/plain;charset=utf-8',
-	});
 }
 
 export function txtFileName(baseName: string): string {

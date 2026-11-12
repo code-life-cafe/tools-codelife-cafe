@@ -10,6 +10,7 @@ import type {
 	PDFDocument as PDFDocumentType,
 	PDFRawStream as PDFRawStreamType,
 } from 'pdf-lib';
+import { yieldToEventLoop } from '../async.ts';
 import {
 	corruptError,
 	DPI_OPTIONS,
@@ -93,10 +94,6 @@ const FORM_PDF_MESSAGE =
 	'入力フォーム（フォームフィールド）を含むPDFは圧縮できません。入力内容や動作が失われるおそれがあるためです。';
 
 /** マイクロタスク連投によるUIフリーズを避けるため、イベントループへ一度返す */
-function yieldToEventLoop(): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
 /**
  * 読み込み後の構造参照（ページツリー欠落など）で起きる想定外の例外を、
  * 破損PDFとして日本語メッセージに変換する。PdfToolError（キャンセル等）はそのまま投げる。

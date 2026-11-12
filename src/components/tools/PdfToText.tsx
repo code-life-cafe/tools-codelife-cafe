@@ -19,6 +19,8 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { copyText } from '@/lib/clipboard';
+import { downloadBlob } from '@/lib/download';
+import { formatBytes } from '@/lib/format-bytes';
 import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
@@ -30,7 +32,6 @@ import {
 	validatePdfInput,
 } from '@/lib/pdf/common';
 import { openPdfRenderSession, type PdfRenderSession } from '@/lib/pdf/render';
-import { downloadBlob } from '@/lib/tools/image-common';
 import {
 	allPagesInput,
 	assembleText,
@@ -50,7 +51,6 @@ import {
 	txtFileName,
 	validateOutputText,
 } from '@/lib/tools/pdf-to-text';
-import { formatBytes } from '../pdf-merge/MergeFileList';
 
 type LoadedPdf = {
 	file: File;

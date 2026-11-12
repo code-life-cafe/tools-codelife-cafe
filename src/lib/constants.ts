@@ -68,7 +68,7 @@ export const HASH_HUGE_FILE_THRESHOLD_BYTES = 200 * BYTES_PER_MB;
 /**
  * Blob ダウンロード後、生成した ObjectURL を revoke するまでの遅延（ミリ秒）。
  * click 直後に revoke するとダウンロードが失敗するブラウザがあるため遅延させる
- * （src/lib/download.ts と src/lib/tools/image-common.ts の downloadBlob で共用）。
+ * （src/lib/download.ts の downloadBlob で使用）。
  */
 export const OBJECT_URL_REVOKE_DELAY_MS = 1000;
 

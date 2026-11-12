@@ -16,6 +16,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import { formatBytes } from '@/lib/format-bytes';
 import type { CompressResult } from '@/lib/tools/image-compress';
 
 export type CompressItem = {
@@ -27,12 +28,6 @@ export type CompressItem = {
 	resultUrl?: string;
 	error?: string;
 };
-
-export function formatBytes(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
 
 const WARNING_LABELS: Record<NonNullable<CompressResult['warning']>, string> = {
 	'target-not-reached':
