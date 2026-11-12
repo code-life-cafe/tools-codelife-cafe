@@ -1,5 +1,5 @@
 import { ChevronDown, Unlock } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
 	Collapsible,
@@ -26,12 +26,16 @@ export function BruteForcePanel({
 	const [isOpen, setIsOpen] = useState(false);
 	const [order, setOrder] = useState<CaesarCandidateOrder>('shift');
 
+	// 候補は入力全長×最大45シフトの計算になる。閉じている間は計算せず、
+	// 開いている間もキー入力の描画を優先して遅延値で計算する（#692）。
+	const deferredInput = useDeferredValue(input);
+
 	const displayedPatterns = useMemo(() => {
-		if (!input) return [];
-		return isOpen && order === 'score'
-			? scoredCaesarCandidates(input, 'score')
-			: caesarBruteForce(input);
-	}, [input, isOpen, order]);
+		if (!isOpen || !deferredInput) return [];
+		return order === 'score'
+			? scoredCaesarCandidates(deferredInput, 'score')
+			: caesarBruteForce(deferredInput);
+	}, [deferredInput, isOpen, order]);
 
 	const firstCandidate = displayedPatterns[0];
 	const secondCandidate = displayedPatterns[1];

@@ -214,6 +214,49 @@ test.describe('Cipher Tool', () => {
 		await expect(shiftInput).toHaveValue('5');
 	});
 
+	test('全候補パネルは開閉・入力変更の後も最新の入力から候補を出す', async ({
+		page,
+	}) => {
+		const inputArea = page.getByPlaceholder(
+			/「こんにちは」や「Hello World」を入力.../,
+		);
+		const toggle = page.getByRole('button', {
+			name: '鍵がわからないとき：全候補を見る',
+		});
+		const candidate = (shift: number, text: string) =>
+			page
+				.locator('button')
+				.filter({ hasText: `シフト ${shift}:` })
+				.filter({ hasText: text });
+
+		// 閉じたまま入力してから開くと、その入力の候補が出る
+		await inputArea.fill('abc');
+		await toggle.click();
+		await expect(candidate(1, 'zab')).toBeVisible();
+		await expect(
+			page.locator('button').filter({ hasText: /^シフト \d+:/ }),
+		).toHaveCount(25);
+
+		// 開いたまま入力を変えると候補が追従する（かな入力は45候補）
+		await inputArea.fill('こんにちは');
+		await expect(
+			page.locator('button').filter({ hasText: /^シフト \d+:/ }),
+		).toHaveCount(45);
+		await expect(candidate(1, 'abc')).toHaveCount(0);
+
+		// 閉じて入力を変え、開き直すと新しい入力の候補になる
+		await toggle.click();
+		await expect(
+			page.locator('button').filter({ hasText: /^シフト \d+:/ }),
+		).toHaveCount(0);
+		await inputArea.fill('bcd');
+		await toggle.click();
+		await expect(candidate(1, 'abc')).toBeVisible();
+		await expect(
+			page.locator('button').filter({ hasText: /^シフト \d+:/ }),
+		).toHaveCount(25);
+	});
+
 	test('Common UI elements (copy, clear, text info)', async ({ page }) => {
 		const inputArea = page.getByPlaceholder(
 			/「こんにちは」や「Hello World」を入力.../,
