@@ -30,6 +30,7 @@ import { provideToolsFromFactory } from '@/lib/webmcp';
 import { hashTool } from '@/lib/webmcp/tools/hash.webmcp';
 import { HashResultTable } from './HashResultTable';
 import { HashVerifier } from './HashVerifier';
+import { HmacPanel } from './HmacPanel';
 
 type InputMode = 'text' | 'file';
 
@@ -300,6 +301,9 @@ export function HashPage() {
 
 			{/* 期待値照合 */}
 			<HashVerifier results={results} selectedAlgorithms={algorithms} />
+
+			{/* HMAC（鍵付きハッシュ）。上の入力とは独立して計算する */}
+			<HmacPanel />
 
 			{/* 200MB超 + SHA系選択時の確認モーダル */}
 			<Dialog
