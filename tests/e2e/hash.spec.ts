@@ -174,7 +174,7 @@ test.describe('Hash Generator Tool', () => {
 		).toHaveText('ハッシュ値計算・確認ツール');
 		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 			'content',
-			'ファイルやテキストのハッシュ値を計算・確認できる無料ツール。SHA-256・MD5・SHA-1・SHA-512・CRC32に対応し、配布元のハッシュ値と照合できます。入力内容やファイルは外部に送信せず、ブラウザ内で処理します。',
+			'ファイルやテキストのハッシュ値を計算・確認できる無料ツール。SHA-256・MD5・SHA-1・SHA-512・CRC32に対応し、配布元のハッシュ値と照合できます。秘密鍵を使うHMAC（HMAC-SHA256など）も計算できます。入力内容やファイルは外部に送信せず、ブラウザ内で処理します。',
 		);
 		await toolPage.expectSafetyBadge();
 	});
@@ -205,6 +205,10 @@ test.describe('Hash Generator Tool', () => {
 		const howto = page.getByRole('region', { name: '使い方・手順' });
 		await expect(howto).toContainText('配布元と同じアルゴリズム');
 		await expect(howto).toContainText('「期待値との照合」欄');
+		// HMAC（#472）: FAQ・使い方に説明があり、下の FAQPage 構造化データとも一致する
+		await expect(faq).toContainText('HMACは、秘密鍵とメッセージを組み合わせて');
+		await expect(faq).toContainText('外部へ送信・保存しません');
+		await expect(howto).toContainText('「HMAC（鍵付きハッシュ）を計算」欄');
 
 		const visibleAnswers = (await faq.locator('dd').allTextContents()).map(
 			(answer) => answer.trim(),
@@ -481,5 +485,115 @@ test.describe('Hash Generator Tool', () => {
 
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await expect(textarea).toBeVisible();
+	});
+	test.describe('HMAC（鍵付きハッシュ）', () => {
+		// RFC 4231 Test Case 2（鍵 "Jefe"）
+		const MESSAGE = 'what do ya want for nothing?';
+		const SHA256_HEX =
+			'5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843';
+		const SHA256_BASE64 = 'W9zBRr9gdU5qBCQmCJV1x1oAPwidJzmDnexYuWTsOEM=';
+		const SHA512_HEX =
+			'164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737';
+
+		test('既知のテストベクタを16進数とBase64で表示し、アルゴリズムと鍵の形式を切り替えられる', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('hmac-panel');
+			const hex = panel.getByTestId('hmac-result-hex');
+			const base64 = panel.getByTestId('hmac-result-base64');
+
+			await panel.getByLabel('メッセージ').fill(MESSAGE);
+			await panel.getByLabel('秘密鍵').fill('Jefe');
+			await expect(hex).toContainText(SHA256_HEX);
+			await expect(hex).toContainText('HMAC-SHA256');
+			await expect(base64).toContainText(SHA256_BASE64);
+
+			await panel.getByRole('combobox', { name: 'アルゴリズム' }).click();
+			await page.getByRole('option', { name: 'HMAC-SHA512' }).click();
+			await expect(hex).toContainText(SHA512_HEX);
+			await expect(hex).toContainText('HMAC-SHA512');
+
+			// 同じ鍵を16進数で入力しても結果は同じ（"Jefe" = 4a656665）
+			await panel.getByRole('combobox', { name: '鍵の形式' }).click();
+			await page.getByRole('option', { name: '16進数' }).click();
+			await panel.getByLabel('秘密鍵').fill('4a656665');
+			await expect(hex).toContainText(SHA512_HEX);
+
+			// 上のハッシュ計算の入力とは独立している
+			await expect(page.getByTestId('hash-result-sha256')).toContainText('—');
+		});
+
+		test('不正な16進数の鍵はエラーを表示し、結果を出さない', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('hmac-panel');
+			await panel.getByRole('combobox', { name: '鍵の形式' }).click();
+			await page.getByRole('option', { name: '16進数' }).click();
+			await panel.getByLabel('メッセージ').fill(MESSAGE);
+			await panel.getByLabel('秘密鍵').fill('abc');
+
+			await expect(panel.getByTestId('hmac-key-error')).toContainText('偶数桁');
+			await expect(panel.getByLabel('秘密鍵')).toHaveAttribute(
+				'aria-invalid',
+				'true',
+			);
+			await expect(panel.getByTestId('hmac-result-hex')).not.toContainText(
+				/[0-9a-f]{40}/,
+			);
+
+			await panel.getByLabel('秘密鍵').fill('4a656665');
+			await expect(panel.getByTestId('hmac-key-error')).toHaveCount(0);
+			await expect(panel.getByTestId('hmac-result-hex')).toContainText(
+				SHA256_HEX,
+			);
+		});
+
+		test('鍵とメッセージをURL・localStorageに保存しない', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('hmac-panel');
+			const secret = 'super-secret-key-12345';
+			await panel.getByLabel('メッセージ').fill('秘密のメッセージ');
+			await panel.getByLabel('秘密鍵').fill(secret);
+			await expect(panel.getByTestId('hmac-result-hex')).toContainText(
+				/[0-9a-f]{64}/,
+			);
+
+			expect(page.url()).not.toContain(secret);
+			const stored = await page.evaluate(() =>
+				JSON.stringify({ ...localStorage, ...sessionStorage }),
+			);
+			expect(stored).not.toContain(secret);
+			expect(stored).not.toContain('秘密のメッセージ');
+		});
+
+		for (const width of [375, 1440]) {
+			test(`${width}px で横にはみ出さない`, async ({
+				page,
+				createToolPage,
+			}) => {
+				await page.setViewportSize({ width, height: 900 });
+				await createToolPage('hash').goto();
+				const panel = page.getByTestId('hmac-panel');
+				await panel.getByLabel('メッセージ').fill(MESSAGE);
+				await panel.getByLabel('秘密鍵').fill('Jefe');
+				await expect(panel.getByTestId('hmac-result-hex')).toContainText(
+					SHA256_HEX,
+				);
+				await expect
+					.poll(() =>
+						page.evaluate(
+							() => document.documentElement.scrollWidth <= window.innerWidth,
+						),
+					)
+					.toBe(true);
+			});
+		}
 	});
 });
