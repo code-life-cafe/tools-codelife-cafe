@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { expect, test } from './fixtures/base.ts';
 
@@ -209,6 +210,11 @@ test.describe('Hash Generator Tool', () => {
 		await expect(faq).toContainText('HMACは、秘密鍵とメッセージを組み合わせて');
 		await expect(faq).toContainText('外部へ送信・保存しません');
 		await expect(howto).toContainText('「HMAC（鍵付きハッシュ）を計算」欄');
+		// チェックサムリストの一括照合（#472）
+		await expect(faq).toContainText('SHA256SUMSのようなチェックサムリスト');
+		await expect(howto).toContainText(
+			'「チェックサムリストで複数ファイルを一括照合」欄',
+		);
 
 		const visibleAnswers = (await faq.locator('dd').allTextContents()).map(
 			(answer) => answer.trim(),
@@ -585,6 +591,148 @@ test.describe('Hash Generator Tool', () => {
 				await panel.getByLabel('秘密鍵').fill('Jefe');
 				await expect(panel.getByTestId('hmac-result-hex')).toContainText(
 					SHA256_HEX,
+				);
+				await expect
+					.poll(() =>
+						page.evaluate(
+							() => document.documentElement.scrollWidth <= window.innerWidth,
+						),
+					)
+					.toBe(true);
+			});
+		}
+	});
+
+	test.describe('チェックサムリストで一括照合', () => {
+		// 期待値は node:crypto で求める（実装と独立）
+		const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+		const md5 = (s: string) => createHash('md5').update(s).digest('hex');
+		const file = (name: string, content: string) => ({
+			name,
+			mimeType: 'application/octet-stream',
+			buffer: Buffer.from(content),
+		});
+
+		test('一致・不一致・未選択・記載なし・読み取れない行を表示する', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('checksum-list-panel');
+			const list = [
+				'# release checksums',
+				`${sha256('alpha')}  ./dist/alpha.zip`,
+				`MD5 (beta.txt) = ${md5('beta')}`,
+				`${sha256('not-gamma')}  gamma.bin`,
+				`${sha256('delta')}  delta.zip`,
+				'壊れた行',
+			].join('\n');
+			await panel.getByLabel('チェックサムリスト').fill(list);
+			await panel
+				.getByTestId('checksum-list-file-input')
+				.setInputFiles([
+					file('alpha.zip', 'alpha'),
+					file('beta.txt', 'beta'),
+					file('gamma.bin', 'gamma'),
+					file('extra.log', 'extra'),
+				]);
+
+			const summary = panel.getByTestId('checksum-list-summary');
+			await expect(summary).toContainText(
+				'一致 2件・不一致 1件・ファイル未選択 1件',
+			);
+			await expect(summary).not.toContainText('計算中');
+			await expect(summary).toHaveAttribute('aria-live', 'polite');
+
+			const rows = panel.getByTestId('checksum-list-results').locator('li');
+			await expect(rows).toHaveCount(4);
+			await expect(rows.nth(0)).toHaveAttribute('data-status', 'match');
+			await expect(rows.nth(0)).toContainText('./dist/alpha.zip');
+			await expect(rows.nth(1)).toHaveAttribute('data-status', 'match');
+			await expect(rows.nth(1)).toContainText('MD5');
+			await expect(rows.nth(2)).toHaveAttribute('data-status', 'mismatch');
+			await expect(rows.nth(2)).toContainText(sha256('gamma'));
+			await expect(rows.nth(3)).toHaveAttribute('data-status', 'missing');
+
+			await expect(panel.getByTestId('checksum-list-unlisted')).toContainText(
+				'extra.log',
+			);
+			const errors = panel.getByTestId('checksum-list-errors');
+			await expect(errors).toContainText('6行目');
+			await expect(errors).toContainText('壊れた行');
+
+			// リストを後から変えても、必要なアルゴリズムを計算し直して照合する
+			await panel
+				.getByLabel('チェックサムリスト')
+				.fill(`${md5('gamma')}  gamma.bin`);
+			await expect(summary).toContainText('一致 1件・不一致 0件');
+			await expect(errors).toHaveCount(0);
+
+			// 上の単一ファイルの計算結果には影響しない
+			await expect(page.getByTestId('hash-result-sha256')).toContainText('—');
+		});
+
+		test('同名ファイルを複数選ぶと判定しない', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('checksum-list-panel');
+			await panel
+				.getByLabel('チェックサムリスト')
+				.fill(`${sha256('one')}  same.txt`);
+			await panel
+				.getByTestId('checksum-list-file-input')
+				.setInputFiles([file('same.txt', 'one'), file('same.txt', 'two')]);
+			await expect(panel.getByTestId('checksum-list-summary')).toContainText(
+				'同名ファイルが複数 1件',
+			);
+			await expect(
+				panel.getByTestId('checksum-list-results').locator('li'),
+			).toHaveAttribute('data-status', 'duplicate-file');
+		});
+
+		test('リストとファイル名をURL・localStorageに保存しない', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			const panel = page.getByTestId('checksum-list-panel');
+			await panel
+				.getByLabel('チェックサムリスト')
+				.fill(`${sha256('secret')}  confidential-report.pdf`);
+			await panel
+				.getByTestId('checksum-list-file-input')
+				.setInputFiles([file('confidential-report.pdf', 'secret')]);
+			await expect(panel.getByTestId('checksum-list-summary')).toContainText(
+				'一致 1件',
+			);
+			expect(page.url()).not.toContain('confidential');
+			const stored = await page.evaluate(() =>
+				JSON.stringify({ ...localStorage, ...sessionStorage }),
+			);
+			expect(stored).not.toContain('confidential');
+			expect(stored).not.toContain(sha256('secret'));
+		});
+
+		for (const width of [375, 1440]) {
+			test(`${width}px で横にはみ出さない`, async ({
+				page,
+				createToolPage,
+			}) => {
+				await page.setViewportSize({ width, height: 900 });
+				await createToolPage('hash').goto();
+				const panel = page.getByTestId('checksum-list-panel');
+				await panel
+					.getByLabel('チェックサムリスト')
+					.fill(
+						`${sha256('x')}  very-long-file-name-${'x'.repeat(80)}.zip\n${sha256('y')}  y.zip`,
+					);
+				await panel
+					.getByTestId('checksum-list-file-input')
+					.setInputFiles([file('y.zip', 'z')]);
+				await expect(panel.getByTestId('checksum-list-summary')).toContainText(
+					'不一致 1件',
 				);
 				await expect
 					.poll(() =>
