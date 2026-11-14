@@ -672,6 +672,60 @@ test.describe('Hash Generator Tool', () => {
 			await expect(page.getByTestId('hash-result-sha256')).toContainText('—');
 		});
 
+		test('計算中にリストを編集しても、同じファイルを並行して計算し直さない', async ({
+			page,
+			createToolPage,
+		}) => {
+			await createToolPage('hash').goto();
+			// SHA-256 の呼び出し回数を数え、1回目の完了だけを保留する
+			await page.evaluate(() => {
+				const digest = crypto.subtle.digest.bind(crypto.subtle);
+				const w = window as unknown as { sha256Calls: number };
+				w.sha256Calls = 0;
+				crypto.subtle.digest = async (algorithm, data) => {
+					const result = await digest(algorithm, data);
+					if (algorithm === 'SHA-256') {
+						w.sha256Calls++;
+						if (w.sha256Calls === 1) {
+							document.documentElement.dataset.hashPaused = 'true';
+							await new Promise<void>((resolve) => {
+								window.addEventListener('resume-hash', () => resolve(), {
+									once: true,
+								});
+							});
+						}
+					}
+					return result;
+				};
+			});
+			const panel = page.getByTestId('checksum-list-panel');
+			const listInput = panel.getByLabel('チェックサムリスト');
+			await listInput.fill(`${sha256('alpha')}  alpha.zip`);
+			await panel
+				.getByTestId('checksum-list-file-input')
+				.setInputFiles([file('alpha.zip', 'alpha')]);
+			await expect(page.locator('html')).toHaveAttribute(
+				'data-hash-paused',
+				'true',
+			);
+
+			// 必要なアルゴリズムが変わらない編集（コメント追加）を、解析の待ち時間を挟んで2回行う
+			await listInput.fill(`# 1\n${sha256('alpha')}  alpha.zip`);
+			await page.waitForTimeout(500);
+			await listInput.fill(`# 2\n${sha256('alpha')}  alpha.zip`);
+			await page.waitForTimeout(500);
+			await resumeHash(page);
+
+			const summary = panel.getByTestId('checksum-list-summary');
+			await expect(summary).toContainText('一致 1件・不一致 0件');
+			await expect(summary).not.toContainText('計算中');
+			expect(
+				await page.evaluate(
+					() => (window as unknown as { sha256Calls: number }).sha256Calls,
+				),
+			).toBe(1);
+		});
+
 		test('同名ファイルを複数選ぶと判定しない', async ({
 			page,
 			createToolPage,

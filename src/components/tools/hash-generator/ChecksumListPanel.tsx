@@ -70,9 +70,8 @@ export function ChecksumListPanel() {
 	const [files, setFiles] = useState<File[]>([]);
 	const [fileError, setFileError] = useState<string | null>(null);
 	const [cache, setCache] = useState<ReadonlyMap<File, CacheValue>>(new Map());
-	const cacheRef = useRef(cache);
-	cacheRef.current = cache;
-	const runIdRef = useRef(0);
+	// ファイルを選び直すたびに進める。古い選択の計算結果を混ぜないため
+	const generationRef = useRef(0);
 
 	// 貼り付け・入力の途中で解析し直さないよう 300ms 待つ
 	useEffect(() => {
@@ -92,48 +91,65 @@ export function ChecksumListPanel() {
 		return files.filter((f) => counts.get(f.name) === 1);
 	}, [files]);
 
-	// リストが必要とするアルゴリズムのうち、未計算のものだけを1ファイルずつ計算する
-	useEffect(() => {
-		const runId = ++runIdRef.current;
-		const jobs = uniqueFiles
-			.map((file) => {
-				const needed = requiredAlgorithmsForFile(parsed.entries, file.name);
-				const cached = cacheRef.current.get(file);
-				if (cached?.kind === 'failed') return null;
-				const missing = needed.filter(
-					(a) => cached?.kind !== 'done' || cached.results[a] == null,
-				);
-				return missing.length > 0 ? { file, missing } : null;
-			})
-			.filter((job) => job != null);
-		if (jobs.length === 0) return;
+	// ファイルごとに、リストが必要とするアルゴリズムのうち未計算のもの
+	const pendingJobs = useMemo(
+		() =>
+			uniqueFiles
+				.map((file) => {
+					const cached = cache.get(file);
+					if (cached?.kind === 'failed') return null;
+					const missing = requiredAlgorithmsForFile(
+						parsed.entries,
+						file.name,
+					).filter((a) => cached?.kind !== 'done' || cached.results[a] == null);
+					return missing.length > 0 ? { file, missing } : null;
+				})
+				.filter((job) => job != null),
+		[uniqueFiles, parsed.entries, cache],
+	);
+	const pendingJobsRef = useRef(pendingJobs);
+	pendingJobsRef.current = pendingJobs;
 
-		(async () => {
-			for (const { file, missing } of jobs) {
-				if (runIdRef.current !== runId) return;
-				let value: CacheValue;
-				if (file.size > MAX_FILE_SIZE) {
-					value = { kind: 'failed' };
-				} else {
-					try {
-						const results = await hashFile(file, missing);
-						const cached = cacheRef.current.get(file);
-						value = {
-							kind: 'done',
-							results: {
-								...(cached?.kind === 'done' ? cached.results : {}),
-								...results,
-							},
-						};
-					} catch {
-						value = { kind: 'failed' };
-					}
-				}
-				if (runIdRef.current !== runId) return;
-				setCache((prev) => new Map(prev).set(file, value));
+	// 計算は常に1件ずつ、単一のループで行う（同じファイルを並行に読み込まない）。
+	// リストを編集しても計算中のものは止めず、終わった結果は同じ File の結果として残す。
+	const busyRef = useRef(false);
+	const runNextJob = useCallback(async () => {
+		if (busyRef.current) return;
+		const job = pendingJobsRef.current[0];
+		if (!job) return;
+		busyRef.current = true;
+		const generation = generationRef.current;
+		const { file, missing } = job;
+		let value: CacheValue;
+		if (file.size > MAX_FILE_SIZE) {
+			value = { kind: 'failed' };
+		} else {
+			try {
+				value = { kind: 'done', results: await hashFile(file, missing) };
+			} catch {
+				value = { kind: 'failed' };
 			}
-		})();
-	}, [uniqueFiles, parsed.entries]);
+		}
+		busyRef.current = false;
+		// ファイルを選び直した・クリアした後に終わった計算は捨てる
+		if (generationRef.current !== generation) {
+			setCache((prev) => new Map(prev));
+			return;
+		}
+		setCache((prev) => {
+			const cached = prev.get(file);
+			const merged: CacheValue =
+				value.kind === 'done' && cached?.kind === 'done'
+					? { kind: 'done', results: { ...cached.results, ...value.results } }
+					: value;
+			return new Map(prev).set(file, merged);
+		});
+	}, []);
+
+	// 未計算が残っていれば次を計算する（cache の更新ごとに再評価される）
+	useEffect(() => {
+		if (pendingJobs.length > 0) void runNextJob();
+	}, [pendingJobs, runNextJob]);
 
 	const fileStates = useMemo(() => {
 		const states = new Map<string, ChecksumFileState>();
@@ -161,12 +177,13 @@ export function ChecksumListPanel() {
 			return;
 		}
 		setFileError(null);
+		generationRef.current++;
 		setFiles(selected);
 		setCache(new Map());
 	}, []);
 
 	const handleClear = useCallback(() => {
-		runIdRef.current++;
+		generationRef.current++;
 		setFiles([]);
 		setCache(new Map());
 		setFileError(null);
