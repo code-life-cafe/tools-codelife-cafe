@@ -28,6 +28,7 @@ import {
 } from '@/lib/tools/hash';
 import { provideToolsFromFactory } from '@/lib/webmcp';
 import { hashTool } from '@/lib/webmcp/tools/hash.webmcp';
+import { ChecksumListPanel } from './ChecksumListPanel';
 import { HashResultTable } from './HashResultTable';
 import { HashVerifier } from './HashVerifier';
 import { HmacPanel } from './HmacPanel';
@@ -301,6 +302,9 @@ export function HashPage() {
 
 			{/* 期待値照合 */}
 			<HashVerifier results={results} selectedAlgorithms={algorithms} />
+
+			{/* チェックサムリストで複数ファイルを一括照合。上の入力とは独立して計算する */}
+			<ChecksumListPanel />
 
 			{/* HMAC（鍵付きハッシュ）。上の入力とは独立して計算する */}
 			<HmacPanel />
