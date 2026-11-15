@@ -36,8 +36,8 @@ faq:
   - q: "大容量ファイルのハッシュ値計算時にブラウザがフリーズしませんか？"
     a: "ファイルを8MB単位のチャンクに分割して非同期に読み込み、進捗を表示しながら処理するため、ブラウザが操作不能になりにくくなっています。"
 related:
+  - "password-generator"
   - "base64"
-  - "cipher"
   - "jwt-decoder"
 updated: 2026-11-14
 keywords:
