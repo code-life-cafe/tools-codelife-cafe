@@ -1271,6 +1271,35 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		},
 	},
 	{
+		id: 'password-generator',
+		title: 'パスワード生成・強度チェック',
+		description:
+			'安全な乱数でランダムなパスワードを生成。文字種・長さ・紛らわしい文字の除外を選べ、強度の目安も確認できる。',
+		href: '/password-generator/',
+		icon: 'KeyRound',
+		categories: ['生成ツール'],
+		categoryColor: 'border-l-chart-3',
+		keywords: [
+			'パスワード',
+			'パスワード生成',
+			'ランダム',
+			'パスワード強度',
+			'password',
+			'ジェネレーター',
+		],
+		related: ['hash', 'uuid', 'qr-encrypt'],
+		llmsFull: {
+			useCase:
+				'安全な乱数（crypto.getRandomValues）によるランダムなパスワードの生成と、パスワードの強度の目安の確認',
+			inputs:
+				'length（4-128）, count（1-20）, 使う文字種（英大文字・英小文字・数字・記号）、または強度を確認するパスワード',
+			outputs:
+				'生成されたパスワード一覧と設定のエントロピー（ビット）、または強度の段階・推定エントロピー・警告',
+			options:
+				'紛らわしい文字（0 O o 1 l I |）の除外、各文字種を1文字以上含める',
+		},
+	},
+	{
 		id: 'cron-checker',
 		title: 'cron式チェッカー',
 		description:
