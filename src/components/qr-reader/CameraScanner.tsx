@@ -286,7 +286,6 @@ export default function CameraScanner({
 
 	return (
 		<div className="relative mx-auto w-full max-w-[480px] aspect-square overflow-hidden rounded-xl border border-border bg-black">
-			{/* biome-ignore lint/a11y/useMediaCaption: カメラプレビューには音声トラックがない */}
 			<video
 				ref={videoRef}
 				playsInline
