@@ -792,9 +792,13 @@ for (const [expression, expected] of [
 	['0 9 * * MON-FRI', 'Mon..Fri *-*-* 09:00:00 Asia/Tokyo'],
 	['0 9 * * 1-3,5', 'Mon..Wed,Fri *-*-* 09:00:00 Asia/Tokyo'],
 	['0 9 * * 1,2', 'Mon,Tue *-*-* 09:00:00 Asia/Tokyo'],
-	['0 9 * * 0,6', 'Sun,Sat *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0,6', 'Sat,Sun *-*-* 09:00:00 Asia/Tokyo'],
 	['0 9 * * 7', 'Sun *-*-* 09:00:00 Asia/Tokyo'],
-	['0 9 * * 0-6', 'Sun..Sat *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0-6', 'Mon..Sun *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0-2', 'Mon,Tue,Sun *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 5-7', 'Fri..Sun *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0,5,6', 'Fri..Sun *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0-3', 'Mon..Wed,Sun *-*-* 09:00:00 Asia/Tokyo'],
 	['*/10 * * * * *', '*-*-* *:*:00/10 Asia/Tokyo'],
 	['30 0 9 * * 1-5', 'Mon..Fri *-*-* 09:00:30 Asia/Tokyo'],
 ] as const) {
@@ -836,6 +840,12 @@ const hasSystemdAnalyze = systemdAnalyze.status === 0;
 
 for (const expression of [
 	'0 9 * * 1-5',
+	'0 9 * * 0-6',
+	'0 9 * * 0-2',
+	'0 9 * * 5-7',
+	'0 9 * * 0-3',
+	'0 9 * * 0,6',
+	'0 0 13 * 0',
 	'*/15 * * * *',
 	'10-40/10 * * * *',
 	'0 0 */2 * *',

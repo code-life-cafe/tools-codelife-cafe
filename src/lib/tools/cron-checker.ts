@@ -934,7 +934,9 @@ export function toAwsEventBridgeCron(schedule: CronSchedule): FormatCopyResult {
 
 // --- systemd timer（OnCalendar=） -------------------------------------------
 
-const SYSTEMD_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// systemdは週を月曜始まりで扱い、「Sun..Tue」のような日曜始まりの範囲は読み込めない。
+// そのため曜日は月曜始まりの順（0=月曜〜6=日曜）に並べ替えてから範囲をまとめる。
+const SYSTEMD_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /**
  * 1つのフィールドをOnCalendarの数値部分へ変換する。
@@ -953,8 +955,13 @@ function toSystemdNumberField(field: CronField, min: number, max: number) {
 	return values.map(pad2).join(',');
 }
 
-/** 曜日（0=日曜〜6=土曜）を英語略称にし、3日以上連続する範囲は「..」でまとめる。 */
-function toSystemdWeekdays(values: number[]): string {
+/**
+ * 曜日（cronの0=日曜〜6=土曜）を英語略称にし、月曜始まりの順で3日以上連続する範囲は「..」でまとめる。
+ */
+function toSystemdWeekdays(cronValues: number[]): string {
+	const values = [...new Set(cronValues.map((v) => (v + 6) % 7))].sort(
+		(a, b) => a - b,
+	);
 	const parts: string[] = [];
 	let i = 0;
 	while (i < values.length) {
