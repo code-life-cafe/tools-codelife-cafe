@@ -36,6 +36,7 @@ import {
 	toAwsEventBridgeCron,
 	toCrontabLine,
 	toGithubActionsSchedule,
+	toSystemdOnCalendar,
 } from '@/lib/tools/cron-checker';
 import { isValidTimeZone } from '@/lib/tools/unix-time';
 import { provideToolsFromFactory } from '@/lib/webmcp';
@@ -180,6 +181,7 @@ export default function CronChecker() {
 	const crontabCopy = schedule ? toCrontabLine(schedule) : null;
 	const githubCopy = schedule ? toGithubActionsSchedule(schedule) : null;
 	const awsCopy = schedule ? toAwsEventBridgeCron(schedule) : null;
+	const systemdCopy = schedule ? toSystemdOnCalendar(schedule) : null;
 
 	const reverseResult = useMemo(() => {
 		if (jaInput.trim() === '') return null;
@@ -374,7 +376,7 @@ export default function CronChecker() {
 
 					<div className="space-y-2">
 						<div className="text-sm font-medium">フォーマット別コピー</div>
-						<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+						<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
 							{crontabCopy && (
 								<div className="rounded-lg border p-3">
 									<div className="text-xs text-muted-foreground mb-1">
@@ -435,6 +437,30 @@ export default function CronChecker() {
 											{awsCopy.warning}
 										</p>
 									)}
+								</div>
+							)}
+							{systemdCopy && (
+								<div
+									className="rounded-lg border p-3"
+									data-testid="cron-systemd-timer"
+								>
+									<div className="text-xs text-muted-foreground mb-1">
+										systemd timer（OnCalendar=）
+									</div>
+									<p className="text-xs text-muted-foreground mb-1">
+										出力タイムゾーン: Asia/Tokyo（JST）
+									</p>
+									{systemdCopy.note && (
+										<p className="text-xs text-muted-foreground mb-1">
+											{systemdCopy.note}
+										</p>
+									)}
+									<div className="flex items-center justify-between gap-2">
+										<pre className="font-mono text-xs whitespace-pre-wrap break-all">
+											{systemdCopy.value}
+										</pre>
+										<CopyButton text={systemdCopy.value} size="sm" />
+									</div>
 								</div>
 							)}
 						</div>

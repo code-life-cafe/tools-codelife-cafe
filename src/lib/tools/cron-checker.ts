@@ -931,3 +931,101 @@ export function toAwsEventBridgeCron(schedule: CronSchedule): FormatCopyResult {
 	const value = `cron(${minute} ${hour} ${dom} ${schedule.months.isWildcard ? '*' : schedule.months.values.join(',')} ${dow} *)`;
 	return warning ? { value, warning } : { value };
 }
+
+// --- systemd timer（OnCalendar=） -------------------------------------------
+
+// systemdは週を月曜始まりで扱い、「Sun..Tue」のような日曜始まりの範囲は読み込めない。
+// そのため曜日は月曜始まりの順（0=月曜〜6=日曜）に並べ替えてから範囲をまとめる。
+const SYSTEMD_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/**
+ * 1つのフィールドをOnCalendarの数値部分へ変換する。
+ * `*` はそのまま、末尾まで続くステップ指定は `開始/幅`、それ以外は2桁のカンマ区切りにする。
+ */
+function toSystemdNumberField(field: CronField, min: number, max: number) {
+	const { values } = field;
+	if (field.isWildcard || values.length === max - min + 1) return '*';
+	const { step } = field;
+	if (step !== undefined && step > 1 && values.length >= 2) {
+		const start = values[0];
+		const isProgression = values.every((v, i) => v === start + i * step);
+		const reachesEnd = values[values.length - 1] + step > max;
+		if (isProgression && reachesEnd) return `${pad2(start)}/${step}`;
+	}
+	return values.map(pad2).join(',');
+}
+
+/**
+ * 曜日（cronの0=日曜〜6=土曜）を英語略称にし、月曜始まりの順で3日以上連続する範囲は「..」でまとめる。
+ */
+function toSystemdWeekdays(cronValues: number[]): string {
+	const values = [...new Set(cronValues.map((v) => (v + 6) % 7))].sort(
+		(a, b) => a - b,
+	);
+	const parts: string[] = [];
+	let i = 0;
+	while (i < values.length) {
+		let j = i;
+		while (j + 1 < values.length && values[j + 1] === values[j] + 1) j++;
+		if (j - i >= 2) {
+			parts.push(
+				`${SYSTEMD_WEEKDAYS[values[i]]}..${SYSTEMD_WEEKDAYS[values[j]]}`,
+			);
+		} else {
+			for (let k = i; k <= j; k++) parts.push(SYSTEMD_WEEKDAYS[values[k]]);
+		}
+		i = j + 1;
+	}
+	return parts.join(',');
+}
+
+export interface SystemdTimerResult extends FormatCopyResult {
+	/** 出力した OnCalendar= の値（タイムゾーンを含む）。日と曜日の両指定では2件 */
+	onCalendar: string[];
+	/** 変換で補った点の説明（エラーではない） */
+	note?: string;
+}
+
+/**
+ * cron式をsystemd timerの `OnCalendar=` に変換する。入力はJSTとして解釈する既存方針に合わせ、
+ * 末尾に `Asia/Tokyo` を付ける。cronは日と曜日の両指定をOR条件で扱うが、systemdは1行内で
+ * AND条件になるため、その場合は日の行と曜日の行の2行に分ける（複数の OnCalendar= はOR）。
+ */
+export function toSystemdOnCalendar(
+	schedule: CronSchedule,
+): SystemdTimerResult {
+	const second = schedule.hasSeconds
+		? toSystemdNumberField(schedule.seconds, 0, 59)
+		: '00';
+	const minute = toSystemdNumberField(schedule.minutes, 0, 59);
+	const hour = toSystemdNumberField(schedule.hours, 0, 23);
+	const month = toSystemdNumberField(schedule.months, 1, 12);
+	const time = `${hour}:${minute}:${second}`;
+	const zone = 'Asia/Tokyo';
+
+	const domWildcard = schedule.daysOfMonth.isWildcard;
+	const dowWildcard = schedule.daysOfWeek.isWildcard;
+	const dom = domWildcard
+		? '*'
+		: toSystemdNumberField(schedule.daysOfMonth, 1, 31);
+	const weekdays = dowWildcard
+		? ''
+		: toSystemdWeekdays(schedule.daysOfWeek.values);
+
+	const onCalendar: string[] = [];
+	let note: string | undefined;
+	if (!domWildcard && !dowWildcard) {
+		onCalendar.push(`*-${month}-${dom} ${time} ${zone}`);
+		onCalendar.push(`${weekdays} *-${month}-* ${time} ${zone}`);
+		note =
+			'cronは日と曜日を両方指定するとどちらかに一致すれば実行します（OR条件）。systemdは1行内だと両方に一致する日だけになるため、OnCalendar=を2行に分けました。';
+	} else {
+		const prefix = weekdays ? `${weekdays} ` : '';
+		onCalendar.push(`${prefix}*-${month}-${dom} ${time} ${zone}`);
+	}
+
+	const value = ['[Timer]', ...onCalendar.map((v) => `OnCalendar=${v}`)].join(
+		'\n',
+	);
+	return note ? { value, onCalendar, note } : { value, onCalendar };
+}

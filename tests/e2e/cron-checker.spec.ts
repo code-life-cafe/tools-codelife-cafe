@@ -160,6 +160,63 @@ test.describe('cron式チェッカー', () => {
 		}
 	});
 
+	test('systemd timer形式のOnCalendar=をコピーでき、日と曜日の両指定は2行に分けること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.addInitScript(() => {
+			let copied = '';
+			Object.defineProperty(navigator, 'clipboard', {
+				configurable: true,
+				value: {
+					writeText: async (text: string) => {
+						copied = text;
+					},
+					readText: async () => copied,
+				},
+			});
+		});
+		await createToolPage('cron-checker').goto();
+		const input = page.getByLabel('cron式', { exact: true });
+		const systemd = page.getByTestId('cron-systemd-timer');
+
+		await input.fill('0 9 * * 1-5');
+		const weekdays = '[Timer]\nOnCalendar=Mon..Fri *-*-* 09:00:00 Asia/Tokyo';
+		await expect(systemd).toContainText('出力タイムゾーン: Asia/Tokyo（JST）');
+		await expect(systemd.locator('pre')).toHaveText(weekdays);
+		await expect(systemd).not.toContainText('OR条件');
+		await systemd.getByRole('button', { name: 'コピー', exact: true }).click();
+		await expect
+			.poll(() => page.evaluate(() => navigator.clipboard.readText()))
+			.toBe(weekdays);
+
+		await input.fill('0 0 1,15 * 1');
+		await expect(systemd.locator('pre')).toHaveText(
+			'[Timer]\nOnCalendar=*-*-01,15 00:00:00 Asia/Tokyo\nOnCalendar=Mon *-*-* 00:00:00 Asia/Tokyo',
+		);
+		await expect(systemd).toContainText('OR条件');
+
+		// 秒付きでもsystemdは秒まで表せるため、警告ではなく変換結果を出す。
+		await input.fill('*/10 * * * * *');
+		await expect(systemd.locator('pre')).toHaveText(
+			'[Timer]\nOnCalendar=*-*-* *:*:00/10 Asia/Tokyo',
+		);
+	});
+
+	test('フォーマット別コピーはモバイル幅でも横にはみ出さないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.setViewportSize({ width: 375, height: 812 });
+		await createToolPage('cron-checker').goto();
+		await page.getByLabel('cron式', { exact: true }).fill('0 0 1,15 * 1');
+		await expect(page.getByTestId('cron-systemd-timer')).toBeVisible();
+		const overflow = await page.evaluate(
+			() => document.documentElement.scrollWidth - window.innerWidth,
+		);
+		expect(overflow).toBeLessThanOrEqual(0);
+	});
+
 	test('毎分実行は危険パターンとして警告されること', async ({
 		page,
 		createToolPage,
