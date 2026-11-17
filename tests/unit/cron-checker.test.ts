@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import {
 	CronParseError,
@@ -10,6 +11,7 @@ import {
 	toAwsEventBridgeCron,
 	toCrontabLine,
 	toGithubActionsSchedule,
+	toSystemdOnCalendar,
 	VIXIE_DIALECT,
 } from '../../src/lib/tools/cron-checker.ts';
 
@@ -759,3 +761,118 @@ test('疎な週次・年次式: 1回目の一致直後にもfoldの2回目を返
 		}
 	}
 });
+
+// --- systemd timer（OnCalendar=） -------------------------------------------
+
+const onCalendarOf = (expression: string) =>
+	toSystemdOnCalendar(parseCronExpression(expression)).onCalendar;
+
+test('systemd timer: [Timer]節とAsia/Tokyo付きのOnCalendar=を出力する', () => {
+	assert.deepEqual(toSystemdOnCalendar(parseCronExpression('0 9 * * *')), {
+		value: '[Timer]\nOnCalendar=*-*-* 09:00:00 Asia/Tokyo',
+		onCalendar: ['*-*-* 09:00:00 Asia/Tokyo'],
+	});
+});
+
+for (const [expression, expected] of [
+	['* * * * *', '*-*-* *:*:00 Asia/Tokyo'],
+	['*/15 * * * *', '*-*-* *:00/15:00 Asia/Tokyo'],
+	['5/10 * * * *', '*-*-* *:05/10:00 Asia/Tokyo'],
+	['10-40/10 * * * *', '*-*-* *:10,20,30,40:00 Asia/Tokyo'],
+	['*/1 * * * *', '*-*-* *:*:00 Asia/Tokyo'],
+	['0,30 * * * *', '*-*-* *:00,30:00 Asia/Tokyo'],
+	['0 */2 * * *', '*-*-* 00/2:00:00 Asia/Tokyo'],
+	['0 9,18 * * *', '*-*-* 09,18:00:00 Asia/Tokyo'],
+	['0 0 */2 * *', '*-*-01/2 00:00:00 Asia/Tokyo'],
+	['0 0 31 * *', '*-*-31 00:00:00 Asia/Tokyo'],
+	['0 0 1 */3 *', '*-01/3-01 00:00:00 Asia/Tokyo'],
+	['0 0 1 1 *', '*-01-01 00:00:00 Asia/Tokyo'],
+	['0 0 * feb *', '*-02-* 00:00:00 Asia/Tokyo'],
+	['0 9 * * 1-5', 'Mon..Fri *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * MON-FRI', 'Mon..Fri *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 1-3,5', 'Mon..Wed,Fri *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 1,2', 'Mon,Tue *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0,6', 'Sun,Sat *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 7', 'Sun *-*-* 09:00:00 Asia/Tokyo'],
+	['0 9 * * 0-6', 'Sun..Sat *-*-* 09:00:00 Asia/Tokyo'],
+	['*/10 * * * * *', '*-*-* *:*:00/10 Asia/Tokyo'],
+	['30 0 9 * * 1-5', 'Mon..Fri *-*-* 09:00:30 Asia/Tokyo'],
+] as const) {
+	test(`systemd timer: ${expression} → ${expected}`, () => {
+		assert.deepEqual(onCalendarOf(expression), [expected]);
+		assert.equal(
+			toSystemdOnCalendar(parseCronExpression(expression)).note,
+			undefined,
+		);
+	});
+}
+
+test('systemd timer: 日と曜日の両指定（OR条件）は2行に分けて注記を返す', () => {
+	const result = toSystemdOnCalendar(parseCronExpression('0 0 1,15 * 1'));
+	assert.deepEqual(result.onCalendar, [
+		'*-*-01,15 00:00:00 Asia/Tokyo',
+		'Mon *-*-* 00:00:00 Asia/Tokyo',
+	]);
+	assert.equal(
+		result.value,
+		'[Timer]\nOnCalendar=*-*-01,15 00:00:00 Asia/Tokyo\nOnCalendar=Mon *-*-* 00:00:00 Asia/Tokyo',
+	);
+	assert.match(result.note ?? '', /OR条件/);
+	assert.match(result.note ?? '', /2行/);
+});
+
+test('systemd timer: 両指定の2行目にも月の指定を残す', () => {
+	assert.deepEqual(onCalendarOf('0 12 13 6 5'), [
+		'*-06-13 12:00:00 Asia/Tokyo',
+		'Fri *-06-* 12:00:00 Asia/Tokyo',
+	]);
+});
+
+// systemdが使える環境では、出力をsystemd-analyzeで実際に展開し、プレビューの次回実行と照合する。
+const systemdAnalyze = spawnSync('systemd-analyze', ['--version'], {
+	encoding: 'utf8',
+});
+const hasSystemdAnalyze = systemdAnalyze.status === 0;
+
+for (const expression of [
+	'0 9 * * 1-5',
+	'*/15 * * * *',
+	'10-40/10 * * * *',
+	'0 0 */2 * *',
+	'0 0 1 */3 *',
+	'0 0 1,15 * 1',
+	'*/10 * * * * *',
+]) {
+	test(`systemd timer: systemd-analyzeの展開がJSTプレビューと一致する: ${expression}`, {
+		skip: !hasSystemdAnalyze && 'systemd-analyzeがない環境',
+	}, () => {
+		const schedule = parseCronExpression(expression);
+		const from = new Date('2026-11-17T00:00:00Z');
+		const count = 12;
+		const expected = getNextRunTimes(schedule, {
+			count,
+			from,
+			timeZone: 'Asia/Tokyo',
+		}).map((d) => d.toISOString());
+		const runs = new Set<string>();
+		for (const onCalendar of toSystemdOnCalendar(schedule).onCalendar) {
+			const out = spawnSync(
+				'systemd-analyze',
+				[
+					'calendar',
+					`--iterations=${count}`,
+					`--base-time=@${from.getTime() / 1000}`,
+					onCalendar,
+				],
+				{ encoding: 'utf8', env: { ...process.env, TZ: 'UTC' } },
+			);
+			assert.equal(out.status, 0, out.stderr);
+			for (const m of out.stdout.matchAll(
+				/(?:Next elapse|Iteration #\d+): \w+ (\S+ \S+) UTC/g,
+			)) {
+				runs.add(new Date(`${m[1].replace(' ', 'T')}Z`).toISOString());
+			}
+		}
+		assert.deepEqual([...runs].sort().slice(0, count), expected);
+	});
+}
