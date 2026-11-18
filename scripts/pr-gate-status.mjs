@@ -122,6 +122,8 @@ function normalizePull(pull) {
 		mergeableState: pull.mergeable_state,
 		mergeCommitSha: pull.merge_commit_sha,
 		body: pull.body ?? '',
+		changedFiles:
+			typeof pull.changed_files === 'number' ? pull.changed_files : null,
 	};
 }
 
@@ -279,6 +281,24 @@ export async function collect(
 			submittedAt: r.submitted_at,
 		})),
 	);
+	// 保護対象パス（ルール・CI・レビュー定義）の判定用に、変更ファイルを全ページ取得する（Issue #721）。
+	// APIは最大3000件で打ち切るため、PR本体の changed_files と件数が一致しない一覧は不完全として扱う。
+	snapshot.files = await attempt(errors, 'files', async () => {
+		const files = await paged(
+			client,
+			`/repos/${repo}/pulls/${number}/files`,
+			(x) => x,
+		);
+		if (pr.changedFiles == null || files.length !== pr.changedFiles)
+			throw new Error(
+				`files: 件数が不一致/不明(取得${files.length}件、changed_files=${pr.changedFiles})`,
+			);
+		return files.map((f) => ({
+			filename: f.filename,
+			previousFilename: f.previous_filename ?? null,
+			status: f.status,
+		}));
+	});
 	const cmp = await attempt(errors, 'compare', () =>
 		client.get(`/repos/${repo}/compare/${pr.baseRef}...${pr.headSha}`),
 	);

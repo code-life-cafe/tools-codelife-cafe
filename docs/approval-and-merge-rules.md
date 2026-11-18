@@ -42,6 +42,7 @@ Merge・承認区分の判断では、必ずこの文書の全文に従う。条
 - 最新head SHAが最新base（通常main）を含み、そのheadの必須CI `lint` / `e2e` が両方成功している。baseが進んだ場合は通常のmergeで取り込み、新headのCIと独立レビューを再確認する。未実行・skip・取消・進行中・失敗を成功扱いしない。
 - 同じhead SHAについて、実装者と別のClaudeサブエージェントの独立レビュー記録（コード・テスト・セキュリティ・区分の確認が完了、未確認項目なし）があり、blocking findingは新headの再レビューで解消確認済み。[運用手順のレビュー完了信号](ai-development-flow.md#レビュー完了信号)で投稿者・対象完全SHA・実行参照を確認する。コメント不在や自己点検だけを根拠にしない。
 - 未解決のblocking finding・人間の保留/変更要求・進行中の修正がない（仕様の曖昧さはClaudeが目的に沿って判断し、理由をPRに残す）。修正ループ履歴を確認でき、3周上限を超えていない。style/nitのみはblockingにしない。
+- PRがルール・CI・レビュー定義・Playwright設定（[保護対象パス](ai-development-flow.md#独立レビュー記録claude-reviewv1)）を変更する場合は、分類が承認済みC（人間承認の参照あり）である。A・Bの分類では、この部分をMergeしない（Issue #721）。独立レビューの判定基準は、PR側ではなくbase版のルールとする。
 - Draftではなく競合なし。Merge直前にhead・baseと上記条件を再確認し、確認したheadを指定して通常のMergeを行う（例: `gh pr merge --squash --match-head-commit <SHA>`）。headまたはbaseが変わったら再判定する。このオプションはbaseを固定しないため、サーバー側のstrict required checksによる最新baseの検証が有効と確認できない間は自動Mergeしない。無効と確認できた場合は人間へ返し、一時的な取得失敗は技術待ちとして再照合する。admin/bypass・force push・gate変更は使わない。
 
 ### 旧Codex Securityの例外（失効）

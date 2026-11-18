@@ -28,7 +28,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 
 ### 進行照合（読み取り専用）
 
-`node scripts/pr-gate-status.mjs <PR番号> [--issue N]` は、GitHubの公開REST（認証があればGraphQLの未解決thread）をGETだけで取り直し、PRがいまどの待ちにあるかを `state` で返す。Merge・コメント投稿・review依頼は行わず、Merge許可でもない。古いPR本文や集約表示を正本にせず、毎回対象head SHAで取得する。コメント・check-run・review・threadは全ページ取得し、ページ上限や途中失敗は「不完全」として扱う。取得の最後にPRを読み直し、途中でhead/baseが変わっていれば再取得を要求する。取得失敗・未知形式・旧SHA・Code対象SHA欠落・矛盾は合格にせず、`wait-*` か `blocked`（`retriable`）に倒す。環境のproxyを使う場合は `NODE_USE_ENV_PROXY=1` を付ける。
+`node scripts/pr-gate-status.mjs <PR番号> [--issue N]` は、GitHubの公開REST（認証があればGraphQLの未解決thread）をGETだけで取り直し、PRがいまどの待ちにあるかを `state` で返す。Merge・コメント投稿・review依頼は行わず、Merge許可でもない。古いPR本文や集約表示を正本にせず、毎回対象head SHAで取得する。コメント・check-run・review・threadは全ページ取得し、ページ上限や途中失敗は「不完全」として扱う。取得の最後にPRを読み直し、途中でhead/baseが変わっていれば再取得を要求する。取得失敗・未知形式・旧SHA・Code対象SHA欠落・矛盾は合格にせず、`wait-*` か `blocked`（`retriable`）に倒す。環境のproxyを使う場合は `NODE_USE_ENV_PROXY=1` を付ける。本スクリプトは対象PRのheadではなく、base（main）のcheckoutから実行する（PRがゲート自身を書き換えて判定を緩めないため。Issue #721）。
 
 | state | 意味と次の一手 |
 | --- | --- |
@@ -54,6 +54,10 @@ Claude CodeはPR作成・レビュー依頼で担当を終えず、Issue/PRに�
 - `classification` は[AGENTS.md](../AGENTS.md#risk-class-と承認の3段階)の区分（`class` A/B/C と `risk`、`approvalStatus` が `not-required` / `approved` / `unapproved`、`approvalRef`、`unapprovedScope`）。B/Cは承認の参照が空でなく未承認範囲が空の `approved` だけ継続する。Bは人間の個別承認を要しないため、`approvalStatus: "approved"` とし、`approvalRef` に「AGENTS.md 自律運営（Issue #562 承認2）」と当該Issueの計画へのリンクを入れる。計画リンクがないBは `unapproved` とする。R3は `additionalRiskReview: true`（追加の独立リスクレビューの記録）が必要。AIの自己申告だけで承認を作らない。
 - 同じheadで記録が複数ある場合は最新（更新時刻）が有効。同時刻で内容が異なる、時刻が不正、マーカーが壊れている・重複している場合は `unknown`（fail-closed）。
 - 機械的に取得できない場合は `unavailable`（`review-evidence-unavailable`）としてMergeしない。
+
+**判定ルールはbase版を使う（Issue #721）**: 変更が自分を判定するルールを書き換えられると、その判定は壊れているのと同じになる。独立レビューには、`AGENTS.md`・`docs/approval-and-merge-rules.md`・本書・`.claude/agents/independent-reviewer.md` を、PRのheadではなく `git show <PRのbase SHA>:<path>` で取り出したbase版として渡し、判定基準にする。PR側でこれらが変わっていても、変更後の版を判定基準にしない。
+
+**保護対象パス（Issue #721）**: `scripts/lib/pr-gate.mjs` の `PROTECTED_PATHS`（`AGENTS.md`、`CLAUDE.md`、`docs/approval-and-merge-rules.md`、本書、`.github/workflows/`配下、`.claude/agents/`配下、`scripts/lib/pr-gate.mjs`、`scripts/pr-gate-status.mjs`、`playwright.config.ts`。リネーム元を含む）を変更するPRは、独立レビュー記録の分類が承認済みC（人間承認の参照あり）でない限り、`pr-gate-status` が `blocked` を返す。変更ファイル一覧を取得できない・件数が合わない場合も `blocked`（retriable）にする。B・Aの作業でこれらに触れる必要が出たら、該当部分だけを別PRに分けて人間承認を取る。
 
 レビューの実行は [.claude/agents/independent-reviewer.md](../.claude/agents/independent-reviewer.md) のサブエージェントを、Claude Code本体とは別の実行として起動する。対象PRの完全SHA・ACと、`git diff` を書き出した作業用ファイルのパスを渡す（レビュー担当はRead/Grep/Globのみで、書き込み・実行はできない）。実装者の説明だけで合格にせず、実差分・AC・テストを読んだ結果を返させる。
 

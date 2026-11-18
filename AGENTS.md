@@ -67,6 +67,7 @@ Claude CodeはPR作成・レビュー依頼で担当を終えない。CI・レ�
 
 - 操作主体は、既存Claude Routine、Claudeが追加したRoutine、およびClaude Codeプロジェクト `tools.codelife.cafe 保守`（`chan_01BLscqs8eCg8fzAnUt8YFrw`）とその担当スレッド。人間が会話で対象PRのMergeを特定のエージェントへ指示した場合は、そのPRだけ当該エージェントが操作できる。Makerは条件を満たせば自分のPRをMergeできる（セルフMerge）。
 - 同一の最終head SHAで、実装者と別のClaudeサブエージェントによる独立レビュー記録（コード・テスト・セキュリティ・区分A / B / 承認済みCの確認が完了し、未確認項目とblocking未解決がない）、必須CI `lint` / `e2e` の成功、最新base、修正3周以内、非Draft・競合なしが揃った場合だけ、確認したheadを指定して通常Mergeする。記録の欠落・取得不能・旧SHA・実装者との同一参照・矛盾は合格にしない。「重大な指摘なし」だけを分類確認とみなさない。
+- ルール・CI・レビュー定義・Playwright設定（`scripts/lib/pr-gate.mjs` の `PROTECTED_PATHS`）を変更するPRは、人間承認の参照がある承認済みCでなければMergeしない。独立レビューはbase版のルールで判定する（Issue #721）。
 - CI・レビューのRunning、一時的な取得失敗、利用上限は技術待ち。人間へ戻すのは、未承認のC、意味の判断が必要で目的から決められない競合、3周でblockingが解消しない、本人の認証が必要な場合だけ。
 - 実行前にPR履歴へ区分・判定理由・承認の根拠・対象head・CI・レビューと分類確認の根拠・修正周回数を記録し、Merge後は既存Deployと公開SHA・本番確認をIssue/PRへ記録する。GitHub Workflow・権限・課金は追加しない（C）。
 - 2026-10-27より前の旧運用（Codex主実装、Notion Task Boardによる開発の着手管理、Grok Bot運用ループ、ローカルCLIレビュー代替など）は歴史記録で、再開しない。旧ルールの全文はgit履歴で参照できる。

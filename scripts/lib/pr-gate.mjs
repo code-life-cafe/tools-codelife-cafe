@@ -25,6 +25,37 @@ export const REVIEW_MARKER = 'claude-review:v1';
 // 記録を投稿できるのは、リポジトリに書き込み権限を持つ人間アカウントのみ(第三者コメントでの上書きを防ぐ)。
 const TRUSTED_ASSOCIATIONS = ['OWNER', 'MEMBER', 'COLLABORATOR'];
 
+// PR自身が自分を判定するルールを書き換えて通らないよう、次のパスを触るPRは承認済みC（人間承認の参照あり）を必須にする（Issue #721）。
+// ルール（指示書）・CI・レビュー定義/ゲート・Playwright設定。末尾が / のものは配下すべて。
+export const PROTECTED_PATHS = [
+	'AGENTS.md',
+	'CLAUDE.md',
+	'docs/approval-and-merge-rules.md',
+	'docs/ai-development-flow.md',
+	'.github/workflows/',
+	'.claude/agents/',
+	'scripts/lib/pr-gate.mjs',
+	'scripts/pr-gate-status.mjs',
+	'playwright.config.ts',
+];
+
+const isProtected = (path) =>
+	typeof path === 'string' &&
+	PROTECTED_PATHS.some((p) =>
+		p.endsWith('/') ? path.startsWith(p) : path === p,
+	);
+
+/** 変更ファイル（リネーム元を含む）のうち保護対象に当たるパスを返す */
+export function protectedChanges(files) {
+	const hit = new Set();
+	for (const f of files) {
+		for (const path of [f?.filename, f?.previousFilename]) {
+			if (isProtected(path)) hit.add(path);
+		}
+	}
+	return [...hit].sort();
+}
+
 const FULL_SHA = /^[0-9a-f]{40}$/;
 const RISK_BY_CLASS = { A: ['R0', 'R1'], B: ['R2', 'R3'], C: ['R4'] };
 
@@ -508,6 +539,26 @@ function evaluateInner(snapshot) {
 			...base,
 			classification: top.label,
 			reasons: ['R3: 追加の独立リスクレビューの記録が必要'],
+		});
+	}
+
+	// 保護対象（ルール・CI・レビュー定義・Playwright設定）を触るPRは、承認済みCでなければ進めない（Issue #721）。
+	if (!Array.isArray(snapshot.files)) {
+		return result('blocked', {
+			...base,
+			retriable: true,
+			reasons: ['変更ファイル一覧を取得できない/不完全', ...errors],
+		});
+	}
+	const touched = protectedChanges(snapshot.files);
+	if (touched.length && top.label !== 'approved-C') {
+		return result('blocked', {
+			...base,
+			classification: top.label,
+			reasons: [
+				`ルール・CI・レビュー定義・Playwright設定を変更している(${touched.join(', ')})。人間承認の参照がある承認済みCが必要(分類${top.label})`,
+			],
+			suggest: 'request-human-approval(C)-or-split-protected-changes',
 		});
 	}
 
