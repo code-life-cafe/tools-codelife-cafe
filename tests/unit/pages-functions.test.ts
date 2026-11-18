@@ -617,3 +617,193 @@ test('?settings付きHTMLレスポンスはpage_view記録とX-Robots-Tag付与�
 	assert.strictEqual(writes.length, 1);
 	assert.strictEqual(writes[0].blobs?.[1], '/json-formatter');
 });
+
+// ---------------------------------------------------------------------------
+// /api/event の入力検証（自由文・過大な本文を書き込ませない）
+// ---------------------------------------------------------------------------
+
+async function postEvent(
+	payload: unknown,
+	init: { rawBody?: string; headers?: Record<string, string> } = {},
+) {
+	const writes: Array<{
+		blobs?: string[];
+		doubles?: number[];
+		indexes?: string[];
+	}> = [];
+	const response = await onRequestPost({
+		request: new Request('https://tools.codelife.cafe/api/event', {
+			method: 'POST',
+			body: init.rawBody ?? JSON.stringify(payload),
+			headers: { origin: 'https://tools.codelife.cafe', ...init.headers },
+		}),
+		env: {
+			EVENTS: {
+				writeDataPoint(data) {
+					writes.push(data);
+				},
+			},
+		},
+	});
+	return { response, writes };
+}
+
+test('slug形式でないtool（自由文・過長・大文字・空）は書き込まない', async () => {
+	for (const tool of [
+		'user@example.com の入力本文',
+		'a'.repeat(65),
+		'Base64',
+		'',
+		'base64/../x',
+		'<script>',
+	]) {
+		for (const event of ['tool_run', 'tool_engage', 'shared_url_open']) {
+			const { response, writes } = await postEvent({
+				event,
+				props: { tool, source: 'button' },
+			});
+			assert.strictEqual(response.status, 204);
+			assert.deepStrictEqual(writes, [], `${event}: ${tool}`);
+		}
+		const restored = await postEvent({
+			event: 'settings_restore',
+			props: { tool, source: 'url' },
+		});
+		assert.deepStrictEqual(restored.writes, [], `settings_restore: ${tool}`);
+	}
+});
+
+test('slug形式のtoolは上限64文字まで書き込む（境界値）', async () => {
+	const tool = `a${'-b'.repeat(31)}c`;
+	assert.strictEqual(tool.length, 64);
+	const { writes } = await postEvent({
+		event: 'tool_engage',
+		props: { tool },
+	});
+	assert.strictEqual(writes.length, 1);
+	assert.strictEqual(writes[0].blobs?.[1], tool);
+});
+
+test('related_click / top_block_click は識別子と表示位置の範囲を検証する', async () => {
+	const ok = await postEvent({
+		event: 'related_click',
+		props: {
+			from: 'base64',
+			to: 'url-encoder',
+			setId: 'developer',
+			position: 2,
+		},
+	});
+	assert.deepStrictEqual(ok.writes, [
+		{
+			blobs: [
+				'related_click',
+				'base64',
+				'url-encoder',
+				'developer',
+				'',
+				'unknown',
+			],
+			doubles: [2],
+			indexes: ['related_click'],
+		},
+	]);
+
+	// setIdだけが不正な場合は、イベントは残してsetIdを空にする
+	const badSet = await postEvent({
+		event: 'related_click',
+		props: {
+			from: 'base64',
+			to: 'url-encoder',
+			setId: '自由文 text',
+			position: 0,
+		},
+	});
+	assert.strictEqual(badSet.writes.length, 1);
+	assert.strictEqual(badSet.writes[0].blobs?.[3], '');
+
+	for (const props of [
+		{ from: 'base64', to: 'free text', position: 0 },
+		{ from: 'x'.repeat(100), to: 'base64', position: 0 },
+		{ from: 'base64', to: 'url-encoder', position: -1 },
+		{ from: 'base64', to: 'url-encoder', position: 1.5 },
+		{ from: 'base64', to: 'url-encoder', position: 1000 },
+		{ from: 'base64', to: 'url-encoder', position: Number.MAX_VALUE },
+	]) {
+		const { writes } = await postEvent({ event: 'related_click', props });
+		assert.deepStrictEqual(writes, [], JSON.stringify(props));
+	}
+
+	const top = await postEvent({
+		event: 'top_block_click',
+		props: { block: 'csv-preprocessing', tool: 'csv-fixer', position: 999 },
+	});
+	assert.strictEqual(top.writes.length, 1);
+	for (const props of [
+		{ block: 'free text block', tool: 'csv-fixer', position: 0 },
+		{ block: 'csv-preprocessing', tool: 'CSV Fixer', position: 0 },
+		{ block: 'csv-preprocessing', tool: 'csv-fixer', position: 1e9 },
+	]) {
+		const { writes } = await postEvent({ event: 'top_block_click', props });
+		assert.deepStrictEqual(writes, [], JSON.stringify(props));
+	}
+});
+
+test('search_empty は既知の文字数区分だけを書き込む', async () => {
+	for (const lengthBucket of ['0', '1-3', '4-10', '11-30', '31+']) {
+		const { writes } = await postEvent({
+			event: 'search_empty',
+			props: { lengthBucket, hasJapanese: true },
+		});
+		assert.strictEqual(writes.length, 1, lengthBucket);
+		assert.strictEqual(writes[0].blobs?.[2], lengthBucket);
+	}
+	const { writes } = await postEvent({
+		event: 'search_empty',
+		props: { lengthBucket: '検索した語句そのもの', hasJapanese: true },
+	});
+	assert.deepStrictEqual(writes, []);
+});
+
+test('記号を含むsessionId / dedupeKeyは空文字にする（イベント自体は残す）', async () => {
+	const { writes } = await postEvent({
+		event: 'tool_run',
+		props: { tool: 'base64', source: 'button', dedupeKey: 'key with <space>' },
+		sessionId: 'mail@example.com',
+	});
+	assert.strictEqual(writes.length, 1);
+	assert.strictEqual(writes[0].blobs?.[4], '');
+	assert.strictEqual(writes[0].blobs?.[7], '');
+});
+
+test('上限を超える本文は解釈せずに破棄する（境界値）', async () => {
+	const build = (length: number) => {
+		const base = JSON.stringify({
+			event: 'tool_engage',
+			props: { tool: 'base64' },
+			pad: '',
+		});
+		return base.replace(
+			'"pad":""',
+			`"pad":"${'x'.repeat(length - base.length)}"`,
+		);
+	};
+	const atLimit = build(4096);
+	assert.strictEqual(atLimit.length, 4096);
+	assert.strictEqual(
+		(await postEvent(null, { rawBody: atLimit })).writes.length,
+		1,
+	);
+
+	const over = await postEvent(null, { rawBody: build(4097) });
+	assert.strictEqual(over.response.status, 204);
+	assert.deepStrictEqual(over.writes, []);
+});
+
+test('JSONでない本文・オブジェクトでない本文は204で破棄する', async () => {
+	for (const rawBody of ['not json', 'null', '[]', '"tool_run"', '']) {
+		const { response, writes } = await postEvent(null, { rawBody });
+		assert.strictEqual(response.status, 204);
+		assert.deepStrictEqual(writes, [], rawBody);
+	}
+});

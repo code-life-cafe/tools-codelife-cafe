@@ -38,6 +38,36 @@ const ALLOWED_TOOL_RUN_SOURCES = new Set([
 	'unknown',
 ]);
 
+// リクエスト本文の許容最大長（UTF-16コード単位）。正規のペイロードは数百文字に収まる。
+// 上限超過は読み捨て、JSONとして解釈しない。
+const MAX_BODY_LENGTH = 4096;
+
+// ツール・ブロック・セットの識別子（kebab-case のslug）。src/lib/tools/catalog.ts の id と同じ形だけを通す。
+// 自由文をAnalytics Engineへ書き込ませない（入力本文・個人情報の混入と、計測データの汚染を防ぐ）。
+const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+
+function isIdentifier(value: unknown): value is string {
+	return typeof value === 'string' && IDENTIFIER_PATTERN.test(value);
+}
+
+// 匿名セッションID・dedupeKey（crypto.randomUUID 由来）に使える文字。
+const OPAQUE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+// search_empty の文字数区分。src/lib/analytics.ts の sanitizeSearchQuery と一致させる。
+const ALLOWED_LENGTH_BUCKETS = new Set(['0', '1-3', '4-10', '11-30', '31+']);
+
+// 表示位置（0始まりの並び順）の許容範囲。
+const MAX_POSITION = 999;
+
+function isPosition(value: unknown): value is number {
+	return (
+		typeof value === 'number' &&
+		Number.isInteger(value) &&
+		value >= 0 &&
+		value <= MAX_POSITION
+	);
+}
+
 const ALLOWED_EVENTS = new Set([
 	'tool_run',
 	'tool_engage',
@@ -78,7 +108,17 @@ export const onRequestPost = async (context: {
 	}
 
 	try {
-		const body = (await context.request.json()) as Partial<EventPayload>;
+		const declaredLength = Number(
+			context.request.headers.get('content-length') ?? 0,
+		);
+		if (declaredLength > MAX_BODY_LENGTH) {
+			return new Response(null, { status: 204, headers });
+		}
+		const text = await context.request.text();
+		if (text.length > MAX_BODY_LENGTH) {
+			return new Response(null, { status: 204, headers });
+		}
+		const body = JSON.parse(text) as Partial<EventPayload>;
 
 		if (
 			!body ||
@@ -95,7 +135,8 @@ export const onRequestPost = async (context: {
 		// 匿名セッションID（sessionStorage 由来）を検証。異常値は空文字として無視する。
 		const sessionId =
 			typeof body.sessionId === 'string' &&
-			body.sessionId.length <= MAX_SESSION_ID_LENGTH
+			body.sessionId.length <= MAX_SESSION_ID_LENGTH &&
+			OPAQUE_ID_PATTERN.test(body.sessionId)
 				? body.sessionId
 				: '';
 
@@ -109,7 +150,7 @@ export const onRequestPost = async (context: {
 
 		// allowlist 方式で props を抽出
 		if (eventName === 'tool_run') {
-			if (typeof props.tool !== 'string')
+			if (!isIdentifier(props.tool))
 				return new Response(null, { status: 204, headers });
 			toolSlug = props.tool;
 			toolRunSource =
@@ -119,16 +160,17 @@ export const onRequestPost = async (context: {
 					: 'unknown';
 			toolRunDedupeKey =
 				typeof props.dedupeKey === 'string' &&
-				props.dedupeKey.length <= MAX_DEDUPE_KEY_LENGTH
+				props.dedupeKey.length <= MAX_DEDUPE_KEY_LENGTH &&
+				OPAQUE_ID_PATTERN.test(props.dedupeKey)
 					? props.dedupeKey
 					: '';
 		} else if (eventName === 'tool_engage' || eventName === 'shared_url_open') {
-			if (typeof props.tool !== 'string')
+			if (!isIdentifier(props.tool))
 				return new Response(null, { status: 204, headers });
 			toolSlug = props.tool;
 		} else if (eventName === 'settings_restore') {
 			if (
-				typeof props.tool !== 'string' ||
+				!isIdentifier(props.tool) ||
 				(props.source !== 'url' && props.source !== 'localStorage')
 			) {
 				return new Response(null, { status: 204, headers });
@@ -137,21 +179,21 @@ export const onRequestPost = async (context: {
 			extra1 = props.source;
 		} else if (eventName === 'related_click') {
 			if (
-				typeof props.from !== 'string' ||
-				typeof props.to !== 'string' ||
-				typeof props.position !== 'number'
+				!isIdentifier(props.from) ||
+				!isIdentifier(props.to) ||
+				!isPosition(props.position)
 			) {
 				return new Response(null, { status: 204, headers });
 			}
 			toolSlug = props.from;
 			extra1 = props.to;
-			extra2 = typeof props.setId === 'string' ? props.setId : '';
+			extra2 = isIdentifier(props.setId) ? props.setId : '';
 			double1 = props.position;
 		} else if (eventName === 'top_block_click') {
 			if (
-				typeof props.block !== 'string' ||
-				typeof props.tool !== 'string' ||
-				typeof props.position !== 'number'
+				!isIdentifier(props.block) ||
+				!isIdentifier(props.tool) ||
+				!isPosition(props.position)
 			) {
 				return new Response(null, { status: 204, headers });
 			}
@@ -161,6 +203,7 @@ export const onRequestPost = async (context: {
 		} else if (eventName === 'search_empty') {
 			if (
 				typeof props.lengthBucket !== 'string' ||
+				!ALLOWED_LENGTH_BUCKETS.has(props.lengthBucket) ||
 				typeof props.hasJapanese !== 'boolean'
 			) {
 				return new Response(null, { status: 204, headers });

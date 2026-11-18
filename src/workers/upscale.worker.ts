@@ -10,6 +10,7 @@ import {
 	type QualityMode,
 	type UpscaleOptions,
 	validateResolution,
+	verifyModelIntegrity,
 } from '../lib/tools/upscale-core.ts';
 import { UPSCALE_ORT_WASM_BASE } from '../lib/tools/upscale-ort.ts';
 
@@ -126,6 +127,8 @@ async function getSession(
 	const modelBuf = await fetchModel(spec.url, (p) =>
 		onProgress({ status: 'loading', progress: p }),
 	);
+	// 外部オリジンのモデルは、内容が想定どおりであることを確認してから使う。
+	await verifyModelIntegrity(modelBuf, spec);
 	const providers = spec.device === 'webgpu' ? ['webgpu', 'wasm'] : ['wasm'];
 	const session = await ort.InferenceSession.create(modelBuf, {
 		executionProviders: providers,

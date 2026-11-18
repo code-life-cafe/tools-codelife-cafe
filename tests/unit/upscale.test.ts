@@ -11,10 +11,13 @@ import {
 	computeOutputDimensions,
 	MAX_FILE_SIZE,
 	MAX_INPUT_EDGE,
+	MAX_MODEL_REVISION,
+	MODEL_INTEGRITY_ERROR,
 	MODELS,
 	planTiles,
 	validateImageFile,
 	validateResolution,
+	verifyModelIntegrity,
 } from '../../src/lib/tools/upscale-core.ts';
 
 // ---------------------------------------------------------------------------
@@ -176,4 +179,66 @@ test('MODELS: fast/max とも x4 ネイティブ', () => {
 	assert.equal(MODELS.max.nativeScale, 4);
 	assert.equal(MODELS.fast.fixed, false);
 	assert.equal(MODELS.max.fixed, true);
+});
+
+// ---------------------------------------------------------------------------
+// 外部モデルの固定と完全性確認
+// ---------------------------------------------------------------------------
+
+test('MODELS.max: 配布元はコミットIDで固定し、可変の main を参照しない', () => {
+	assert.match(MAX_MODEL_REVISION, /^[0-9a-f]{40}$/);
+	assert.ok(MODELS.max.url.includes(`/resolve/${MAX_MODEL_REVISION}/`));
+	assert.ok(!MODELS.max.url.includes('/resolve/main/'));
+	assert.match(MODELS.max.integrity?.sha256 ?? '', /^[0-9a-f]{64}$/);
+	assert.ok((MODELS.max.integrity?.bytes ?? 0) > 0);
+});
+
+test('MODELS: 外部オリジンのモデルには必ず integrity を持たせる', () => {
+	for (const [name, spec] of Object.entries(MODELS)) {
+		if (/^https?:/.test(spec.url)) {
+			assert.ok(spec.integrity, `${name} に integrity がない`);
+		}
+	}
+});
+
+test('verifyModelIntegrity: バイト数とsha256が一致すれば通る', async () => {
+	const data = new TextEncoder().encode('abc').buffer as ArrayBuffer;
+	await verifyModelIntegrity(data, {
+		integrity: {
+			bytes: 3,
+			sha256:
+				'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+		},
+	});
+});
+
+test('verifyModelIntegrity: 内容・サイズが違えば拒否する', async () => {
+	const data = new TextEncoder().encode('abc').buffer as ArrayBuffer;
+	// 同じサイズで内容が違う
+	await assert.rejects(
+		verifyModelIntegrity(data, {
+			integrity: { bytes: 3, sha256: '0'.repeat(64) },
+		}),
+		{ message: MODEL_INTEGRITY_ERROR },
+	);
+	// サイズが違う（ハッシュが合っていても拒否）
+	await assert.rejects(
+		verifyModelIntegrity(data, {
+			integrity: {
+				bytes: 4,
+				sha256:
+					'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
+			},
+		}),
+		{ message: MODEL_INTEGRITY_ERROR },
+	);
+	// 空の応答
+	await assert.rejects(verifyModelIntegrity(new ArrayBuffer(0), MODELS.max), {
+		message: MODEL_INTEGRITY_ERROR,
+	});
+});
+
+test('verifyModelIntegrity: integrity のない同梱モデルは確認しない', async () => {
+	await verifyModelIntegrity(new ArrayBuffer(0), {});
+	assert.equal(MODELS.fast.integrity, undefined);
 });
