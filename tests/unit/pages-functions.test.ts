@@ -800,6 +800,28 @@ test('上限を超える本文は解釈せずに破棄する（境界値）', as
 	assert.deepStrictEqual(over.writes, []);
 });
 
+test('Content-Lengthが上限を超える申告なら本文を解釈せずに破棄する', async () => {
+	const rawBody = JSON.stringify({
+		event: 'tool_engage',
+		props: { tool: 'base64' },
+	});
+	const over = await postEvent(null, {
+		rawBody,
+		headers: { 'content-length': '4097' },
+	});
+	assert.strictEqual(over.response.status, 204);
+	assert.deepStrictEqual(over.writes, []);
+
+	// 上限ちょうどの申告・数値でない申告は、本文の実際の長さで判定する
+	for (const declared of ['4096', 'abc']) {
+		const { writes } = await postEvent(null, {
+			rawBody,
+			headers: { 'content-length': declared },
+		});
+		assert.strictEqual(writes.length, 1, declared);
+	}
+});
+
 test('JSONでない本文・オブジェクトでない本文は204で破棄する', async () => {
 	for (const rawBody of ['not json', 'null', '[]', '"tool_run"', '']) {
 		const { response, writes } = await postEvent(null, { rawBody });

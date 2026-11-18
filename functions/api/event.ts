@@ -38,8 +38,9 @@ const ALLOWED_TOOL_RUN_SOURCES = new Set([
 	'unknown',
 ]);
 
-// リクエスト本文の許容最大長（UTF-16コード単位）。正規のペイロードは数百文字に収まる。
-// 上限超過は読み捨て、JSONとして解釈しない。
+// リクエスト本文の許容上限。正規のペイロードはASCIIで数百文字に収まる。
+// Content-Length（バイト数）の申告が上限を超えるものは本文を読まずに破棄し、
+// 申告のない本文は読んだ後の文字数（UTF-16コード単位）で判定して、JSONとして解釈しない。
 const MAX_BODY_LENGTH = 4096;
 
 // ツール・ブロック・セットの識別子（kebab-case のslug）。src/lib/tools/catalog.ts の id と同じ形だけを通す。
