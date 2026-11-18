@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
 	changesRequestedBy,
 	evaluate,
+	PROTECTED_PATHS,
+	protectedChanges,
 	readClaudeReview,
 	readFixLoops,
 	validateReviewRecord,
@@ -101,6 +103,7 @@ const snap = (over: Overrides = {}): Snap => ({
 		],
 	},
 	unresolvedThreads: 0,
+	files: [{ filename: 'src/lib/tools/base64.ts', previousFilename: null }],
 	...over,
 });
 const withPr = (over: Overrides) => ({ ...snap().pr, ...over });
@@ -510,6 +513,19 @@ function fakeGithub(
 				},
 			});
 		if (url.includes('/pulls/7/reviews')) return json([]);
+		if (url.includes('/pulls/7/files'))
+			return json(
+				url.includes('page=1')
+					? [
+							{ filename: 'AGENTS.md', status: 'modified' },
+							{
+								filename: 'docs/new.md',
+								previous_filename: 'CLAUDE.md',
+								status: 'renamed',
+							},
+						]
+					: [],
+			);
 		if (url.includes('/pulls/7'))
 			return json({
 				number: 7,
@@ -520,6 +536,7 @@ function fakeGithub(
 				base: { ref: 'main', sha: BASE },
 				mergeable_state: 'clean',
 				body: '',
+				changed_files: 2,
 			});
 		if (url.includes('/comments')) return json([]);
 		if (url.includes('/check-runs'))
@@ -1215,4 +1232,130 @@ test('第三者(NONE/CONTRIBUTOR等)のUser投稿は記録として採用せず�
 	}
 	const only = review({}, HEAD, { authorAssociation: 'NONE' });
 	assert.equal(evaluate(snap({ comments: [only] })).reviewState, 'unavailable');
+});
+
+// Issue #721: ルール・CI・レビュー定義・Playwright設定を触るPRは承認済みCが必要
+const approvedC = {
+	class: 'C',
+	risk: 'R4',
+	approvalStatus: 'approved',
+	approvalRef:
+		'marumo 2026-11-18 プロジェクトチャット「ではそのように進めて」(Issue #721)',
+	unapprovedScope: [],
+};
+const filesOf = (...names: string[]) =>
+	names.map((filename) => ({ filename, previousFilename: null }));
+
+test('保護対象パスの判定: 完全一致と配下（/終わり）だけを対象にする', () => {
+	assert.ok(PROTECTED_PATHS.includes('playwright.config.ts'));
+	assert.deepEqual(
+		protectedChanges([
+			...filesOf(
+				'AGENTS.md',
+				'docs/AGENTS.md',
+				'.github/workflows/e2e.yml',
+				'.github/dependabot.yml',
+				'.claude/agents/independent-reviewer.md',
+				'.claude/skills/gen-test/SKILL.md',
+				'scripts/lib/pr-gate.mjs',
+				'scripts/lib/production-smoke.mjs',
+				'playwright.config.ts',
+				'docs/approval-and-merge-rules.md',
+				'docs/ai-development-flow.md',
+				'docs/architecture.md',
+			),
+			{ filename: 'docs/x.md', previousFilename: 'CLAUDE.md' },
+		]),
+		[
+			'.claude/agents/independent-reviewer.md',
+			'.github/workflows/e2e.yml',
+			'AGENTS.md',
+			'CLAUDE.md',
+			'docs/ai-development-flow.md',
+			'docs/approval-and-merge-rules.md',
+			'playwright.config.ts',
+			'scripts/lib/pr-gate.mjs',
+		],
+	);
+});
+
+test('保護対象を触るPRは A / B / 未承認C なら blocked、承認済みCだけ merge-ready', () => {
+	const files = filesOf('src/lib/tools/x.ts', '.github/workflows/lint.yml');
+	for (const classification of [
+		record().classification,
+		cls({
+			class: 'B',
+			risk: 'R2',
+			approvalStatus: 'approved',
+			approvalRef: 'AGENTS.md 自律運営（Issue #562 承認2）#719',
+		}),
+	]) {
+		const v = evaluate(snap({ files, comments: [review({ classification })] }));
+		assert.equal(v.state, 'blocked', JSON.stringify(classification));
+		assert.match(v.reasons[0], /\.github\/workflows\/lint\.yml/);
+		assert.match(v.suggest, /human-approval/);
+	}
+	const unapproved = evaluate(
+		snap({
+			files,
+			comments: [
+				review({
+					classification: { ...approvedC, approvalStatus: 'unapproved' },
+				}),
+			],
+		}),
+	);
+	assert.equal(unapproved.state, 'blocked');
+	const ok = evaluate(
+		snap({ files, comments: [review({ classification: approvedC })] }),
+	);
+	assert.equal(ok.state, 'merge-ready');
+});
+
+test('リネーム元が保護対象でも blocked', () => {
+	const v = evaluate(
+		snap({
+			files: [{ filename: 'docs/old-rules.md', previousFilename: 'AGENTS.md' }],
+		}),
+	);
+	assert.equal(v.state, 'blocked');
+	assert.match(v.reasons[0], /AGENTS\.md/);
+});
+
+test('変更ファイル一覧が取れない/不完全なら blocked(retriable)、保護対象なしなら従来どおり', () => {
+	for (const files of [null, undefined, 'x']) {
+		const v = evaluate(snap({ files }));
+		assert.equal(v.state, 'blocked');
+		assert.equal(v.retriable, true);
+		assert.match(v.reasons[0], /変更ファイル一覧/);
+	}
+	assert.equal(evaluate(snap({ files: [] })).state, 'merge-ready');
+});
+
+test('collect: 変更ファイルを全ページ取得し、件数がchanged_filesと違えば不完全(null)にする', async () => {
+	const gh = fakeGithub();
+	const s = await collect(gh.client('t'), { repo: REPO, number: 7 });
+	assert.deepEqual(s.files, [
+		{ filename: 'AGENTS.md', previousFilename: null, status: 'modified' },
+		{
+			filename: 'docs/new.md',
+			previousFilename: 'CLAUDE.md',
+			status: 'renamed',
+		},
+	]);
+	assert.ok(gh.calls.some((c) => c.url.includes('/pulls/7/files')));
+
+	// APIの3000件打ち切りなどで件数がchanged_filesと合わない一覧は採用しない
+	const base = fakeGithub().client('t');
+	const truncated = {
+		...base,
+		get: async (path: string) => {
+			const r = await base.get(path);
+			return path === `/repos/${REPO}/pulls/7` ? { ...r, changed_files: 3 } : r;
+		},
+	};
+	const t = await collect(truncated, { repo: REPO, number: 7 });
+	assert.equal(t.files, null);
+	assert.ok(t.errors.some((e: string) => /files: 件数が不一致/.test(e)));
+	assert.equal(evaluate(snap({ files: t.files })).state, 'blocked');
 });

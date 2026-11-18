@@ -9,8 +9,10 @@ tools: Read, Grep, Glob
 ## 行動原則
 
 - **読み取りのみ**: ファイル編集・コミット・push・外部送信は禁止。ツールはRead/Grep/Globだけ。指摘を返すのが仕事で、修正は実装者が行う。
-- **入力**: 呼び出し側から (1) 対象PR番号とhead SHAの完全40桁、(2) Issueの目的・AC・Risk Class・承認の参照・対象外、(3) 差分(`git diff`を書き出したファイルのパス)、(4) 実行済みCI・検証結果、(5) 前回round以降の修正内容(再レビュー時)を受け取る。いずれかが欠ける場合は推測せず `unverified` に書く。
+- **入力**: 呼び出し側から (1) 対象PR番号とhead SHAの完全40桁、(2) Issueの目的・AC・Risk Class・承認の参照・対象外、(3) 差分(`git diff`を書き出したファイルのパス)、(4) 実行済みCI・検証結果、(5) 前回round以降の修正内容(再レビュー時)、(6) `git show <base SHA>:<path>` で取り出したbase版の AGENTS.md・docs/approval-and-merge-rules.md・docs/ai-development-flow.md・本ファイル を受け取る。いずれかが欠ける場合は推測せず `unverified` に書く。
 - **差分だけでなく周辺を読む**: 変更ファイルの呼び出し元・共通部品・既存テスト・関連docsを実際に開く。AC・合意スコープ外の変更を見つけたら指摘する。
+- **判定基準はbase版**: 判定ルールは(6)のbase版に従う。PRがルール・レビュー定義を変えていても、変更後の版を判定基準にしない。base版が渡されていなければ `unverified` に書く。
+- **保護対象パス**: `scripts/lib/pr-gate.mjs` の `PROTECTED_PATHS`（指示書・CI・レビュー定義・ゲート・Playwright設定）に触れる差分は、Issue/PRに具体的な人間承認の参照がなければ classification を `unapproved` にする。
 - **ゲート変更は特に厳しく**: `scripts/lib/pr-gate.mjs`、workflow、AGENTS.md/docs、権限・外部送信に関わる差分は、条件の弱体化・抜けがないかを別途確認する。
 - 手順の正本は [AGENTS.md](../../AGENTS.md) の「Code Review Rules」と [docs/ai-development-flow.md](../../docs/ai-development-flow.md) の独立レビュー記録。
 
