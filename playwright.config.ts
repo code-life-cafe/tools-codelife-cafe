@@ -6,7 +6,10 @@ export default defineConfig({
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? 4 : undefined,
-	reporter: process.env.CI ? 'html' : 'list',
+	// CIではhtmlに加えてJSONも出し、flaky件数をジョブサマリーへ記録する（Issue #719。記録のみ）
+	reporter: process.env.CI
+		? [['html'], ['json', { outputFile: 'test-results/e2e-results.json' }]]
+		: 'list',
 	use: {
 		baseURL: 'http://localhost:4321',
 		// Explicit opt-out: never classify our test requests as user activity.

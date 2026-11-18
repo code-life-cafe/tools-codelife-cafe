@@ -47,6 +47,11 @@ jobs:
           retention-days: 14
       - run: npm run build
       - run: npx playwright test
+      # 再試行で通った不安定テスト（flaky）の件数をジョブサマリーへ記録する（Issue #719）。
+      # 記録だけの段階のため、このステップはジョブの合否を変えない（常に終了コード0）。
+      - name: Record flaky E2E tests
+        if: ${{ !cancelled() }}
+        run: node scripts/e2e-flaky-summary.mjs test-results/e2e-results.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
