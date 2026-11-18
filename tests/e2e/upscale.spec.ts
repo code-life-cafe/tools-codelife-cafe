@@ -118,6 +118,38 @@ test.describe('画像アップスケール', () => {
 		expect(dl.suggestedFilename()).toBe('tiny_upscaled_4x.png');
 	});
 
+	test('最高品質モデルは固定リビジョンから取得し、内容が一致しなければ推論に使わない', async ({
+		page,
+	}) => {
+		// 配布元の内容が差し替わった場合を、別のバイト列を返して再現する（実モデル67MBは取得しない）。
+		const requested: string[] = [];
+		await page.context().route('**/huggingface.co/**', (route) => {
+			requested.push(route.request().url());
+			return route.fulfill({
+				status: 200,
+				contentType: 'application/octet-stream',
+				headers: { 'access-control-allow-origin': '*' },
+				body: Buffer.from('not the pinned model'),
+			});
+		});
+		await uploadGeneratedImage(page, 64, 64);
+		await page.getByRole('button', { name: '最高品質' }).click();
+		await page.locator('[data-testid="upscale-run"]').click();
+
+		await expect(
+			page.getByText('モデルの内容を確認できませんでした', { exact: false }),
+		).toBeVisible({ timeout: RESULT_TIMEOUT });
+		// 結果（ダウンロード）は出さない
+		await expect(page.locator('[data-testid="upscale-download"]')).toBeHidden();
+		// 可変の main ではなく、40桁のコミットIDで固定したURLだけを取得する
+		expect(requested.length).toBeGreaterThan(0);
+		for (const url of requested) {
+			expect(url).toMatch(
+				/\/bukuroo\/RealESRGAN-ONNX\/resolve\/[0-9a-f]{40}\/real-esrgan-x4plus-128\.onnx$/,
+			);
+		}
+	});
+
 	for (const scale of [2, 4]) {
 		for (const denoise of [false, true]) {
 			test(`透過PNGの透明・半透明・不透明を保持する (${scale}倍、ノイズ除去=${denoise})`, async ({

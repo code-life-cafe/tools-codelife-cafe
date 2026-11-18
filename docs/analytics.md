@@ -111,6 +111,7 @@ CODE:LIFE Tools はクライアントサイド完結のツール集であり、�
    - 開発環境 (`import.meta.env.DEV`) では送信をスキップし、`console.debug` にログ出力する。
 2. **Cloudflare Pages Function (`functions/api/event.ts`)**:
    - 許可された Origin（本番ドメイン `https://tools.codelife.cafe` 等）および許可済みイベント名・Allowlist props のみを検証して受理する。
+   - 値の形も検証する（Issue #726）。本文は4096文字まで。`tool` / `from` / `to` / `block` / `setId` はカタログのidと同じslug形式（`^[a-z0-9][a-z0-9_-]{0,63}$`）、`position` は0〜999の整数、`lengthBucket` は既知の5区分、`sessionId` / `dedupeKey` は英数字と `-` `_` だけを通す。形式外の値は書き込まない（自由文の混入と計測データの汚染を防ぐ）。新しいツールのslugや識別子は、この形式に合わせる。
    - 不正なリクエストや未許可のプロパティは 204 で静かに破棄する。
    - `context.env.EVENTS.writeDataPoint(...)` を呼び出して Analytics Engine に書き込む。
 3. **Wrangler 設定 (`wrangler.jsonc`)**:

@@ -58,9 +58,16 @@ export type ModelSpec = {
 	fixed: boolean;
 	/** 推奨実行デバイス */
 	device: 'wasm' | 'webgpu';
+	/**
+	 * 外部オリジンから取得するモデルの完全性情報（バイト数と小文字16進の sha256）。
+	 * 指定されたモデルは、取得後に一致を確認してから推論に使う。
+	 */
+	integrity?: { bytes: number; sha256: string };
 };
 
 // --- モデルレジストリ ---
+/** 高画質モデルの配布元（Hugging Face）のコミットID。更新時は integrity も同時に更新する。 */
+export const MAX_MODEL_REVISION = 'a1f365e2ef85ca5d4c66325e76bc7e26374c9642';
 // fast は public/models 同梱（~5MB, BSD-3-Clause）。max は HF CDN から取得（~67MB, WebGPU 推奨）。
 export const MODELS: Record<QualityMode, ModelSpec> = {
 	fast: {
@@ -72,14 +79,46 @@ export const MODELS: Record<QualityMode, ModelSpec> = {
 		device: 'wasm',
 	},
 	max: {
-		url: 'https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/main/real-esrgan-x4plus-128.onnx',
+		// 可変の `main` ではなくコミットIDで固定する。配布元で内容が差し替わっても、
+		// 下の integrity と一致しないものは推論に使わない。
+		url: `https://huggingface.co/bukuroo/RealESRGAN-ONNX/resolve/${MAX_MODEL_REVISION}/real-esrgan-x4plus-128.onnx`,
 		nativeScale: 4,
 		core: 128,
 		overlap: 0,
 		fixed: true,
 		device: 'webgpu',
+		integrity: {
+			bytes: 67160311,
+			sha256:
+				'6a6f4a3d58553d40fdd443d9e5f4b2deb9b52bef1ec2947700fc2167ac876c7d',
+		},
 	},
 };
+
+export const MODEL_INTEGRITY_ERROR =
+	'モデルの内容を確認できませんでした。時間をおいて再度お試しいただくか、高速モードをご利用ください。';
+
+/**
+ * 取得したモデルが spec.integrity（バイト数・sha256）と一致することを確認する。
+ * integrity の指定がないモデル（同一オリジンの同梱モデル）は確認しない。
+ * 一致しない場合は例外を投げ、呼び出し側は推論に進まない。
+ */
+export async function verifyModelIntegrity(
+	data: ArrayBuffer,
+	spec: Pick<ModelSpec, 'integrity'>,
+): Promise<void> {
+	const expected = spec.integrity;
+	if (!expected) return;
+	if (data.byteLength !== expected.bytes) {
+		throw new Error(MODEL_INTEGRITY_ERROR);
+	}
+	const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+	let hex = '';
+	for (const byte of digest) hex += byte.toString(16).padStart(2, '0');
+	if (hex !== expected.sha256) {
+		throw new Error(MODEL_INTEGRITY_ERROR);
+	}
+}
 
 export type ProgressInfo = {
 	status: 'loading' | 'processing' | 'ready';
