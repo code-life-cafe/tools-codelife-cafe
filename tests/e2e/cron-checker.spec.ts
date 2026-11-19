@@ -279,21 +279,23 @@ test.describe('cron式チェッカー', () => {
 		);
 	});
 
-	test('他の形式からの読み込み欄はモバイル幅でも横にはみ出さないこと', async ({
-		page,
-		createToolPage,
-	}) => {
-		await page.setViewportSize({ width: 375, height: 812 });
-		await createToolPage('cron-checker').goto();
-		await page
-			.getByLabel('読み込む式（AWS EventBridge・GitHub Actions）')
-			.fill('cron(0/15 0-23 ? JAN,FEB,MAR,APR,MAY,JUN * 2027-2030)');
-		await expect(page.getByTestId('cron-import-result')).toBeVisible();
-		const overflow = await page.evaluate(
-			() => document.documentElement.scrollWidth - window.innerWidth,
-		);
-		expect(overflow).toBeLessThanOrEqual(0);
-	});
+	for (const width of [375, 1440]) {
+		test(`他の形式からの読み込み欄は${width}px幅でも横にはみ出さないこと`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			await createToolPage('cron-checker').goto();
+			await page
+				.getByLabel('読み込む式（AWS EventBridge・GitHub Actions）')
+				.fill('cron(0/15 0-23 ? JAN,FEB,MAR,APR,MAY,JUN * 2027-2030)');
+			await expect(page.getByTestId('cron-import-result')).toBeVisible();
+			const overflow = await page.evaluate(
+				() => document.documentElement.scrollWidth - window.innerWidth,
+			);
+			expect(overflow).toBeLessThanOrEqual(0);
+		});
+	}
 
 	test('毎分実行は危険パターンとして警告されること', async ({
 		page,

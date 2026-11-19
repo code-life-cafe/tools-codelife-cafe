@@ -375,26 +375,68 @@ function hasIntervalUnder5Minutes(schedule: CronSchedule): boolean {
 	return false;
 }
 
-function importGithubActions(text: string): ScheduleImportResult {
-	const crons: string[] = [];
-	let timezone: string | undefined;
-	for (const line of text.split(/\r?\n/)) {
-		const cronMatch = line.match(/^\s*(?:-\s*)?cron\s*:\s*(.*)$/);
-		if (cronMatch) {
-			crons.push(stripYamlScalar(cronMatch[1]));
-			continue;
-		}
-		const tzMatch = line.match(/^\s*(?:-\s*)?timezone\s*:\s*(.*)$/);
-		if (tzMatch && timezone === undefined) {
-			timezone = stripYamlScalar(tzMatch[1]);
+/** 行頭の空白と「- 」を除いた、キーが始まる桁 */
+function yamlKeyColumn(line: string): number {
+	return (line.match(/^\s*(?:-\s+)?/) as RegExpMatchArray)[0].length;
+}
+
+const CRON_LINE = /^\s*(?:-\s*)?cron\s*:\s*(.*)$/;
+const TIMEZONE_LINE = /^\s*(?:-\s*)?timezone\s*:\s*(.*)$/;
+
+/**
+ * cronの行と同じschedule項目（同じ桁に並ぶキー）にある timezone: だけを返す。
+ * 別の項目や、stepの with: などにある timezone: は使わない。
+ */
+function findTimezoneOfItem(lines: string[], cronIndex: number) {
+	const column = yamlKeyColumn(lines[cronIndex]);
+	const isTimezone = (line: string) =>
+		TIMEZONE_LINE.test(line) && yamlKeyColumn(line) === column;
+	const tzValue = (line: string) =>
+		stripYamlScalar((line.match(TIMEZONE_LINE) as RegExpMatchArray)[1]);
+	const startsItem = (line: string) => /^\s*-\s/.test(line);
+	const indentOf = (line: string) =>
+		(line.match(/^\s*/) as RegExpMatchArray)[0].length;
+
+	// 後ろへ: 項目の終わり（キーの桁より浅い行、または次の項目の「- 」）まで
+	for (let i = cronIndex + 1; i < lines.length; i++) {
+		const line = lines[i];
+		if (line.trim() === '' || line.trim().startsWith('#')) continue;
+		if (indentOf(line) < column || startsItem(line)) break;
+		if (isTimezone(line)) return tzValue(line);
+	}
+	// 前へ: cronの行が項目の始まりでなければ、項目の「- 」の行まで
+	if (!startsItem(lines[cronIndex])) {
+		for (let i = cronIndex - 1; i >= 0; i--) {
+			const line = lines[i];
+			if (line.trim() === '' || line.trim().startsWith('#')) continue;
+			if (startsItem(line)) {
+				if (yamlKeyColumn(line) !== column) break;
+				return isTimezone(line) ? tzValue(line) : undefined;
+			}
+			if (indentOf(line) < column) break;
+			if (isTimezone(line)) return tzValue(line);
 		}
 	}
+	return undefined;
+}
+
+function importGithubActions(text: string): ScheduleImportResult {
+	const lines = text.split(/\r?\n/);
+	const crons: string[] = [];
+	let firstCronIndex = -1;
+	lines.forEach((line, i) => {
+		const cronMatch = line.match(CRON_LINE);
+		if (!cronMatch) return;
+		if (firstCronIndex < 0) firstCronIndex = i;
+		crons.push(stripYamlScalar(cronMatch[1]));
+	});
 	if (crons.length === 0 || crons[0] === '') {
 		return fail(
 			"GitHub Actionsの schedule から cron: '...' の行を見つけられませんでした。",
 		);
 	}
 
+	const timezone = findTimezoneOfItem(lines, firstCronIndex);
 	const notes: string[] = [];
 	if (crons.length > 1) {
 		notes.push(
@@ -481,7 +523,8 @@ export function importScheduleExpression(text: string): ScheduleImportResult {
 	const trimmed = text.trim();
 	if (trimmed === '') return fail('読み込む式を入力してください。');
 
-	const call = trimmed.match(/^(cron|rate)\s*\(([\s\S]*)\)\s*$/i);
+	// 行末のコメント（「# ...」）は無視する
+	const call = trimmed.match(/^(cron|rate)\s*\(([^)]*)\)\s*(?:#.*)?$/i);
 	if (call) {
 		try {
 			return call[1].toLowerCase() === 'cron'
@@ -498,7 +541,8 @@ export function importScheduleExpression(text: string): ScheduleImportResult {
 	}
 	if (/(^|\n)\s*(?:-\s*)?cron\s*:/.test(trimmed)) {
 		try {
-			return importGithubActions(trimmed);
+			// 字下げで項目を判定するため、前後の空白を除く前の文字列を渡す
+			return importGithubActions(text);
 		} catch (e) {
 			return fail(
 				e instanceof CronParseError ? e.message : '式を解釈できませんでした',

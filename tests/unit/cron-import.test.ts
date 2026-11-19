@@ -191,6 +191,51 @@ test('GitHub Actionsのtimezoneに応じて換算する', () => {
 	assert.match(err("- cron: '0 9 * * 1'\n  timezone: Mars/Base"), /timezone/);
 });
 
+test('timezoneは最初のcronと同じschedule項目のものだけを使う（回帰: 別項目・stepのtimezoneを拾わない）', () => {
+	// 別の項目のtimezoneは1件目に適用しない（1件目はUTC）
+	const other = ok(
+		"- cron: '0 1 * * *'\n- cron: '0 2 * * *'\n  timezone: 'Asia/Tokyo'",
+	);
+	assert.equal(other.sourceTimeZone, 'UTC');
+	assert.equal(other.jstExpr, '0 10 * * *');
+	// stepの with: にある timezone は使わない
+	const workflow = ok(`on:
+  schedule:
+    - cron: '0 0 * * *'
+jobs:
+  build:
+    steps:
+      - uses: example/action@v1
+        with:
+          timezone: America/New_York`);
+	assert.equal(workflow.sourceTimeZone, 'UTC');
+	assert.equal(workflow.jstExpr, '0 9 * * *');
+	// 同じ項目内なら、cronの前後どちらにあっても使う
+	const after = ok(
+		"    - cron: '0 1 * * *'\n      # コメント\n      timezone: 'Asia/Tokyo'\n    - cron: '0 2 * * *'",
+	);
+	assert.equal(after.sourceTimeZone, 'Asia/Tokyo');
+	const before = ok("- timezone: Asia/Tokyo\n  cron: '0 1 * * *'");
+	assert.equal(before.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(before.jstExpr, '0 1 * * *');
+	const bare = ok("cron: '0 1 * * *'\ntimezone: Asia/Tokyo");
+	assert.equal(bare.sourceTimeZone, 'Asia/Tokyo');
+	// 1件目の項目にtimezoneがなく、2件目の項目にある場合も1件目はUTC
+	const second = ok(
+		"- cron: '0 1 * * *'\n- timezone: Asia/Tokyo\n  cron: '0 2 * * *'",
+	);
+	assert.equal(second.sourceTimeZone, 'UTC');
+});
+
+test('cron()/rate()の後ろの行末コメントは無視する', () => {
+	assert.equal(ok('cron(0 9 ? * MON *) # 毎週月曜').sourceExpr, '0 9 * * MON');
+	assert.equal(ok('rate(5 minutes)  # 5分ごと').jstExpr, '*/5 * * * *');
+	assert.match(
+		err('cron(0 9 ? * MON *) extra'),
+		/「\)」で閉じて|cron\(\.\.\.\)/,
+	);
+});
+
 test('GitHub Actionsの5分未満の間隔を注意する', () => {
 	assert.ok(ok("- cron: '* * * * *'").notes.some((n) => n.includes('最短5分')));
 	assert.ok(
