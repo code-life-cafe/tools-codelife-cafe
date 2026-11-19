@@ -18,8 +18,11 @@ const {
 	BEFORE_SHA,
 } = process.env;
 
+// 照合が止まってもデプロイを長く待たせないよう、git・APIとも上限を付ける（超えたらE2Eを実行）
+const TIMEOUT_MS = 30_000;
+
 function git(args) {
-	return spawnSync('git', args, { encoding: 'utf-8' });
+	return spawnSync('git', args, { encoding: 'utf-8', timeout: TIMEOUT_MS });
 }
 
 async function isAncestor(ancestor, descendant) {
@@ -54,6 +57,7 @@ try {
 	const response = await fetch(
 		`${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?event=pull_request&status=success&per_page=100`,
 		{
+			signal: AbortSignal.timeout(TIMEOUT_MS),
 			headers: {
 				Accept: 'application/vnd.github+json',
 				Authorization: `Bearer ${GITHUB_TOKEN}`,

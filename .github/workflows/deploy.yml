@@ -27,6 +27,10 @@ jobs:
   # そのPR headの祖先である場合だけ reuse=true。照合できない・不一致は reuse=false（E2Eを実行）
   e2e-reuse:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     outputs:
       reuse: ${{ steps.check.outputs.reuse }}
     steps:
@@ -100,6 +104,9 @@ jobs:
   # 失敗はこのジョブの失敗（=公開確認失敗）であり、deployジョブの成功と混同しない。secrets・書き込み権限は使わない。
   production-smoke:
     needs: [deploy]
+    # E2Eを省略した（e2eがskipped）runでも、deployが成功したら必ず本番確認を行う。
+    # if がないと、上流にskippedのジョブがあるだけでこのジョブもskippedになる
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
