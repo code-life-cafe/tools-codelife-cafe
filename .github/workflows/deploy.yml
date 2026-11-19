@@ -23,14 +23,39 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/security-audit-baseline.mjs
-  # デプロイ前にE2Eを実行し、失敗時はデプロイを中止する
+  # PRで成功済みのE2Eと同じ内容か照合する（Issue #723）。ツリーが同じで、push前のmainが
+  # そのPR headの祖先である場合だけ reuse=true。照合できない・不一致は reuse=false（E2Eを実行）
+  e2e-reuse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.check.outputs.reuse }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: node scripts/e2e-reuse-check.mjs
+  # デプロイ前にE2Eを実行し、失敗時はデプロイを中止する（PRで同じ内容を確認済みなら省略）
   e2e:
-    needs: audit-baseline
+    needs: [audit-baseline, e2e-reuse]
+    if: ${{ !cancelled() && needs.audit-baseline.result == 'success' && needs.e2e-reuse.outputs.reuse != 'true' }}
     with:
       audit-base-sha: ${{ needs.audit-baseline.outputs.sha }}
     uses: ./.github/workflows/e2e.yml
   deploy:
-    needs: [audit-baseline, e2e]
+    needs: [audit-baseline, e2e-reuse, e2e]
+    # E2E成功、または照合でE2Eを省略した場合だけデプロイする。E2Eの失敗・キャンセルでは中止する
+    if: ${{ !cancelled() && needs.audit-baseline.result == 'success' && (needs.e2e.result == 'success' || (needs.e2e.result == 'skipped' && needs.e2e-reuse.result == 'success' && needs.e2e-reuse.outputs.reuse == 'true')) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -79,6 +104,9 @@ jobs:
   # 失敗はこのジョブの失敗（=公開確認失敗）であり、deployジョブの成功と混同しない。secrets・書き込み権限は使わない。
   production-smoke:
     needs: [deploy]
+    # E2Eを省略した（e2eがskipped）runでも、deployが成功したら必ず本番確認を行う。
+    # if がないと、上流にskippedのジョブがあるだけでこのジョブもskippedになる
+    if: ${{ !cancelled() && needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

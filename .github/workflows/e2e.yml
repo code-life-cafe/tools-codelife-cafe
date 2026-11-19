@@ -11,8 +11,14 @@ on:
 permissions:
   contents: read
 jobs:
-  e2e:
+  # 全テストを2つのジョブに分けて並列に実行する（Issue #723。テスト件数・retries・workersは変えない）
+  e2e-shard:
+    name: e2e (shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     container:
       image: mcr.microsoft.com/playwright:v1.65.1-jammy
     env:
@@ -31,7 +37,9 @@ jobs:
         run: |
           npm ci --ignore-scripts
           npm rebuild esbuild
+      # 同じ監査を2回出さないため shard 1 だけで実行する。失敗は集約ジョブ e2e の失敗になる
       - name: Security audit
+        if: ${{ matrix.shard == 1 }}
         env:
           AUDIT_BASE_SHA: ${{ inputs.audit-base-sha || github.event.pull_request.base.sha }}
           SECURITY_AUDIT_DIR: ${{ runner.temp }}/security-audit
@@ -39,14 +47,14 @@ jobs:
           mkdir -p "$SECURITY_AUDIT_DIR"
           node scripts/security-audit.mjs
       - name: Save security audit reports
-        if: always()
+        if: ${{ always() && matrix.shard == 1 }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-audit-e2e
           path: ${{ runner.temp }}/security-audit/
           retention-days: 14
       - run: npm run build
-      - run: npx playwright test
+      - run: npx playwright test --shard=${{ matrix.shard }}/2
       # 再試行で通った不安定テスト（flaky）の件数をジョブサマリーへ記録する（Issue #719）。
       # 記録だけの段階のため、このステップはジョブの合否を変えない（常に終了コード0）。
       - name: Record flaky E2E tests
@@ -55,6 +63,19 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 14
+  # 必須check名 e2e を維持する集約ジョブ。両shardが成功したときだけ成功する
+  # （失敗・キャンセル・スキップはすべて失敗扱い）
+  e2e:
+    needs: e2e-shard
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all E2E shards
+        env:
+          SHARD_RESULT: ${{ needs.e2e-shard.result }}
+        run: |
+          echo "E2E shards: $SHARD_RESULT"
+          test "$SHARD_RESULT" = "success"
