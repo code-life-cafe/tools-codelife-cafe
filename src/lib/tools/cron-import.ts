@@ -384,31 +384,50 @@ const CRON_LINE = /^\s*(?:-\s*)?cron\s*:\s*(.*)$/;
 const TIMEZONE_LINE = /^\s*(?:-\s*)?timezone\s*:\s*(.*)$/;
 
 /**
- * cronの行と同じschedule項目（同じ桁に並ぶキー）にある timezone: だけを返す。
+ * cronの行と同じschedule項目にある timezone: だけを返す。
  * 別の項目や、stepの with: などにある timezone: は使わない。
+ * 貼り付けで先頭行の字下げが落ちることがあるため、cronより後ろの兄弟キーの桁は
+ * 「cronの行より深い（項目の始まりなら）／同じ以上の（そうでなければ）最初のキー行」の字下げで決める。
  */
 function findTimezoneOfItem(lines: string[], cronIndex: number) {
-	const column = yamlKeyColumn(lines[cronIndex]);
-	const isTimezone = (line: string) =>
-		TIMEZONE_LINE.test(line) && yamlKeyColumn(line) === column;
+	const cronLine = lines[cronIndex];
 	const tzValue = (line: string) =>
 		stripYamlScalar((line.match(TIMEZONE_LINE) as RegExpMatchArray)[1]);
 	const startsItem = (line: string) => /^\s*-\s/.test(line);
 	const indentOf = (line: string) =>
 		(line.match(/^\s*/) as RegExpMatchArray)[0].length;
+	const skip = (line: string) =>
+		line.trim() === '' || line.trim().startsWith('#');
 
-	// 後ろへ: 項目の終わり（キーの桁より浅い行、または次の項目の「- 」）まで
+	// 後ろへ: 項目の終わり（兄弟キーより浅い行、または次の「- 」）まで
+	const cronIndent = indentOf(cronLine);
+	const cronStartsItem = startsItem(cronLine);
+	let siblingColumn: number | undefined;
 	for (let i = cronIndex + 1; i < lines.length; i++) {
 		const line = lines[i];
-		if (line.trim() === '' || line.trim().startsWith('#')) continue;
-		if (indentOf(line) < column || startsItem(line)) break;
-		if (isTimezone(line)) return tzValue(line);
+		if (skip(line)) continue;
+		const indent = indentOf(line);
+		if (siblingColumn === undefined) {
+			const outside = cronStartsItem
+				? indent <= cronIndent
+				: indent < cronIndent;
+			if (outside || startsItem(line)) break;
+			siblingColumn = indent;
+		}
+		if (indent < siblingColumn) break;
+		if (indent === siblingColumn && startsItem(line)) break;
+		if (indent === siblingColumn && TIMEZONE_LINE.test(line)) {
+			return tzValue(line);
+		}
 	}
 	// 前へ: cronの行が項目の始まりでなければ、項目の「- 」の行まで
-	if (!startsItem(lines[cronIndex])) {
+	if (!cronStartsItem) {
+		const column = cronIndent;
+		const isTimezone = (line: string) =>
+			TIMEZONE_LINE.test(line) && yamlKeyColumn(line) === column;
 		for (let i = cronIndex - 1; i >= 0; i--) {
 			const line = lines[i];
-			if (line.trim() === '' || line.trim().startsWith('#')) continue;
+			if (skip(line)) continue;
 			if (startsItem(line)) {
 				if (yamlKeyColumn(line) !== column) break;
 				return isTimezone(line) ? tzValue(line) : undefined;
@@ -536,8 +555,13 @@ export function importScheduleExpression(text: string): ScheduleImportResult {
 			);
 		}
 	}
-	if (/^(cron|rate)\s*\(/i.test(trimmed)) {
+	if (/^(cron|rate)\s*\([^)]*$/i.test(trimmed)) {
 		return fail('「)」で閉じてください（例: cron(0 9 ? * MON-FRI *)）。');
+	}
+	if (/^(cron|rate)\s*\(/i.test(trimmed)) {
+		return fail(
+			'「)」の後ろに余分な文字があります。式は「cron(...)」「rate(...)」だけを貼り付けてください（行末の「# コメント」は可）。',
+		);
 	}
 	if (/(^|\n)\s*(?:-\s*)?cron\s*:/.test(trimmed)) {
 		try {

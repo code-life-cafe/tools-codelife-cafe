@@ -227,13 +227,37 @@ jobs:
 	assert.equal(second.sourceTimeZone, 'UTC');
 });
 
+test('先頭行の字下げが落ちた貼り付けでも、同じ項目のtimezoneを使う（回帰: round 2 F5）', () => {
+	const dash = ok("- cron: '0 1 * * *'\n      timezone: Asia/Tokyo");
+	assert.equal(dash.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(dash.jstExpr, '0 1 * * *');
+	const bare = ok("cron: '0 1 * * *'\n      timezone: Asia/Tokyo");
+	assert.equal(bare.sourceTimeZone, 'Asia/Tokyo');
+	// 字下げが落ちても、次の項目やstepの with: にあるtimezoneは使わない
+	const nextItem = ok(
+		"- cron: '0 1 * * *'\n    - cron: '0 2 * * *'\n      timezone: Asia/Tokyo",
+	);
+	assert.equal(nextItem.sourceTimeZone, 'UTC');
+	const withStep = ok(`- cron: '0 0 * * *'
+jobs:
+  build:
+    steps:
+      - uses: example/action@v1
+        with:
+          timezone: America/New_York`);
+	assert.equal(withStep.sourceTimeZone, 'UTC');
+	const nested = ok(
+		"- cron: '0 0 * * *'\n      other:\n        timezone: Asia/Tokyo",
+	);
+	assert.equal(nested.sourceTimeZone, 'UTC');
+});
+
 test('cron()/rate()の後ろの行末コメントは無視する', () => {
 	assert.equal(ok('cron(0 9 ? * MON *) # 毎週月曜').sourceExpr, '0 9 * * MON');
 	assert.equal(ok('rate(5 minutes)  # 5分ごと').jstExpr, '*/5 * * * *');
-	assert.match(
-		err('cron(0 9 ? * MON *) extra'),
-		/「\)」で閉じて|cron\(\.\.\.\)/,
-	);
+	assert.match(err('cron(0 9 ? * MON *) extra'), /余分な文字/);
+	assert.match(err('cron(0 9 ? * MON *))'), /余分な文字/);
+	assert.match(err('rate(5 minutes'), /「\)」で閉じて/);
 });
 
 test('GitHub Actionsの5分未満の間隔を注意する', () => {
