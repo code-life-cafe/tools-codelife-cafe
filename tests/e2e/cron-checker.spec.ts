@@ -217,6 +217,86 @@ test.describe('cron式チェッカー', () => {
 		expect(overflow).toBeLessThanOrEqual(0);
 	});
 
+	test('EventBridgeのcron式をJSTへ換算して解析欄に反映できること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		const panel = page.getByTestId('cron-import');
+		const importInput = page.getByLabel(
+			'読み込む式（AWS EventBridge・GitHub Actions）',
+		);
+
+		await importInput.fill('cron(0 9 ? * MON-FRI *)');
+		await expect(panel).toContainText('AWS EventBridge（cron式）');
+		await expect(page.getByTestId('cron-import-source')).toHaveText(
+			'0 9 * * MON-FRI',
+		);
+		await expect(page.getByTestId('cron-import-jst')).toHaveText(
+			'0 18 * * MON-FRI',
+		);
+		await panel.getByRole('button', { name: '解析欄へ反映' }).click();
+		await expect(page.getByLabel('cron式', { exact: true })).toHaveValue(
+			'0 18 * * MON-FRI',
+		);
+		await expect(page.getByTestId('cron-description')).toContainText('18:00');
+		// 貼り付けた内容はURLに入れない
+		expect(page.url()).not.toContain('MON-FRI');
+
+		// AWSが受け付けない式はエラーを出し、反映ボタンを出さない
+		await importInput.fill('cron(0 9 * * MON *)');
+		await expect(page.getByTestId('cron-import-error')).toContainText(
+			'どちらか一方を「?」',
+		);
+		await expect(
+			panel.getByRole('button', { name: '解析欄へ反映' }),
+		).toHaveCount(0);
+	});
+
+	test('GitHub Actionsのscheduleを読み込み、UTCの換算と5分未満の注意を出すこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		const importInput = page.getByLabel(
+			'読み込む式（AWS EventBridge・GitHub Actions）',
+		);
+
+		await importInput.fill("on:\n  schedule:\n    - cron: '*/2 0 * * *'");
+		await expect(page.getByTestId('cron-import-jst')).toHaveText('*/2 9 * * *');
+		const notes = page.getByTestId('cron-import-notes');
+		await expect(notes).toContainText('既定どおりUTC');
+		await expect(notes).toContainText('最短5分間隔');
+
+		// 日付をまたぐ時刻が混在する式はJSTへ換算せず、反映ボタンを出さない
+		await importInput.fill("- cron: '0 10,20 * * 1'");
+		await expect(page.getByTestId('cron-import-source')).toHaveText(
+			'0 10,20 * * 1',
+		);
+		await expect(page.getByTestId('cron-import-jst')).toHaveCount(0);
+		await expect(page.getByTestId('cron-import')).toContainText(
+			'換算できませんでした',
+		);
+	});
+
+	for (const width of [375, 1440]) {
+		test(`他の形式からの読み込み欄は${width}px幅でも横にはみ出さないこと`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			await createToolPage('cron-checker').goto();
+			await page
+				.getByLabel('読み込む式（AWS EventBridge・GitHub Actions）')
+				.fill('cron(0/15 0-23 ? JAN,FEB,MAR,APR,MAY,JUN * 2027-2030)');
+			await expect(page.getByTestId('cron-import-result')).toBeVisible();
+			const overflow = await page.evaluate(
+				() => document.documentElement.scrollWidth - window.innerWidth,
+			);
+			expect(overflow).toBeLessThanOrEqual(0);
+		});
+	}
+
 	test('毎分実行は危険パターンとして警告されること', async ({
 		page,
 		createToolPage,
