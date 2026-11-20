@@ -224,7 +224,7 @@ test.describe('cron式チェッカー', () => {
 		await createToolPage('cron-checker').goto();
 		const panel = page.getByTestId('cron-import');
 		const importInput = page.getByLabel(
-			'読み込む式（AWS EventBridge・GitHub Actions）',
+			'読み込む式（AWS EventBridge・GitHub Actions・systemd timer）',
 		);
 
 		await importInput.fill('cron(0 9 ? * MON-FRI *)');
@@ -259,7 +259,7 @@ test.describe('cron式チェッカー', () => {
 	}) => {
 		await createToolPage('cron-checker').goto();
 		const importInput = page.getByLabel(
-			'読み込む式（AWS EventBridge・GitHub Actions）',
+			'読み込む式（AWS EventBridge・GitHub Actions・systemd timer）',
 		);
 
 		await importInput.fill("on:\n  schedule:\n    - cron: '*/2 0 * * *'");
@@ -279,6 +279,46 @@ test.describe('cron式チェッカー', () => {
 		);
 	});
 
+	test('systemd timerのOnCalendar=を読み込み、UTCの換算とAND条件のエラーを出すこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		const panel = page.getByTestId('cron-import');
+		const importInput = page.getByLabel(
+			'読み込む式（AWS EventBridge・GitHub Actions・systemd timer）',
+		);
+
+		await importInput.fill(
+			'[Timer]\nOnCalendar=Mon..Fri *-*-* 09:00:00 Asia/Tokyo\nPersistent=true',
+		);
+		await expect(panel).toContainText('systemd timer（OnCalendar=）');
+		await expect(page.getByTestId('cron-import-jst')).toHaveText('0 9 * * 1-5');
+		await panel.getByRole('button', { name: '解析欄へ反映' }).click();
+		await expect(page.getByLabel('cron式', { exact: true })).toHaveValue(
+			'0 9 * * 1-5',
+		);
+		await expect(page.getByTestId('cron-description')).toContainText('9:00');
+		// 貼り付けた内容はURLに入れない
+		expect(page.url()).not.toContain('OnCalendar');
+
+		// UTCはJSTへ換算する
+		await importInput.fill('OnCalendar=*-*-* 22:30:00 UTC');
+		await expect(page.getByTestId('cron-import-source')).toHaveText(
+			'30 22 * * *',
+		);
+		await expect(page.getByTestId('cron-import-jst')).toHaveText('30 7 * * *');
+
+		// 1行に曜日と日の両指定（systemdはAND条件）はエラーにし、反映ボタンを出さない
+		await importInput.fill('OnCalendar=Mon *-*-01 00:00:00');
+		await expect(page.getByTestId('cron-import-error')).toContainText(
+			'AND条件',
+		);
+		await expect(
+			panel.getByRole('button', { name: '解析欄へ反映' }),
+		).toHaveCount(0);
+	});
+
 	for (const width of [375, 1440]) {
 		test(`他の形式からの読み込み欄は${width}px幅でも横にはみ出さないこと`, async ({
 			page,
@@ -287,7 +327,9 @@ test.describe('cron式チェッカー', () => {
 			await page.setViewportSize({ width, height: 900 });
 			await createToolPage('cron-checker').goto();
 			await page
-				.getByLabel('読み込む式（AWS EventBridge・GitHub Actions）')
+				.getByLabel(
+					'読み込む式（AWS EventBridge・GitHub Actions・systemd timer）',
+				)
 				.fill('cron(0/15 0-23 ? JAN,FEB,MAR,APR,MAY,JUN * 2027-2030)');
 			await expect(page.getByTestId('cron-import-result')).toBeVisible();
 			const overflow = await page.evaluate(
