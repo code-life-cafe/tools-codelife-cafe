@@ -1,4 +1,5 @@
-// 他サービスのスケジュール式（AWS EventBridge の cron()/rate()、GitHub Actions の schedule）を
+// 他サービスのスケジュール式（AWS EventBridge の cron()/rate()、GitHub Actions の schedule、
+// systemd timer の OnCalendar=）を
 // 標準5フィールドのcron式へ読み替える純粋関数。DOM/React非依存。
 //
 // cron式チェッカーの解析欄は入力をJST（Asia/Tokyo）として扱うため、UTCで評価される式は
@@ -11,7 +12,11 @@ import {
 	parseCronExpression,
 } from './cron-checker.ts';
 
-export type ScheduleImportFormat = 'aws-cron' | 'aws-rate' | 'github-actions';
+export type ScheduleImportFormat =
+	| 'aws-cron'
+	| 'aws-rate'
+	| 'github-actions'
+	| 'systemd';
 
 export interface ScheduleImportSuccess {
 	success: true;
@@ -22,6 +27,8 @@ export interface ScheduleImportSuccess {
 	sourceExpr: string | null;
 	/** 元の式を評価するタイムゾーン（rate式のように時刻に依存しない場合はnull） */
 	sourceTimeZone: string | null;
+	/** 画面に出すタイムゾーンの説明（sourceTimeZoneをそのまま出さない場合だけ） */
+	sourceTimeZoneLabel?: string;
 	/** 解析欄（JST）へ反映できるcron式。換算できない場合はnull */
 	jstExpr: string | null;
 	/** 変換で補った点・サービス固有の注意（エラーではない） */
@@ -44,7 +51,7 @@ const MAX_SHIFTABLE_DAY = 27;
 const AWS_DOW_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
 const UNSUPPORTED_INPUT_MESSAGE =
-	"AWS EventBridgeの cron(...) / rate(...)、またはGitHub Actionsの cron: '...' を貼り付けてください（標準のcron式は上の解析欄に入力してください）。";
+	"AWS EventBridgeの cron(...) / rate(...)、GitHub Actionsの cron: '...'、またはsystemd timerの OnCalendar=... を貼り付けてください（標準のcron式は上の解析欄に入力してください）。";
 
 function fail(error: string): ScheduleImportFailure {
 	return { success: false, error };
@@ -532,10 +539,397 @@ function importGithubActions(text: string): ScheduleImportResult {
 	};
 }
 
+// --- systemd timer（OnCalendar=） -------------------------------------------
+
+/** 月曜始まりの順（systemdの曜日範囲の順）。cronの曜日は index+1 を7で割った余り */
+const SYSTEMD_WEEKDAYS = [
+	['mon', 'monday'],
+	['tue', 'tuesday'],
+	['wed', 'wednesday'],
+	['thu', 'thursday'],
+	['fri', 'friday'],
+	['sat', 'saturday'],
+	['sun', 'sunday'],
+] as const;
+
+const SYSTEMD_SHORTHANDS: Record<string, string> = {
+	minutely: '*-*-* *:*:00',
+	hourly: '*-*-* *:00:00',
+	daily: '*-*-* 00:00:00',
+	weekly: 'Mon *-*-* 00:00:00',
+	monthly: '*-*-01 00:00:00',
+	yearly: '*-01-01 00:00:00',
+	annually: '*-01-01 00:00:00',
+	quarterly: '*-01,04,07,10-01 00:00:00',
+	semiannually: '*-01,07-01 00:00:00',
+};
+
+const SYSTEMD_FORMAT_HINT =
+	'書式は「[曜日] [年-]月-日 時:分:秒 [タイムゾーン]」です（例: Mon..Fri *-*-* 09:00:00 Asia/Tokyo）。';
+
+interface SystemdSpec {
+	seconds: number[];
+	minutes: number[];
+	hours: number[];
+	days: number[];
+	months: number[];
+	/** cronの曜日（0=日曜〜6=土曜）。全曜日ならnull */
+	weekdays: number[] | null;
+	year: string;
+	timeZone: string | null;
+}
+
+function rangeValues(min: number, max: number): number[] {
+	return Array.from({ length: max - min + 1 }, (_, i) => min + i);
+}
+
+function sameValues(a: number[] | null, b: number[] | null): boolean {
+	if (a === null || b === null) return a === b;
+	return a.length === b.length && a.every((v, i) => v === b[i]);
+}
+
+/** 数値のフィールド（`*`・`,`・`A..B`・`A/幅`・`A..B/幅`）を値の一覧にする */
+function parseSystemdNumbers(
+	raw: string,
+	min: number,
+	max: number,
+	label: string,
+): number[] {
+	if (raw === '*') return rangeValues(min, max);
+	const values = new Set<number>();
+	for (const part of raw.split(',')) {
+		const m = part.match(/^(\d+)(?:\.\.(\d+))?(?:\/(\d+))?$/);
+		if (!m) {
+			if (part.startsWith('*/')) {
+				throw new CronParseError(
+					`${label}の「${part}」はsystemdでは使えません。「${min === 0 ? '00' : '01'}/${part.slice(2)}」のように開始値から書いてください。`,
+				);
+			}
+			if (label === '秒' && /\d\.\d/.test(part)) {
+				throw new CronParseError(
+					`小数の秒（${part}）には対応していません。cronは秒単位までです。`,
+				);
+			}
+			throw new CronParseError(`${label}の指定「${part}」を解釈できません。`);
+		}
+		const start = Number.parseInt(m[1], 10);
+		const step = m[3] === undefined ? 1 : Number.parseInt(m[3], 10);
+		const end =
+			m[2] !== undefined
+				? Number.parseInt(m[2], 10)
+				: m[3] !== undefined
+					? max
+					: start;
+		if (start < min || start > max || end < min || end > max) {
+			throw new CronParseError(
+				`${label}は${min}〜${max}の範囲で指定してください（指定値: ${part}）。`,
+			);
+		}
+		if (end < start) {
+			throw new CronParseError(
+				`${label}の範囲「${part}」は小さい値から大きい値の順に書いてください。`,
+			);
+		}
+		if (step < 1 || step > max) {
+			throw new CronParseError(
+				`${label}の幅（/の後ろ）は1〜${max}で指定してください（指定値: ${part}）。`,
+			);
+		}
+		for (let v = start; v <= end; v += step) values.add(v);
+	}
+	return [...values].sort((a, b) => a - b);
+}
+
+function systemdWeekdayIndex(name: string): number {
+	const lower = name.toLowerCase();
+	const index = SYSTEMD_WEEKDAYS.findIndex(
+		([short, long]) => lower === short || lower === long,
+	);
+	if (index < 0) {
+		throw new CronParseError(
+			`曜日「${name}」を解釈できません（Mon〜Sun または Monday〜Sunday）。`,
+		);
+	}
+	return index;
+}
+
+function isWeekdayToken(token: string): boolean {
+	return token
+		.split(',')
+		.flatMap((part) => part.split('..'))
+		.every((name) =>
+			SYSTEMD_WEEKDAYS.some(
+				([short, long]) =>
+					name.toLowerCase() === short || name.toLowerCase() === long,
+			),
+		);
+}
+
+/** 曜日（`Mon,Wed`・`Mon..Fri`）をcronの曜日（0=日曜〜6=土曜）の一覧にする。全曜日ならnull */
+function parseSystemdWeekdays(raw: string): number[] | null {
+	const values = new Set<number>();
+	for (const part of raw.split(',')) {
+		const names = part.split('..');
+		if (names.length > 2 || names.some((n) => n === '')) {
+			throw new CronParseError(`曜日の指定「${part}」を解釈できません。`);
+		}
+		const start = systemdWeekdayIndex(names[0]);
+		const end = names.length === 2 ? systemdWeekdayIndex(names[1]) : start;
+		if (end < start) {
+			throw new CronParseError(
+				`曜日の範囲「${part}」はsystemdでは使えません。systemdの曜日は月曜始まりの順で、日曜をまたぐ範囲は「Fri..Sun,Mon」のように分けて書きます。`,
+			);
+		}
+		for (let i = start; i <= end; i++) values.add((i + 1) % 7);
+	}
+	if (values.size === 7) return null;
+	return [...values].sort((a, b) => a - b);
+}
+
+/** OnCalendar= の値（1行分）を解釈する */
+function parseOnCalendar(value: string): SystemdSpec {
+	let tokens = value.trim().split(/\s+/).filter(Boolean);
+	const shorthandKey = tokens[0]?.toLowerCase() ?? '';
+	const shorthand = Object.hasOwn(SYSTEMD_SHORTHANDS, shorthandKey)
+		? SYSTEMD_SHORTHANDS[shorthandKey]
+		: undefined;
+	if (shorthand) tokens = [...shorthand.split(' '), ...tokens.slice(1)];
+
+	let i = 0;
+	let weekdayRaw: string | undefined;
+	let dateRaw = '*-*-*';
+	let timeRaw = '00:00:00';
+	let timeZone: string | null = null;
+	if (i < tokens.length && isWeekdayToken(tokens[i])) {
+		weekdayRaw = tokens[i++];
+	}
+	if (i < tokens.length && /^[\d*.,/~]+-[\d*.,/~-]+$/.test(tokens[i])) {
+		dateRaw = tokens[i++];
+	}
+	if (i < tokens.length && tokens[i].includes(':')) {
+		timeRaw = tokens[i++];
+	}
+	if (i < tokens.length && i > 0 && /^[A-Za-z]/.test(tokens[i])) {
+		timeZone = tokens[i++];
+	}
+	if (i < tokens.length) {
+		throw new CronParseError(
+			`「${tokens[i]}」を解釈できません。${SYSTEMD_FORMAT_HINT}`,
+		);
+	}
+
+	if (dateRaw.includes('~')) {
+		throw new CronParseError(
+			`月末から数える日（「~」、指定値: ${dateRaw}）には対応していません。`,
+		);
+	}
+	const dateParts = dateRaw.split('-');
+	if (dateParts.length < 2 || dateParts.length > 3) {
+		throw new CronParseError(
+			`日付「${dateRaw}」を解釈できません。${SYSTEMD_FORMAT_HINT}`,
+		);
+	}
+	const [yearRaw, monthRaw, dayRaw] =
+		dateParts.length === 3 ? dateParts : ['*', ...dateParts];
+	if (yearRaw !== '*' && !/^[\d,./]+$/.test(yearRaw)) {
+		throw new CronParseError(`年の指定「${yearRaw}」を解釈できません。`);
+	}
+
+	const timeParts = timeRaw.split(':');
+	if (timeParts.length < 2 || timeParts.length > 3) {
+		throw new CronParseError(
+			`時刻「${timeRaw}」を解釈できません。${SYSTEMD_FORMAT_HINT}`,
+		);
+	}
+	const [hourRaw, minuteRaw, secondRaw = '00'] = timeParts;
+
+	if (timeZone !== null) {
+		try {
+			new Intl.DateTimeFormat('en-US', { timeZone });
+		} catch {
+			throw new CronParseError(`タイムゾーン「${timeZone}」を解釈できません。`);
+		}
+	}
+
+	return {
+		seconds: parseSystemdNumbers(secondRaw, 0, 59, '秒'),
+		minutes: parseSystemdNumbers(minuteRaw, 0, 59, '分'),
+		hours: parseSystemdNumbers(hourRaw, 0, 23, '時'),
+		days: parseSystemdNumbers(dayRaw, 1, 31, '日'),
+		months: parseSystemdNumbers(monthRaw, 1, 12, '月'),
+		weekdays:
+			weekdayRaw === undefined ? null : parseSystemdWeekdays(weekdayRaw),
+		year: yearRaw,
+		timeZone,
+	};
+}
+
+/** 値の一覧をcronの1フィールドにする（全範囲は `*`、最小値から最後まで続く等間隔は `*\/幅`） */
+function toCronField(values: number[], min: number, max: number): string {
+	if (values.length === max - min + 1) return '*';
+	if (values.length >= 2 && values[0] === min) {
+		const d = values[1] - values[0];
+		const isProgression = d > 1 && values.every((v, i) => v === min + i * d);
+		if (isProgression && values[values.length - 1] + d > max) return `*/${d}`;
+	}
+	return compressList(values);
+}
+
+/**
+ * dowOverride を渡すと、日と曜日の両指定（OR条件）のcron式にする。このとき日は `*\/幅` にしない
+ * （Vixie cronは先頭が `*` の日を「指定なし」とみなし、曜日とのAND相当になるため）。
+ */
+function specToCron(spec: SystemdSpec, dowOverride?: number[]): string {
+	const dowValues = dowOverride ?? spec.weekdays;
+	const fields = [
+		toCronField(spec.minutes, 0, 59),
+		toCronField(spec.hours, 0, 23),
+		dowOverride ? compressList(spec.days) : toCronField(spec.days, 1, 31),
+		toCronField(spec.months, 1, 12),
+		dowValues === null ? '*' : compressList(dowValues),
+	];
+	const hasSeconds = !(spec.seconds.length === 1 && spec.seconds[0] === 0);
+	if (hasSeconds) fields.unshift(toCronField(spec.seconds, 0, 59));
+	return fields.join(' ');
+}
+
+const ALL_DAYS_COUNT = 31;
+
+function importSystemd(text: string): ScheduleImportResult {
+	const values = text
+		.split(/\r?\n/)
+		.map((line) => line.match(/^\s*OnCalendar\s*=\s*(.*?)\s*$/i)?.[1])
+		.filter((v): v is string => v !== undefined && v !== '');
+	if (values.length === 0) {
+		return fail(
+			'OnCalendar= の値が空です。OnCalendar=Mon..Fri *-*-* 09:00:00 のように値を書いてください。',
+		);
+	}
+
+	const notes: string[] = [];
+	let specs: SystemdSpec[];
+	try {
+		specs = values.map(parseOnCalendar);
+	} catch (e) {
+		return fail(
+			e instanceof CronParseError ? e.message : '式を解釈できませんでした',
+		);
+	}
+
+	const isAnd = (s: SystemdSpec) =>
+		s.weekdays !== null && s.days.length !== ALL_DAYS_COUNT;
+	let sourceExpr: string;
+	// 日だけの行と曜日だけの行が、同じ時刻・月・タイムゾーンなら、cronの日と曜日のOR条件1行にまとめる
+	const daySpec = specs.find(
+		(s) => s.weekdays === null && s.days.length !== ALL_DAYS_COUNT,
+	);
+	const dowSpec = specs.find(
+		(s) => s.weekdays !== null && s.days.length === ALL_DAYS_COUNT,
+	);
+	const pair =
+		specs.length === 2 &&
+		daySpec !== undefined &&
+		dowSpec !== undefined &&
+		daySpec.timeZone === dowSpec.timeZone &&
+		daySpec.year === dowSpec.year &&
+		sameValues(daySpec.seconds, dowSpec.seconds) &&
+		sameValues(daySpec.minutes, dowSpec.minutes) &&
+		sameValues(daySpec.hours, dowSpec.hours) &&
+		sameValues(daySpec.months, dowSpec.months)
+			? { daySpec, dowSpec }
+			: null;
+
+	let spec: SystemdSpec;
+	if (pair) {
+		spec = pair.daySpec;
+		sourceExpr = specToCron(spec, pair.dowSpec.weekdays as number[]);
+		notes.push(
+			'日を指定した行と曜日を指定した行の2行を、cronの日と曜日の両指定（どちらかに一致すれば実行するOR条件）の1行にまとめました。',
+		);
+	} else {
+		spec = specs[0];
+		if (specs.length > 1) {
+			notes.push(
+				`OnCalendar= が${specs.length}件あるため、最初の1件（${values[0]}）を読み込みました（systemdはいずれかに一致すれば実行します）。`,
+			);
+		}
+		if (isAnd(spec)) {
+			return fail(
+				'systemdは1行に曜日と日を両方指定すると、両方に一致する日（AND条件）だけ実行します。cronは両指定をどちらかに一致すれば実行（OR条件）として扱うため、1行のcron式では表せません。',
+			);
+		}
+		sourceExpr = specToCron(spec);
+	}
+
+	if (spec.year !== '*') {
+		notes.push(
+			`年の指定（${spec.year}）は標準のcron式に含められないため、反映していません。次回実行日時は年を問わずに表示します。`,
+		);
+	}
+
+	try {
+		parseCronExpression(sourceExpr);
+	} catch (e) {
+		return fail(
+			e instanceof CronParseError ? e.message : 'cron式を解釈できませんでした',
+		);
+	}
+
+	const tz = spec.timeZone;
+	let sourceTimeZone: string;
+	let sourceTimeZoneLabel: string | undefined;
+	let jstExpr: string | null;
+	if (tz === null) {
+		sourceTimeZone = 'Asia/Tokyo';
+		sourceTimeZoneLabel = '指定なし（サーバーのタイムゾーン）';
+		jstExpr = sourceExpr;
+		notes.unshift(
+			'タイムゾーンの指定がないため、サーバーのタイムゾーンをJSTとみなして読み込みました。サーバーがUTCの場合は、末尾に「UTC」を付けて貼り付け直すとJSTへ換算します。',
+		);
+	} else if (tz === 'Asia/Tokyo' || tz === 'Japan') {
+		sourceTimeZone = 'Asia/Tokyo';
+		if (tz === 'Japan') sourceTimeZoneLabel = 'Japan（Asia/Tokyoと同じ）';
+		jstExpr = sourceExpr;
+		notes.unshift(`タイムゾーンの指定（${tz}）どおりJSTとして読み込みました。`);
+	} else if (tz === 'UTC' || tz === 'Etc/UTC') {
+		sourceTimeZone = 'UTC';
+		notes.unshift(`タイムゾーンの指定（${tz}）どおりUTCとして読み込みました。`);
+		// 秒は換算に影響しないため、分以降を換算して秒を付け直す
+		const fields = sourceExpr.split(' ');
+		const secondField = fields.length === 6 ? fields.shift() : undefined;
+		const shifted = shiftUtcCronToJst(fields.join(' '));
+		jstExpr =
+			shifted.expr === null
+				? null
+				: secondField === undefined
+					? shifted.expr
+					: `${secondField} ${shifted.expr}`;
+		if (shifted.note) notes.push(shifted.note);
+	} else {
+		sourceTimeZone = tz;
+		jstExpr = null;
+		notes.unshift(
+			`タイムゾーン（${tz}）はUTC・Asia/Tokyo以外のため、JSTへの換算はしていません。`,
+		);
+	}
+
+	return {
+		success: true,
+		format: 'systemd',
+		formatLabel: 'systemd timer（OnCalendar=）',
+		sourceExpr,
+		sourceTimeZone,
+		...(sourceTimeZoneLabel ? { sourceTimeZoneLabel } : {}),
+		jstExpr,
+		notes,
+	};
+}
+
 // --- 入口 -------------------------------------------------------------------
 
 /**
- * AWS EventBridge の cron()/rate()、GitHub Actions の schedule（cron: の行）を判定して読み込む。
+ * AWS EventBridge の cron()/rate()、GitHub Actions の schedule（cron: の行）、
+ * systemd timer の OnCalendar= を判定して読み込む。
  * 解釈できない入力は success: false と日本語のエラーを返す（例外は投げない）。
  */
 export function importScheduleExpression(text: string): ScheduleImportResult {
@@ -562,6 +956,9 @@ export function importScheduleExpression(text: string): ScheduleImportResult {
 		return fail(
 			'「)」の後ろに余分な文字があります。式は「cron(...)」「rate(...)」だけを貼り付けてください（行末の「# コメント」は可）。',
 		);
+	}
+	if (/(^|\n)\s*OnCalendar\s*=/i.test(trimmed)) {
+		return importSystemd(trimmed);
 	}
 	if (/(^|\n)\s*(?:-\s*)?cron\s*:/.test(trimmed)) {
 		try {

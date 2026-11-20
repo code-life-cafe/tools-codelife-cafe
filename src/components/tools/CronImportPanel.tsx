@@ -12,7 +12,7 @@ interface CronImportPanelProps {
 }
 
 /**
- * AWS EventBridge・GitHub Actions のスケジュール式を標準cron式へ読み替える欄。
+ * AWS EventBridge・GitHub Actions・systemd timer のスケジュール式を標準cron式へ読み替える欄。
  * 貼り付けた内容は保存・送信・計測しない（この欄は tool_run を送らない）。
  */
 export default function CronImportPanel({ onApply }: CronImportPanelProps) {
@@ -30,18 +30,18 @@ export default function CronImportPanel({ onApply }: CronImportPanelProps) {
 		>
 			<div className="flex items-center gap-2 text-sm font-medium">
 				<FileInput className="h-4 w-4 text-primary" aria-hidden="true" />
-				他の形式から読み込む（AWS EventBridge・GitHub Actions）
+				他の形式から読み込む（AWS EventBridge・GitHub Actions・systemd timer）
 			</div>
 			<div>
 				<Label htmlFor="cron-import-input" className="sr-only">
-					読み込む式（AWS EventBridge・GitHub Actions）
+					読み込む式（AWS EventBridge・GitHub Actions・systemd timer）
 				</Label>
 				<Textarea
 					id="cron-import-input"
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					placeholder={
-						"例: cron(0 9 ? * MON-FRI *) / rate(5 minutes) / - cron: '30 0 * * 1-5'"
+						"例: cron(0 9 ? * MON-FRI *) / rate(5 minutes) / - cron: '30 0 * * 1-5' / OnCalendar=Mon..Fri *-*-* 09:00:00"
 					}
 					rows={3}
 					className="rounded-xl font-mono text-sm"
@@ -50,7 +50,8 @@ export default function CronImportPanel({ onApply }: CronImportPanelProps) {
 				/>
 				<p className="mt-2 text-xs text-muted-foreground">
 					EventBridgeのcron式とtimezone未指定のGitHub
-					ActionsはUTCとして読み込み、JSTのcron式に換算します。
+					ActionsはUTCとして読み込み、JSTのcron式に換算します。systemd
+					timerは末尾のタイムゾーン（UTC・Asia/Tokyo）に従い、指定がなければJSTとみなします。
 				</p>
 			</div>
 
@@ -69,7 +70,11 @@ export default function CronImportPanel({ onApply }: CronImportPanelProps) {
 							<dt className="text-muted-foreground">形式</dt>
 							<dd>{result.formatLabel}</dd>
 							<dt className="text-muted-foreground">元のタイムゾーン</dt>
-							<dd>{result.sourceTimeZone ?? '時刻に依存しない（間隔指定）'}</dd>
+							<dd>
+								{result.sourceTimeZoneLabel ??
+									result.sourceTimeZone ??
+									'時刻に依存しない（間隔指定）'}
+							</dd>
 							{result.sourceExpr &&
 								result.sourceTimeZone &&
 								result.sourceTimeZone !== 'Asia/Tokyo' && (

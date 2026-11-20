@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import {
 	getNextRunTimes,
 	parseCronExpression,
+	toSystemdOnCalendar,
 } from '../../src/lib/tools/cron-checker.ts';
 import {
 	importScheduleExpression,
@@ -45,6 +47,7 @@ test('空・未対応の形式はエラーを返す', () => {
 	assert.match(err('0 9 * * 1'), /cron\(\.\.\.\)/);
 	assert.match(err('at(2027-01-01T00:00:00)'), /cron\(\.\.\.\)/);
 	assert.match(err('cron(0 9 ? * MON *'), /「\)」で閉じて/);
+	assert.match(err('Mon *-*-* 09:00:00'), /OnCalendar=/);
 });
 
 // --- AWS EventBridge cron() ---
@@ -350,3 +353,276 @@ test('日付をまたがない時刻は、月・日・曜日の指定があっ�
 		assertSameRuns(e, r.expr as string);
 	}
 });
+
+// --- systemd timer（OnCalendar=） ---
+
+test('systemd: 平日9時（Asia/Tokyo）をそのままJSTのcron式にする', () => {
+	const r = ok('OnCalendar=Mon..Fri *-*-* 09:00:00 Asia/Tokyo');
+	assert.equal(r.format, 'systemd');
+	assert.equal(r.formatLabel, 'systemd timer（OnCalendar=）');
+	assert.equal(r.sourceExpr, '0 9 * * 1-5');
+	assert.equal(r.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(r.sourceTimeZoneLabel, undefined);
+	assert.equal(r.jstExpr, '0 9 * * 1-5');
+	assert.ok(r.notes.some((n) => n.includes('Asia/Tokyo')));
+});
+
+test('systemd: [Timer]節ごと貼り付けても OnCalendar= の行だけを読む', () => {
+	const r = ok(
+		'[Timer]\n# 毎朝\nOnCalendar=*-*-* 06:30:00 Asia/Tokyo\nPersistent=true\n',
+	);
+	assert.equal(r.jstExpr, '30 6 * * *');
+	// 空の OnCalendar=（設定のリセット）は無視する
+	assert.equal(ok('OnCalendar=\nOnCalendar=daily').jstExpr, '0 0 * * *');
+	assert.equal(ok('  oncalendar = hourly').jstExpr, '0 * * * *');
+});
+
+test('systemd: 省略形をcron式にする', () => {
+	const cases: [string, string][] = [
+		['minutely', '* * * * *'],
+		['hourly', '0 * * * *'],
+		['daily', '0 0 * * *'],
+		['Daily', '0 0 * * *'],
+		['weekly', '0 0 * * 1'],
+		['monthly', '0 0 1 * *'],
+		['yearly', '0 0 1 1 *'],
+		['annually', '0 0 1 1 *'],
+		['quarterly', '0 0 1 */3 *'],
+		['semiannually', '0 0 1 */6 *'],
+	];
+	for (const [value, expected] of cases) {
+		assert.equal(ok(`OnCalendar=${value}`).sourceExpr, expected, value);
+	}
+});
+
+test('systemd: 日付・時刻・秒の省略を既定値で補う', () => {
+	const cases: [string, string][] = [
+		['Mon 9:00', '0 9 * * 1'], // 日付の省略は毎日
+		['*-*-15', '0 0 15 * *'], // 時刻の省略は 00:00:00
+		['01-01', '0 0 1 1 *'], // 年の省略（月-日）
+		['*-1 9:00', '0 9 1 * *'],
+		['*:30', '30 * * * *'], // 時:分だけ
+		['9:00', '0 9 * * *'],
+		['*-*-* 9,12:0', '0 9,12 * * *'],
+		['*-*-* 0,12:0', '0 */12 * * *'], // 最小値から最後まで等間隔なら */幅
+	];
+	for (const [value, expected] of cases) {
+		assert.equal(ok(`OnCalendar=${value}`).sourceExpr, expected, value);
+	}
+});
+
+test('systemd: 範囲・ステップ・曜日の正式名を読む', () => {
+	const cases: [string, string][] = [
+		['*:0/15', '*/15 * * * *'],
+		['*-*-* 00/6:00', '0 */6 * * *'],
+		['*-*-* 9..17/2:00', '0 9-17/2 * * *'],
+		['*-*-1..10/3', '0 0 1-10/3 * *'],
+		['*-*-01/2', '0 0 */2 * *'],
+		['*-02/3-01', '0 0 1 2-11/3 *'],
+		['*-*-1,15 *:00', '0 * 1,15 * *'],
+		['Monday,Wednesday 10:00', '0 10 * * 1,3'],
+		['mOn..fRi 10:00', '0 10 * * 1-5'],
+		['Sat..Sun 9:00', '0 9 * * 0,6'],
+		['Fri..Sun,Mon 9:00', '0 9 * * 0,1,5,6'],
+		['Mon..Sun 9:00', '0 9 * * *'],
+		['Mon..Wed,Fri', '0 0 * * 1-3,5'],
+	];
+	for (const [value, expected] of cases) {
+		const r = ok(`OnCalendar=${value}`);
+		assert.equal(r.sourceExpr, expected, value);
+		parseCronExpression(expected);
+	}
+});
+
+test('systemd: 秒が0以外なら秒付き6フィールドにする', () => {
+	assert.equal(ok('OnCalendar=*-*-* *:*:0/10').sourceExpr, '*/10 * * * * *');
+	assert.equal(ok('OnCalendar=*-*-* 9:00:30').sourceExpr, '30 0 9 * * *');
+	assert.equal(ok('OnCalendar=*-*-* 9:00:00').sourceExpr, '0 9 * * *');
+});
+
+test('systemd: 年の指定は反映せず注意を出す', () => {
+	const r = ok('OnCalendar=2027-*-* 00:00 Asia/Tokyo');
+	assert.equal(r.sourceExpr, '0 0 * * *');
+	assert.ok(r.notes.some((n) => n.includes('年の指定（2027）')));
+	assert.ok(!ok('OnCalendar=daily').notes.some((n) => n.includes('年の指定')));
+});
+
+test('systemd: UTCはJSTへ換算する（秒付きも）', () => {
+	const r = ok('OnCalendar=Mon..Fri *-*-* 00:30:00 UTC');
+	assert.equal(r.sourceTimeZone, 'UTC');
+	assert.equal(r.sourceExpr, '30 0 * * 1-5');
+	assert.equal(r.jstExpr, '30 9 * * 1-5');
+	assertSameRuns(r.sourceExpr as string, r.jstExpr as string);
+	assert.equal(ok('OnCalendar=daily Etc/UTC').jstExpr, '0 9 * * *');
+
+	const withSeconds = ok('OnCalendar=*-*-* 22:00:15 UTC');
+	assert.equal(withSeconds.sourceExpr, '15 0 22 * * *');
+	assert.equal(withSeconds.jstExpr, '15 0 7 * * *');
+
+	// 日付をまたぐ時刻が混在すると換算しない
+	const wrap = ok('OnCalendar=Mon *-*-* 10,20:00 UTC');
+	assert.equal(wrap.jstExpr, null);
+	assert.ok(wrap.notes.some((n) => n.includes('日付をまたぐ')));
+});
+
+test('systemd: Japan は Asia/Tokyo と同じくそのままJSTのcron式にする', () => {
+	const r = ok('OnCalendar=Mon..Fri *-*-* 09:00:00 Japan');
+	assert.equal(r.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(r.sourceTimeZoneLabel, 'Japan（Asia/Tokyoと同じ）');
+	assert.equal(r.jstExpr, '0 9 * * 1-5');
+	assert.ok(r.notes[0].includes('（Japan）どおりJST'));
+	assert.ok(!r.notes.some((n) => n.includes('換算はしていません')));
+});
+
+test('systemd: タイムゾーンの指定がなければJSTとみなし、その旨を出す', () => {
+	const r = ok('OnCalendar=Mon..Fri 09:00');
+	assert.equal(r.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(r.sourceTimeZoneLabel, '指定なし（サーバーのタイムゾーン）');
+	assert.equal(r.jstExpr, '0 9 * * 1-5');
+	assert.ok(r.notes[0].includes('指定がない'));
+});
+
+test('systemd: UTC・Asia/Tokyo以外のタイムゾーンは換算しない', () => {
+	const r = ok('OnCalendar=*-*-* 09:00 America/New_York');
+	assert.equal(r.sourceTimeZone, 'America/New_York');
+	assert.equal(r.sourceExpr, '0 9 * * *');
+	assert.equal(r.jstExpr, null);
+	assert.ok(r.notes[0].includes('America/New_York'));
+	assert.match(
+		err('OnCalendar=*-*-* 09:00 Foo/Bar'),
+		/タイムゾーン「Foo\/Bar」/,
+	);
+});
+
+test('systemd: 日の行と曜日の行の2行は、cronのOR条件1行にまとめる', () => {
+	const r = ok(
+		'OnCalendar=*-*-13 12:00:00 Asia/Tokyo\nOnCalendar=Fri *-*-* 12:00:00 Asia/Tokyo',
+	);
+	assert.equal(r.sourceExpr, '0 12 13 * 5');
+	assert.ok(r.notes.some((n) => n.includes('OR条件')));
+	// 等間隔の日も、OR条件を保つため先頭を「*」にしない（Vixie cronでは「*/2」はAND相当）
+	const stepped = ok('OnCalendar=*-*-01/2 00:00\nOnCalendar=Fri *-*-* 00:00');
+	assert.equal(stepped.sourceExpr, '0 0 1-31/2 * 5');
+	assert.equal(ok('OnCalendar=*-*-01/2 00:00').sourceExpr, '0 0 */2 * *');
+	// 曜日の行が先でも同じ
+	assert.equal(
+		ok('OnCalendar=Fri 12:00\nOnCalendar=*-*-13 12:00').sourceExpr,
+		'0 12 13 * 5',
+	);
+});
+
+test('systemd: まとめられない複数行は最初の1件を読み、その旨を出す', () => {
+	const cases = [
+		'OnCalendar=*-*-13 12:00\nOnCalendar=Fri 13:00', // 時刻が違う
+		'OnCalendar=*-*-13 12:00 UTC\nOnCalendar=Fri 12:00', // タイムゾーンが違う
+		'OnCalendar=*-*-13 12:00\nOnCalendar=*-*-20 12:00', // 両方とも日の行
+		'OnCalendar=*-*-13 12:00\nOnCalendar=Fri 12:00\nOnCalendar=daily', // 3行
+	];
+	for (const text of cases) {
+		const r = ok(text);
+		assert.equal(r.sourceExpr, '0 12 13 * *', text);
+		assert.ok(
+			r.notes.some((n) => n.includes('最初の1件')),
+			text,
+		);
+	}
+});
+
+test('systemd: 解釈できない・cronで表せない指定はエラーを返す', () => {
+	assert.match(err('OnCalendar='), /値が空/);
+	assert.match(err('OnCalendar=Mon *-*-1 00:00'), /AND条件/);
+	assert.match(err('OnCalendar=*:*/15'), /「00\/15」のように開始値から/);
+	assert.match(err('OnCalendar=*-*-*/2'), /「01\/2」のように開始値から/);
+	assert.match(err('OnCalendar=Fri..Mon'), /日曜をまたぐ範囲/);
+	assert.match(err('OnCalendar=*-*~01'), /月末から数える日/);
+	assert.match(err('OnCalendar=*-*-* 9:00:00.5'), /小数の秒/);
+	assert.match(err('OnCalendar=*-*-* 24:00'), /時は0〜23/);
+	assert.match(err('OnCalendar=*-*-* 9:60'), /分は0〜59/);
+	assert.match(err('OnCalendar=*-13-01'), /月は1〜12/);
+	assert.match(err('OnCalendar=*-*-32'), /日は1〜31/);
+	assert.match(err('OnCalendar=*-*-* 17..9:00'), /小さい値から大きい値/);
+	assert.match(err('OnCalendar=*:0/90'), /幅/);
+	assert.match(err('OnCalendar=Funday 9:00'), /解釈できません/);
+	assert.match(err('OnCalendar=UTC'), /解釈できません/);
+	assert.match(
+		err('OnCalendar=*-*-* 9:00 UTC extra'),
+		/「extra」を解釈できません/,
+	);
+	assert.match(err('OnCalendar=*-*-*-* 9:00'), /日付/);
+	assert.match(err('OnCalendar=*-*-* 9:00:00:00'), /時刻/);
+	assert.match(err('OnCalendar=abc-*-* 9:00'), /解釈できません/);
+	// 省略形の表にないキー（オブジェクトのプロパティ名）は具体的なエラーにする
+	for (const name of ['constructor', '__proto__', 'toString']) {
+		assert.match(
+			err(`OnCalendar=${name}`),
+			new RegExp(`「${name}」を解釈できません`),
+		);
+	}
+});
+
+test('systemd: cron式チェッカーの systemd timer 出力を読み戻すと同じ日時に実行する', () => {
+	for (const expr of [
+		'0 9 * * 1-5',
+		'*/15 * * * *',
+		'10-40/10 * * * *',
+		'0 0 */2 * *',
+		'0 0 1 */3 *',
+		'0 12 13 * 5',
+		'0 0 1,15 * 1',
+		'0 9 * * 0,6',
+		'*/10 * * * * *',
+	]) {
+		const { value } = toSystemdOnCalendar(parseCronExpression(expr));
+		const r = ok(value);
+		assert.ok(r.jstExpr, expr);
+		assert.deepEqual(
+			runs(r.jstExpr as string, 'Asia/Tokyo'),
+			runs(expr, 'Asia/Tokyo'),
+			expr,
+		);
+	}
+});
+
+// systemdが使える環境では、OnCalendar= をsystemd-analyzeで実際に展開し、換算後のJSTプレビューと照合する。
+const hasSystemdAnalyze =
+	spawnSync('systemd-analyze', ['--version'], { encoding: 'utf8' }).status ===
+	0;
+
+for (const onCalendar of [
+	'Mon..Fri *-*-* 09:00:00 Asia/Tokyo',
+	'Mon..Fri *-*-* 00:30:00 UTC',
+	'*-*-* 22:00:00 UTC',
+	'Sat..Sun 09:00 Asia/Tokyo',
+	'*-*-1..10/3 9..17/2:00 Asia/Tokyo',
+	'*-02/3-01 00:00 UTC',
+	'quarterly Asia/Tokyo',
+	'weekly UTC',
+	'*:0/15 Asia/Tokyo',
+	'*-*-* *:*:0/20 UTC',
+]) {
+	test(`systemd: systemd-analyzeの展開が換算後のJSTプレビューと一致する: ${onCalendar}`, {
+		skip: !hasSystemdAnalyze && 'systemd-analyzeがない環境',
+	}, () => {
+		const r = ok(`OnCalendar=${onCalendar}`);
+		assert.ok(r.jstExpr, onCalendar);
+		const count = 12;
+		const out = spawnSync(
+			'systemd-analyze',
+			[
+				'calendar',
+				`--iterations=${count}`,
+				`--base-time=@${FROM.getTime() / 1000}`,
+				onCalendar,
+			],
+			{ encoding: 'utf8', env: { ...process.env, TZ: 'UTC' } },
+		);
+		assert.equal(out.status, 0, out.stderr);
+		const actual = [
+			...out.stdout.matchAll(
+				/(?:Next elapse|Iteration #\d+): \w+ (\S+ \S+) UTC/g,
+			),
+		].map((m) => new Date(`${m[1].replace(' ', 'T')}Z`).toISOString());
+		assert.equal(actual.length, count);
+		assert.deepEqual(actual, runs(r.jstExpr as string, 'Asia/Tokyo', count));
+	});
+}
