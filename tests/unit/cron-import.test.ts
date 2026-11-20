@@ -465,6 +465,15 @@ test('systemd: UTCはJSTへ換算する（秒付きも）', () => {
 	assert.ok(wrap.notes.some((n) => n.includes('日付をまたぐ')));
 });
 
+test('systemd: Japan は Asia/Tokyo と同じくそのままJSTのcron式にする', () => {
+	const r = ok('OnCalendar=Mon..Fri *-*-* 09:00:00 Japan');
+	assert.equal(r.sourceTimeZone, 'Asia/Tokyo');
+	assert.equal(r.sourceTimeZoneLabel, 'Japan（Asia/Tokyoと同じ）');
+	assert.equal(r.jstExpr, '0 9 * * 1-5');
+	assert.ok(r.notes[0].includes('（Japan）どおりJST'));
+	assert.ok(!r.notes.some((n) => n.includes('換算はしていません')));
+});
+
 test('systemd: タイムゾーンの指定がなければJSTとみなし、その旨を出す', () => {
 	const r = ok('OnCalendar=Mon..Fri 09:00');
 	assert.equal(r.sourceTimeZone, 'Asia/Tokyo');
@@ -491,6 +500,10 @@ test('systemd: 日の行と曜日の行の2行は、cronのOR条件1行にまと
 	);
 	assert.equal(r.sourceExpr, '0 12 13 * 5');
 	assert.ok(r.notes.some((n) => n.includes('OR条件')));
+	// 等間隔の日も、OR条件を保つため先頭を「*」にしない（Vixie cronでは「*/2」はAND相当）
+	const stepped = ok('OnCalendar=*-*-01/2 00:00\nOnCalendar=Fri *-*-* 00:00');
+	assert.equal(stepped.sourceExpr, '0 0 1-31/2 * 5');
+	assert.equal(ok('OnCalendar=*-*-01/2 00:00').sourceExpr, '0 0 */2 * *');
 	// 曜日の行が先でも同じ
 	assert.equal(
 		ok('OnCalendar=Fri 12:00\nOnCalendar=*-*-13 12:00').sourceExpr,
@@ -538,6 +551,13 @@ test('systemd: 解釈できない・cronで表せない指定はエラーを返�
 	assert.match(err('OnCalendar=*-*-*-* 9:00'), /日付/);
 	assert.match(err('OnCalendar=*-*-* 9:00:00:00'), /時刻/);
 	assert.match(err('OnCalendar=abc-*-* 9:00'), /解釈できません/);
+	// 省略形の表にないキー（オブジェクトのプロパティ名）は具体的なエラーにする
+	for (const name of ['constructor', '__proto__', 'toString']) {
+		assert.match(
+			err(`OnCalendar=${name}`),
+			new RegExp(`「${name}」を解釈できません`),
+		);
+	}
 });
 
 test('systemd: cron式チェッカーの systemd timer 出力を読み戻すと同じ日時に実行する', () => {

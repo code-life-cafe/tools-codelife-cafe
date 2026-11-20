@@ -689,7 +689,10 @@ function parseSystemdWeekdays(raw: string): number[] | null {
 /** OnCalendar= の値（1行分）を解釈する */
 function parseOnCalendar(value: string): SystemdSpec {
 	let tokens = value.trim().split(/\s+/).filter(Boolean);
-	const shorthand = SYSTEMD_SHORTHANDS[tokens[0]?.toLowerCase() ?? ''];
+	const shorthandKey = tokens[0]?.toLowerCase() ?? '';
+	const shorthand = Object.hasOwn(SYSTEMD_SHORTHANDS, shorthandKey)
+		? SYSTEMD_SHORTHANDS[shorthandKey]
+		: undefined;
 	if (shorthand) tokens = [...shorthand.split(' '), ...tokens.slice(1)];
 
 	let i = 0;
@@ -772,12 +775,16 @@ function toCronField(values: number[], min: number, max: number): string {
 	return compressList(values);
 }
 
+/**
+ * dowOverride を渡すと、日と曜日の両指定（OR条件）のcron式にする。このとき日は `*\/幅` にしない
+ * （Vixie cronは先頭が `*` の日を「指定なし」とみなし、曜日とのAND相当になるため）。
+ */
 function specToCron(spec: SystemdSpec, dowOverride?: number[]): string {
 	const dowValues = dowOverride ?? spec.weekdays;
 	const fields = [
 		toCronField(spec.minutes, 0, 59),
 		toCronField(spec.hours, 0, 23),
-		toCronField(spec.days, 1, 31),
+		dowOverride ? compressList(spec.days) : toCronField(spec.days, 1, 31),
 		toCronField(spec.months, 1, 12),
 		dowValues === null ? '*' : compressList(dowValues),
 	];
@@ -879,12 +886,11 @@ function importSystemd(text: string): ScheduleImportResult {
 		notes.unshift(
 			'タイムゾーンの指定がないため、サーバーのタイムゾーンをJSTとみなして読み込みました。サーバーがUTCの場合は、末尾に「UTC」を付けて貼り付け直すとJSTへ換算します。',
 		);
-	} else if (tz === 'Asia/Tokyo') {
-		sourceTimeZone = tz;
+	} else if (tz === 'Asia/Tokyo' || tz === 'Japan') {
+		sourceTimeZone = 'Asia/Tokyo';
+		if (tz === 'Japan') sourceTimeZoneLabel = 'Japan（Asia/Tokyoと同じ）';
 		jstExpr = sourceExpr;
-		notes.unshift(
-			'タイムゾーンの指定（Asia/Tokyo）どおりJSTとして読み込みました。',
-		);
+		notes.unshift(`タイムゾーンの指定（${tz}）どおりJSTとして読み込みました。`);
 	} else if (tz === 'UTC' || tz === 'Etc/UTC') {
 		sourceTimeZone = 'UTC';
 		notes.unshift(`タイムゾーンの指定（${tz}）どおりUTCとして読み込みました。`);
