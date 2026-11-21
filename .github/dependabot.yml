@@ -6,6 +6,10 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Asia/Tokyo"
+    # サプライチェーン攻撃対策: 公開から7日経っていない版はPRにしない（#735）。
+    # セキュリティ更新はGitHubの仕様でcooldownの対象外。
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     groups:
       astro:
@@ -21,3 +25,7 @@ updates:
       interval: "daily"
       time: "04:00"
       timezone: "Asia/Tokyo"
+    # サプライチェーン攻撃対策: 公開から7日経っていない版はPRにしない（#735）。
+    # セキュリティ更新はGitHubの仕様でcooldownの対象外。
+    cooldown:
+      default-days: 7
