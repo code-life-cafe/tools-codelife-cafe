@@ -1,18 +1,20 @@
 ---
 title: "cron式チェッカー"
-description: "cron式（標準5フィールド/秒付き6フィールド）を日本語解説・次回実行日時10件（JST/UTC）で確認。日本語からの逆引き生成、危険パターンの警告、crontab/GitHub Actions/AWS EventBridge/systemd timer（OnCalendar=）形式への変換、EventBridgeのcron()/rate()・GitHub Actionsのschedule・systemd timerのOnCalendar=の読み込みに対応。"
+description: "cron式（標準5フィールド/秒付き6フィールド）を日本語解説・次回実行日時10件（JST/UTC）で確認。日本語からの逆引き生成、頻度と時刻を選ぶだけの生成ウィザード、危険パターンの警告、crontab/GitHub Actions/AWS EventBridge/systemd timer（OnCalendar=）形式への変換、EventBridgeのcron()/rate()・GitHub Actionsのschedule・systemd timerのOnCalendar=の読み込みに対応。"
 category: "開発ツール"
-summary: "cron式を貼り付けるだけで日本語の意味解説と次回実行日時10件をJST/UTCで同時表示。日本語の実行タイミングからcron式を逆生成したり、実行されない日付の落とし穴を警告するリンター機能も搭載。"
+summary: "cron式を貼り付けるだけで日本語の意味解説と次回実行日時10件をJST/UTCで同時表示。頻度・時刻・曜日を選ぶだけのウィザードや日本語の実行タイミングからcron式を作ったり、実行されない日付の落とし穴を警告するリンター機能も搭載。"
 useCases:
   - "GitHub ActionsやAWS EventBridge、crontabに設定されたcron式が実際にいつ実行されるのか、コードだけでは分かりづらいので確認したい"
   - "AWS EventBridgeの cron(0 0 ? * MON-FRI *) やGitHub Actionsの schedule（UTC）が、日本時間で何時に動くのかをそのまま貼って確かめたい"
   - "crontabのジョブをsystemd timerへ移すときに、cron式をOnCalendar=の書き方へ間違えずに書き換えたい"
   - "サーバーに設定済みのsystemd timer（OnCalendar=）が、cron式ではどう書けて日本時間で次にいつ動くのかを確かめたい"
+  - "cron式の書き方を覚えていないので、「毎週月・水・金の7時」のように選ぶだけで式と次回実行日時を確かめたい"
   - "「平日の9時と18時に実行したい」といった日本語の要望から、どんなcron式を書けばよいか知りたい"
   - "「31日」や「曜日と日を両方指定」など、実行されない月がある・意図と異なる動作をする落とし穴に気づかず設定してしまうのを防ぎたい"
 howto:
   - "入力欄にcron式（例: 0 9 * * 1）を入力すると、日本語解説と次回実行日時10件がリアルタイムに表示されます"
   - "プリセットボタンから代表的なcron式をワンクリックで入力できます"
+  - "「ウィザードで作る」欄で頻度（n分ごと・n時間ごと・毎日・毎週・毎月）と時刻・曜日・日を選ぶと、cron式・日本語解説・次回実行日時3件が表示されます（「解析欄へ反映」で詳しく確認できます）"
   - "下部の「逆引き生成」欄に日本語で実行タイミングを入力すると、対応するcron式が生成されます（生成したcron式は解析欄にワンクリックで反映できます）"
   - "「他の形式から読み込む」欄にAWS EventBridgeの cron(...) / rate(...)、GitHub Actionsの - cron: '...'、systemd timerの OnCalendar=... を貼り付けると、標準のcron式とJSTへ換算した式が表示されます（「解析欄へ反映」で次回実行日時を確認できます）"
   - "フォーマット別コピー欄から、crontab / GitHub Actions / AWS EventBridge / systemd timer（OnCalendar=）それぞれの形式でコピーできます"
@@ -27,13 +29,15 @@ faq:
     a: "はい。「他の形式から読み込む」欄に、EventBridgeの cron(分 時 日 月 曜日 年) と rate(5 minutes) のような式、GitHub Actionsの schedule の - cron: '...' の行（timezoneの行も含めて可）を貼り付けると読み込みます。EventBridgeの曜日（1=日曜〜7=土曜）や「?」は標準のcron式に直し、UTCの式はJSTへ9時間ずらして換算します。日付をまたぐ時刻が混ざるなど1行で表せない場合は、換算せずにUTCの式を示します。L・W・#（月末・最も近い平日・第n曜日）には対応していません。GitHub Actionsは最短5分間隔のため、それより短い間隔は注意を表示します。"
   - q: "systemd timerのOnCalendar=をcron式に変換できますか？"
     a: "はい。「他の形式から読み込む」欄に OnCalendar=Mon..Fri *-*-* 09:00:00 Asia/Tokyo のような行（[Timer]節ごとでも可）を貼り付けると、標準のcron式（0 9 * * 1-5）に直します。daily・weekly などの省略形、範囲（..）とステップ（/）、秒にも対応します。末尾のタイムゾーンがUTCならJSTへ換算し、指定がなければサーバーのタイムゾーンをJSTとみなします。systemdは1行に曜日と日を両方書くと両方に一致する日（AND条件）だけ動くため、cron式では表せずエラーにします。日を指定した行と曜日を指定した行の2行は、cronの日と曜日の両指定（OR条件）の1行にまとめます。"
+  - q: "cron式の書き方が分からなくても作れますか？"
+    a: "はい。「ウィザードで作る」欄で頻度を選び、時刻（JST）や曜日・日を選ぶだけでcron式を生成します。n分ごとは60を割り切れる間隔、n時間ごとは24を割り切れる間隔から選べるため、1時間・1日の中で等間隔に実行されます。毎週は3日以上続く曜日を「1-5」のような範囲にまとめます。毎月で29〜31日を選ぶと、その日がない月は実行されない旨を表示します。"
   - q: "入力したcron式や日本語の内容は外部に送信されますか？"
     a: "いいえ。パース・次回実行日時の計算・日本語解説・逆引き生成はすべてルールベースの純粋な計算処理としてブラウザ内で完結し、外部API・AI・アップロードは一切使用しません。"
 related:
   - "unix-time"
   - "regex-tester"
   - "jwt-decoder"
-updated: 2026-11-20
+updated: 2026-11-21
 keywords:
   - "cron"
   - "crontab"
@@ -43,6 +47,7 @@ keywords:
   - "systemd timer"
   - "OnCalendar"
   - "rate式"
+  - "cron 生成"
   - "スケジュール"
   - "情シス"
 ---

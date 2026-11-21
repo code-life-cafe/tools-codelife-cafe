@@ -2,6 +2,7 @@ import { AlertTriangle, Info, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import CronImportPanel from '@/components/tools/CronImportPanel';
+import CronWizardPanel from '@/components/tools/CronWizardPanel';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -485,6 +486,8 @@ export default function CronChecker() {
 					</div>
 				</div>
 			)}
+
+			<CronWizardPanel onApply={setInput} />
 
 			<CronImportPanel onApply={setInput} />
 

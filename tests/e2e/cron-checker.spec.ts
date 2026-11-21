@@ -372,6 +372,92 @@ test.describe('cron式チェッカー', () => {
 		await expect(page.getByLabel('cron式')).toHaveValue('*/15 * * * *');
 	});
 
+	test('ウィザードで頻度・時刻・曜日を選んでcron式を作り、解析欄に反映できること', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		const wizard = page.getByTestId('cron-wizard');
+
+		// 初期値は毎週・平日9時0分
+		await expect(page.getByTestId('cron-wizard-expr')).toHaveText(
+			'0 9 * * 1-5',
+		);
+		await expect(
+			page.getByTestId('cron-wizard-runs').locator('li'),
+		).toHaveCount(3);
+
+		await wizard.getByLabel('火曜').click();
+		await wizard.getByLabel('木曜').click();
+		await wizard.getByLabel('時', { exact: true }).selectOption('7');
+		await wizard.getByLabel('分', { exact: true }).selectOption('30');
+		await expect(page.getByTestId('cron-wizard-expr')).toHaveText(
+			'30 7 * * 1,3,5',
+		);
+
+		await wizard.getByRole('button', { name: '解析欄へ反映' }).click();
+		await expect(page.getByLabel('cron式')).toHaveValue('30 7 * * 1,3,5');
+		await expect(page.getByTestId('cron-description')).toBeVisible();
+
+		// 曜日をすべて外すとエラーになり、反映ボタンを出さない
+		for (const day of ['月曜', '水曜', '金曜']) {
+			await wizard.getByLabel(day).click();
+		}
+		await expect(page.getByTestId('cron-wizard-error')).toContainText(
+			'曜日を1つ以上',
+		);
+		await expect(
+			wizard.getByRole('button', { name: '解析欄へ反映' }),
+		).toHaveCount(0);
+
+		// n分ごと・毎月31日の注意
+		await wizard.getByLabel('頻度').selectOption('minutes');
+		await wizard.getByLabel('間隔（分）').selectOption('20');
+		await expect(page.getByTestId('cron-wizard-expr')).toHaveText(
+			'*/20 * * * *',
+		);
+		await wizard.getByLabel('頻度').selectOption('monthly');
+		await wizard.getByLabel('日', { exact: true }).selectOption('31');
+		await expect(page.getByTestId('cron-wizard-expr')).toHaveText(
+			'30 7 31 * *',
+		);
+		await expect(page.getByTestId('cron-wizard-notes')).toContainText(
+			'31日がない月',
+		);
+	});
+
+	test('ウィザードの選択内容はURLに保存しないこと', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('cron-checker').goto();
+		const before = page.url();
+		await page
+			.getByTestId('cron-wizard')
+			.getByLabel('頻度')
+			.selectOption('daily');
+		await expect(page.getByTestId('cron-wizard-expr')).toHaveText('0 9 * * *');
+		expect(page.url()).toBe(before);
+	});
+
+	for (const width of [375, 1440]) {
+		test(`ウィザード欄は${width}px幅でも横にはみ出さないこと`, async ({
+			page,
+			createToolPage,
+		}) => {
+			await page.setViewportSize({ width, height: 900 });
+			await createToolPage('cron-checker').goto();
+			const wizard = page.getByTestId('cron-wizard');
+			await wizard.getByLabel('頻度').selectOption('monthly');
+			await wizard.getByLabel('日', { exact: true }).selectOption('31');
+			await expect(page.getByTestId('cron-wizard-notes')).toBeVisible();
+			const overflow = await page.evaluate(
+				() => document.documentElement.scrollWidth - window.innerWidth,
+			);
+			expect(overflow).toBeLessThanOrEqual(0);
+		});
+	}
+
 	test('プリセットボタンからcron式を入力できること', async ({
 		page,
 		createToolPage,
