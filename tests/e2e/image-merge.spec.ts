@@ -263,3 +263,95 @@ for (const { width, height } of [
 		expect(await listArea.boundingBox()).toEqual(emptyListBox);
 	});
 }
+
+// #738: スマホ写真のような大きい画像では、操作のたびにフル解像度で描き直すと
+// 次の描画まで1〜2秒かかっていた。プレビューだけ縮小し、出力はフル解像度のまま。
+test.describe('大きい画像のプレビュー縮小（#738）', () => {
+	// 単色の 2000×1500 PNG をブラウザで作る（縦結合で 2000×3000 = 600万画素）
+	async function makeLargePng(
+		page: import('@playwright/test').Page,
+		color: string,
+	): Promise<Buffer> {
+		const base64 = await page.evaluate(async (fill) => {
+			const canvas = new OffscreenCanvas(2000, 1500);
+			const ctx = canvas.getContext('2d');
+			if (!ctx) throw new Error('2d context unavailable');
+			ctx.fillStyle = fill;
+			ctx.fillRect(0, 0, 2000, 1500);
+			const blob = await canvas.convertToBlob({ type: 'image/png' });
+			const bytes = new Uint8Array(await blob.arrayBuffer());
+			let binary = '';
+			for (let i = 0; i < bytes.length; i += 0x8000) {
+				binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+			}
+			return btoa(binary);
+		}, color);
+		return Buffer.from(base64, 'base64');
+	}
+
+	test('プレビューは200万画素以下に縮小され、出力サイズ表示とダウンロードはフル解像度', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('image-merge').goto();
+		const red = await makeLargePng(page, '#ff0000');
+		const blue = await makeLargePng(page, '#0000ff');
+		await fileInput(page).setInputFiles([
+			{ name: 'red-large.png', mimeType: 'image/png', buffer: red },
+			{ name: 'blue-large.png', mimeType: 'image/png', buffer: blue },
+		]);
+
+		await expect(page.getByText('出力サイズ: 2000×3000px')).toBeVisible();
+		await expect
+			.poll(async () => (await canvasSize(page))[0])
+			.toBeGreaterThan(0);
+		const [w, h] = await canvasSize(page);
+		expect(w * h).toBeLessThanOrEqual(2_000_000);
+		expect(w).toBeLessThan(2000);
+		// 縦横比（2:3）は保たれる
+		expect(Math.abs(w / h - 2000 / 3000)).toBeLessThan(0.01);
+
+		// 縮小プレビューでも上半分が赤・下半分が青
+		await expect
+			.poll(async () =>
+				getCanvasPixel(
+					page,
+					'merge-preview-canvas',
+					Math.floor(w / 2),
+					Math.floor(h / 4),
+				),
+			)
+			.toEqual([255, 0, 0, 255]);
+		await expect
+			.poll(async () =>
+				getCanvasPixel(
+					page,
+					'merge-preview-canvas',
+					Math.floor(w / 2),
+					Math.floor((h * 3) / 4),
+				),
+			)
+			.toEqual([0, 0, 255, 255]);
+
+		// 並び替えも縮小プレビューに反映される（上が青になる）
+		await page.getByRole('button', { name: '2枚目を前へ移動' }).click();
+		await expect
+			.poll(async () =>
+				getCanvasPixel(
+					page,
+					'merge-preview-canvas',
+					Math.floor(w / 2),
+					Math.floor(h / 4),
+				),
+			)
+			.toEqual([0, 0, 255, 255]);
+
+		// ダウンロードはフル解像度（IHDR の幅・高さ）
+		const downloadPromise = page.waitForEvent('download');
+		await page.getByRole('button', { name: '結合画像をダウンロード' }).click();
+		const download = await downloadPromise;
+		const buf = fs.readFileSync(await download.path());
+		expect(buf.readUInt32BE(16)).toBe(2000);
+		expect(buf.readUInt32BE(20)).toBe(3000);
+	});
+});
