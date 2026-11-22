@@ -98,6 +98,9 @@
 		"lodash-es": "^4.18.1",
 		"astro": {
 			"js-yaml": "^4.3.2"
+		},
+		"satori": {
+			"fflate": "0.7.5"
 		}
 	}
 }
