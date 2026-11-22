@@ -6,15 +6,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+	assertCanvasWithinLimit,
 	buildMergedFilename,
 	computeLayout,
+	computePreviewScale,
+	computePreviewSourceSize,
 	DEFAULT_MERGE_OPTIONS,
 	type ImageSize,
+	MAX_CANVAS_DIMENSION,
 	MAX_FILE_COUNT,
 	MAX_FILE_SIZE,
 	MAX_TOTAL_SIZE,
 	type MergeOptions,
 	mimeForFormat,
+	PREVIEW_MAX_PIXELS,
+	scaleLayout,
 	validateBatch,
 	validateImageFile,
 } from '../../src/lib/tools/image-merge.ts';
@@ -367,4 +373,156 @@ test('1枚のみでも正しくレイアウトされる', () => {
 		assert.equal(layout.cells[0].w, 300, `${mode}: 幅`);
 		assert.equal(layout.cells[0].h, 200, `${mode}: 高さ`);
 	}
+});
+
+// ---------------------------------------------------------------------------
+// プレビュー縮小（#738）
+// ---------------------------------------------------------------------------
+
+test('computePreviewScale: 上限以下は等倍、上限ちょうども等倍', () => {
+	assert.equal(computePreviewScale(120, 170), 1);
+	assert.equal(computePreviewScale(2000, 1000, 2_000_000), 1);
+});
+
+test('computePreviewScale: 上限を超えると画素数が上限になる倍率を返す', () => {
+	// スマホ写真4枚の縦結合（4000×12000 = 4800万画素）
+	const scale = computePreviewScale(4000, 12000, 2_000_000);
+	assert.ok(scale > 0 && scale < 1);
+	const pixels = Math.floor(4000 * scale) * Math.floor(12000 * scale);
+	assert.ok(pixels <= 2_000_000, `縮小後 ${pixels} 画素`);
+	assert.ok(pixels >= 2_000_000 * 0.99, `縮小しすぎない ${pixels} 画素`);
+});
+
+test('computePreviewScale: 幅・高さ・上限が0以下なら等倍（縮小しない）', () => {
+	assert.equal(computePreviewScale(0, 100), 1);
+	assert.equal(computePreviewScale(100, 0), 1);
+	assert.equal(computePreviewScale(-1, 100), 1);
+	assert.equal(computePreviewScale(5000, 5000, 0), 1);
+});
+
+test('PREVIEW_MAX_PIXELS は既定値として使われる', () => {
+	assert.equal(
+		computePreviewScale(4000, 3000),
+		Math.sqrt(PREVIEW_MAX_PIXELS / (4000 * 3000)),
+	);
+});
+
+test('scaleLayout: 倍率1以上・不正な倍率は元のレイアウトをそのまま返す', () => {
+	const layout = computeLayout(
+		[
+			{ width: 120, height: 80 },
+			{ width: 80, height: 60 },
+		],
+		opts(),
+	);
+	assert.equal(scaleLayout(layout, 1), layout);
+	assert.equal(scaleLayout(layout, 2), layout);
+	assert.equal(scaleLayout(layout, 0), layout);
+	assert.equal(scaleLayout(layout, Number.NaN), layout);
+});
+
+test('scaleLayout: キャンバスとセルを同じ倍率で縮め、隣接セルに隙間・重なりを作らない', () => {
+	// 縦結合・余白0・間隔0: セルは上下に隙間なく接する
+	const layout = computeLayout(
+		[
+			{ width: 4000, height: 3000 },
+			{ width: 4000, height: 3000 },
+			{ width: 4000, height: 3000 },
+		],
+		opts({ gap: 0, padding: 0 }),
+	);
+	const scale = computePreviewScale(layout.width, layout.height, 2_000_000);
+	const scaled = scaleLayout(layout, scale);
+	assert.equal(scaled.width, Math.floor(4000 * scale));
+	assert.equal(scaled.height, Math.floor(9000 * scale));
+	assert.ok(
+		scaled.width * scaled.height <= 2_000_000,
+		'画素数の上限を超えない',
+	);
+	assert.equal(scaled.cells.length, 3);
+	assert.equal(scaled.cells[0].y, 0);
+	for (let i = 1; i < scaled.cells.length; i++) {
+		const prev = scaled.cells[i - 1];
+		assert.equal(scaled.cells[i].y, prev.y + prev.h, `${i}枚目は直前と接する`);
+	}
+	const last = scaled.cells[2];
+	assert.equal(last.y + last.h, scaled.height, '最後のセルは下端まで届く');
+	for (const c of scaled.cells) {
+		assert.equal(c.x, 0);
+		assert.equal(c.w, scaled.width);
+	}
+});
+
+test('scaleLayout: 丸めで上限を超えやすいサイズ（2000×3000）でも画素数の上限を超えない', () => {
+	// 縦結合 2000×1500 ×2。切り上げ方向の丸めだと 2000460 画素になっていた
+	const layout = computeLayout(
+		[
+			{ width: 2000, height: 1500 },
+			{ width: 2000, height: 1500 },
+		],
+		opts({ gap: 0, padding: 0 }),
+	);
+	const scaled = scaleLayout(
+		layout,
+		computePreviewScale(layout.width, layout.height, 2_000_000),
+	);
+	assert.ok(scaled.width * scaled.height <= 2_000_000);
+	for (const c of scaled.cells) {
+		assert.ok(c.x + c.w <= scaled.width, 'セルはキャンバスの右端を超えない');
+		assert.ok(c.y + c.h <= scaled.height, 'セルはキャンバスの下端を超えない');
+	}
+	assert.equal(scaled.cells[1].y + scaled.cells[1].h, scaled.height);
+});
+
+test('scaleLayout: 極端に小さくなるセルも幅・高さ1px以上を保つ', () => {
+	const layout = {
+		width: 10000,
+		height: 10000,
+		cells: [{ x: 0, y: 0, w: 1, h: 1 }],
+	};
+	const scaled = scaleLayout(layout, 0.01);
+	assert.equal(scaled.width, 100);
+	assert.equal(scaled.height, 100);
+	assert.deepEqual(scaled.cells[0], { x: 0, y: 0, w: 1, h: 1 });
+});
+
+test('computePreviewSourceSize: 小さい画像は縮小不要（null）', () => {
+	assert.equal(computePreviewSourceSize(1200, 900), null);
+	assert.equal(computePreviewSourceSize(2000, 1000, 2_000_000), null);
+});
+
+test('computePreviewSourceSize: 大きい画像は縦横比を保って上限以下に縮める', () => {
+	const size = computePreviewSourceSize(4000, 3000, 2_000_000);
+	assert.ok(size);
+	assert.ok(size.width * size.height <= 2_000_000);
+	assert.ok(Math.abs(size.width / size.height - 4 / 3) < 0.01);
+	assert.ok(size.width >= 1600, `幅 ${size.width}`);
+});
+
+test('assertCanvasWithinLimit: 上限ちょうどは通り、超えると日本語メッセージで例外', () => {
+	assert.doesNotThrow(() =>
+		assertCanvasWithinLimit({
+			width: MAX_CANVAS_DIMENSION,
+			height: MAX_CANVAS_DIMENSION,
+			cells: [],
+		}),
+	);
+	assert.throws(
+		() =>
+			assertCanvasWithinLimit({
+				width: MAX_CANVAS_DIMENSION + 1,
+				height: 10,
+				cells: [],
+			}),
+		/上限（16384px）を超えています/,
+	);
+	assert.throws(
+		() =>
+			assertCanvasWithinLimit({
+				width: 10,
+				height: MAX_CANVAS_DIMENSION + 1,
+				cells: [],
+			}),
+		/上限/,
+	);
 });

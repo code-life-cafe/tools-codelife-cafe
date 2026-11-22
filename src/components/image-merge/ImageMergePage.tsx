@@ -1,6 +1,7 @@
 // ImageMergePage — 画像連結・コンタクトシートツールのオーケストレーター
 // すべてブラウザ内（Canvas API）で処理し、画像はサーバーに送信されない。
-// プレビューと出力は同一の computeLayout / mergeImages から生成し乖離させない。
+// プレビューと出力は同一の computeLayout / drawMerged から生成し乖離させない。
+// プレビューは画素数が大きいときだけ縮小して描く（出力はフル解像度。#738）。
 
 import { Download, Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -11,15 +12,20 @@ import { useSingleResultProcessing } from '@/lib/hooks/useSingleResultProcessing
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { createId } from '@/lib/tools/image-common';
 import {
+	assertCanvasWithinLimit,
 	buildMergedFilename,
 	computeLayout,
+	computePreviewScale,
+	createPreviewBitmap,
 	DEFAULT_MERGE_OPTIONS,
+	drawMerged,
 	exportCanvas,
 	type ImageSize,
 	loadImageBitmap,
 	MAX_FILE_COUNT,
 	type MergeOptions,
 	mergeImages,
+	scaleLayout,
 	validateBatch,
 	validateImageFile,
 } from '@/lib/tools/image-merge';
@@ -28,7 +34,17 @@ import { type MergeImageItem, SortableImageList } from './SortableImageList';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp,image/gif';
 
-type LoadedItem = MergeImageItem & { bitmap: ImageBitmap };
+// bitmap は出力用のフル解像度。previewBitmap は大きい画像だけ持つプレビュー描画用の縮小版（#738）
+type LoadedItem = MergeImageItem & {
+	bitmap: ImageBitmap;
+	previewBitmap: ImageBitmap | null;
+};
+
+function releaseItem(it: LoadedItem) {
+	URL.revokeObjectURL(it.previewUrl);
+	it.bitmap.close();
+	it.previewBitmap?.close();
+}
 
 export function ImageMergePage() {
 	const { trackRun } = useToolAnalytics('image-merge');
@@ -59,10 +75,7 @@ export function ImageMergePage() {
 	// アンマウント時に object URL と ImageBitmap を解放する
 	useEffect(() => {
 		return () => {
-			for (const it of itemsRef.current) {
-				URL.revokeObjectURL(it.previewUrl);
-				it.bitmap.close();
-			}
+			for (const it of itemsRef.current) releaseItem(it);
 		};
 	}, []);
 
@@ -80,32 +93,56 @@ export function ImageMergePage() {
 			return;
 		}
 
-		const sizes: ImageSize[] = items.map((it) => ({
-			width: it.width,
-			height: it.height,
-		}));
-		const layout = computeLayout(sizes, options);
-		try {
-			const merged = mergeImages(
-				items.map((it) => it.bitmap),
-				layout,
-				options,
-			);
-			canvas.width = merged.width;
-			canvas.height = merged.height;
-			const ctx = canvas.getContext('2d');
-			if (ctx) {
-				ctx.clearRect(0, 0, canvas.width, canvas.height);
-				ctx.drawImage(merged, 0, 0);
+		// 操作（余白・並び替えなど）の直後の描画を待たせないよう、プレビューの描き直しは
+		// 次のフレームを描いた後に回す（#738）。連続した変更は最後の1回だけ描く。
+		let frame = 0;
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const draw = () => {
+			const sizes: ImageSize[] = items.map((it) => ({
+				width: it.width,
+				height: it.height,
+			}));
+			const layout = computeLayout(sizes, options);
+			try {
+				// 上限チェックは出力（フル解像度）のレイアウトで行い、ダウンロード時と同じ判定にする
+				assertCanvasWithinLimit(layout);
+				// プレビューは縮小レイアウトで表示用canvasへ直接描く（#738）。
+				// フル解像度の結合を毎回作ると、スマホ写真数枚で次の描画まで1〜2秒かかっていた。
+				// 出力サイズの表示とダウンロードはフル解像度のまま。
+				const preview = scaleLayout(
+					layout,
+					computePreviewScale(layout.width, layout.height),
+				);
+				const ctx = canvas.getContext('2d');
+				if (!ctx) {
+					throw new Error('Canvas 2D コンテキストの取得に失敗しました');
+				}
+				canvas.width = preview.width;
+				canvas.height = preview.height;
+				drawMerged(
+					ctx,
+					items.map((it) => it.previewBitmap ?? it.bitmap),
+					preview,
+					options,
+				);
+				setOutputSize({ width: layout.width, height: layout.height });
+				setError(null);
+			} catch (err) {
+				setOutputSize(null);
+				setError(
+					err instanceof Error
+						? err.message
+						: 'プレビューの生成に失敗しました。',
+				);
 			}
-			setOutputSize({ width: merged.width, height: merged.height });
-			setError(null);
-		} catch (err) {
-			setOutputSize(null);
-			setError(
-				err instanceof Error ? err.message : 'プレビューの生成に失敗しました。',
-			);
-		}
+		};
+		frame = requestAnimationFrame(() => {
+			timer = setTimeout(draw, 0);
+		});
+		return () => {
+			cancelAnimationFrame(frame);
+			clearTimeout(timer);
+		};
 	}, [items, options, setError]);
 
 	const handleFilesSelect = useCallback(async (files: File[]) => {
@@ -137,6 +174,12 @@ export function ImageMergePage() {
 		for (const file of valid) {
 			try {
 				const bitmap = await loadImageBitmap(file);
+				let previewBitmap: ImageBitmap | null = null;
+				try {
+					previewBitmap = await createPreviewBitmap(bitmap);
+				} catch {
+					// 縮小に失敗してもフル解像度から描けるため、プレビューは元画像で続ける
+				}
 				loaded.push({
 					id: createId(),
 					file,
@@ -144,6 +187,7 @@ export function ImageMergePage() {
 					width: bitmap.width,
 					height: bitmap.height,
 					bitmap,
+					previewBitmap,
 				});
 			} catch {
 				errors.push(`${file.name}: 画像の読み込みに失敗しました。`);
@@ -169,19 +213,13 @@ export function ImageMergePage() {
 	const handleRemove = useCallback((id: string) => {
 		setItems((prev) => {
 			const target = prev.find((it) => it.id === id);
-			if (target) {
-				URL.revokeObjectURL(target.previewUrl);
-				target.bitmap.close();
-			}
+			if (target) releaseItem(target);
 			return prev.filter((it) => it.id !== id);
 		});
 	}, []);
 
 	const handleClear = useCallback(() => {
-		for (const it of itemsRef.current) {
-			URL.revokeObjectURL(it.previewUrl);
-			it.bitmap.close();
-		}
+		for (const it of itemsRef.current) releaseItem(it);
 		setItems([]);
 		setFileError(null);
 		setError(null);

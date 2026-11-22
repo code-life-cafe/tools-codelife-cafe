@@ -413,6 +413,90 @@ function computeGridLayout(
 }
 
 // ---------------------------------------------------------------------------
+// プレビュー用の縮小（#738）
+// ---------------------------------------------------------------------------
+
+/**
+ * プレビュー描画の画素数の上限。出力（ダウンロード）はこの値に関係なくフル解像度。
+ * スマホ写真（4000×3000）を数枚縦に並べると数千万画素になり、余白変更や並び替えのたびに
+ * メインスレッドで描き直すと次の描画まで1〜2秒かかっていた（#738）。
+ * 描画時間はおおむね描き先の画素数に比例し、モバイル相当（CPU 4倍減速）で
+ * 400万画素は約100〜160ms、200万画素は約50〜70msだった。操作後の描画を200ms以内に
+ * 収めるため200万画素とする（スマホ表示幅×DPRに対しておおむね足りる確認用の解像度）。
+ */
+export const PREVIEW_MAX_PIXELS = 2_000_000;
+
+/**
+ * 出力サイズ（width×height）をプレビュー用に縮小する倍率（0〜1）。
+ * 上限以下なら 1（等倍）。幅・高さが0以下なら 1。
+ */
+export function computePreviewScale(
+	width: number,
+	height: number,
+	maxPixels: number = PREVIEW_MAX_PIXELS,
+): number {
+	if (width <= 0 || height <= 0 || maxPixels <= 0) return 1;
+	const pixels = width * height;
+	if (pixels <= maxPixels) return 1;
+	return Math.sqrt(maxPixels / pixels);
+}
+
+/**
+ * レイアウト全体（キャンバスと各セル）を倍率 scale で縮小する。プレビュー専用。
+ * キャンバスの幅・高さは切り捨てて画素数の上限を超えないようにする。
+ * セルは左上・右下の座標を丸めて（右下はキャンバス内に収めて）隣接セルとの隙間・重なりの差を
+ * 1px以内に抑え、幅・高さは1px以上を保つ。scale >= 1 のときは元のレイアウトをそのまま返す。
+ */
+export function scaleLayout(layout: MergeLayout, scale: number): MergeLayout {
+	if (!(scale > 0) || scale >= 1) return layout;
+	const width = Math.max(1, Math.floor(layout.width * scale));
+	const height = Math.max(1, Math.floor(layout.height * scale));
+	const cells = layout.cells.map((c) => {
+		const x = Math.round(c.x * scale);
+		const y = Math.round(c.y * scale);
+		const right = Math.min(Math.round((c.x + c.w) * scale), width);
+		const bottom = Math.min(Math.round((c.y + c.h) * scale), height);
+		return {
+			x,
+			y,
+			w: Math.max(1, right - x),
+			h: Math.max(1, bottom - y),
+		};
+	});
+	return { width, height, cells };
+}
+
+/**
+ * プレビュー描画の元にする縮小画像のサイズ。画素数が maxPixels 以下になるよう縦横比を保って縮める。
+ * 縮小が不要なら null。プレビューのcanvas全体が maxPixels 以下なので、どのセルも
+ * この縮小画像より大きく描かれることはなく、元画像から描く場合と見た目の解像度は変わらない。
+ */
+export function computePreviewSourceSize(
+	width: number,
+	height: number,
+	maxPixels: number = PREVIEW_MAX_PIXELS,
+): ImageSize | null {
+	const scale = computePreviewScale(width, height, maxPixels);
+	if (scale >= 1) return null;
+	return {
+		width: Math.max(1, Math.floor(width * scale)),
+		height: Math.max(1, Math.floor(height * scale)),
+	};
+}
+
+/** 合成後のキャンバスが上限を超える場合に日本語メッセージで例外を投げる */
+export function assertCanvasWithinLimit(layout: MergeLayout): void {
+	if (
+		layout.width > MAX_CANVAS_DIMENSION ||
+		layout.height > MAX_CANVAS_DIMENSION
+	) {
+		throw new Error(
+			`合成後のキャンバスサイズが上限（${MAX_CANVAS_DIMENSION}px）を超えています。画像数・余白を減らしてください。`,
+		);
+	}
+}
+
+// ---------------------------------------------------------------------------
 // 出力ファイル名・MIMEタイプ
 // ---------------------------------------------------------------------------
 
@@ -429,19 +513,28 @@ export async function loadImageBitmap(file: File): Promise<ImageBitmap> {
 	return createImageBitmap(file);
 }
 
+/**
+ * プレビュー描画用の縮小ImageBitmapを作る（読み込み時に1回だけ）。縮小不要なら null。
+ * 出力（ダウンロード）には使わない。
+ */
+export async function createPreviewBitmap(
+	bitmap: ImageBitmap,
+): Promise<ImageBitmap | null> {
+	const size = computePreviewSourceSize(bitmap.width, bitmap.height);
+	if (!size) return null;
+	return createImageBitmap(bitmap, {
+		resizeWidth: size.width,
+		resizeHeight: size.height,
+		resizeQuality: 'high',
+	});
+}
+
 export function mergeImages(
 	bitmaps: ImageBitmap[],
 	layout: MergeLayout,
 	opts: MergeOptions,
 ): HTMLCanvasElement {
-	if (
-		layout.width > MAX_CANVAS_DIMENSION ||
-		layout.height > MAX_CANVAS_DIMENSION
-	) {
-		throw new Error(
-			`合成後のキャンバスサイズが上限（${MAX_CANVAS_DIMENSION}px）を超えています。画像数・余白を減らしてください。`,
-		);
-	}
+	assertCanvasWithinLimit(layout);
 
 	const canvas = document.createElement('canvas');
 	canvas.width = layout.width;
@@ -450,7 +543,20 @@ export function mergeImages(
 	if (!ctx) {
 		throw new Error('Canvas 2D コンテキストの取得に失敗しました');
 	}
+	drawMerged(ctx, bitmaps, layout, opts);
+	return canvas;
+}
 
+/**
+ * 背景を塗り、各画像をレイアウトのセルへ描く。キャンバスのサイズ設定は呼び出し側が行う。
+ * 出力（mergeImages）とプレビュー（縮小レイアウト）で同じ描画手順を使う。
+ */
+export function drawMerged(
+	ctx: CanvasRenderingContext2D,
+	bitmaps: CanvasImageSource[],
+	layout: MergeLayout,
+	opts: MergeOptions,
+): void {
 	// 背景塗り
 	if (opts.background === 'transparent') {
 		ctx.clearRect(0, 0, layout.width, layout.height);
@@ -465,8 +571,6 @@ export function mergeImages(
 		if (!cell) continue;
 		ctx.drawImage(bitmaps[i], cell.x, cell.y, cell.w, cell.h);
 	}
-
-	return canvas;
 }
 
 export function exportCanvas(
