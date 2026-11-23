@@ -58,6 +58,22 @@ test.describe('cron式チェッカー', () => {
 		await toolPage.expectSafetyBadge();
 	});
 
+	test('titleに生成と次回実行日時の確認を含め、H1は簡潔な名称のままにすること', async ({
+		page,
+	}) => {
+		await page.goto('/cron-checker/');
+		await expect(page).toHaveTitle(
+			/^cron式チェッカー・生成ツール｜次回実行日時をJSTで確認 \| /,
+		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'cron式チェッカー',
+		);
+		const current = page
+			.getByRole('navigation', { name: 'パンくずリスト' })
+			.locator('[aria-current="page"]');
+		await expect(current).toHaveText('cron式チェッカー');
+	});
+
 	test('cron式を入力すると日本語解説と次回実行日時が表示されること', async ({
 		page,
 		createToolPage,

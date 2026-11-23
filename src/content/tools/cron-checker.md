@@ -1,5 +1,6 @@
 ---
-title: "cron式チェッカー"
+title: "cron式チェッカー・生成ツール｜次回実行日時をJSTで確認"
+displayTitle: "cron式チェッカー"
 description: "cron式（標準5フィールド/秒付き6フィールド）を日本語解説・次回実行日時10件（JST/UTC）で確認。日本語からの逆引き生成、頻度と時刻を選ぶだけの生成ウィザード、危険パターンの警告、crontab/GitHub Actions/AWS EventBridge/systemd timer（OnCalendar=）形式への変換、EventBridgeのcron()/rate()・GitHub Actionsのschedule・systemd timerのOnCalendar=の読み込みに対応。"
 category: "開発ツール"
 summary: "cron式を貼り付けるだけで日本語の意味解説と次回実行日時10件をJST/UTCで同時表示。頻度・時刻・曜日を選ぶだけのウィザードや日本語の実行タイミングからcron式を作ったり、実行されない日付の落とし穴を警告するリンター機能も搭載。"
