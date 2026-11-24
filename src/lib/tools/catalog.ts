@@ -192,7 +192,7 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 		categories: ['ユーティリティ'],
 		categoryColor: 'border-l-chart-2',
 		keywords: ['QR', 'コード', '読み取り', 'スキャン', 'カメラ'],
-		related: ['qr-generator', 'url-encoder'],
+		related: ['qr-generator', 'qr-restore', 'url-encoder'],
 		llmsFull: {
 			useCase:
 				'カメラ映像または画像ファイルからQRコードを読み取り、内容を一覧表示',
@@ -200,6 +200,26 @@ export const toolCatalog: readonly ToolCatalogItem[] = [
 			outputs:
 				'読み取ったテキスト一覧（URL/Wi-Fi/連絡先/テキスト判定付き）、CSVエクスポート',
 			options: '自動保存のON/OFF、CSVエクスポート',
+		},
+	},
+	{
+		id: 'qr-restore',
+		title: 'QRコード復元',
+		description:
+			'汚れ・かすれ・不鮮明で読めないQRコード画像を、13通りの補正を自動で試して読み取り。',
+		href: '/qr-restore/',
+		icon: 'ScanSearch',
+		categories: ['ユーティリティ', '画像'],
+		categoryColor: 'border-l-chart-2',
+		keywords: ['QR', '復元', '読み取れない', '汚れ', 'かすれ', '補正'],
+		related: ['qr-reader', 'qr-generator', 'image-ocr'],
+		llmsFull: {
+			useCase:
+				'通常の読み取りで失敗するQRコード画像に、コントラスト補正・二値化・ノイズ除去などの前処理を順に試して読み取る',
+			inputs: '画像ファイル1枚（PNG/JPEG/WebP、20MB以下）',
+			outputs:
+				'読み取ったテキスト、成功した補正手法、補正後の画像、試した手法の一覧',
+			options: 'なし（13通りの補正を自動で順に試す）',
 		},
 	},
 	{

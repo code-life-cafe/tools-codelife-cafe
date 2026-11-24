@@ -1,6 +1,6 @@
 # CODE:LIFE Tools
 
-**完全クライアントサイドで動く、日本語の業務向けWebツール集（全60種・無料）。**
+**完全クライアントサイドで動く、日本語の業務向けWebツール集（全61種・無料）。**
 
 すべてのデータ処理はお使いのブラウザ内で完結し、入力データがサーバーへ送信されることは一切ありません。Cookieなし・個人追跡なし・広告なし・オープンソースで運営しています。
 
@@ -18,7 +18,7 @@
 | [郵便番号→住所変換](https://tools.codelife.cafe/zipcode/) | 郵便番号リストから住所を一括変換。Excel貼り付け・CSV出力対応 |
 | [消費税・税込計算](https://tools.codelife.cafe/tax/) | 税込⇔税抜の即時計算。軽減税率・過去税率・端数処理（切り捨て/四捨五入/切り上げ）対応 |
 
-## 📦 収録ツール（60種）
+## 📦 収録ツール（61種）
 
 ### テキスト処理
 
@@ -66,6 +66,7 @@
 | [QRコード生成](https://tools.codelife.cafe/qr-generator/) | テキスト・URLからQRコードを生成しPNG/SVGダウンロード |
 | [暗号化QR生成・復号](https://tools.codelife.cafe/qr-encrypt/) | テキストをパスフレーズでAES-256-GCM暗号化しQRコード化。QR読み取り＋パスフレーズで復号も可能（データは外部送信なし） |
 | [QRコード読み取り](https://tools.codelife.cafe/qr-reader/) | カメラや画像ファイルからQRコードを読み取り。URL・Wi-Fi・連絡先も自動判定しCSV出力（完全ローカル実行） |
+| [QRコード復元](https://tools.codelife.cafe/qr-restore/) | 汚れ・かすれ・不鮮明で読めないQRコード画像を、コントラスト補正・二値化・ノイズ除去など13通りの補正を自動で試して読み取り（画像は外部送信なし） |
 | [Base64エンコード/デコード](https://tools.codelife.cafe/base64/) | テキスト・ファイルのBase64変換、Data URI出力対応 |
 | [URLエンコード/デコード](https://tools.codelife.cafe/url-encoder/) | 日本語を含むURLやクエリを安全に双方向変換。コンポーネント/フルURLモード対応 |
 | [URLパラメータ解析・編集](https://tools.codelife.cafe/url-parser/) | URLをプロトコル・ホスト・パス・クエリ・ハッシュに分解し、パラメータを編集してURLを再生成（入力URLへの通信なし） |

@@ -1,0 +1,14 @@
+---
+import { getEntry } from 'astro:content';
+import ToolLayout from '../components/tool/ToolLayout.astro';
+import { QrRestore } from '../components/tools/QrRestore';
+
+const toolEntry = await getEntry('tools', 'qr-restore');
+if (!toolEntry) {
+  throw new Error('Tool entry not found: qr-restore');
+}
+---
+
+<ToolLayout tool={toolEntry}>
+  <QrRestore client:load />
+</ToolLayout>

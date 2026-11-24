@@ -209,7 +209,14 @@ export default function ImageUploader({ onDecoded }: ImageUploaderProps) {
 
 			{zeroDetectHint && (
 				<div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-muted-foreground">
-					QRコードが見つかりませんでした。画像がはっきり写っているか、QRコードが画像内に含まれているかご確認ください。
+					QRコードが見つかりませんでした。画像がはっきり写っているか、QRコードが画像内に含まれているかご確認ください。汚れ・かすれ・不鮮明な画像は、
+					<a
+						href="/qr-restore/"
+						className="font-medium text-primary underline underline-offset-2"
+					>
+						QRコード復元
+					</a>
+					で補正しながら読み取れる場合があります。
 				</div>
 			)}
 		</div>
