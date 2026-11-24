@@ -20,6 +20,7 @@ faq:
     a: "はい。1枚の画像に複数のQRコードが含まれる場合はすべて検出します。また複数ファイルをまとめてアップロードすることもできます。"
 related:
   - "qr-generator"
+  - "qr-restore"
   - "url-encoder"
 updated: 2026-07-03
 keywords:
