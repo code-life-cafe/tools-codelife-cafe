@@ -247,21 +247,6 @@ describe('runRestore（デコーダーを差し替えて確認）', () => {
 		assert.equal(outcome.attempts[0].found, false);
 	});
 
-	test('isCancelled が true になったら次の手法を始めずに cancelled を返す', async () => {
-		let calls = 0;
-		const outcome = await runRestore(
-			uniform(10, 10, 255),
-			async () => {
-				calls++;
-				return [];
-			},
-			{ isCancelled: () => calls >= 2 },
-		);
-		assert.equal(outcome.status, 'cancelled');
-		assert.equal(calls, 2);
-		assert.equal(outcome.attempts.length, 2);
-	});
-
 	test('上限を超える画像は縮小してから各手法へ渡す', async () => {
 		const sizes: number[] = [];
 		await runRestore(

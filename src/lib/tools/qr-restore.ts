@@ -506,8 +506,7 @@ export type RestoreOutcome =
 			image: GrayImage;
 			attempts: RestoreAttempt[];
 	  }
-	| { status: 'failed'; attempts: RestoreAttempt[] }
-	| { status: 'cancelled'; attempts: RestoreAttempt[] };
+	| { status: 'failed'; attempts: RestoreAttempt[] };
 
 export type RestoreProgress = {
 	index: number;
@@ -526,14 +525,12 @@ export async function runRestore(
 	options: {
 		steps?: readonly RestoreStep[];
 		onProgress?: (progress: RestoreProgress) => void;
-		isCancelled?: () => boolean;
 	} = {},
 ): Promise<RestoreOutcome> {
 	const steps = options.steps ?? RESTORE_STEPS;
 	const base = limitPixels(source);
 	const attempts: RestoreAttempt[] = [];
 	for (let i = 0; i < steps.length; i++) {
-		if (options.isCancelled?.()) return { status: 'cancelled', attempts };
 		const step = steps[i];
 		options.onProgress?.({ index: i, total: steps.length, label: step.label });
 		const processed = step.apply(base);

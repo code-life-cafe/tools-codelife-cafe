@@ -19,15 +19,26 @@ import {
 /** 画面に返す補正後画像の最大辺（表示用に縮小する） */
 const PREVIEW_MAX_SIDE = 640;
 
-let modulePrepared = false;
+let modulePromise: Promise<unknown> | null = null;
 
-function ensureModulePrepared(): void {
-	if (modulePrepared) return;
-	prepareZXingModule({
+/**
+ * zxing の WASM を読み込み、初期化の完了を待つ。
+ * 失敗（通信失敗・オフライン等）は「読めなかった」と区別してエラーにする
+ * （各手法のデコード例外として飲み込むと「13通り試したが読めない」と誤表示するため）。
+ */
+async function ensureModuleReady(): Promise<void> {
+	modulePromise ??= prepareZXingModule({
 		overrides: { locateFile: () => zxingWasmUrl },
-		fireImmediately: false,
+		fireImmediately: true,
 	});
-	modulePrepared = true;
+	try {
+		await modulePromise;
+	} catch {
+		modulePromise = null;
+		throw new Error(
+			'QRコードの読み取り機能を読み込めませんでした。通信状態を確認し、ページを再読み込みしてからお試しください。',
+		);
+	}
 }
 
 async function decodeGray(image: GrayImage): Promise<string[]> {
@@ -116,7 +127,7 @@ self.onmessage = async (e: MessageEvent<RestoreWorkerRequest>) => {
 	const post = (msg: RestoreWorkerResponse, transfer: Transferable[] = []) =>
 		self.postMessage(msg, { transfer });
 	try {
-		ensureModulePrepared();
+		await ensureModuleReady();
 		const gray = await loadGray(req.blob);
 		const outcome = await runRestore(gray, decodeGray, {
 			onProgress: (p) => post({ type: 'progress', id: req.id, ...p }),

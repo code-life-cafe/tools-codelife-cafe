@@ -1,7 +1,11 @@
 import path from 'node:path';
 import sharp from 'sharp';
 import type { GrayImage } from '../../src/lib/tools/qr-restore';
-import { DAMAGED_QR_TEXT, lowContrastNoisyQr } from '../helpers/qr-damage';
+import {
+	DAMAGED_QR_TEXT,
+	lowContrastNoisyQr,
+	seededRandom,
+} from '../helpers/qr-damage';
 import { expect, test } from './fixtures/base';
 
 async function toPng(image: GrayImage): Promise<Buffer> {
@@ -10,6 +14,14 @@ async function toPng(image: GrayImage): Promise<Buffer> {
 	})
 		.png()
 		.toBuffer();
+}
+
+/** 決定論的なノイズ画像（QRコードを含まない） */
+function noiseImage(width: number, height: number): GrayImage {
+	const random = seededRandom(7);
+	const data = new Uint8ClampedArray(width * height);
+	for (let i = 0; i < data.length; i++) data[i] = Math.floor(random() * 256);
+	return { width, height, data };
 }
 
 const NOT_A_QR = path.join(
@@ -88,7 +100,8 @@ test.describe('QRコード復元', () => {
 			JSON.stringify({ ...localStorage, ...sessionStorage }),
 		);
 		expect(stored).not.toContain(DAMAGED_QR_TEXT);
-		expect(page.url()).not.toContain('tools.codelife.cafe%2Fqr-restore');
+		expect(page.url()).not.toContain(DAMAGED_QR_TEXT);
+		expect(page.url()).not.toContain(encodeURIComponent(DAMAGED_QR_TEXT));
 	});
 
 	test('QRコードを含まない画像は、全手法を試して読み取れない旨とコツを表示する', async ({
@@ -102,6 +115,63 @@ test.describe('QRコード復元', () => {
 		await expect(failed).toContainText('読み取れませんでした');
 		await expect(failed).toContainText('13通りの補正を試しました');
 		await expect(failed).toContainText('位置検出パターン');
+	});
+
+	test('処理中は進捗（n/13・手法名）を表示し、中止すると結果を出さずに次の画像を選べる', async ({
+		page,
+		createToolPage,
+	}) => {
+		await createToolPage('qr-restore').goto();
+		// QRを含まない大きな画像は全手法を試すため、中止できるだけの時間がかかる
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'noise.png',
+			mimeType: 'image/png',
+			buffer: await toPng(noiseImage(1600, 1600)),
+		});
+		const progress = page.getByTestId('qr-restore-progress');
+		await expect(progress).toContainText(/試行中（\d+\/13）: \S+/, {
+			timeout: 30_000,
+		});
+		await progress.getByRole('button', { name: '中止' }).click();
+		await expect(progress).toHaveCount(0);
+		// 中止した処理の結果が後から表示されない
+		await page.waitForTimeout(3_000);
+		await expect(page.getByTestId('qr-restore-failed')).toHaveCount(0);
+		await expect(page.getByTestId('qr-restore-success')).toHaveCount(0);
+		await expect(page.getByRole('alert')).toHaveCount(0);
+
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'damaged-qr.png',
+			mimeType: 'image/png',
+			buffer: await toPng(lowContrastNoisyQr()),
+		});
+		await expect(page.getByTestId('qr-restore-text')).toHaveText(
+			DAMAGED_QR_TEXT,
+			{ timeout: 30_000 },
+		);
+	});
+
+	test('読み取り機能（WASM）を読み込めない場合は、読めなかったではなくエラーを表示する', async ({
+		page,
+		createToolPage,
+	}) => {
+		await page.route('**/*.wasm', (route) =>
+			route.request().url().includes('zxing_reader')
+				? route.abort()
+				: route.fallback(),
+		);
+		await createToolPage('qr-restore').goto();
+		await page.locator('input[type="file"]').setInputFiles({
+			name: 'damaged-qr.png',
+			mimeType: 'image/png',
+			buffer: await toPng(lowContrastNoisyQr()),
+		});
+		await expect(page.getByRole('alert')).toContainText(
+			'QRコードの読み取り機能を読み込めませんでした',
+			{ timeout: 30_000 },
+		);
+		await expect(page.getByTestId('qr-restore-failed')).toHaveCount(0);
+		await expect(page.getByTestId('qr-restore-progress')).toHaveCount(0);
 	});
 
 	test('非対応形式のファイルはエラーを表示し、処理を始めない', async ({
