@@ -134,12 +134,11 @@ test.describe('QRコード復元', () => {
 		});
 		await progress.getByRole('button', { name: '中止' }).click();
 		await expect(progress).toHaveCount(0);
-		// 中止した処理の結果が後から表示されない
-		await page.waitForTimeout(3_000);
 		await expect(page.getByTestId('qr-restore-failed')).toHaveCount(0);
 		await expect(page.getByTestId('qr-restore-success')).toHaveCount(0);
 		await expect(page.getByRole('alert')).toHaveCount(0);
 
+		// 次の画像を選べる。中止した処理の結果（読めなかった）が後から混ざらない
 		await page.locator('input[type="file"]').setInputFiles({
 			name: 'damaged-qr.png',
 			mimeType: 'image/png',
@@ -149,6 +148,7 @@ test.describe('QRコード復元', () => {
 			DAMAGED_QR_TEXT,
 			{ timeout: 30_000 },
 		);
+		await expect(page.getByTestId('qr-restore-failed')).toHaveCount(0);
 	});
 
 	test('読み取り機能（WASM）を読み込めない場合は、読めなかったではなくエラーを表示する', async ({
