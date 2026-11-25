@@ -298,3 +298,22 @@ test('getServiceCounts: XのURL換算は他サービスのgraphemeカウント�
 	assert.strictEqual(bluesky?.count, expectedGraphemes);
 	assert.notStrictEqual(x?.count, expectedGraphemes);
 });
+
+test('FAQの早見表どおり、全角20文字はShift-JISで40バイト、UTF-8で全角13文字は39バイトになる', () => {
+	const fullWidth20 = countChars('あ'.repeat(20));
+	assert.equal(fullWidth20.bytesShiftJis, 40);
+
+	const fullWidth13 = countChars('漢'.repeat(13));
+	assert.equal(fullWidth13.bytesUtf8, 39);
+	assert.equal(countChars('漢'.repeat(14)).bytesUtf8, 42);
+
+	const halfWidth40 = countChars('a'.repeat(40));
+	assert.equal(halfWidth40.bytesShiftJis, 40);
+	assert.equal(halfWidth40.bytesUtf8, 40);
+});
+
+test('FAQどおり、半角カナはShift-JISで1バイト・UTF-8で3バイトになる', () => {
+	const result = countChars('ｱ');
+	assert.equal(result.bytesShiftJis, 1);
+	assert.equal(result.bytesUtf8, 3);
+});

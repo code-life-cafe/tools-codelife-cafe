@@ -103,3 +103,21 @@ test('formatDummyRecords: 同じレコードをJSON/CSV/TSVへ整形しても値
 		}
 	}
 });
+
+test('FAQどおり、電話番号は090/080/070で始まるハイフン区切りの携帯番号形式になる', () => {
+	const records = generateDummyRecords(['phone'], 200);
+	for (const record of records) {
+		assert.match(String(record.phone), /^0[987]0-\d{4}-\d{4}$/);
+	}
+});
+
+test('FAQどおり、CSVはBOMなしで出力され、選んだ項目だけが列になる', () => {
+	const fields = ['address', 'phone'] as const;
+	const csv = formatDummyRecords(
+		generateDummyRecords([...fields], 3),
+		[...fields],
+		'csv',
+	);
+	assert.notEqual(csv.charCodeAt(0), 0xfeff);
+	assert.equal(csv.split('\n')[0], '住所,電話番号');
+});

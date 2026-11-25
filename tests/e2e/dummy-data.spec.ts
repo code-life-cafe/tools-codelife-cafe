@@ -62,10 +62,15 @@ test.describe('Dummy Data Generator Tool', () => {
 			Buffer.concat(chunks).toString('utf8').trim().split('\n'),
 		).toHaveLength(6);
 	});
-	test('should load the page correctly', async ({ createToolPage }) => {
+	test('should load the page correctly', async ({ page, createToolPage }) => {
 		const toolPage = createToolPage('dummy-data');
 		await toolPage.goto();
-		await toolPage.expectTitle('ダミーデータ生成（日本語） | CODE:LIFE Tools');
+		await toolPage.expectTitle(
+			'ダミーデータ作成ツール｜日本語の氏名・住所・電話番号を一括生成 | CODE:LIFE Tools',
+		);
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+			'ダミーデータ生成（日本語）',
+		);
 		await toolPage.expectSafetyBadge();
 	});
 
