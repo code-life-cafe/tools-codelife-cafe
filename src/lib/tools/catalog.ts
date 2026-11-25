@@ -1549,17 +1549,21 @@ export const purposeCategories = [
 ] as const satisfies readonly PurposeCategory[];
 // カテゴリーサマリーのチップ色（categoryColor の border-l-* と対になる bg/text クラス）
 // Tailwind の静的解析に拾わせるため、クラス名は literal で保持する
+// カテゴリチップの配色。文字色は bg-*/10 をカード背景に重ねた色に対して
+// WCAG AA（4.5:1）以上になる濃さにする。chart-* トークンはグラフでも使うため変えず、
+// 足りない色だけ文字色を個別に濃くする（ダークは足りない AI・PDF だけ明るくする）。#747
+// tests/unit/badge-contrast.test.ts で検証する。
 const categoryChipColor: Record<ToolCategory, string> = {
 	テキスト変換: 'bg-primary/10 text-primary',
-	テキスト解析: 'bg-accent/10 text-accent',
+	テキスト解析: 'bg-accent/10 text-[#0F766E] dark:text-accent',
 	開発ツール: 'bg-chart-1/10 text-chart-1',
-	生成ツール: 'bg-chart-3/10 text-chart-3',
-	ユーティリティ: 'bg-chart-2/10 text-chart-2',
+	生成ツール: 'bg-chart-3/10 text-[#047857] dark:text-chart-3',
+	ユーティリティ: 'bg-chart-2/10 text-[#0F766E] dark:text-chart-2',
 	'エンコード/デコード': 'bg-primary/10 text-primary',
-	データ処理: 'bg-chart-4/10 text-chart-4',
-	AI: 'bg-chart-5/10 text-chart-5',
-	画像: 'bg-chart-2/10 text-chart-2',
-	PDF: 'bg-destructive/10 text-destructive',
+	データ処理: 'bg-chart-4/10 text-[#92400E] dark:text-chart-4',
+	AI: 'bg-chart-5/10 text-[#B91C1C] dark:text-[#F87171]',
+	画像: 'bg-chart-2/10 text-[#0F766E] dark:text-chart-2',
+	PDF: 'bg-destructive/10 text-[#B91C1C] dark:text-[#F87171]',
 };
 
 // カテゴリID（URLクエリ `?category=<id>` で使用。#109 のパンくずリンク先にもなる）
