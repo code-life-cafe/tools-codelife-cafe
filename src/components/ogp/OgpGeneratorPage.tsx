@@ -49,6 +49,7 @@ function ColorField({
 			<div className="flex items-center gap-2">
 				<input
 					type="color"
+					aria-label={`${label}（色を選ぶ）`}
 					value={pickerValue}
 					onChange={(e) => onChange(e.target.value)}
 					className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-border bg-transparent p-0.5"

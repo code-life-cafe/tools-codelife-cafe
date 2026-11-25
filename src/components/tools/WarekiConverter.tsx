@@ -205,6 +205,7 @@ export default function WarekiConverter() {
 					{direction === 'toWareki' ? '西暦 → 和暦' : '和暦 → 西暦'}
 				</Label>
 				<Switch
+					aria-label="和暦から西暦への変換に切り替える（オフで西暦から和暦）"
 					checked={direction === 'toSeireki'}
 					onCheckedChange={(checked) =>
 						setDirection(checked ? 'toSeireki' : 'toWareki')
@@ -218,10 +219,14 @@ export default function WarekiConverter() {
 				{direction === 'toWareki' ? (
 					<>
 						<div className="sm:col-span-6">
-							<Label className="text-sm font-medium mb-2 block">
+							<Label
+								htmlFor="wareki-seireki-year"
+								className="text-sm font-medium mb-2 block"
+							>
 								西暦（年）
 							</Label>
 							<Input
+								id="wareki-seireki-year"
 								type="number"
 								inputMode="numeric"
 								step={1}

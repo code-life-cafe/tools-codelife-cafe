@@ -240,14 +240,20 @@ export default function SqlFormatter() {
 			{/* Options Toolbar */}
 			<div className="flex flex-wrap items-center gap-4 bg-muted/30 p-4 rounded-xl border">
 				<div>
-					<Label className="text-xs mb-1 block text-muted-foreground">
+					<Label
+						htmlFor="sql-formatter-dialect"
+						className="text-xs mb-1 block text-muted-foreground"
+					>
 						SQL方言
 					</Label>
 					<Select
 						value={dialect}
 						onValueChange={(v) => updateSettings({ dialect: v as SqlDialect })}
 					>
-						<SelectTrigger className="w-[140px] h-8 rounded-lg bg-background">
+						<SelectTrigger
+							id="sql-formatter-dialect"
+							className="w-[140px] h-8 rounded-lg bg-background"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -262,7 +268,10 @@ export default function SqlFormatter() {
 
 				{!compress && (
 					<div>
-						<Label className="text-xs mb-1 block text-muted-foreground">
+						<Label
+							htmlFor="sql-formatter-indent"
+							className="text-xs mb-1 block text-muted-foreground"
+						>
 							インデント
 						</Label>
 						<Select
@@ -271,7 +280,10 @@ export default function SqlFormatter() {
 								updateSettings({ indent: v as IndentStyle })
 							}
 						>
-							<SelectTrigger className="w-[120px] h-8 rounded-lg bg-background">
+							<SelectTrigger
+								id="sql-formatter-indent"
+								className="w-[120px] h-8 rounded-lg bg-background"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>

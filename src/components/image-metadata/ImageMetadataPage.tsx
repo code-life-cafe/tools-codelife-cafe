@@ -143,7 +143,7 @@ export function ImageMetadataPage() {
 				<h2 className="font-semibold">出力設定</h2>
 				<div className="mt-4 grid gap-4 md:grid-cols-3">
 					<div className="space-y-2">
-						<Label>出力形式</Label>
+						<Label htmlFor="image-metadata-format">出力形式</Label>
 						<Select
 							value={options.format}
 							onValueChange={(value) =>
@@ -153,7 +153,7 @@ export function ImageMetadataPage() {
 								}))
 							}
 						>
-							<SelectTrigger>
+							<SelectTrigger id="image-metadata-format">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -180,8 +180,9 @@ export function ImageMetadataPage() {
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label>JPEG背景色</Label>
+						<Label htmlFor="image-metadata-background">JPEG背景色</Label>
 						<Input
+							id="image-metadata-background"
 							type="color"
 							value={options.background}
 							onChange={(event) =>

@@ -57,7 +57,8 @@
     --secondary: #F5F5F4;
     --secondary-foreground: #1C1917;
     --muted: #F5F5F4;
-    --muted-foreground: #78716C;
+    /* bg-muted（#F5F5F4）上でも4.5:1以上（WCAG AA）になる濃さ。#746 */
+    --muted-foreground: #6B645F;
     --accent: #0D9488;
     --accent-foreground: #FFFFFF;
     --destructive: #DC2626;

@@ -192,8 +192,9 @@ export default function CharCount() {
 							size="sm"
 							onClick={() => setText('')}
 							disabled={!text}
+							aria-label="入力テキストをクリア"
 						>
-							<Trash2 className="h-4 w-4 sm:mr-1" />
+							<Trash2 className="h-4 w-4 sm:mr-1" aria-hidden="true" />
 							<span className="hidden sm:inline">クリア</span>
 						</Button>
 					</div>
