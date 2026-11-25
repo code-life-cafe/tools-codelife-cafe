@@ -89,6 +89,7 @@ export default function UrlEncoder() {
 						ENCODE
 					</Label>
 					<Switch
+						aria-label="デコードに切り替える（オフでエンコード）"
 						checked={direction === 'decode'}
 						onCheckedChange={(checked) =>
 							setDirection(checked ? 'decode' : 'encode')

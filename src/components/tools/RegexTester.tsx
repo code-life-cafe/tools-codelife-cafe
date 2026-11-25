@@ -242,7 +242,10 @@ export default function RegexTester() {
 										}
 									}}
 								>
-									<SelectTrigger className="w-[180px] h-8 text-xs rounded-xl">
+									<SelectTrigger
+										aria-label="よく使うパターンから選ぶ"
+										className="w-[180px] h-8 text-xs rounded-xl"
+									>
 										<SelectValue placeholder="よく使うパターン" />
 									</SelectTrigger>
 									<SelectContent>

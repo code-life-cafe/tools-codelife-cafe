@@ -135,14 +135,20 @@ export default function Masking() {
 			<div className="bg-muted/30 p-4 rounded-xl border space-y-4">
 				<div className="flex flex-wrap items-center gap-6">
 					<div>
-						<Label className="text-xs mb-1 block text-muted-foreground">
+						<Label
+							htmlFor="masking-mask-char"
+							className="text-xs mb-1 block text-muted-foreground"
+						>
 							マスク文字
 						</Label>
 						<Select
 							value={maskChar}
 							onValueChange={(v) => setMaskChar(v as MaskChar)}
 						>
-							<SelectTrigger className="w-[100px] h-8 rounded-lg bg-background">
+							<SelectTrigger
+								id="masking-mask-char"
+								className="w-[100px] h-8 rounded-lg bg-background"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -153,14 +159,20 @@ export default function Masking() {
 					</div>
 
 					<div>
-						<Label className="text-xs mb-1 block text-muted-foreground">
+						<Label
+							htmlFor="masking-strength"
+							className="text-xs mb-1 block text-muted-foreground"
+						>
 							強度
 						</Label>
 						<Select
 							value={strength}
 							onValueChange={(v) => setStrength(v as MaskStrength)}
 						>
-							<SelectTrigger className="w-[140px] h-8 rounded-lg bg-background">
+							<SelectTrigger
+								id="masking-strength"
+								className="w-[140px] h-8 rounded-lg bg-background"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -240,7 +252,10 @@ export default function Masking() {
 				{/* Output */}
 				<div>
 					<div className="flex items-center justify-between mb-2">
-						<Label className="text-sm font-medium flex items-center gap-2">
+						<Label
+							htmlFor="masking-output-textarea"
+							className="text-sm font-medium flex items-center gap-2"
+						>
 							マスキング後
 							{totalMasked > 0 && (
 								<span className="text-xs text-green-600 font-normal">
