@@ -30,7 +30,7 @@ test.describe('Character Counter', () => {
 		);
 		await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 			'content',
-			'文字数カウントとバイト数計算が同時にできる無料ツール。Shift-JIS・UTF-8のバイト数、空白を除く文字数、行数を入力と同時にリアルタイム表示。入力内容はブラウザ内だけで処理し、外部サーバーには一切送信しません。',
+			'全角・半角のバイト数（Shift-JIS/UTF-8）と文字数を同時に計算できる無料ツール。Shift-JISなら全角1文字＝2バイト、40バイトは全角20文字。空白を除く文字数・行数も入力と同時に表示し、入力内容は外部に送信しません。',
 		);
 		await expect(page.getByRole('heading', { level: 1 })).toHaveText(
 			'文字数カウント・バイト数計算（Shift-JIS対応）',
@@ -45,6 +45,14 @@ test.describe('Character Counter', () => {
 		await toolPage.goto();
 
 		const newFaqs = [
+			{
+				question: '40バイトは全角何文字？',
+				answerFragment: '40バイトは全角20文字、半角なら40文字',
+			},
+			{
+				question: '日本語1文字は何バイト？',
+				answerFragment: '半角英数字と半角カナが1バイト',
+			},
 			{
 				question: '全角と半角でバイト数はどう変わる？',
 				// frontmatterの回答文中の特徴的な一部（docs/content/tools/char-count.md参照）
