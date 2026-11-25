@@ -121,3 +121,21 @@ test('FAQどおり、CSVはBOMなしで出力され、選んだ項目だけが�
 	assert.notEqual(csv.charCodeAt(0), 0xfeff);
 	assert.equal(csv.split('\n')[0], '住所,電話番号');
 });
+
+test('FAQどおり、住所は北海道・東京都・神奈川県・愛知県・大阪府・福岡県のいずれかから生成される', () => {
+	const prefectures = [
+		'北海道',
+		'東京都',
+		'神奈川県',
+		'愛知県',
+		'大阪府',
+		'福岡県',
+	];
+	for (const record of generateDummyRecords(['address'], 300)) {
+		const address = String(record.address);
+		assert.ok(
+			prefectures.some((pref) => address.startsWith(pref)),
+			`想定外の住所: ${address}`,
+		);
+	}
+});
