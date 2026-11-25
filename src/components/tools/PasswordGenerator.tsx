@@ -37,12 +37,13 @@ const LEVEL_BAR_CLASSES: Record<StrengthLevel, string> = {
 	4: 'bg-emerald-600',
 };
 
+// ライトの文字色は白いカード上で4.5:1以上（WCAG AA）になる濃さ。#747
 const LEVEL_TEXT_CLASSES: Record<StrengthLevel, string> = {
 	0: 'text-destructive',
-	1: 'text-orange-600 dark:text-orange-400',
-	2: 'text-amber-600 dark:text-amber-400',
-	3: 'text-emerald-600 dark:text-emerald-400',
-	4: 'text-emerald-700 dark:text-emerald-400',
+	1: 'text-[#C2410C] dark:text-orange-400',
+	2: 'text-[#B45309] dark:text-amber-400',
+	3: 'text-[#047857] dark:text-emerald-400',
+	4: 'text-[#047857] dark:text-emerald-400',
 };
 
 function StrengthMeter({ level }: { level: StrengthLevel }) {

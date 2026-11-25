@@ -136,9 +136,11 @@ export function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 					{getMaxFileSize().toLocaleString('ja-JP')}
 					バイト）。大きなファイルは分割してから選択してください。
 				</p>
-				<div className="mt-4 flex items-center justify-center w-full max-w-xs opacity-50">
+				<div className="mt-4 flex items-center justify-center w-full max-w-xs">
 					<div className="h-px bg-border flex-1"></div>
-					<span className="px-3 text-xs uppercase tracking-wider">or</span>
+					<span className="px-3 text-xs uppercase tracking-wider text-muted-foreground">
+						or
+					</span>
 					<div className="h-px bg-border flex-1"></div>
 				</div>
 
