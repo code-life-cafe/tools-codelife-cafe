@@ -493,14 +493,20 @@ export default function CsvEditor() {
 			<div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/30 p-4 rounded-xl border">
 				<div className="flex items-center gap-4 flex-wrap">
 					<div>
-						<Label className="text-xs mb-1 block text-muted-foreground">
+						<Label
+							htmlFor="csv-editor-delimiter"
+							className="text-xs mb-1 block text-muted-foreground"
+						>
 							区切り文字
 						</Label>
 						<Select
 							value={delimiter}
 							onValueChange={(v) => updateSettings({ delimiter: v })}
 						>
-							<SelectTrigger className="w-[140px] h-8 rounded-lg bg-background">
+							<SelectTrigger
+								id="csv-editor-delimiter"
+								className="w-[140px] h-8 rounded-lg bg-background"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>

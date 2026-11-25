@@ -200,7 +200,10 @@ export default function DummyDataGenerator() {
 									<ListPlus className="h-4 w-4" /> フィールド設定
 								</Label>
 								<Select onValueChange={applyPreset}>
-									<SelectTrigger className="w-[120px] h-7 text-xs rounded">
+									<SelectTrigger
+										aria-label="フィールドのプリセットを選ぶ"
+										className="w-[120px] h-7 text-xs rounded"
+									>
 										<SelectValue placeholder="プリセット" />
 									</SelectTrigger>
 									<SelectContent>
@@ -251,10 +254,14 @@ export default function DummyDataGenerator() {
 					<Card className="rounded-xl border-2">
 						<CardContent className="p-4 space-y-4">
 							<div>
-								<Label className="font-semibold text-sm mb-2 block">
+								<Label
+									htmlFor="dummy-data-count"
+									className="font-semibold text-sm mb-2 block"
+								>
 									生成件数 (1〜1000)
 								</Label>
 								<Input
+									id="dummy-data-count"
 									type="number"
 									min={1}
 									max={1000}

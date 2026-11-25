@@ -514,7 +514,7 @@ export function MermaidPreviewPage() {
 							サンプル:
 						</span>
 						<Select onValueChange={handleSelectSample}>
-							<SelectTrigger className="h-8 w-36 text-xs">
+							<SelectTrigger aria-label="サンプル" className="h-8 w-36 text-xs">
 								<SelectValue placeholder="図を選択" />
 							</SelectTrigger>
 							<SelectContent>
@@ -540,7 +540,7 @@ export function MermaidPreviewPage() {
 								})
 							}
 						>
-							<SelectTrigger className="h-8 w-32 text-xs">
+							<SelectTrigger aria-label="テーマ" className="h-8 w-32 text-xs">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>

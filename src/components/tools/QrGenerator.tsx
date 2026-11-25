@@ -125,14 +125,16 @@ export default function QrGenerator() {
 				{/* Options */}
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 					<div>
-						<Label className="text-sm mb-2 block">サイズ</Label>
+						<Label htmlFor="qr-generator-size" className="text-sm mb-2 block">
+							サイズ
+						</Label>
 						<Select
 							value={String(options.size)}
 							onValueChange={(v) =>
 								setOptions((prev) => ({ ...prev, size: Number(v) as QRSize }))
 							}
 						>
-							<SelectTrigger className="rounded-xl">
+							<SelectTrigger id="qr-generator-size" className="rounded-xl">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -143,7 +145,12 @@ export default function QrGenerator() {
 						</Select>
 					</div>
 					<div>
-						<Label className="text-sm mb-2 block">エラー訂正レベル</Label>
+						<Label
+							htmlFor="qr-generator-error-correction"
+							className="text-sm mb-2 block"
+						>
+							エラー訂正レベル
+						</Label>
 						<Select
 							value={options.errorCorrection}
 							onValueChange={(v) =>
@@ -153,7 +160,10 @@ export default function QrGenerator() {
 								}))
 							}
 						>
-							<SelectTrigger className="rounded-xl">
+							<SelectTrigger
+								id="qr-generator-error-correction"
+								className="rounded-xl"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
@@ -165,10 +175,16 @@ export default function QrGenerator() {
 						</Select>
 					</div>
 					<div>
-						<Label className="text-sm mb-2 block">前景色</Label>
+						<Label
+							htmlFor="qr-generator-foreground"
+							className="text-sm mb-2 block"
+						>
+							前景色
+						</Label>
 						<div className="flex items-center gap-2">
 							<input
 								type="color"
+								aria-label="前景色（色を選ぶ）"
 								value={options.foregroundColor}
 								onChange={(e) =>
 									setOptions((prev) => ({
@@ -179,6 +195,7 @@ export default function QrGenerator() {
 								className="h-10 w-10 min-w-10 rounded border border-border cursor-pointer p-0.5"
 							/>
 							<Input
+								id="qr-generator-foreground"
 								value={options.foregroundColor}
 								onChange={(e) =>
 									setOptions((prev) => ({
@@ -191,10 +208,16 @@ export default function QrGenerator() {
 						</div>
 					</div>
 					<div>
-						<Label className="text-sm mb-2 block">背景色</Label>
+						<Label
+							htmlFor="qr-generator-background"
+							className="text-sm mb-2 block"
+						>
+							背景色
+						</Label>
 						<div className="flex items-center gap-2">
 							<input
 								type="color"
+								aria-label="背景色（色を選ぶ）"
 								value={options.backgroundColor}
 								onChange={(e) =>
 									setOptions((prev) => ({
@@ -205,6 +228,7 @@ export default function QrGenerator() {
 								className="h-10 w-10 min-w-10 rounded border border-border cursor-pointer p-0.5"
 							/>
 							<Input
+								id="qr-generator-background"
 								value={options.backgroundColor}
 								onChange={(e) =>
 									setOptions((prev) => ({
