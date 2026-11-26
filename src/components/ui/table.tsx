@@ -2,11 +2,28 @@ import type * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-function Table({ className, ...props }: React.ComponentProps<'table'>) {
+function Table({
+	className,
+	scrollRegionLabel,
+	...props
+}: React.ComponentProps<'table'> & {
+	/**
+	 * 横スクロールしうる表に付ける名前。指定すると枠がTabで止まる名前付きの領域になり、
+	 * キーボードの矢印キーで横スクロールできる（axe scrollable-region-focusable、#747）。
+	 */
+	scrollRegionLabel?: string;
+}) {
 	return (
 		<div
 			data-slot="table-container"
-			className="relative w-full overflow-x-auto"
+			className={cn(
+				'relative w-full overflow-x-auto',
+				scrollRegionLabel &&
+					'rounded-[inherit] outline-none focus-visible:ring-2 focus-visible:ring-ring',
+			)}
+			{...(scrollRegionLabel
+				? { role: 'region', 'aria-label': scrollRegionLabel, tabIndex: 0 }
+				: {})}
 		>
 			<table
 				data-slot="table"

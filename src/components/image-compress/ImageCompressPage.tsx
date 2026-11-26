@@ -303,7 +303,7 @@ export function ImageCompressPage() {
 
 					{completionText && !processing && (
 						<div
-							className="flex items-start gap-2 rounded-lg border border-safety/30 bg-safety/10 p-3 text-sm text-safety"
+							className="flex items-start gap-2 rounded-lg border border-safety/30 bg-safety/10 p-3 text-sm text-[#047857] dark:text-safety"
 							role="status"
 							aria-live="polite"
 							data-testid="compress-completion"

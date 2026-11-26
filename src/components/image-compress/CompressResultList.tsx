@@ -151,7 +151,7 @@ export function CompressResultList({
 												削減なし
 											</Badge>
 										) : (
-											<Badge className="bg-safety/15 text-safety border-safety/30">
+											<Badge className="bg-safety/15 text-[#047857] dark:text-safety border-safety/30">
 												-{reduction}%
 											</Badge>
 										)}

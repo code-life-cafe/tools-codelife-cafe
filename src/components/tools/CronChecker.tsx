@@ -338,7 +338,10 @@ export default function CronChecker() {
 							</div>
 						</div>
 						<div className="overflow-x-auto rounded-xl border">
-							<Table data-testid="cron-next-runs">
+							<Table
+								data-testid="cron-next-runs"
+								scrollRegionLabel="次回実行日時の一覧"
+							>
 								<TableHeader>
 									<TableRow>
 										<TableHead>#</TableHead>

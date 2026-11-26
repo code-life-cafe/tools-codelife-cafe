@@ -352,12 +352,28 @@ export default function DummyDataGenerator() {
 								左側のパネルから出力したいフィールドを選択してください
 							</div>
 						) : format === 'json' ? (
-							<pre className="p-4 font-mono-tool text-sm text-foreground overflow-auto flex-1 h-full shimmer">
+							// biome-ignore lint/a11y/useSemanticElements: <pre> の整形表示を保ったまま名前付きの領域にする（#747）
+							<pre
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: 横スクロールする出力にキーボードで入るため（#747）
+								tabIndex={0}
+								role="region"
+								aria-label="生成データのプレビュー"
+								data-testid="dummy-data-preview"
+								className="p-4 font-mono-tool text-sm text-foreground overflow-auto flex-1 h-full shimmer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+							>
 								{JSON.stringify(previewData, null, 2)}
 								{count > 20 && '\n\n... (表示のみ20件に制限)'}
 							</pre>
 						) : previewData[0]?.__previewText ? (
-							<pre className="p-4 font-mono-tool text-sm text-foreground overflow-auto flex-1 h-full shimmer">
+							// biome-ignore lint/a11y/useSemanticElements: <pre> の整形表示を保ったまま名前付きの領域にする（#747）
+							<pre
+								// biome-ignore lint/a11y/noNoninteractiveTabindex: 横スクロールする出力にキーボードで入るため（#747）
+								tabIndex={0}
+								role="region"
+								aria-label="生成データのプレビュー"
+								data-testid="dummy-data-preview"
+								className="p-4 font-mono-tool text-sm text-foreground overflow-auto flex-1 h-full shimmer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+							>
 								{previewData[0].__previewText}
 								{count > 20 && '\n... (表示のみ20件に制限)'}
 							</pre>

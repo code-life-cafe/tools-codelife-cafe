@@ -26,6 +26,7 @@ const CASES: { slug: string; controls: Control[]; colorInputs?: string[] }[] = [
 		controls: [
 			{ role: 'combobox', name: 'マスク文字' },
 			{ role: 'combobox', name: '強度' },
+			{ role: 'textbox', name: '元のテキスト' },
 			{ role: 'textbox', name: /^マスキング後/ },
 		],
 	},
@@ -44,6 +45,7 @@ const CASES: { slug: string; controls: Control[]; colorInputs?: string[] }[] = [
 	{
 		slug: 'qr-generator',
 		controls: [
+			{ role: 'textbox', name: 'URLまたはテキスト' },
 			{ role: 'combobox', name: 'サイズ' },
 			{ role: 'combobox', name: 'エラー訂正レベル' },
 			{ role: 'textbox', name: '前景色' },
@@ -143,5 +145,59 @@ test.describe('Accessibility: 操作部品のアクセシブルな名前', () =>
 			});
 			expect(unnamed, `/${slug}/ に名前のない部品があります`).toEqual([]);
 		}
+	});
+	test('/wareki-converter/ は和暦→西暦に切り替えた後の部品も名前で取得できる（#747）', async ({
+		page,
+	}) => {
+		await page.goto('/wareki-converter/');
+		await expect(page.locator('astro-island[ssr][client="load"]')).toHaveCount(
+			0,
+		);
+		await page
+			.getByRole('switch', {
+				name: '和暦から西暦への変換に切り替える（オフで西暦から和暦）',
+			})
+			.click();
+		for (const [role, name] of [
+			['textbox', '和暦（例: 昭和45年 / S45 / 令和元年）'],
+			['combobox', '月（任意）'],
+			['combobox', '日（任意）'],
+		] as const) {
+			await expect(page.getByRole(role, { name, exact: true })).toBeVisible();
+		}
+	});
+
+	// 横スクロールする領域に、Tabで入って矢印キーでスクロールできること（#747、axe scrollable-region-focusable）
+	test('/cron-checker/ の次回実行日時の表にTabで入り、矢印キーで横スクロールできる', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 360, height: 800 });
+		await page.goto('/cron-checker/');
+		const region = page.getByRole('region', { name: '次回実行日時の一覧' });
+		await expect(region).toBeVisible();
+		await expect(region).toHaveAttribute('tabindex', '0');
+		await expect
+			.poll(() => region.evaluate((el) => el.scrollWidth > el.clientWidth))
+			.toBe(true);
+		await region.focus();
+		await expect(region).toBeFocused();
+		await page.keyboard.press('ArrowRight');
+		await expect
+			.poll(() => region.evaluate((el) => el.scrollLeft))
+			.toBeGreaterThan(0);
+	});
+
+	test('/dummy-data/ の生成データのプレビューにTabで入れる', async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 360, height: 800 });
+		await page.goto('/dummy-data/');
+		const preview = page.getByRole('region', {
+			name: '生成データのプレビュー',
+		});
+		await expect(preview).toBeVisible();
+		await expect(preview).toHaveAttribute('tabindex', '0');
+		await preview.focus();
+		await expect(preview).toBeFocused();
 	});
 });

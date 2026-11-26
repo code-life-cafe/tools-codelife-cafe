@@ -217,7 +217,12 @@ export default function Masking() {
 				{/* Input */}
 				<div>
 					<div className="flex items-center justify-between mb-2">
-						<Label className="text-sm font-medium">元のテキスト</Label>
+						<Label
+							htmlFor="masking-input-textarea"
+							className="text-sm font-medium"
+						>
+							元のテキスト
+						</Label>
 						<Button
 							variant="ghost"
 							size="sm"

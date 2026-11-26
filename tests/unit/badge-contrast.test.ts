@@ -180,3 +180,33 @@ test('パスワード強度の文字色がライトのカード背景上で4.5:1
 		);
 	}
 });
+
+test('画像変換・圧縮の完了表示と削減率バッジの文字がカード背景上で4.5:1以上', () => {
+	// 処理後にだけ出るため、初回の axe 点検では検出されなかった箇所（#747 のコメント）
+	const sources: Array<[string, RegExp]> = [
+		[
+			'src/components/image-convert/ImageConvertPage.tsx',
+			/className="([^"]*bg-safety\/10[^"]*)"\s+role="status"/,
+		],
+		[
+			'src/components/image-compress/ImageCompressPage.tsx',
+			/className="([^"]*bg-safety\/10[^"]*)"\s+role="status"/,
+		],
+		[
+			'src/components/image-compress/CompressResultList.tsx',
+			/<Badge className="([^"]*bg-safety\/15[^"]*)">/,
+		],
+	];
+	for (const [file, re] of sources) {
+		const m = read(file).match(re);
+		assert.ok(m, `${file} に安全色の表示があること`);
+		for (const mode of modes) {
+			const card = readCssVar(mode, 'card');
+			assertContrast(
+				`${file} ${mode}`,
+				resolveTextColor(m[1], mode),
+				resolveTintedBg(m[1], mode, card),
+			);
+		}
+	}
+});

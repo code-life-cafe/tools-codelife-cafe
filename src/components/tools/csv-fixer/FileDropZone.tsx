@@ -91,20 +91,14 @@ export function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 		}
 	};
 
-	const handleKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === 'Enter' || e.key === ' ') {
-			e.preventDefault();
-			fileInputRef.current?.click();
-		}
-	};
-
 	return (
 		<div className="w-full">
-			{/* biome-ignore lint/a11y/useSemanticElements: file drop zone needs drag events */}
+			{/* 操作部品は中の「ファイルを選択」ボタンだけにする（入れ子の操作部品を作らない、#747）。
+			    枠のクリックとドロップはマウス利用者向けの補助で、キーボードはボタンで操作する。 */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: drop zone; keyboard users use the inner button */}
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: the inner button handles Enter/Space */}
 			<div
-				role="button"
-				tabIndex={disabled || isProcessing ? -1 : 0}
-				aria-label="CSVファイルを選択またはドラッグ＆ドロップ"
+				data-testid="csv-drop-zone"
 				className={cn(
 					'relative w-full rounded-xl border-2 border-dashed p-12 transition-all duration-200 flex flex-col items-center justify-center text-center outline-none focus-visible:ring-2 focus-visible:ring-primary',
 					isDragging
@@ -119,7 +113,6 @@ export function FileDropZone({ onFileLoaded, disabled }: FileDropZoneProps) {
 				onClick={() =>
 					!disabled && !isProcessing && fileInputRef.current?.click()
 				}
-				onKeyDown={handleKeyDown}
 			>
 				<UploadCloud
 					className={cn(
