@@ -111,10 +111,14 @@ export default function QrGenerator() {
 			<div className="lg:col-span-7 space-y-6">
 				{/* Input */}
 				<div>
-					<Label className="text-sm font-medium mb-2 block">
+					<Label
+						htmlFor="qr-generator-text"
+						className="text-sm font-medium mb-2 block"
+					>
 						URLまたはテキスト
 					</Label>
 					<Input
+						id="qr-generator-text"
 						value={text}
 						onChange={(e) => setText(e.target.value)}
 						placeholder="https://tools.codelife.cafe"

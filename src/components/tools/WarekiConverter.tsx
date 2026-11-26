@@ -246,10 +246,14 @@ export default function WarekiConverter() {
 				) : (
 					<>
 						<div className="sm:col-span-6">
-							<Label className="text-sm font-medium mb-2 block">
+							<Label
+								htmlFor="wareki-wareki-input"
+								className="text-sm font-medium mb-2 block"
+							>
 								和暦（例: 昭和45年 / S45 / 令和元年）
 							</Label>
 							<Input
+								id="wareki-wareki-input"
 								type="text"
 								value={warekiInput}
 								onChange={(e) => setWarekiInput(e.target.value)}

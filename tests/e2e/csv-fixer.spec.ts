@@ -13,7 +13,7 @@ test.describe('CSV文字化け修復ツール', () => {
 	test('Shift_JISファイルが正しく検出・変換されること', async ({ page }) => {
 		// Check elements exist
 		await expect(
-			page.getByRole('button', { name: /CSVファイルを選択またはドラッグ/ }),
+			page.getByRole('button', { name: 'ファイルを選択', exact: true }),
 		).toBeVisible();
 
 		// Setup file to upload
@@ -282,6 +282,42 @@ test.describe('CSV文字化け修復ツール', () => {
 			page.getByText(
 				'変換中にエラーが発生しました。エンコーディングを変更して再度お試しください。',
 			),
+		).toBeVisible();
+	});
+	test('ドロップゾーンに入れ子の操作部品がなく、キーボード・クリック・ドロップで選べる（#747）', async ({
+		page,
+	}) => {
+		const zone = page.getByTestId('csv-drop-zone');
+		const selectButton = page.getByRole('button', {
+			name: 'ファイルを選択',
+			exact: true,
+		});
+		// 枠自体は操作部品ではなく、中のボタンだけがフォーカスを受ける
+		await expect(zone).not.toHaveAttribute('role');
+		await expect(zone).not.toHaveAttribute('tabindex');
+		await expect(page.locator('[role="button"] button')).toHaveCount(0);
+
+		for (const key of ['Enter', ' ']) {
+			await selectButton.focus();
+			const chooser = page.waitForEvent('filechooser');
+			await page.keyboard.press(key);
+			await chooser;
+		}
+
+		const clickChooser = page.waitForEvent('filechooser');
+		await zone.click({ position: { x: 10, y: 10 } });
+		await clickChooser;
+
+		const dataTransfer = await page.evaluateHandle(() => {
+			const dt = new DataTransfer();
+			dt.items.add(
+				new File(['名前,値\nドロップ,1'], 'drop.csv', { type: 'text/csv' }),
+			);
+			return dt;
+		});
+		await zone.dispatchEvent('drop', { dataTransfer });
+		await expect(
+			page.getByRole('cell', { name: 'ドロップ', exact: true }),
 		).toBeVisible();
 	});
 });
