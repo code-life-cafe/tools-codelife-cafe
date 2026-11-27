@@ -1,5 +1,5 @@
 import { Info } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import AutosaveToggle from '@/components/qr-reader/AutosaveToggle';
 import BeepToggle from '@/components/qr-reader/BeepToggle';
 import CameraScanner from '@/components/qr-reader/CameraScanner';
@@ -17,6 +17,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import { tabsSharedPanelProps } from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	addResult,
@@ -41,6 +42,7 @@ const SCAN_TOAST_DURATION_MS = 1000;
 export default function QrReader() {
 	const { trackRun } = useToolAnalytics('qr-reader');
 	const [mode, setMode] = useState<ScanMode>('camera');
+	const modeTabsId = useId();
 	const [results, setResults] = useState<ScanResult[]>([]);
 	const [autosave, setAutosave] = useState(false);
 	const [beepEnabled, setBeepEnabled] = useState(false);
@@ -176,9 +178,9 @@ export default function QrReader() {
 				</div>
 			</div>
 
-			<ModeTabs mode={mode} onModeChange={setMode} />
+			<ModeTabs mode={mode} onModeChange={setMode} panelIdBase={modeTabsId} />
 
-			<div className="relative">
+			<div {...tabsSharedPanelProps(modeTabsId, mode)} className="relative">
 				{mode === 'camera' ? (
 					<CameraScanner
 						key="camera"

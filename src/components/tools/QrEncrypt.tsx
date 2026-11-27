@@ -10,7 +10,7 @@ import {
 	QrCode as QrCodeIcon,
 	RotateCcw,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import CameraScanner from '@/components/qr-reader/CameraScanner';
 import ImageUploader from '@/components/qr-reader/ImageUploader';
@@ -25,7 +25,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -445,6 +451,7 @@ function EncryptTab() {
 function DecryptTab() {
 	const { trackRun } = useToolAnalytics('qr-encrypt');
 	const [mode, setMode] = useState<ScanMode>('camera');
+	const modeTabsId = useId();
 	const [scannedPayload, setScannedPayload] = useState('');
 	const [passphrase, setPassphrase] = useState('');
 	const [processing, setProcessing] = useState(false);
@@ -491,8 +498,12 @@ function DecryptTab() {
 		<div className="space-y-6">
 			{!scannedPayload ? (
 				<>
-					<ModeTabs mode={mode} onModeChange={setMode} />
-					<div>
+					<ModeTabs
+						mode={mode}
+						onModeChange={setMode}
+						panelIdBase={modeTabsId}
+					/>
+					<div {...tabsSharedPanelProps(modeTabsId, mode)}>
 						{mode === 'camera' ? (
 							<CameraScanner
 								key="camera"

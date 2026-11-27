@@ -2,11 +2,12 @@
 // 状態: 読み込みフェーズ / マスク領域（undo/redo履歴付き） / 選択 / モード / 強度
 
 import { ImagePlus, Maximize2, Minimize2, X } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { ExportBar } from '@/components/common/ExportBar';
 import { ImageDropzone } from '@/components/common/ImageDropzone';
 import { useHistoryState } from '@/components/common/useHistoryState';
 import { Button } from '@/components/ui/button';
+import { tabsSharedPanelProps } from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -115,6 +116,8 @@ export default function ImageMosaicPage() {
 			? selectedRegion
 			: null;
 	const activeShape = selectedMaskRegion?.shape ?? shape;
+	const modeTabsId = useId();
+	const shapeTabsId = useId();
 	const activeStrength = isMaskEffectMode(activeMode)
 		? (selectedMaskRegion?.strength ?? strengths[activeMode])
 		: strengths.mosaic;
@@ -453,22 +456,30 @@ export default function ImageMosaicPage() {
 						onRedo={regions.redo}
 						onReset={handleReset}
 						editingRegion={selectedRegion !== null}
+						modePanelIdBase={modeTabsId}
+						shapePanelIdBase={shapeTabsId}
 					/>
 					<p className="text-xs text-muted-foreground">
 						キャンバス上をドラッグして、モザイク・ぼかし範囲またはスタンプ配置範囲を選択してください。モザイク・ぼかしは四角形/円形を切り替えられます。領域をクリックすると選択でき、Deleteキーまたは✕ボタンで削除できます。キーボードでは、下の「キーボードで範囲を指定・選択する」から位置とサイズを入力して追加・選択できます。
 					</p>
-					<div>
-						<CanvasEditor
-							source={phase.source}
-							regions={regions.state}
-							selectedId={selectedId}
-							onAddRegion={handleAddRegion}
-							onSelectRegion={setSelectedId}
-							onDeleteRegion={handleDeleteRegion}
-							drawingMode={activeMode}
-							drawingShape={activeShape}
-							fullSize={isExpanded}
-						/>
+					<div {...tabsSharedPanelProps(modeTabsId, activeMode)}>
+						<div
+							{...(isMaskEffectMode(activeMode)
+								? tabsSharedPanelProps(shapeTabsId, activeShape)
+								: {})}
+						>
+							<CanvasEditor
+								source={phase.source}
+								regions={regions.state}
+								selectedId={selectedId}
+								onAddRegion={handleAddRegion}
+								onSelectRegion={setSelectedId}
+								onDeleteRegion={handleDeleteRegion}
+								drawingMode={activeMode}
+								drawingShape={activeShape}
+								fullSize={isExpanded}
+							/>
+						</div>
 					</div>
 					<RegionKeyboardPanel
 						key={`${phase.fileName}-${editingSize.width}x${editingSize.height}`}

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test } from './fixtures/base';
+import { findTabPanelProblems } from './helpers/tab-panels';
 
 const FIXTURES = path.join(process.cwd(), 'tests', 'e2e', 'fixtures');
 const PNG_512 = path.join(FIXTURES, 'favicon-512.png');
@@ -92,6 +93,26 @@ test.describe('ファビコン生成', () => {
 		// 再生成され object URL が更新される（プレビューに反映）
 		await expect(homeIcon).not.toHaveAttribute('src', before ?? '');
 		await expect(homeIcon).toHaveAttribute('src', /^blob:/);
+	});
+
+	// 収め方のタブはプレビューをパネルとして指す（#747、axe aria-valid-attr-value）
+	test('収め方のタブがプレビューのパネルを指し、矢印キーで切り替えられる', async ({
+		page,
+	}) => {
+		await uploadAndWait(page, NON_SQUARE);
+		expect(await findTabPanelProblems(page)).toEqual([]);
+
+		await page.getByRole('tab', { name: '余白をつける' }).focus();
+		await page.keyboard.press('ArrowRight');
+		const crop = page.getByRole('tab', { name: '中央をクロップ' });
+		await expect(crop).toHaveAttribute('aria-selected', 'true');
+		await expect(crop).toBeFocused();
+		expect(await findTabPanelProblems(page)).toEqual([]);
+		await expect(
+			page
+				.getByRole('tabpanel', { name: '中央をクロップ' })
+				.getByTestId('favicon-preview'),
+		).toBeVisible();
 	});
 
 	test('アプリ名を連続入力してもフォーカスが外れない', async ({ page }) => {

@@ -42,7 +42,7 @@ test.describe('消費税・税込計算ツール', () => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
 
-		await page.getByLabel('金額').fill('10000');
+		await page.getByLabel('金額', { exact: true }).fill('10000');
 
 		const resultArea = page.getByTestId('tax-result');
 		await expect(resultArea).toContainText('1,000円');
@@ -57,7 +57,7 @@ test.describe('消費税・税込計算ツール', () => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
 
-		await page.getByLabel('金額').fill('101');
+		await page.getByLabel('金額', { exact: true }).fill('101');
 
 		const resultArea = page.getByTestId('tax-result');
 		// デフォルトは切り捨てなので税額は10円
@@ -78,7 +78,7 @@ test.describe('消費税・税込計算ツール', () => {
 		await toolPage.goto();
 
 		await page.getByRole('tab', { name: '税込 → 税抜' }).click();
-		await page.getByLabel('金額').fill('11000');
+		await page.getByLabel('金額', { exact: true }).fill('11000');
 
 		const resultArea = page.getByTestId('tax-result');
 		await expect(resultArea).toContainText('10,000円');
@@ -93,7 +93,7 @@ test.describe('消費税・税込計算ツール', () => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
 
-		await page.getByLabel('金額').fill('１０，０００');
+		await page.getByLabel('金額', { exact: true }).fill('１０，０００');
 
 		const resultArea = page.getByTestId('tax-result');
 		await expect(resultArea).toContainText('11,000円');
@@ -106,7 +106,7 @@ test.describe('消費税・税込計算ツール', () => {
 		const toolPage = createToolPage('tax');
 		await toolPage.goto();
 
-		const amountInput = page.getByLabel('金額');
+		const amountInput = page.getByLabel('金額', { exact: true });
 
 		await amountInput.fill('-100');
 		await expect(page.getByTestId('tax-error')).toContainText('0以上');
@@ -151,12 +151,12 @@ test.describe('消費税・税込計算ツール', () => {
 		await toolPage.goto();
 
 		await page.setViewportSize({ width: 375, height: 667 });
-		await expect(page.getByLabel('金額')).toBeVisible();
-		await page.getByLabel('金額').fill('10000');
+		await expect(page.getByLabel('金額', { exact: true })).toBeVisible();
+		await page.getByLabel('金額', { exact: true }).fill('10000');
 		await expect(page.getByTestId('tax-result')).toBeVisible();
 
 		await page.setViewportSize({ width: 1440, height: 900 });
-		await expect(page.getByLabel('金額')).toBeVisible();
+		await expect(page.getByLabel('金額', { exact: true })).toBeVisible();
 		await expect(page.getByTestId('tax-result')).toBeVisible();
 	});
 });

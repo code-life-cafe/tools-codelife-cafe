@@ -33,6 +33,9 @@ type MaskToolbarProps = {
 	onReset: () => void;
 	/** 選択中の領域を編集している場合 true（ラベル表示に使用） */
 	editingRegion: boolean;
+	/** モード・形のタブが切り替えるキャンバスに `tabsSharedPanelProps` を付ける側と同じ値 */
+	modePanelIdBase: string;
+	shapePanelIdBase: string;
 };
 
 export function MaskToolbar({
@@ -52,6 +55,8 @@ export function MaskToolbar({
 	onRedo,
 	onReset,
 	editingRegion,
+	modePanelIdBase,
+	shapePanelIdBase,
 }: MaskToolbarProps) {
 	const isMaskMode = mode === 'mosaic' || mode === 'blur';
 	const range = mode === 'mosaic' ? MOSAIC_BLOCK : BLUR_RADIUS;
@@ -62,6 +67,8 @@ export function MaskToolbar({
 			<Tabs
 				value={mode}
 				onValueChange={(value) => onModeChange(value as MaskMode)}
+				panelIdBase={modePanelIdBase}
+				sharedPanel
 			>
 				<TabsList>
 					<TabsTrigger value="mosaic">モザイク</TabsTrigger>
@@ -74,6 +81,8 @@ export function MaskToolbar({
 				<Tabs
 					value={shape}
 					onValueChange={(value) => onShapeChange(value as MaskShape)}
+					panelIdBase={shapePanelIdBase}
+					sharedPanel
 				>
 					<TabsList>
 						<TabsTrigger value="rect">四角形</TabsTrigger>

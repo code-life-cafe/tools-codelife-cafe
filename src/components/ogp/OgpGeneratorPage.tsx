@@ -11,7 +11,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
@@ -133,6 +138,7 @@ export function OgpGeneratorPage() {
 
 	// テンプレート・背景
 	const [template, setTemplate] = useState<OgpTemplate>('simple');
+	const templateTabsId = useId();
 	const [bgType, setBgType] = useState<'solid' | 'gradient'>('solid');
 	const [bgColor, setBgColor] = useState('#1e3a5f');
 	const [gradFrom, setGradFrom] = useState('#1e3a5f');
@@ -305,6 +311,8 @@ export function OgpGeneratorPage() {
 					<Tabs
 						value={template}
 						onValueChange={(v) => setTemplate(v as OgpTemplate)}
+						panelIdBase={templateTabsId}
+						sharedPanel
 					>
 						<TabsList className="w-full">
 							{TEMPLATES.map((t) => (
@@ -493,7 +501,10 @@ export function OgpGeneratorPage() {
 
 			{/* Preview + Download */}
 			<div className="space-y-4">
-				<div className="overflow-hidden rounded-xl border border-border">
+				<div
+					{...tabsSharedPanelProps(templateTabsId, template)}
+					className="overflow-hidden rounded-xl border border-border"
+				>
 					<canvas
 						ref={previewRef}
 						data-testid="ogp-preview"

@@ -66,7 +66,7 @@ async function fillSensitiveInput(page: Page, slug: string, secret: string) {
 			await page.locator('textarea').first().fill(secret);
 			break;
 		case 'tax':
-			await page.getByLabel('金額').fill(secret);
+			await page.getByLabel('金額', { exact: true }).fill(secret);
 			break;
 		case 'image-compress':
 			// 画像ファイルを選択しないと共有ボタンが表示されないため、ダミー画像をアップロードする

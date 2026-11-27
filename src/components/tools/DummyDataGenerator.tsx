@@ -6,7 +6,7 @@ import {
 	Loader2,
 	RefreshCw,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +20,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -59,6 +64,7 @@ export default function DummyDataGenerator() {
 	);
 	const [count, setCount] = useState<number>(10);
 	const [format, setFormat] = useState<ExportFormat>('json');
+	const formatTabsId = useId();
 
 	const [refreshKey, setRefreshKey] = useState(0);
 
@@ -278,6 +284,8 @@ export default function DummyDataGenerator() {
 								<Tabs
 									value={format}
 									onValueChange={(v) => setFormat(v as ExportFormat)}
+									panelIdBase={formatTabsId}
+									sharedPanel
 								>
 									<TabsList className="grid w-full grid-cols-3">
 										<TabsTrigger value="json">JSON</TabsTrigger>
@@ -332,7 +340,10 @@ export default function DummyDataGenerator() {
 						</div>
 					</div>
 
-					<div className="flex-1 rounded-xl border border-input shadow-sm bg-card overflow-hidden flex flex-col min-h-[500px] relative">
+					<div
+						{...tabsSharedPanelProps(formatTabsId, format)}
+						className="flex-1 rounded-xl border border-input shadow-sm bg-card overflow-hidden flex flex-col min-h-[500px] relative"
+					>
 						{isGenerating && (
 							<div className="absolute inset-0 z-10 bg-background/50 backdrop-blur-[1px] flex flex-col items-center justify-center">
 								<Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />

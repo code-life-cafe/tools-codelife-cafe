@@ -1,5 +1,5 @@
 import { ArrowLeftRight, Calendar } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +22,12 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
 	buildConversionTable,
@@ -107,6 +112,7 @@ export default function WarekiConverter() {
 	const referenceDate = useMemo(() => new Date(), []);
 
 	const [direction, setDirection] = useState<Direction>('toWareki');
+	const rangeTabsId = useId();
 	const [rangeYears, setRangeYears] = useState<TableRangeYears>(
 		DEFAULT_TABLE_RANGE_YEARS,
 	);
@@ -283,6 +289,8 @@ export default function WarekiConverter() {
 				<Tabs
 					value={String(rangeYears)}
 					onValueChange={(v) => setRangeYears(Number(v) as TableRangeYears)}
+					panelIdBase={rangeTabsId}
+					sharedPanel
 				>
 					<TabsList>
 						{TABLE_RANGE_YEAR_OPTIONS.map((option) => (
@@ -295,7 +303,10 @@ export default function WarekiConverter() {
 			</div>
 
 			{/* Result */}
-			<Card className="rounded-xl overflow-hidden border-2">
+			<Card
+				{...tabsSharedPanelProps(rangeTabsId, String(rangeYears))}
+				className="rounded-xl overflow-hidden border-2"
+			>
 				<div className="bg-muted/50 p-4 border-b flex justify-between items-center gap-2 flex-wrap">
 					<div className="flex items-center gap-2 text-foreground font-medium">
 						<Calendar className="h-4 w-4 text-primary" />
