@@ -1,5 +1,5 @@
 import { ChevronDown, Info, Plus, Share2, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +26,12 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import { useToolSettings } from '@/lib/hooks/useToolSettings';
 import {
@@ -237,6 +242,8 @@ export function TaxCalcPage() {
 	}, []);
 
 	const showError = rawAmount.trim() !== '' && !validation.ok;
+	const modeTabsId = useId();
+	const directionTabsId = useId();
 
 	return (
 		<div className="space-y-6">
@@ -245,6 +252,8 @@ export function TaxCalcPage() {
 					value={mode}
 					onValueChange={(value) => updateSettings({ mode: value as CalcMode })}
 					className="flex-1"
+					panelIdBase={modeTabsId}
+					sharedPanel
 				>
 					<TabsList className="w-full grid grid-cols-2">
 						<TabsTrigger value="single">単一金額</TabsTrigger>
@@ -268,45 +277,55 @@ export function TaxCalcPage() {
 				</Button>
 			</div>
 
-			{/* 方向切替 */}
-			<Tabs
-				value={direction}
-				onValueChange={(value) =>
-					updateSettings({ direction: value as Direction })
-				}
-			>
-				<TabsList className="w-full grid grid-cols-2">
-					<TabsTrigger value="exclusive-to-inclusive">税抜 → 税込</TabsTrigger>
-					<TabsTrigger value="inclusive-to-exclusive">税込 → 税抜</TabsTrigger>
-				</TabsList>
-			</Tabs>
+			<div {...tabsSharedPanelProps(modeTabsId, mode)} className="space-y-6">
+				{/* 方向切替 */}
+				<Tabs
+					value={direction}
+					onValueChange={(value) =>
+						updateSettings({ direction: value as Direction })
+					}
+					panelIdBase={directionTabsId}
+					sharedPanel
+				>
+					<TabsList className="w-full grid grid-cols-2">
+						<TabsTrigger value="exclusive-to-inclusive">
+							税抜 → 税込
+						</TabsTrigger>
+						<TabsTrigger value="inclusive-to-exclusive">
+							税込 → 税抜
+						</TabsTrigger>
+					</TabsList>
+				</Tabs>
 
-			{mode === 'single' ? (
-				<SingleAmountPanel
-					direction={direction}
-					rawAmount={rawAmount}
-					rateSelection={rateSelection}
-					rounding={rounding}
-					result={result}
-					showError={showError}
-					errorMessage={!validation.ok ? validation.message : ''}
-					onAmountChange={handleAmountChange}
-					onRateChange={(v) => updateSettings({ rateSelection: v })}
-					onRoundingChange={(v) => updateSettings({ rounding: v })}
-				/>
-			) : (
-				<InvoicePanel
-					direction={direction}
-					lines={invoiceLines}
-					rounding={rounding}
-					result={invoiceResult}
-					errors={invoiceValidation.errors}
-					onLineChange={updateInvoiceLine}
-					onAddLine={addInvoiceLine}
-					onRemoveLine={removeInvoiceLine}
-					onRoundingChange={(v) => updateSettings({ rounding: v })}
-				/>
-			)}
+				<div {...tabsSharedPanelProps(directionTabsId, direction)}>
+					{mode === 'single' ? (
+						<SingleAmountPanel
+							direction={direction}
+							rawAmount={rawAmount}
+							rateSelection={rateSelection}
+							rounding={rounding}
+							result={result}
+							showError={showError}
+							errorMessage={!validation.ok ? validation.message : ''}
+							onAmountChange={handleAmountChange}
+							onRateChange={(v) => updateSettings({ rateSelection: v })}
+							onRoundingChange={(v) => updateSettings({ rounding: v })}
+						/>
+					) : (
+						<InvoicePanel
+							direction={direction}
+							lines={invoiceLines}
+							rounding={rounding}
+							result={invoiceResult}
+							errors={invoiceValidation.errors}
+							onLineChange={updateInvoiceLine}
+							onAddLine={addInvoiceLine}
+							onRemoveLine={removeInvoiceLine}
+							onRoundingChange={(v) => updateSettings({ rounding: v })}
+						/>
+					)}
+				</div>
+			</div>
 
 			{/* 税率履歴テーブル */}
 			<Collapsible>

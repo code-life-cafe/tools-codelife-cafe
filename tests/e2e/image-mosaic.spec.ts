@@ -7,6 +7,7 @@ import {
 	getCanvasPixel,
 	imagePointToPage,
 } from './helpers/canvas';
+import { findTabPanelProblems } from './helpers/tab-panels';
 
 const FIXTURE = path.join(
 	process.cwd(),
@@ -117,6 +118,38 @@ test.describe('画像モザイク・ぼかし', () => {
 			WHITE,
 		);
 		expect(await getCanvasPixel(page, 'editor-canvas', 150, 160)).toEqual(RED);
+	});
+
+	// モード・形のタブはキャンバスをパネルとして指す（#747、axe aria-valid-attr-value）
+	test('モード・形のタブがキャンバスのパネルを指し、矢印キーで切り替えられる', async ({
+		page,
+	}) => {
+		await uploadSample(page);
+		expect(await findTabPanelProblems(page)).toEqual([]);
+
+		await page.getByRole('tab', { name: '四角形' }).focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(page.getByRole('tab', { name: '円形' })).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+		expect(await findTabPanelProblems(page)).toEqual([]);
+
+		await page.getByRole('tab', { name: 'モザイク', exact: true }).focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(
+			page.getByRole('tab', { name: 'ぼかし', exact: true }),
+		).toHaveAttribute('aria-selected', 'true');
+		expect(await findTabPanelProblems(page)).toEqual([]);
+		// 絵文字モードでは形のタブがなくなり、キャンバスはモードのパネルだけになる
+		await page.getByRole('tab', { name: '絵文字' }).click();
+		await expect(page.getByRole('tab', { name: '円形' })).toHaveCount(0);
+		expect(await findTabPanelProblems(page)).toEqual([]);
+		await expect(
+			page
+				.getByRole('tabpanel', { name: '絵文字' })
+				.getByTestId('editor-canvas'),
+		).toBeVisible();
 	});
 
 	test('ぼかしモードに切り替えて適用できる', async ({ page }) => {

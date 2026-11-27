@@ -4,10 +4,18 @@
 // プレビューと出力（ZIP内アセット）は同一の generateFavicons から生成する（Preview=Export）。
 
 import { Loader2, Package, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { FileDropzone } from '@/components/common/FileDropzone';
 import { Button } from '@/components/ui/button';
+import { tabsSharedPanelProps } from '@/components/ui/tabs';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -46,6 +54,7 @@ export function FaviconGeneratorPage() {
 	const { trackRun } = useToolAnalytics('favicon');
 	const [source, setSource] = useState<RasterSource | null>(null);
 	const [fileName, setFileName] = useState<string | null>(null);
+	const fitTabsId = useId();
 	const [options, setOptions] = useState<FaviconUiOptions>(
 		DEFAULT_FAVICON_OPTIONS,
 	);
@@ -211,14 +220,20 @@ export function FaviconGeneratorPage() {
 
 			{source && (
 				<>
-					<FaviconOptionsPanel options={options} onChange={setOptions} />
-
-					<FaviconPreview
-						urls={previewUrls}
-						appName={options.appName}
-						themeColor={options.themeColor}
-						transparent={options.transparent}
+					<FaviconOptionsPanel
+						options={options}
+						onChange={setOptions}
+						fitPanelIdBase={fitTabsId}
 					/>
+
+					<div {...tabsSharedPanelProps(fitTabsId, options.fit)}>
+						<FaviconPreview
+							urls={previewUrls}
+							appName={options.appName}
+							themeColor={options.themeColor}
+							transparent={options.transparent}
+						/>
+					</div>
 
 					<div className="flex flex-wrap items-center gap-2">
 						<Button

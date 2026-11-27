@@ -33,9 +33,15 @@ export const DEFAULT_FAVICON_OPTIONS: FaviconUiOptions = {
 type Props = {
 	options: FaviconUiOptions;
 	onChange: (next: FaviconUiOptions) => void;
+	/** 収め方のタブが切り替えるプレビューに `tabsSharedPanelProps(fitPanelIdBase, fit)` を付ける側と同じ値 */
+	fitPanelIdBase: string;
 };
 
-export function FaviconOptionsPanel({ options, onChange }: Props) {
+export function FaviconOptionsPanel({
+	options,
+	onChange,
+	fitPanelIdBase,
+}: Props) {
 	const update = (patch: Partial<FaviconUiOptions>) =>
 		onChange({ ...options, ...patch });
 
@@ -47,6 +53,8 @@ export function FaviconOptionsPanel({ options, onChange }: Props) {
 				<Tabs
 					value={options.fit}
 					onValueChange={(value) => update({ fit: value as FitMode })}
+					panelIdBase={fitPanelIdBase}
+					sharedPanel
 				>
 					<TabsList>
 						<TabsTrigger value="contain">余白をつける</TabsTrigger>

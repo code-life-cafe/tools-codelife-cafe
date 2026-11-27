@@ -1,6 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import {
 	type CipherAlgorithm,
 	type CipherDirection,
@@ -108,6 +113,8 @@ export function CipherPage() {
 		}
 	}, [input, output, trackRunDebounced]);
 
+	const tabsId = useId();
+
 	return (
 		<div className="space-y-6">
 			<p className="text-sm text-muted-foreground">
@@ -118,6 +125,8 @@ export function CipherPage() {
 				value={activeTab}
 				onValueChange={handleTabChange}
 				className="w-full"
+				panelIdBase={tabsId}
+				sharedPanel
 			>
 				<div className="overflow-x-auto pb-2">
 					<TabsList className="w-full justify-start md:w-auto h-12">
@@ -136,95 +145,100 @@ export function CipherPage() {
 					</TabsList>
 				</div>
 
-				{activeTab === 'caesar' && (
-					<div className="my-4 p-4 border rounded-md">
-						<div className="mb-4 space-y-2">
-							<Button
-								type="button"
-								variant="outline"
-								className="h-auto whitespace-normal"
-								onClick={() => {
-									setInput('こんにちは');
-									setCaesarShift(3);
-									setCaesarDirection('encode');
-								}}
-							>
-								ひらがなの例文を試す（こんにちは・シフト3）
-							</Button>
-							<p className="text-sm text-muted-foreground">
-								かな46文字を循環します。濁音・半濁音は基字をずらし、濁点・半濁点を残して可能なら再結合します。小書きかな・長音・漢字などはシフトしません。
-							</p>
-						</div>
-						<div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
-							<DirectionToggle
-								direction={caesarDirection}
-								onChange={setCaesarDirection}
-							/>
-							<div className="flex-1 max-w-sm">
-								<ShiftSlider
-									shift={caesarShift}
-									maxShift={getMaxShift(input)}
-									onChange={setCaesarShift}
+				<div
+					{...tabsSharedPanelProps(tabsId, activeTab)}
+					className="flex flex-col gap-2"
+				>
+					{activeTab === 'caesar' && (
+						<div className="my-4 p-4 border rounded-md">
+							<div className="mb-4 space-y-2">
+								<Button
+									type="button"
+									variant="outline"
+									className="h-auto whitespace-normal"
+									onClick={() => {
+										setInput('こんにちは');
+										setCaesarShift(3);
+										setCaesarDirection('encode');
+									}}
+								>
+									ひらがなの例文を試す（こんにちは・シフト3）
+								</Button>
+								<p className="text-sm text-muted-foreground">
+									かな46文字を循環します。濁音・半濁音は基字をずらし、濁点・半濁点を残して可能なら再結合します。小書きかな・長音・漢字などはシフトしません。
+								</p>
+							</div>
+							<div className="flex flex-col md:flex-row md:items-center gap-6 justify-between">
+								<DirectionToggle
+									direction={caesarDirection}
+									onChange={setCaesarDirection}
 								/>
+								<div className="flex-1 max-w-sm">
+									<ShiftSlider
+										shift={caesarShift}
+										maxShift={getMaxShift(input)}
+										onChange={setCaesarShift}
+									/>
+								</div>
 							</div>
 						</div>
-					</div>
-				)}
+					)}
 
-				{/* We'll also need a direction toggle for Morse */}
-				{activeTab === 'morse' && (
-					<div className="my-4">
-						<div className="flex bg-muted p-1 rounded-md w-fit">
-							<button
-								type="button"
-								className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'encode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
-								onClick={() => setMorseDirection('encode')}
-							>
-								エンコード（符号化）
-							</button>
-							<button
-								type="button"
-								className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'decode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
-								onClick={() => setMorseDirection('decode')}
-							>
-								デコード（文字に戻す）
-							</button>
+					{/* We'll also need a direction toggle for Morse */}
+					{activeTab === 'morse' && (
+						<div className="my-4">
+							<div className="flex bg-muted p-1 rounded-md w-fit">
+								<button
+									type="button"
+									className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'encode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
+									onClick={() => setMorseDirection('encode')}
+								>
+									エンコード（符号化）
+								</button>
+								<button
+									type="button"
+									className={`px-4 py-1.5 rounded-sm text-sm font-medium transition-colors ${morseDirection === 'decode' ? 'bg-background shadow-sm' : 'hover:bg-muted-foreground/10'}`}
+									onClick={() => setMorseDirection('decode')}
+								>
+									デコード（文字に戻す）
+								</button>
+							</div>
 						</div>
-					</div>
-				)}
+					)}
 
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-					<InputPanel
-						algorithm={activeTab}
-						value={input}
-						onChange={setInput}
-						onClear={() => setInput('')}
-					/>
-					<OutputPanel value={output} />
-				</div>
-
-				{notice && (
-					<p
-						role="status"
-						data-testid="morse-notice"
-						className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
-					>
-						{notice}
-					</p>
-				)}
-
-				{activeTab === 'caesar' && (
-					<div className="mt-4">
-						<BruteForcePanel
-							input={input}
-							currentShift={caesarShift}
-							onSelectShift={(shift) => {
-								setCaesarShift(shift);
-								setCaesarDirection('decode');
-							}}
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+						<InputPanel
+							algorithm={activeTab}
+							value={input}
+							onChange={setInput}
+							onClear={() => setInput('')}
 						/>
+						<OutputPanel value={output} />
 					</div>
-				)}
+
+					{notice && (
+						<p
+							role="status"
+							data-testid="morse-notice"
+							className="mt-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+						>
+							{notice}
+						</p>
+					)}
+
+					{activeTab === 'caesar' && (
+						<div className="mt-4">
+							<BruteForcePanel
+								input={input}
+								currentShift={caesarShift}
+								onSelectShift={(shift) => {
+									setCaesarShift(shift);
+									setCaesarDirection('decode');
+								}}
+							/>
+						</div>
+					)}
+				</div>
 			</Tabs>
 
 			<AlgorithmInfo algorithm={activeTab} />

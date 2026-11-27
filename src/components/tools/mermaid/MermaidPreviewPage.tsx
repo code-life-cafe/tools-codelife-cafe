@@ -36,7 +36,12 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsPanelProps,
+} from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
@@ -179,6 +184,8 @@ export function MermaidPreviewPage() {
 	const [isPanning, setIsPanning] = useState<boolean>(false);
 	const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 	const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
+	const mobileTabsId = useId();
+	const previewPanel = tabsPanelProps(mobileTabsId, 'preview');
 	const [showChangesDetail, setShowChangesDetail] = useState<boolean>(false);
 	const [isRendering, setIsRendering] = useState<boolean>(false);
 
@@ -701,6 +708,7 @@ export function MermaidPreviewPage() {
 				<Tabs
 					value={mobileTab}
 					onValueChange={(val) => setMobileTab(val as 'editor' | 'preview')}
+					panelIdBase={mobileTabsId}
 				>
 					<TabsList className="grid w-full grid-cols-2">
 						<TabsTrigger value="editor" className="gap-1.5 text-xs">
@@ -719,6 +727,7 @@ export function MermaidPreviewPage() {
 			<div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-[2fr_3fr]">
 				{/* エディタ列 */}
 				<div
+					{...tabsPanelProps(mobileTabsId, 'editor')}
 					className={cn(
 						'flex flex-col gap-2 rounded-lg border bg-card p-3 shadow-xs',
 						mobileTab === 'preview' && 'hidden md:flex',
@@ -761,7 +770,12 @@ export function MermaidPreviewPage() {
 				<div
 					ref={previewColumnRef}
 					tabIndex={-1}
-					role={isFullscreen ? 'dialog' : undefined}
+					id={previewPanel.id}
+					// 通常時はモバイル用タブのパネル、全画面中はダイアログ（名前は aria-label）
+					role={isFullscreen ? 'dialog' : previewPanel.role}
+					aria-labelledby={
+						isFullscreen ? undefined : previewPanel['aria-labelledby']
+					}
 					aria-modal={isFullscreen ? true : undefined}
 					aria-label={
 						isFullscreen ? 'Mermaidダイアグラムの全画面プレビュー' : undefined

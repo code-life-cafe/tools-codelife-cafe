@@ -1,8 +1,13 @@
 import { Download, Eye, FileCode, Sparkles, Trash2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsPanelProps,
+} from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { downloadBlob } from '@/lib/download';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
@@ -59,6 +64,7 @@ export function MarkdownPreviewPage() {
 	const [html, setHtml] = useState('');
 	const [error, setError] = useState<string | null>(null);
 	const [mobileTab, setMobileTab] = useState<'editor' | 'preview'>('editor');
+	const mobileTabsId = useId();
 
 	useEffect(() => {
 		if (!input) {
@@ -163,6 +169,7 @@ export function MarkdownPreviewPage() {
 				value={mobileTab}
 				onValueChange={(value) => setMobileTab(value as 'editor' | 'preview')}
 				className="md:hidden"
+				panelIdBase={mobileTabsId}
 			>
 				<TabsList className="w-full grid grid-cols-2">
 					<TabsTrigger value="editor" className="gap-1.5">
@@ -179,6 +186,7 @@ export function MarkdownPreviewPage() {
 			{/* デスクトップは左右分割、モバイルはタブ選択中のペインのみ表示 */}
 			<div className="grid gap-4 md:grid-cols-2">
 				<div
+					{...tabsPanelProps(mobileTabsId, 'editor')}
 					className={cn(
 						'space-y-2',
 						mobileTab !== 'editor' && 'hidden md:block',
@@ -190,6 +198,7 @@ export function MarkdownPreviewPage() {
 					<MarkdownEditor value={input} onChange={setInput} />
 				</div>
 				<div
+					{...tabsPanelProps(mobileTabsId, 'preview')}
 					className={cn(
 						'space-y-2',
 						mobileTab !== 'preview' && 'hidden md:block',

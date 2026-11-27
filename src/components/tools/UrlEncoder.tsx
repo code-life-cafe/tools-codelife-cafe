@@ -1,10 +1,15 @@
 import { ArrowLeftRight, ArrowUpDown, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import CopyButton from '@/components/common/CopyButton';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Tabs,
+	TabsList,
+	TabsTrigger,
+	tabsSharedPanelProps,
+} from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToolAnalytics } from '@/lib/hooks/useToolAnalytics';
 import {
@@ -18,6 +23,7 @@ import { urlEncoderTool } from '@/lib/webmcp/tools/url-encoder.webmcp';
 export default function UrlEncoder() {
 	const { trackRunDebounced } = useToolAnalytics('url-encoder');
 	const [mode, setMode] = useState<UrlEncodeMode>('component');
+	const modeTabsId = useId();
 	const [direction, setDirection] = useState<'encode' | 'decode'>('decode');
 	const [textInput, setTextInput] = useState('');
 
@@ -65,6 +71,8 @@ export default function UrlEncoder() {
 					className="w-full sm:w-auto"
 					value={mode}
 					onValueChange={(val) => setMode(val as UrlEncodeMode)}
+					panelIdBase={modeTabsId}
+					sharedPanel
 				>
 					<div className="flex justify-center sm:justify-start">
 						<TabsList className="bg-muted/50 p-1 rounded-xl grid grid-cols-2 w-full sm:inline-flex sm:w-fit group-data-[orientation=horizontal]/tabs:h-auto sm:group-data-[orientation=horizontal]/tabs:h-9">
@@ -102,7 +110,10 @@ export default function UrlEncoder() {
 				</div>
 			</div>
 
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch relative">
+			<div
+				{...tabsSharedPanelProps(modeTabsId, mode)}
+				className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch relative"
+			>
 				{/* Input Pane */}
 				<div className="flex flex-col h-full">
 					<div className="flex justify-between items-center mb-2 min-h-9">
